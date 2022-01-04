@@ -23,7 +23,7 @@ h6 {
 p {
   margin-block: 0;
   margin-inline: 0;
-  line-height: calc(var(--font-base) * 1.5);
+  line-height: 150%;
 }
 
 a:visited {
