@@ -1,14 +1,16 @@
 :root {
-  --blue-color: #0000ff;
-  --gray-color: #5c5c5c;
+  --black-text-color: #000000;
   --font-base: 16px;
 }
 body {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
   margin: 0;
   padding: 64px 128px;
   font-family: "Inter", sans-serif;
   font-size: var(--font-base);
-  max-width: 512px;
+  color: var(--black-text-color);
 }
 
 h1,
@@ -18,6 +20,7 @@ h4,
 h5,
 h6 {
   margin: 0;
+  line-height: 122%;
 }
 
 p {
@@ -26,8 +29,13 @@ p {
   line-height: 150%;
 }
 
+a,
 a:visited {
-  color: var(--blue-color);
+  color: var(--black-text-color);
+}
+
+.h1-size {
+  font-size: 36px;
 }
 
 h1 {
@@ -44,29 +52,74 @@ h2 {
   font-weight: 500;
 }
 
-.blue {
-  color: var(--blue-color);
+.bold {
+  font-weight: 700;
 }
 
-.gray {
-  color: var(--gray-color);
+.divider {
+  height: 1.5px;
+  background-color: var(--black-text-color);
 }
 
-.mb-8 {
-  margin-bottom: 8px;
+.space-y-8 > * + * {
+  margin-top: 8px;
 }
 
-.mb-24 {
-  margin-bottom: 24px;
+.space-y-24 > * + * {
+  margin-top: 24px;
 }
 
-.mb-48 {
-  margin-bottom: 48px;
+.space-y-36 > * + * {
+  margin-top: 36px;
 }
 
-@media screen and (max-width: 768px) {
+.block {
+  display: block;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.a-right {
+  text-align: right;
+}
+
+.container {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.cv-container {
+  max-width: 600px;
+  margin-right: 128px;
+}
+
+.nav {
+  position: sticky;
+  top: 64px;
+}
+
+@media screen and (max-width: 974px) {
   body {
     padding: 32px 16px;
     max-width: 100%;
+  }
+  .cv-container {
+    margin-right: 32px;
+  }
+}
+
+@media screen and (max-width: 740px) {
+  .nav > * {
+    writing-mode: vertical-lr;
+    text-orientation: sideways;
+    font-size: 24px;
+    text-decoration: none;
+  }
+
+  .cv-container {
+    margin-right: 16px;
   }
 }
