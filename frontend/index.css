@@ -65,6 +65,10 @@ h2 {
   margin-top: 8px;
 }
 
+.space-y-16 > * + * {
+  margin-top: 16px;
+}
+
 .space-y-24 > * + * {
   margin-top: 24px;
 }
@@ -122,7 +126,18 @@ h2 {
     text-decoration: none;
   }
 
+  .nav > * + * {
+    margin-top: 32px;
+  }
+
+  .nav {
+    /* height: 100vh; */
+    padding-left: 16px;
+    border-left: 1.5px solid var(--black-text-color);
+    bottom: 32px;
+  }
+
   .cv-container {
-    margin-right: 16px;
+    margin-right: 0;
   }
 }
