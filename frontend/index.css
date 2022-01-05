@@ -130,14 +130,7 @@ h2 {
     margin-top: 32px;
   }
 
-  .nav {
-    /* height: 100vh; */
-    padding-left: 16px;
-    border-left: 1.5px solid var(--black-text-color);
-    bottom: 32px;
-  }
-
   .cv-container {
-    margin-right: 0;
+    margin-right: 16px;
   }
 }
