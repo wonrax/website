@@ -35,7 +35,7 @@ a:visited {
 }
 
 .h1-size {
-  font-size: 36px;
+  font-size: 24px;
 }
 
 h1 {
@@ -107,7 +107,10 @@ h2 {
     max-width: 100%;
   }
   .cv-container {
-    margin-right: 32px;
+    margin-right: 64px;
+  }
+  .nav {
+    top: 32px;
   }
 }
 
