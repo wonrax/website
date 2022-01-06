@@ -29,12 +29,17 @@ function webhook(req: Request, res: Response) {
 
   const data: TextMessageUpdate = req.body;
   const responseURL = `${telegramPrefix}/sendMessage`;
-  axios.get(responseURL, {
-    params: {
-      chat_id: data.message.chat.id,
-      text: "Got it babe!",
-    },
-  });
+  const tiktokRegex =
+    /tiktok\.com\/@.+\/video\/.+?(\/|$)|vt\.tiktok\.com\/.+?(\/|$)/g;
+  const tiktokUrlMatch = data.message.text.match(tiktokRegex);
+  if (tiktokUrlMatch) {
+    axios.get(responseURL, {
+      params: {
+        chat_id: data.message.chat.id,
+        text: tiktokUrlMatch[0],
+      },
+    });
+  }
 }
 
 const telegram = { webhook };
