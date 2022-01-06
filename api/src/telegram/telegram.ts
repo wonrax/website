@@ -28,18 +28,25 @@ function webhook(req: Request, res: Response) {
   res.send("success");
 
   const data: TextMessageUpdate = req.body;
-  const responseURL = `${telegramPrefix}/sendMessage`;
+
   const tiktokRegex =
     /tiktok\.com\/@.+\/video\/.+?(\/|$)|vt\.tiktok\.com\/.+?(\/|$)/g;
+
   const tiktokUrlMatch = data.message.text.match(tiktokRegex);
+
   if (tiktokUrlMatch) {
-    axios.get(responseURL, {
-      params: {
-        chat_id: data.message.chat.id,
-        text: tiktokUrlMatch[0],
-      },
-    });
+    handleTiktokDownload(tiktokUrlMatch[0], data.message.chat.id);
   }
+}
+
+function handleTiktokDownload(url: string, chatId: number) {
+  const responseURL = `${telegramPrefix}/sendMessage`;
+  axios.get(responseURL, {
+    params: {
+      chat_id: chatId,
+      text: url,
+    },
+  });
 }
 
 const telegram = { webhook };
