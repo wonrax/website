@@ -1,6 +1,10 @@
 import { Request, Response } from "express";
-import { telegramPrefix } from "./utils";
-import axios from "axios";
+import axios, { AxiosRequestConfig } from "axios";
+import { sendTelegramText } from "./utils";
+import dotenv from "dotenv";
+import shorten from "./rebrandly";
+
+dotenv.config();
 
 interface TextMessageUpdate {
   update_id: number;
@@ -24,6 +28,52 @@ interface TextMessageUpdate {
   };
 }
 
+interface TikTokVideoInfo {
+  status: string;
+  detail: string;
+  item: {
+    id: string;
+    desc: string;
+    createTime: number;
+    aweme_id: string;
+    video: {
+      height: number;
+      width: number;
+      duration: number;
+      ratio: string;
+      cover: string;
+      originCover: string;
+      dynamicCover: string;
+      downloadAddr: [string];
+      playAddr: [string];
+    };
+    author: {
+      id: string;
+      uniqueId: string;
+      nickname: string;
+      avatarThumb: string;
+      avatarMedium: string;
+      avatarLarger: string;
+      signature: string;
+      secUid: string;
+    };
+    music: {
+      id: number;
+      title: string;
+      coverThumb: string;
+      coverMedium: string;
+      coverLarge: string;
+      authorName: string;
+    };
+    stats: {
+      commentCount: number;
+      diggCount: number;
+      playCount: number;
+      shareCount: number;
+    };
+  };
+}
+
 function webhook(req: Request, res: Response) {
   res.send("success");
 
@@ -35,18 +85,34 @@ function webhook(req: Request, res: Response) {
   const tiktokUrlMatch = data.message.text.match(tiktokRegex);
 
   if (tiktokUrlMatch) {
-    handleTiktokDownload(tiktokUrlMatch[0], data.message.chat.id);
+    handleTiktokDownload(`https://${tiktokUrlMatch[0]}`, data.message.chat.id);
   }
 }
 
-function handleTiktokDownload(url: string, chatId: number) {
-  const responseURL = `${telegramPrefix}/sendMessage`;
-  axios.get(responseURL, {
-    params: {
-      chat_id: chatId,
-      text: url,
+async function handleTiktokDownload(url: string, chatId: number) {
+  const options: AxiosRequestConfig = {
+    method: "GET",
+    url: "https://video-nwm.p.rapidapi.com/url/",
+    params: { url },
+    headers: {
+      "x-rapidapi-host": "video-nwm.p.rapidapi.com",
+      "x-rapidapi-key": process.env.RAPID_API_TOKEN,
     },
-  });
+  };
+
+  try {
+    const response = await axios(options);
+    const data: TikTokVideoInfo = response.data;
+    if (data.item.video.downloadAddr.length > 0) {
+      const shortenedUrl = await shorten(data.item.video.downloadAddr[0]);
+      const reply = `Video: ${data.item.desc}\nLink download: ${shortenedUrl}`;
+      sendTelegramText(chatId, reply);
+    } else {
+      throw new Error("Video not found");
+    }
+  } catch (error) {
+    sendTelegramText(chatId, "Can't download this video");
+  }
 }
 
 const telegram = { webhook };
