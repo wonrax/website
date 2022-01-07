@@ -80,7 +80,7 @@ function webhook(req: Request, res: Response) {
   const data: TextMessageUpdate = req.body;
 
   const tiktokRegex =
-    /tiktok\.com\/@.+\/video\/.+?(\/|$)|vt\.tiktok\.com\/.+?(\/|$)/g;
+    /tiktok\.com\/@.+\/video\/.+?(\/|$)|.+?\.tiktok\.com\/.+?(\/|$)/g;
 
   const tiktokUrlMatch = data.message.text.match(tiktokRegex);
 
