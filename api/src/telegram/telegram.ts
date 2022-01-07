@@ -28,92 +28,169 @@ interface TextMessageUpdate {
   };
 }
 
-interface TikTokVideoInfo {
-  status: string;
-  detail: string;
-  item: {
-    id: string;
-    desc: string;
-    createTime: number;
-    aweme_id: string;
-    video: {
-      height: number;
-      width: number;
-      duration: number;
-      ratio: string;
-      cover: string;
-      originCover: string;
-      dynamicCover: string;
-      downloadAddr: [string];
-      playAddr: [string];
-    };
-    author: {
-      id: string;
-      uniqueId: string;
-      nickname: string;
-      avatarThumb: string;
-      avatarMedium: string;
-      avatarLarger: string;
-      signature: string;
-      secUid: string;
-    };
-    music: {
-      id: number;
-      title: string;
-      coverThumb: string;
-      coverMedium: string;
-      coverLarge: string;
-      authorName: string;
-    };
-    stats: {
-      commentCount: number;
-      diggCount: number;
-      playCount: number;
-      shareCount: number;
-    };
-  };
-}
-
 function webhook(req: Request, res: Response) {
   res.send("success");
 
   const data: TextMessageUpdate = req.body;
+  handleIncomingMessage(data);
+}
+
+async function handleIncomingMessage(data: TextMessageUpdate) {
+  if (!data.message?.text) {
+    return;
+  }
 
   const tiktokRegex =
-    /tiktok\.com\/@.+\/video\/.+?(\/|$)|.+?\.tiktok\.com\/.+?(\/|$)/g;
+    /tiktok\.com\/@.+\/video\/\d+|[a-z]+\.tiktok\.com\/([A-Za-z]|\d)+(\/|$|\s)/g;
 
   const tiktokUrlMatch = data.message.text.match(tiktokRegex);
 
   if (tiktokUrlMatch) {
     handleTiktokDownload(`https://${tiktokUrlMatch[0]}`, data.message.chat.id);
   }
+
+  // twitter.com/AnnisNaeem/status/1478797191900631042?s=20
+  const twitterRegex = /twitter\.com\/.+\/status\/\d+/g;
+  const twitterUrlMatch = data.message.text.match(twitterRegex);
+
+  if (twitterUrlMatch) {
+    handleTweetDownload(`https://${twitterUrlMatch[0]}`, data.message.chat.id);
+  }
+}
+
+interface TikTokVideoInfo {
+  status: string;
+  data: {
+    desc: string;
+    video: {
+      download_addr: {
+        url_list: string[];
+      };
+      play_addr: {
+        url_list: string[];
+      };
+    };
+  };
 }
 
 async function handleTiktokDownload(url: string, chatId: number) {
+  sendTelegramText(chatId, "🏎️ Processing...\nThis may take up to 10 seconds.");
+
   const options: AxiosRequestConfig = {
     method: "GET",
-    url: "https://video-nwm.p.rapidapi.com/url/",
+    url: "https://tiktok-best-experience.p.rapidapi.com/",
     params: { url },
     headers: {
-      "x-rapidapi-host": "video-nwm.p.rapidapi.com",
+      "x-rapidapi-host": "tiktok-best-experience.p.rapidapi.com",
       "x-rapidapi-key": process.env.RAPID_API_TOKEN,
     },
+    timeout: 10000,
   };
 
   try {
     const response = await axios(options);
-    const data: TikTokVideoInfo = response.data;
-    if (data.item.video.downloadAddr.length > 0) {
-      const shortenedUrl = await shorten(data.item.video.downloadAddr[0]);
-      const reply = `Video: ${data.item.desc}\nLink download: ${shortenedUrl}`;
-      sendTelegramText(chatId, reply);
-    } else {
-      throw new Error("Video not found");
+    const resData: TikTokVideoInfo = response.data;
+
+    if (resData.status !== "ok") {
+      throw new Error("TikTok API returned an error");
     }
+
+    let shortenedWMUrl = null;
+    let shortenedNoWMUrl = null;
+
+    if (resData.data.video.download_addr.url_list.length > 0) {
+      shortenedWMUrl = await shorten(
+        resData.data.video.download_addr.url_list[0]
+      );
+    }
+    if (resData.data.video.play_addr.url_list.length > 0) {
+      shortenedNoWMUrl = await shorten(
+        resData.data.video.play_addr.url_list[0]
+      );
+    }
+    const reply =
+      `Video: ${resData.data.desc}\n\n` +
+      `No watermark video: ${shortenedNoWMUrl || "Couldn't find"}\n\n` +
+      `Watermark video: ${shortenedWMUrl || "Couldn't find"}`;
+
+    sendTelegramText(chatId, reply);
   } catch (error) {
+    if (axios.isAxiosError(error) && error.response) {
+      console.log(`Cannot get Tiktok URL ${url}`, error.response?.data);
+    }
     sendTelegramText(
       chatId,
       "Can't download this video. Possible server fault, please try again later."
+    );
+  }
+}
+
+interface TweetVideoInfo {
+  id: string;
+  url: {
+    url: string;
+    quality: string;
+  }[];
+  meta: {
+    title: string;
+  };
+  video_quality: [string];
+  thumb: string;
+}
+
+async function handleTweetDownload(url: string, chatId: number) {
+  sendTelegramText(chatId, "🏎️ Processing...\nThis may take up to 10 seconds.");
+
+  const options: AxiosRequestConfig = {
+    method: "POST",
+    url: "https://twitter65.p.rapidapi.com/api/twitter/links",
+    data: { url },
+    headers: {
+      "x-rapidapi-host": "twitter65.p.rapidapi.com",
+      "x-rapidapi-key": process.env.RAPID_API_TOKEN,
+    },
+    timeout: 10000,
+  };
+
+  try {
+    const response = await axios(options);
+    const resData: TweetVideoInfo = response.data;
+
+    if (!resData.id) {
+      throw new Error("No video found in tweet");
+    }
+
+    if (resData.url.length === 0) {
+      throw new Error("No video found in tweet");
+    }
+
+    let videoUrl = null;
+    let highestQuality = 0;
+    for (const urlObject of resData.url) {
+      const quality = parseInt(urlObject.quality, 10);
+      if (quality > highestQuality) {
+        highestQuality = quality;
+        videoUrl = urlObject.url;
+      }
+    }
+
+    if (videoUrl === null) {
+      throw new Error("No video found in tweet");
+    }
+
+    const shortenedUrl = await shorten(videoUrl);
+
+    const reply =
+      `Video: ${resData.meta.title}\n\n` + `Download link: ${shortenedUrl}`;
+
+    sendTelegramText(chatId, reply);
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response) {
+      console.log(`Cannot get Tweet video from ${url}`, error.response?.data);
+    }
+    sendTelegramText(
+      chatId,
+      "Can't download this video. The link could be incorrect (not a video tweet) or the server is down. Try again later."
     );
   }
 }

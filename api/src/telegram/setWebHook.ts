@@ -16,12 +16,16 @@ function setWebHook() {
       },
     })
     .then((response) => {
-      console.log("Telegram webhook set successfully. Response:");
-      console.log(response.data);
+      console.log(
+        "Telegram webhook set successfully. Response:",
+        response.data
+      );
     })
     .catch((error) => {
-      console.log("Can not set telegram webhook. Response:");
-      console.log(error?.response?.data);
+      console.log(
+        "Can not set telegram webhook. Response:",
+        error?.response?.data
+      );
     });
 }
 
