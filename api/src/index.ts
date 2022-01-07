@@ -1,10 +1,7 @@
 import express, { Router } from "express";
-import https from "https";
-import fs from "fs";
 import telegram from "./telegram/telegram";
 import dotenv from "dotenv";
 import setWebHook from "./telegram/setWebHook";
-import { Http2ServerRequest } from "http2";
 
 dotenv.config();
 
@@ -26,12 +23,8 @@ app.get("/", (req, res) => {
 
 app.use("/", routes);
 
-const options = {
-  key: fs.readFileSync(process.env.SSL_PRIVATE_KEY_PATH, "utf8"),
-  cert: fs.readFileSync(process.env.SSL_CERT_PATH, "utf8"),
-};
-
-https.createServer(options, app).listen(port, () => {
-  console.log(`server started at https://localhost:${port}`);
+// start the Express server
+app.listen(port, () => {
+  console.log(`server started at http://localhost:${port}`);
   setWebHook();
 });
