@@ -111,7 +111,10 @@ async function handleTiktokDownload(url: string, chatId: number) {
       throw new Error("Video not found");
     }
   } catch (error) {
-    sendTelegramText(chatId, "Can't download this video");
+    sendTelegramText(
+      chatId,
+      "Can't download this video. Possible server fault, please try again later."
+    );
   }
 }
 
