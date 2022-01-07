@@ -56,7 +56,6 @@ async function handleIncomingMessage(data: TextMessageUpdate) {
     handleTweetDownload(`https://${twitterUrlMatch[0]}`, data.message.chat.id);
   }
 
-  // https://www.reddit.com/r/okbuddyretard/comments/rxx60r/3_points_to_muggledorf/?utm_source=share&utm_medium=web2x&context=3
   const redditRegex = /reddit\.com\/r\/.+\/comments\/.+?($|\s|\n|\/)/g;
   const redditUrlMatch = data.message.text.match(redditRegex);
 
