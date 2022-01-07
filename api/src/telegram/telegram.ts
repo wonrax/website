@@ -41,7 +41,7 @@ async function handleIncomingMessage(data: TextMessageUpdate) {
   }
 
   const tiktokRegex =
-    /tiktok\.com\/@.+\/video\/\d+|[a-z]+\.tiktok\.com\/([A-Za-z]|\d)+(\/|$|\s)/g;
+    /tiktok\.com\/@.+\/video\/\d+|[a-z]+\.tiktok\.com\/([A-Za-z]|\d)+(\/|$|\s|\n)/g;
 
   const tiktokUrlMatch = data.message.text.match(tiktokRegex);
 
@@ -49,12 +49,19 @@ async function handleIncomingMessage(data: TextMessageUpdate) {
     handleTiktokDownload(`https://${tiktokUrlMatch[0]}`, data.message.chat.id);
   }
 
-  // twitter.com/AnnisNaeem/status/1478797191900631042?s=20
   const twitterRegex = /twitter\.com\/.+\/status\/\d+/g;
   const twitterUrlMatch = data.message.text.match(twitterRegex);
 
   if (twitterUrlMatch) {
     handleTweetDownload(`https://${twitterUrlMatch[0]}`, data.message.chat.id);
+  }
+
+  // https://www.reddit.com/r/okbuddyretard/comments/rxx60r/3_points_to_muggledorf/?utm_source=share&utm_medium=web2x&context=3
+  const redditRegex = /reddit\.com\/r\/.+\/comments\/.+?($|\s|\n|\/)/g;
+  const redditUrlMatch = data.message.text.match(redditRegex);
+
+  if (redditUrlMatch) {
+    handleRedditDownload(`https://${redditUrlMatch[0]}`, data.message.chat.id);
   }
 }
 
@@ -193,6 +200,10 @@ async function handleTweetDownload(url: string, chatId: number) {
       "Can't download this video. The link could be incorrect (not a video tweet) or the server is down. Try again later."
     );
   }
+}
+
+async function handleRedditDownload(url: string, chatId: number) {
+  sendTelegramText(chatId, `Download video: https://savemp4.red/?url=${url}`);
 }
 
 const telegram = { webhook };
