@@ -1,132 +1,26 @@
-:root {
-  --black-text-color: #000000;
-  --font-base: 16px;
-}
-body {
+.home-container {
   display: flex;
-  flex-direction: row;
-  justify-content: center;
-  margin: 0;
-  padding: 64px 128px;
-  font-family: "Inter", sans-serif;
-  font-size: var(--font-base);
-  color: var(--black-text-color);
+  flex-direction: column;
+  width: 600px;
 }
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  margin: 0;
-  line-height: 122%;
-}
-
-p {
-  margin-block: 0;
-  margin-inline: 0;
-  line-height: 150%;
-}
-
-a,
-a:visited {
-  color: var(--black-text-color);
-}
-
-h1 {
-  font-weight: 500;
-  font-size: 36px;
-}
-
-h2 {
-  font-weight: 500;
-  font-size: 24px;
-}
-
-.medium {
-  font-weight: 500;
-}
-
-.bold {
-  font-weight: 700;
-}
-
-.divider {
-  height: 1.5px;
-  background-color: var(--black-text-color);
-}
-
-.space-y-8 > * + * {
-  margin-top: 8px;
-}
-
-.space-y-16 > * + * {
-  margin-top: 16px;
-}
-
-.space-y-24 > * + * {
-  margin-top: 24px;
-}
-
-.space-y-36 > * + * {
-  margin-top: 36px;
-}
-
-.block {
+.link-block {
+  padding: 12px 24px;
+  width: 100%;
+  border: 1.5px solid var(--black-text-color);
+  box-sizing: border-box;
   display: block;
+  text-decoration: none;
+  font-weight: 500;
 }
 
-.nowrap {
-  white-space: nowrap;
-}
-
-.a-right {
-  text-align: right;
-}
-
-.container {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-}
-
-.cv-container {
-  max-width: 600px;
-  margin-right: 128px;
-}
-
-.nav {
-  position: sticky;
-  top: 64px;
+.link-block:hover {
+  background-color: var(--black-text-color);
+  color: var(--white-text-color);
 }
 
 @media screen and (max-width: 974px) {
-  body {
-    padding: 32px 16px;
-    max-width: 100%;
-  }
-  .cv-container {
-    margin-right: 64px;
-  }
-  .nav {
-    top: 32px;
-  }
-}
-
-@media screen and (max-width: 740px) {
-  .nav > * {
-    writing-mode: vertical-lr;
-    text-orientation: sideways;
-    font-size: 24px;
-    text-decoration: none;
-  }
-
-  .nav > * + * {
-    margin-top: 32px;
-  }
-
-  .cv-container {
-    margin-right: 16px;
+  .home-container {
+    width: 100%;
   }
 }

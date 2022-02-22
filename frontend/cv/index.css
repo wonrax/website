@@ -1,0 +1,35 @@
+.nav {
+  position: sticky;
+  top: 64px;
+}
+
+.cv-container {
+  max-width: 600px;
+  margin-right: 128px;
+}
+
+@media screen and (max-width: 974px) {
+  .cv-container {
+    margin-right: 64px;
+  }
+  .nav {
+    top: 32px;
+  }
+}
+
+@media screen and (max-width: 740px) {
+  .nav > * {
+    writing-mode: vertical-lr;
+    text-orientation: sideways;
+    font-size: 24px;
+    text-decoration: none;
+  }
+
+  .nav > * + * {
+    margin-top: 32px;
+  }
+
+  .cv-container {
+    margin-right: 16px;
+  }
+}
