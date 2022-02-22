@@ -34,10 +34,6 @@ a:visited {
   color: var(--black-text-color);
 }
 
-.h1-size {
-  font-size: 24px;
-}
-
 h1 {
   font-weight: 500;
   font-size: 36px;
