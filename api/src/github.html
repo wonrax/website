@@ -1,0 +1,45 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="300"
+  height="48"
+  Box="0 0 300 48"
+  fill="none"
+  role="img"
+  aria-labelledby="descId"
+>
+  <title id="titleId" />
+  <desc id="descId" />
+  <style>
+    .header {
+      font: 600 18px "Segoe UI", Ubuntu, Sans-Serif;
+      fill: #2f80ed;
+      animation: fadeInAnimation 0.8s ease-in-out forwards;
+    }
+    @supports (-moz-appearance: auto) {
+      /* Selector detects Firefox */
+      .header {
+        font-size: 15.5px;
+      }
+    }
+  </style>
+
+  <rect
+    data-testid="card-bg"
+    x="0.5"
+    y="0.5"
+    rx="4.5"
+    height="98%"
+    stroke="#e4e2e2"
+    width="299"
+    fill="#fffefe"
+    stroke-opacity="1"
+  />
+
+  <g data-testid="card-title" transform="translate(25, 30)">
+    <g transform="translate(0, 0)">
+      <text x="0" y="0" class="header" data-testid="header">
+        Views: {{views}}
+      </text>
+    </g>
+  </g>
+</svg>

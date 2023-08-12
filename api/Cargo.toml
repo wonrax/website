@@ -7,4 +7,6 @@ edition = "2021"
 
 [dependencies]
 axum = "0.6.20"
+handlebars = "4.3.7"
+serde_json = "1.0.104"
 tokio = { version = "1.30.0", features = ["full"] }
