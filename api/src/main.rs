@@ -7,8 +7,8 @@
 use axum::{response::Html, routing::get, Extension, Router};
 use handlebars::Handlebars;
 use serde_json::json;
-use sqlx::{postgres::PgPoolOptions, Error, PgPool, Postgres};
-use std::{net::SocketAddr, sync::Arc};
+use sqlx::{postgres::PgPoolOptions, PgPool};
+use std::net::SocketAddr;
 
 #[tokio::main]
 async fn main() {
