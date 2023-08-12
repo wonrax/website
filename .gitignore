@@ -34,3 +34,5 @@ yarn-error.log*
 
 # rust build
 target/
+
+.env

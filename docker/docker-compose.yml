@@ -1,0 +1,13 @@
+version: '3.1'
+
+services:
+  database:
+    image: postgres:16beta3
+    restart: always
+    env_file:
+      - ../.env
+    volumes:
+      - ./docker/db-data:/var/lib/postgresql/data
+    container_name: postgres-db
+    ports:
+      - 5432:5432
