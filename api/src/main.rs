@@ -10,6 +10,12 @@ use serde_json::json;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::net::SocketAddr;
 
+#[derive(Clone)]
+struct APIContext<'a> {
+    pool: PgPool,
+    handlebars: Handlebars<'a>,
+}
+
 #[tokio::main]
 async fn main() {
     let pool = PgPoolOptions::new()
@@ -18,10 +24,20 @@ async fn main() {
         .await
         .expect("couldn't connect to db");
 
+    let github_views_html_template: &str = include_str!("github.html");
+
+    let mut handlebars = Handlebars::new();
+    handlebars
+        .register_template_string("github-views", github_views_html_template)
+        .unwrap();
+
     // build our application with a route
     let app = Router::new()
         .route("/github", get(handler))
-        .layer(Extension(pool));
+        .layer(Extension(APIContext {
+            pool,
+            handlebars: handlebars,
+        }));
 
     // run it
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
@@ -32,17 +48,14 @@ async fn main() {
         .unwrap();
 }
 
-const TEMPLATE_HTML: &'static str = include_str!("github.html");
-
-async fn handler(ctx: Extension<PgPool>) -> Html<String> {
+async fn handler(ctx: Extension<APIContext<'_>>) -> Html<String> {
     let row: (i32,) = sqlx::query_as("SELECT 123;")
         .bind(150_i32)
-        .fetch_one(&ctx.0)
+        .fetch_one(&ctx.pool)
         .await
         .expect("bruh");
-    let reg = Handlebars::new();
-    let res = reg
-        .render_template(TEMPLATE_HTML, &json!({"views": row.0}))
+    let res = (&ctx.handlebars)
+        .render("github-views", &json!({"views": row.0}))
         .unwrap();
     Html(res)
 }
