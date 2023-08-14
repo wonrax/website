@@ -8,6 +8,15 @@ services:
       - ../.env
     volumes:
       - ./docker/db-data:/var/lib/postgresql/data
-    container_name: postgres-db
+    container_name: hhai-dev-postgres
     ports:
       - 5432:5432
+
+  log:
+    image: timberio/vector:0.31.0-distroless-libc
+    restart: always
+    env_file:
+      - ../.env
+    volumes:
+      - ./vector/vector.toml:/etc/vector/vector.toml:ro
+      - /var/run/docker.sock:/var/run/docker.sock

@@ -1,0 +1,25 @@
+[sources.hhai_dev_api]
+type = "docker_logs"
+include_containers = ["hhai-dev-api"]
+
+    [sources.hhai_dev_api.multiline]
+    start_pattern = "^[^\\s]"
+    mode = "continue_through"
+    condition_pattern = "^[\\s]+"
+    timeout_ms = 50
+
+[sinks.grafana_loki]
+type = "loki"
+inputs = [ "hhai_dev_api" ]
+endpoint = "${GRAFANA_LOKI_URL}"
+encoding.codec = "json"
+
+    [sinks.grafana_loki.labels]
+    env = "${ENVIRONMENT}"
+    domain = "hhai.dev"
+    "container_name" = "{{ container_name }}"
+
+    [sinks.grafana_loki.auth]
+    strategy = "basic"
+    user = "${GRAFANA_LOKI_USER}"
+    password = "${GRAFANA_LOKI_PASSWORD}"
