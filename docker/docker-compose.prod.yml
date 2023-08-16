@@ -1,25 +1,36 @@
-version: '3.1'
+version: '3.9'
 
 services:
   database:
     extends:
       file: docker-compose.yml
       service: database
+    container_name: hhai-dev-postgres
 
   log:
     extends:
       file: docker-compose.yml
       service: log
+    container_name: hhai-dev-vector
 
   migrator:
     extends:
       file: docker-compose.yml
       service: migrator
+    container_name: hhai-dev-migrator
     depends_on:
       - database
+    pull_policy: always
+
+  caddy:
+    extends:
+      file: docker-compose.yml
+      service: caddy
+    container_name: hhai-dev-caddy
 
   # Draft
   # api:
   #   depends_on:
   #     migrator:
   #       condition: service_completed_successfully
+  #   pull_policy: always

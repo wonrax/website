@@ -1,4 +1,4 @@
-version: '3.1'
+version: '3.9'
 
 services:
   database:
@@ -7,8 +7,7 @@ services:
     env_file:
       - ../.env
     volumes:
-      - ./.db-data:/var/lib/postgresql/data
-    container_name: hhai-dev-postgres
+      - ./.mount/db-data:/var/lib/postgresql/data
     ports:
       - 5432:5432
 
@@ -21,8 +20,23 @@ services:
       - ./vector/vector.toml:/etc/vector/vector.toml:ro
       - /var/run/docker.sock:/var/run/docker.sock
 
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - 80:80
+      - 443:443
+      - 443:443/udp
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./.mount/www:/www
+      - ./.mount/caddy-data/data:/data
+      - ./.mount/caddy-data/config:/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
   migrator:
-    image: hhai-dev/migrator
+    image: ghcr.io/wonrax/hhai.dev-migrator:latest
     build:
       context: ..
       dockerfile: docker/prisma-migrator.Dockerfile

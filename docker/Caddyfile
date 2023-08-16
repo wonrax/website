@@ -1,0 +1,27 @@
+god.hhai.dev {
+	reverse_proxy host.docker.internal:9090
+}
+
+hhai.dev {
+	root * /www/hhai.dev
+	file_server
+}
+
+next.hhai.dev {
+	root * /www/next-www
+	try_files {path}.html
+	file_server
+}
+
+share.hhai.dev {
+	root * /www/share.hhai.dev
+	file_server {
+		browse
+	}
+	header Access-Control-Allow-Origin "*"
+}
+
+hang.hhai.dev {
+	root * /www/hang.hhai.dev
+	file_server
+}
