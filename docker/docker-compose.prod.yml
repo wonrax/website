@@ -10,3 +10,16 @@ services:
     extends:
       file: docker-compose.yml
       service: log
+
+  migrator:
+    extends:
+      file: docker-compose.yml
+      service: migrator
+    depends_on:
+      - database
+
+  # Draft
+  # api:
+  #   depends_on:
+  #     migrator:
+  #       condition: service_completed_successfully

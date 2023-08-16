@@ -24,7 +24,9 @@ mod db_migrations {
 #[tokio::main]
 async fn main() {
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(10)
+        .idle_timeout(Duration::from_secs(120))
+        .acquire_timeout(Duration::from_secs(10))
         .connect("postgres://postgres@localhost:5432/hhai-dev")
         .await
         .expect("couldn't connect to db");
@@ -35,18 +37,15 @@ async fn main() {
         tokio_postgres::NoTls,
     )
     .await
-    .unwrap();
+    .expect("migration service couldn't connect to db");
 
     tokio::spawn(async move {
         if let Err(e) = conn.await {
-            eprintln!("connection error: {}", e);
+            panic!("migration connection error: {}", e);
         }
     });
 
-    print!("is closed {:?}", client.is_closed());
-
-    let res = client.query_one("SELECT 12", &[]).await.unwrap();
-    print!("{:?}", res);
+    println!("{:?}", db_migrations::migrations::runner().get_migrations());
 
     db_migrations::migrations::runner()
         .set_migration_table_name("migrations")
