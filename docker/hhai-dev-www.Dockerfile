@@ -14,10 +14,13 @@ RUN npm i -w hhai.dev
 
 # Somehow wildcard (*) doesn't work, had to use dot (.)
 COPY packages/. ./packages
-COPY apps/. ./apps
 COPY turbo.json .
 
-# Automatically build local dependencies (e.g. remark-feature-element)
+# Build 'hhai.dev's dependencies, but not 'hhai.dev' itself
+# This enable caching for the dependencies build layer
+RUN npx turbo build --filter=hhai.dev^...
+
+COPY apps/. ./apps
 RUN npx turbo build --filter=hhai.dev
 
 FROM busybox:latest
