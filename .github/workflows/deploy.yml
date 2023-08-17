@@ -1,11 +1,7 @@
 name: Deploy using Docker Compose
 
 on:
-  workflow_run:
-    workflows:
-      - hhai.dev-www docker build & push
-    types: [completed]
-    branches: [main]
+  workflow_call:
   workflow_dispatch:
 
 jobs:
