@@ -32,7 +32,7 @@ jobs:
           file: docker/hhai-dev-www.Dockerfile
 
   deploy:
-
+    needs: build-and-push
     runs-on: ubuntu-latest
 
     steps:
