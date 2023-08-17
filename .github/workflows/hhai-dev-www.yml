@@ -45,7 +45,8 @@ jobs:
         port: ${{ secrets.DEPLOY_HOST_SSH_PORT }}
         script: |
           cd ~/hhai.dev
-          git pull origin main
+          git fetch origin main
+          git reset --hard origin/main
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           docker compose -f docker/docker-compose.prod.yml -p hhai-dev pull
           docker compose -f docker/docker-compose.prod.yml -p hhai-dev up --detach --no-build --remove-orphans

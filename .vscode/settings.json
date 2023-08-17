@@ -1,4 +1,13 @@
 {
+  // enable tailwind code completion and hinting
+  // this enables you to do these:
+  // `const styles = "flex flex-col"`
+  // ```
+  // const divStyles = [
+  //   "max-w-full",
+  //   "text-sm"
+  // ].join(" ")
+  // ```
   "tailwindCSS.experimental.classRegex": [
     ["\\S*.*[Ss]tyles\\S* = \\[([\\s\\S]+?)(?=][\\n;.])", "\"([^\"]*)\""],
     "\\S*.*[Ss]tyles\\S* ?[:=]\\s*\n*\\s*[\"`'](.*)[\"`']"

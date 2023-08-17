@@ -29,7 +29,7 @@ services:
       - 443:443/udp
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
-      - ./.mount/www:/www
+      - www-hhai.dev:/www/hhai.dev
       - ./.mount/caddy-data/data:/data
       - ./.mount/caddy-data/config:/config
     extra_hosts:
@@ -59,4 +59,9 @@ services:
       context: ..
       dockerfile: docker/hhai-dev-www.Dockerfile
     volumes:
-      - ./.mount/www/hhai.dev:/.mount
+      - www-hhai.dev:/.mount
+
+volumes:
+  www-hhai.dev:
+  caddy-data:
+  caddy-config:
