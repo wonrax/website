@@ -4,6 +4,7 @@ god.hhai.dev {
 
 hhai.dev {
 	root * /www/hhai.dev
+	try_files {path}.html
 	file_server
 }
 
