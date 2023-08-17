@@ -175,7 +175,7 @@ const HeadingElement = (props: { heading: Heading; level: number }) => {
       <a
         href={`#${props.heading.slug}`}
         style={{ fontSize: `${fontSizeRem}em` }}
-        className={`${textStyles} text-gray-400 hover:text-gray-900`}
+        className={`${textStyles} text-gray-600 hover:text-gray-950`}
       >
         {props.heading.title}
       </a>
