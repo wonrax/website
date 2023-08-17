@@ -46,6 +46,7 @@ jobs:
         script: |
           cd ~/hhai.dev
           git pull origin main
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           docker compose -f docker/docker-compose.prod.yml -p hhai-dev pull
           docker compose -f docker/docker-compose.prod.yml -p hhai-dev up --detach --no-build --remove-orphans
           docker system prune --all --volumes --force
