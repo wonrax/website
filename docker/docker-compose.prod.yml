@@ -41,3 +41,8 @@ services:
       file: docker-compose.yml
       service: www
     pull_policy: always
+
+volumes:
+  www-hhai.dev:
+  caddy-data:
+  caddy-config:
