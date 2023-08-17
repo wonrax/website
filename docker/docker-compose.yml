@@ -58,7 +58,5 @@ services:
     build:
       context: ..
       dockerfile: docker/hhai-dev-www.Dockerfile
-    env_file:
-      - ../.env
     volumes:
       - ./.mount/www/hhai.dev:/.mount
