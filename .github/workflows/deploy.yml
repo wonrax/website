@@ -1,3 +1,5 @@
+name: Deploy using Docker Compose
+
 on:
   workflow_run:
     workflows:
