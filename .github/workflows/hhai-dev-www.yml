@@ -5,6 +5,7 @@ on:
     branches: [ "main" ]
     paths:
       - apps/hhai.dev/**
+  workflow_dispatch:
 
 jobs:
 
