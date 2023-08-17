@@ -33,8 +33,6 @@ jobs:
           push: true
           tags: ghcr.io/wonrax/hhai-dev-www:latest
           file: docker/hhai-dev-www.Dockerfile
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   deploy:
     name: Deploy
