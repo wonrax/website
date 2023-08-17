@@ -41,8 +41,8 @@ jobs:
       with:
         host: ${{ secrets.DEPLOY_HOST }}
         username: ${{ secrets.DEPLOY_HOST_USERNAME }}
-        key: ${{ secrets.DEPLOY_SSH_KEY }}
-        port: ${{ secrets.DEPLOY_SSH_PORT }}
+        key: ${{ secrets.DEPLOY_HOST_KEY }}
+        port: ${{ secrets.DEPLOY_HOST_SSH_PORT }}
         script: |
           cd ~/hhai.dev
           git pull origin main
