@@ -30,9 +30,9 @@ export default function Page() {
             <Link href="/blog" className={linkStyles} prefetch={false}>
               Blog
             </Link>
-            <Link href="/photographs" className={linkStyles} prefetch={false}>
+            {/* <Link href="/photographs" className={linkStyles} prefetch={false} >
               Photographs
-            </Link>
+            </Link> */}
           </div>
           <p className={`${paragraphStyles} ${secondaryColorStyles} mt-4`}>
             &#119;&#111;&#114;&#107;&#064;&#104;&#104;&#097;&#105;&#046;&#100;&#101;&#118;
