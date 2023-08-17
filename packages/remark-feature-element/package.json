@@ -1,0 +1,18 @@
+{
+  "name": "remark-feature-element",
+  "version": "0.0.1",
+  "description": "A remark plugin to group normal markdown content and feature content seperately, to allow customization on the featured elements.",
+  "main": "lib/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "wonrax",
+  "license": "ISC",
+  "dependencies": {
+    "hast-util-select": "^5.0.5",
+    "hastscript": "^7.2.0",
+    "typescript": "^5.0.4"
+  }
+}

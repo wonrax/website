@@ -1,0 +1,41 @@
+{
+  "name": "next-www",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "export": "next export"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "contentlayer": "^0.3.4",
+    "date-fns": "^2.30.0",
+    "imagemin-mozjpeg": "^9.0.0",
+    "imagemin-optipng": "^8.0.0",
+    "imagemin-svgo": "^9.0.0",
+    "mdast-util-from-markdown": "^2.0.0",
+    "next": "^13.4.13",
+    "next-contentlayer": "^0.3.4",
+    "@hashicorp/next-optimized-images": "0.2.0",
+    "nextjs-toploader": "file:../../packages/lib/nextjs-toploader",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "rehype-autolink-headings": "^6.1.1",
+    "rehype-pretty-code": "^0.10.0",
+    "rehype-slug": "^5.1.0",
+    "remark-feature-element": "file:../../packages/remark-feature-element",
+    "remark-gfm": "^3.0.1",
+    "responsive-loader": "^3.1.2",
+    "sharp": "^0.32.4",
+    "shiki": "^0.14.3",
+    "svg-parser": "^2.0.4",
+    "ui": "file:../../packages/ui"
+  },
+  "devDependencies": {
+    "@types/react": "18.2.19"
+  }
+}
