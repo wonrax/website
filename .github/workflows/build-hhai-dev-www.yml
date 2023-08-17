@@ -40,3 +40,4 @@ jobs:
     name: Deploy
     uses: ./.github/workflows/deploy.yml
     needs: build-and-push
+    secrets: inherit
