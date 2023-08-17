@@ -1,0 +1,13 @@
+{
+  "tailwindCSS.experimental.classRegex": [
+    ["\\S*.*[Ss]tyles\\S* = \\[([\\s\\S]+?)(?=][\\n;.])", "\"([^\"]*)\""],
+    "\\S*.*[Ss]tyles\\S* ?[:=]\\s*\n*\\s*[\"`'](.*)[\"`']"
+  ],
+  // temporary fix
+  // see https://github.com/prettier/prettier-vscode/issues/3020
+  "prettier.prettierPath": "./node_modules/prettier",
+  "cSpell.words": [
+      "hhai",
+      "sqlx"
+  ]
+}

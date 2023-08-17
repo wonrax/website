@@ -1,0 +1,25 @@
+{
+  "name": "wonrax-web",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/hhai.dev",
+    "packages/ui",
+    "packages/remark-feature-element",
+    "packages/lib/nextjs-toploader"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "lint": "turbo run lint"
+  },
+  "devDependencies": {
+    "prettier": "latest",
+    "turbo": "^1.10.12"
+  },
+  "packageManager": "npm@9.5.0",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

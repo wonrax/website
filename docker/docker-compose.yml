@@ -1,0 +1,62 @@
+version: '3.9'
+
+services:
+  database:
+    image: postgres:15
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    volumes:
+      - ./.mount/db-data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+
+  log:
+    image: timberio/vector:0.31.0-distroless-libc
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    volumes:
+      - ./vector/vector.toml:/etc/vector/vector.toml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - 80:80
+      - 443:443
+      - 443:443/udp
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./.mount/www:/www
+      - ./.mount/caddy-data/data:/data
+      - ./.mount/caddy-data/config:/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  migrator:
+    image: ghcr.io/wonrax/hhai.dev-migrator:latest
+    build:
+      context: ..
+      dockerfile: docker/prisma-migrator.Dockerfile
+    env_file:
+      - ../.env
+
+  api:
+    image: ghcr.io/wonrax/hhai-dev-api:latest
+    build:
+      context: ..
+      dockerfile: docker/hhai-dev-api.Dockerfile
+    env_file:
+      - ../.env
+    ports:
+      - 3000:3000 #TODO
+
+  www:
+    image: ghcr.io/wonrax/hhai-dev-www:latest
+    build:
+      context: ..
+      dockerfile: docker/hhai-dev-www.Dockerfile
+    volumes:
+      - ./.mount/www/hhai.dev:/.mount

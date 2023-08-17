@@ -1,0 +1,15 @@
+FROM node:20 as build-env
+
+WORKDIR /src
+RUN npm i prisma
+
+FROM gcr.io/distroless/nodejs20-debian11
+
+COPY --from=build-env /src /src
+
+WORKDIR /src
+
+COPY api/migrations ./prisma/migrations
+COPY api/schema.prisma ./prisma/schema.prisma
+
+CMD ["node_modules/prisma/build/index.js", "migrate", "deploy"]

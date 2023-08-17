@@ -1,0 +1,13 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model view_counts {
+  id    Int    @id @default(autoincrement())
+  app   String @db.VarChar(32)
+  key   String @db.VarChar(256)
+  count BigInt @default(0)
+
+  @@unique([app, key], map: "view_counts_app_key")
+}
