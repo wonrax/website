@@ -31,6 +31,7 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - www-hhai.dev:/www/hhai.dev
+      - ./.mount/www:/www
       - ./.mount/caddy-data/data:/data
       - ./.mount/caddy-data/config:/config
     extra_hosts:
