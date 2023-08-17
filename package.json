@@ -5,6 +5,7 @@
   "workspaces": [
     "apps/hhai.dev",
     "packages/ui",
+    "packages/remark-feature-element",
     "packages/lib/nextjs-toploader"
   ],
   "scripts": {
