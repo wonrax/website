@@ -42,3 +42,23 @@ services:
       dockerfile: docker/prisma-migrator.Dockerfile
     env_file:
       - ../.env
+
+  api:
+    image: ghcr.io/wonrax/hhai-dev-api:latest
+    build:
+      context: ..
+      dockerfile: docker/hhai-dev-api.Dockerfile
+    env_file:
+      - ../.env
+    ports:
+      - 3000:3000 #TODO
+
+  www:
+    image: ghcr.io/wonrax/hhai-dev-www:latest
+    build:
+      context: ..
+      dockerfile: docker/hhai-dev-www.Dockerfile
+    env_file:
+      - ../.env
+    volumes:
+      - ./.mount/www/hhai.dev:/.mount

@@ -16,11 +16,6 @@ struct APIContext<'a> {
     handlebars: Handlebars<'a>,
 }
 
-mod db_migrations {
-    use refinery::embed_migrations;
-    embed_migrations!("./migrations");
-}
-
 #[tokio::main]
 async fn main() {
     let pool = PgPoolOptions::new()
@@ -30,28 +25,6 @@ async fn main() {
         .connect("postgres://postgres@localhost:5432/hhai-dev")
         .await
         .expect("couldn't connect to db");
-
-    // migration only connection
-    let (mut client, conn) = tokio_postgres::connect(
-        "postgres://postgres@localhost:5432/hhai-dev",
-        tokio_postgres::NoTls,
-    )
-    .await
-    .expect("migration service couldn't connect to db");
-
-    tokio::spawn(async move {
-        if let Err(e) = conn.await {
-            panic!("migration connection error: {}", e);
-        }
-    });
-
-    println!("{:?}", db_migrations::migrations::runner().get_migrations());
-
-    db_migrations::migrations::runner()
-        .set_migration_table_name("migrations")
-        .run_async(&mut client)
-        .await
-        .unwrap();
 
     let github_views_html_template: &str = include_str!("github.html");
 
