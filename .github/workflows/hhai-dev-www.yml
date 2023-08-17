@@ -1,0 +1,50 @@
+name: hhai.dev docker build & push & deploy
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - apps/hhai.dev/**
+
+jobs:
+
+  build-and-push:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    -
+      name: Login to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    -
+        name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/wonrax/hhai-dev-www:latest
+          file: docker/hhai-dev-www.Dockerfile
+
+  deploy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: deploy using ssh
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.DEPLOY_HOST }}
+        username: ${{ secrets.DEPLOY_HOST_USERNAME }}
+        key: ${{ secrets.DEPLOY_SSH_KEY }}
+        port: ${{ secrets.DEPLOY_SSH_PORT }}
+        script: |
+          cd hhai.dev
+          git pull origin main
+          docker compose -f docker/docker-compose.prod.yml -p hhai-dev pull
+          docker compose -f docker/docker-compose.prod.yml -p hhai-dev up --detach --no-build --remove-orphans
+          docker system prune --all --volumes --force
