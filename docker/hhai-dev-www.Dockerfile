@@ -5,24 +5,25 @@ WORKDIR /src
 # Dependencies
 COPY package.json .
 COPY package-lock.json .
-COPY apps/next-www/package.json ./apps/next-www/package.json
+COPY apps/hhai.dev/package.json ./apps/hhai.dev/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 COPY packages/remark-feature-element/package.json ./packages/remark-feature-element/package.json
 COPY packages/lib/nextjs-toploader/package.json ./packages/lib/nextjs-toploader/package.json
 
-RUN npm i -w next-www
+RUN npm i -w hhai.dev
 
+# Somehow wildcard (*) doesn't work, had to use dot (.)
 COPY packages/. ./packages
 COPY apps/. ./apps
 COPY turbo.json .
 
 # Automatically build local dependencies (e.g. remark-feature-element)
-RUN npx turbo build --filter=next-www
+RUN npx turbo build --filter=hhai.dev
 
-RUN ls -la /src/apps/next-www/out/_next/static/images
+RUN ls -la /src/apps/hhai.dev/out/_next/static/images
 
 FROM busybox:latest
 
-COPY --from=build-step /src/apps/next-www/out /build
+COPY --from=build-step /src/apps/hhai.dev/out /build
 
 ENTRYPOINT ["sh", "-c", "cp -r /build/* /.mount"]
