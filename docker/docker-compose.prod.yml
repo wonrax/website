@@ -26,7 +26,6 @@ services:
     extends:
       file: docker-compose.yml
       service: caddy
-    container_name: hhai-dev-caddy
 
   # api:
   #   extends:

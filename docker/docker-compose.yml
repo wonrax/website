@@ -22,6 +22,7 @@ services:
 
   caddy:
     image: caddy:2
+    container_name: hhai-dev-caddy
     restart: unless-stopped
     ports:
       - 80:80
@@ -55,6 +56,7 @@ services:
 
   www:
     image: ghcr.io/wonrax/hhai-dev-www:latest
+    container_name: hhai-dev-www
     build:
       context: ..
       dockerfile: docker/hhai-dev-www.Dockerfile
