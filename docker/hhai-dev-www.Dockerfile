@@ -20,8 +20,6 @@ COPY turbo.json .
 # Automatically build local dependencies (e.g. remark-feature-element)
 RUN npx turbo build --filter=hhai.dev
 
-RUN ls -la /src/apps/hhai.dev/out/_next/static/images
-
 FROM busybox:latest
 
 COPY --from=build-step /src/apps/hhai.dev/out /build
