@@ -6,6 +6,8 @@ import "./styles.css";
 import BlogImage from "./BlogImage";
 import { ComponentType } from "react";
 import { ScrollToTopButton } from "./ClientComponents";
+import { Metadata } from "next";
+
 import {
   BLOG_LINE_LENGTH,
   BLOG_FEATURE_SM_MAX_LENGTH,
@@ -15,6 +17,20 @@ import {
 interface PageProps {
   params: { slug: string };
   searchParams: Record<string, string | string[] | undefined>;
+}
+
+export async function generateMetadata(props: PageProps): Promise<Metadata> {
+  let slug = props.params.slug;
+  const post = allBlogPosts.find((post) => post.slug === slug);
+  return {
+    title: post.title,
+    description: post.description,
+    openGraph: {
+      title: post.title,
+      description: post.description,
+      siteName: "hhai.dev",
+    },
+  };
 }
 
 const RAW_SUFFIX = ".raw";
@@ -89,7 +105,7 @@ export default function BlogPost(props: PageProps) {
     "prose-td:px-4 prose-td:py-2 prose-th:px-4 prose-th:py-2",
     // "prose-img:rounded-2xl",
     "pb-8 flex flex-col items-center col-start-2 -mt-5 order-1",
-    "prose-h2:font-medium prose-h3:font-medium"
+    "prose-h2:font-medium prose-h3:font-medium",
   ].join(" ");
   return (
     <div className="grid grid-cols-[0fr_100%_0fr] lg:grid-cols-[1fr_900px_1fr] gap-y-4 gap-x-0 lg:gap-x-8 max-w-full mt-4">
