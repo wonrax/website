@@ -6,21 +6,21 @@ on:
 
 jobs:
   deploy:
-    name: Deploy to host machine using ssh
+    name: Run ssh command on host machine
     runs-on: ubuntu-latest
     steps:
-    - name: deploy using ssh
-      uses: appleboy/ssh-action@v1.0.0
-      with:
-        host: ${{ secrets.DEPLOY_HOST }}
-        username: ${{ secrets.DEPLOY_HOST_USERNAME }}
-        key: ${{ secrets.DEPLOY_HOST_KEY }}
-        port: ${{ secrets.DEPLOY_HOST_SSH_PORT }}
-        script: |
-          cd ~/hhai.dev
-          git fetch origin main
-          git reset --hard origin/main
-          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker compose -f docker/docker-compose.prod.yml -p hhai-dev pull
-          docker compose -f docker/docker-compose.prod.yml -p hhai-dev up --detach --no-build --remove-orphans
-          docker system prune --all --volumes --force
+      - uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_HOST_USERNAME }}
+          key: ${{ secrets.DEPLOY_HOST_KEY }}
+          port: ${{ secrets.DEPLOY_HOST_SSH_PORT }}
+          script: |
+            cd ~/hhai.dev
+            git fetch origin main
+            git reset --hard origin/main
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose -f docker/docker-compose.prod.yml -p hhai-dev pull
+            docker compose -f docker/docker-compose.prod.yml -p hhai-dev up --detach --no-build --remove-orphans
+            docker exec hhai-dev-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+            docker system prune --all --volumes --force
