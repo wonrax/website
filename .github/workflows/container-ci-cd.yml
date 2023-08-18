@@ -127,6 +127,7 @@ jobs:
       - build-and-push-backend
       - build-and-push-migrate
     name: Echo condition
+    if: ${{ true }}
     steps:
       - name: echo 1
         run: echo "${{ contains(join(needs.*.result, ','), 'success') && !contains(join(needs.*.result, ','), 'failure') }}"
