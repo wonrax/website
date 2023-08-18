@@ -43,7 +43,7 @@ jobs:
     name: hhai.dev www - Build and push Docker image
     needs: files-changed
     if: ${{ needs.files-changed.outputs.migrate == 'true' }}
-    uses: ./.github/workflows/deploy.yml
+    uses: ./.github/workflows/container-ci.yml
     with:
       name: hhai.dev www
       tags: ghcr.io/wonrax/hhai-dev-www:latest
@@ -54,7 +54,7 @@ jobs:
     name: hhai.dev api - Build and push Docker image
     needs: files-changed
     if: ${{ needs.files-changed.outputs.migrate == 'true' }}
-    uses: ./.github/workflows/deploy.yml
+    uses: ./.github/workflows/container-ci.yml
     with:
       name: hhai.dev api
       tags: ghcr.io/wonrax/hhai-dev-api:latest
@@ -65,7 +65,7 @@ jobs:
     name: hhai.dev migrate - Build and push Docker image
     needs: files-changed
     if: ${{ needs.files-changed.outputs.migrate == 'true' }}
-    uses: ./.github/workflows/deploy.yml
+    uses: ./.github/workflows/container-ci.yml
     with:
       name: hhai.dev migrate
       tags: ghcr.io/wonrax/hhai-dev-migrator:latest
