@@ -26,3 +26,7 @@ hang.hhai.dev {
 	root * /www/hang.hhai.dev
 	file_server
 }
+
+api.hhai.dev {
+	reverse_proxy api:3000
+}

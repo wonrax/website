@@ -3,16 +3,18 @@ version: '3.9'
 services:
   database:
     image: postgres:15
+    container_name: hhai-dev-pg
     restart: unless-stopped
     env_file:
       - ../.env
     volumes:
-      - ./.mount/db-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
     ports:
       - 5432:5432
 
-  log:
+  vector:
     image: timberio/vector:0.31.0-distroless-libc
+    container_name: hhai-dev-vector
     restart: unless-stopped
     env_file:
       - ../.env
@@ -37,7 +39,8 @@ services:
       - "host.docker.internal:host-gateway"
 
   migrator:
-    image: ghcr.io/wonrax/hhai.dev-migrator:latest
+    image: ghcr.io/wonrax/hhai-dev-migrator:latest
+    container_name: hhai-dev-migrator
     build:
       context: ..
       dockerfile: docker/prisma-migrator.Dockerfile
@@ -46,13 +49,13 @@ services:
 
   api:
     image: ghcr.io/wonrax/hhai-dev-api:latest
+    container_name: hhai-dev-api
+    restart: unless-stopped
     build:
       context: ..
       dockerfile: docker/hhai-dev-api.Dockerfile
     env_file:
       - ../.env
-    ports:
-      - 3000:3000 #TODO
 
   www:
     image: ghcr.io/wonrax/hhai-dev-www:latest
