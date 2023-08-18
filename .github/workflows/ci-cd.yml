@@ -42,7 +42,7 @@ jobs:
   build-and-push-www:
     name: hhai.dev www - Build and push Docker image
     needs: files-changed
-    if: ${{ needs.files-changed.outputs.migrate == 'true' }}
+    if: ${{ needs.files-changed.outputs.www == 'true' }}
     uses: ./.github/workflows/container-ci.yml
     with:
       name: hhai.dev www
@@ -53,7 +53,7 @@ jobs:
   build-and-push-backend:
     name: hhai.dev api - Build and push Docker image
     needs: files-changed
-    if: ${{ needs.files-changed.outputs.migrate == 'true' }}
+    if: ${{ needs.files-changed.outputs.backend == 'true' }}
     uses: ./.github/workflows/container-ci.yml
     with:
       name: hhai.dev api
