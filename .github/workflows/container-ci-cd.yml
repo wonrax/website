@@ -134,5 +134,5 @@ jobs:
     # Related links:
     # https://docs.github.com/en/actions/learn-github-actions/expressions#failure
     # https://docs.github.com/en/actions/learn-github-actions/contexts#needs-context
-    if: ${{ !failure() && contains(join(needs.*.result, ','), 'success') }}
+    if: !failure() && contains(join(needs.*.result, ','), 'success')
     secrets: inherit
