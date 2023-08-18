@@ -22,6 +22,7 @@ interface PageProps {
 export async function generateMetadata(props: PageProps): Promise<Metadata> {
   let slug = props.params.slug;
   const post = allBlogPosts.find((post) => post.slug === slug);
+  if (!post) return {};
   return {
     title: post.title,
     description: post.description,
