@@ -1,4 +1,7 @@
-name: hhai.dev-www Docker build & push
+name: hhai.dev container CI/CD
+# Build apps into Docker images, push to
+# GitHub container registry and deploy
+# on host machine.
 
 on:
   push:
