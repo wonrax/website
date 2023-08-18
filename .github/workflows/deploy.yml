@@ -1,4 +1,4 @@
-name: Deploy using Docker Compose
+name: Deploy using SSH and Docker Compose
 
 on:
   workflow_call:
@@ -6,6 +6,7 @@ on:
 
 jobs:
   deploy:
+    name: Deploy to host machine using ssh
     runs-on: ubuntu-latest
     steps:
     - name: deploy using ssh
