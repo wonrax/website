@@ -2,7 +2,7 @@ name: Build and push Docker image
 
 on:
   workflow_dispatch:
-    inputs: &inputs
+    inputs:
       name:
         type: string
         required: true
@@ -14,7 +14,16 @@ on:
         required: true
 
   workflow_call:
-    inputs: *inputs
+    inputs:
+      name:
+        type: string
+        required: true
+      dockerfile:
+        type: string
+        required: true
+      tags:
+        type: string
+        required: true
 
 jobs:
   build-and-push-migrate:
