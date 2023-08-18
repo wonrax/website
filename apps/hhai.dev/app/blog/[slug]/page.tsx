@@ -84,8 +84,9 @@ export default function BlogPost(props: PageProps) {
     "max-w-full lg:max-w-[900px] px-4 lg:px-0",
     // "lg:-mt-5", // TODO this is a hack to fix the margin of the first element
     "prose prose-a:break-words",
-    "prose-pre:px-0 prose-pre:my-0 prose-pre:bg-transparent",
+    "prose-pre:px-0 prose-pre:my-0 prose-pre:bg-transparent prose-pre:text-sm prose-pre:leading-loose",
     "prose-td:whitespace-break-spaces prose-td:break-words prose-table:m-0",
+    "prose-td:px-3 prose-td:py-2 prose-th:px-3 prose-th:py-2",
     // "prose-img:rounded-2xl",
     "pb-8 flex flex-col items-center col-start-2 -mt-5 order-1",
     "prose-h2:font-medium prose-h3:font-medium"
