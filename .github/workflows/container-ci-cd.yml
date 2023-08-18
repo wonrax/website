@@ -132,7 +132,7 @@ jobs:
     # and no jobs fail. We don't care about skipping job because we don't
     # want to re-build and re-deploy unchanged code.
     # Related links:
-    # https://docs.github.com/en/actions/learn-github-actions/expressions#cancelled
+    # https://docs.github.com/en/actions/learn-github-actions/expressions#failure
     # https://docs.github.com/en/actions/learn-github-actions/contexts#needs-context
-    if: ${{ !cancelled() && contains(join(needs.*.result, ','), 'success') && !contains(join(needs.*.result, ','), 'failure') }}
+    if: ${{ !failure() && contains(join(needs.*.result, ','), 'success') }}
     secrets: inherit
