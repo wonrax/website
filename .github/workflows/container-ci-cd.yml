@@ -120,9 +120,26 @@ jobs:
         tags: ghcr.io/wonrax/hhai-dev-migrator:latest
         file: docker/prisma-migrator.Dockerfile
 
+  debug:
+    runs-on: ubuntu-latest
+    needs:
+      - build-and-push-www
+      - build-and-push-backend
+      - build-and-push-migrate
+    name: Echo condition
+    steps:
+      - name: echo 1
+        run: echo "${{ contains(join(needs.*.result, ','), 'success') && !contains(join(needs.*.result, ','), 'failure') }}"
+      - name: echo 2
+        run: echo "${{ join(needs.*.result, ',') }}"
+      - name: echo 3
+        run: echo "${{ join(needs.*.result, ',') }}"
+
+
   deploy:
     name: Deploy
     uses: ./.github/workflows/deploy.yml
+    if: ${{ false }} # debug
     needs:
       - build-and-push-www
       - build-and-push-backend
@@ -134,5 +151,5 @@ jobs:
     # Related links:
     # https://docs.github.com/en/actions/learn-github-actions/expressions#cancelled
     # https://docs.github.com/en/actions/learn-github-actions/contexts#needs-context
-    if: ${{ !cancelled() && contains(join(needs.*.result, ','), 'success') && !contains(join(needs.*.result, ','), 'failure') }}
+    # if: ${{ !cancelled() && contains(join(needs.*.result, ','), 'success') && !contains(join(needs.*.result, ','), 'failure') }}
     secrets: inherit
