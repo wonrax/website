@@ -43,8 +43,7 @@ async fn main() {
 
     // build our application with a route
     let app = Router::new()
-        .route("/github", get(handler))
-        .route("/sleep", get(sleep_handler))
+        .route("/public/github-profile-views", get(handler))
         .with_state(shared_state);
 
     // run it
@@ -125,9 +124,4 @@ async fn handler(
     }
 
     // Html("ok".to_string())
-}
-
-async fn sleep_handler() -> Html<String> {
-    tokio::time::sleep(Duration::from_secs(5)).await;
-    Html("ok".to_string())
 }
