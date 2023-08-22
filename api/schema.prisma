@@ -2,3 +2,14 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model counters {
+  id        Int      @id @default(autoincrement())
+  key       String
+  name      String
+  count     BigInt
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  @@unique([key, name], map: "counter_key_name")
+}
