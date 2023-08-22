@@ -2,7 +2,6 @@ use axum::{
     debug_handler,
     extract::{ConnectInfo, State},
     http::HeaderMap,
-    response::Html,
     routing::get,
     Router,
 };
@@ -65,7 +64,7 @@ async fn handler(
     State(ctx): State<APIContext>,
     headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-) -> Html<String> {
+) -> String {
     let mut _ip: String = "".into();
     // Trusted proxy from cloudflare so we can use x-forwarded-for
     if headers.contains_key("x-forwarded-for") {
@@ -125,10 +124,8 @@ async fn handler(
             let res = (&handlebars)
                 .render("github-views", &json!({"views": row.0}))
                 .unwrap();
-            Html(res)
+            res
         }
-        Err(e) => Html(e.to_string()),
+        Err(e) => e.to_string(),
     }
-
-    // Html("ok".to_string())
 }
