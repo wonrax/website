@@ -1,7 +1,7 @@
 use axum::{
     debug_handler,
     extract::{ConnectInfo, State},
-    http::HeaderMap,
+    http::{HeaderMap, header},
     routing::get,
     Router, response::{Response, IntoResponse},
 };
@@ -125,7 +125,8 @@ async fn handler(
                 .render("github-views", &json!({"views": row.0}))
                 .unwrap();
             let mut headers = HeaderMap::new();
-            headers.insert("Content-Type", "image/svg+xml".parse().unwrap());
+            headers.insert(header::CONTENT_TYPE, "image/svg+xml".parse().unwrap());
+            headers.insert(header::CACHE_CONTROL, "max-age=0, no-cache, no-store, must-revalidate".parse().unwrap());
             (
                 headers,
                 res
