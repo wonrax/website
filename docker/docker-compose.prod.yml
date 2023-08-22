@@ -31,8 +31,6 @@ services:
       file: docker-compose.yml
       service: api
     depends_on:
-      database:
-        condition: service_healthy
       migrator:
         condition: service_completed_successfully
     pull_policy: always
