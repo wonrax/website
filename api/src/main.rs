@@ -3,7 +3,7 @@ use axum::{
     extract::{ConnectInfo, State},
     http::HeaderMap,
     routing::get,
-    Router,
+    Router, response::{Response, IntoResponse},
 };
 use dotenv::dotenv;
 use handlebars::Handlebars;
@@ -64,7 +64,7 @@ async fn handler(
     State(ctx): State<APIContext>,
     headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-) -> String {
+) -> Response {
     let mut _ip: String = "".into();
     // Trusted proxy from cloudflare so we can use x-forwarded-for
     if headers.contains_key("x-forwarded-for") {
@@ -124,8 +124,13 @@ async fn handler(
             let res = (&handlebars)
                 .render("github-views", &json!({"views": row.0}))
                 .unwrap();
-            res
+            let mut headers = HeaderMap::new();
+            headers.insert("Content-Type", "image/svg+xml".parse().unwrap());
+            (
+                headers,
+                res
+            ).into_response()
         }
-        Err(e) => e.to_string(),
+        Err(e) => e.to_string().into_response(),
     }
 }
