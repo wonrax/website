@@ -1,26 +1,21 @@
-//! Run with
-//!
-//! ```not_rust
-//! cargo run -p example-hello-world
-//! ```
-
 use axum::{
-    extract::ConnectInfo,
-    http::{header, HeaderMap},
+    debug_handler,
+    extract::{ConnectInfo, State},
+    http::HeaderMap,
     response::Html,
     routing::get,
-    Extension, Router,
+    Router,
 };
 use handlebars::Handlebars;
 use serde_json::json;
-use sqlx::{postgres::PgPoolOptions, PgPool};
-use std::{net::SocketAddr, time::Duration};
+use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 #[derive(Clone)]
-struct APIContext<'a> {
-    pool: PgPool,
-    handlebars: Handlebars<'a>,
-    counters_ttl_cache: ttl_cache::TtlCache<String, bool>,
+struct APIContext {
+    pool: Pool<Postgres>,
+    handlebars: Handlebars<'static>,
+    counters_ttl_cache: Arc<retainer::Cache<String, bool>>,
 }
 
 #[tokio::main]
@@ -40,15 +35,17 @@ async fn main() {
         .register_template_string("github-views", github_views_html_template)
         .unwrap();
 
+    let shared_state = APIContext {
+        pool,
+        handlebars,
+        counters_ttl_cache: Arc::from(retainer::Cache::new()),
+    };
+
     // build our application with a route
     let app = Router::new()
         .route("/github", get(handler))
         .route("/sleep", get(sleep_handler))
-        .layer(Extension(APIContext {
-            pool,
-            handlebars,
-            counters_ttl_cache: ttl_cache::TtlCache::new(10_000),
-        }));
+        .with_state(shared_state);
 
     // run it
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
@@ -59,12 +56,14 @@ async fn main() {
         .unwrap();
 }
 
+#[debug_handler]
 async fn handler(
-    mut ctx: Extension<APIContext<'_>>,
+    State(ctx): State<APIContext>,
     headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> Html<String> {
     let mut _ip: String = "".into();
+    // Trusted proxy from cloudflare so we can use x-forwarded-for
     if headers.contains_key("x-forwarded-for") {
         _ip = headers["x-forwarded-for"]
             .to_str()
@@ -74,50 +73,58 @@ async fn handler(
         _ip = addr.ip().to_string();
     }
 
-    println!("ip: {}", _ip);
+    let cache = ctx.counters_ttl_cache;
 
-    let row: Result<(i64,), sqlx::Error>;
+    let mut row: Result<(i64,), sqlx::Error>;
 
-    // TODO: this cache is cloned for every request so technically it's not
-    // working as expected.
-    // Refer to this to fix it:
-    // https://github.com/tokio-rs/axum/blob/main/examples/key-value-store/src/main.rs
-    if ctx.counters_ttl_cache.contains_key(&_ip) {
-        ctx.counters_ttl_cache.insert(_ip.clone(), true, Duration::from_secs(3600));
+    if cache.get(&_ip).await.is_none() {
+        cache.insert(_ip.clone(), true, Duration::from_secs(1)).await;
         row = sqlx::query_as(
             "
-        INSERT INTO counters (key, name, count)
-        VALUES ('github-profile-views', 'wonrax', 1)
-        ON CONFLICT (key, name)
-        SET count = count WHERE FALSE -- never executed, but still locks the row
-        RETURNING count;
-    ",
+            UPDATE counters SET count = count + 1
+            WHERE key = 'github-profile-views' AND name = 'wonrax'
+            RETURNING count;
+        ",
         )
         .fetch_one(&ctx.pool)
         .await;
     } else {
         row = sqlx::query_as(
             "
-        INSERT INTO counters (key, name, count)
-        VALUES ('github-profile-views', 'wonrax', 1)
-        ON CONFLICT (key, name)
-        DO UPDATE SET count = counters.count + 1
-        RETURNING count;
-    ",
+            SELECT count FROM counters
+            WHERE key = 'github-profile-views' AND name = 'wonrax';
+        ",
         )
         .fetch_one(&ctx.pool)
         .await;
     }
 
+    if let Err(_) = row {
+        let _ = sqlx::query(
+            "
+            INSERT INTO counters (key, name, count)
+            VALUES ('github-profile-views', 'wonrax', 1);
+        ",
+        )
+        .execute(&ctx.pool)
+        .await;
+
+        row = Ok((1,))
+    }
+
+    let handlebars = &ctx.handlebars;
+
     match row {
         Ok(row) => {
-            let res = (&ctx.handlebars)
+            let res = (&handlebars)
                 .render("github-views", &json!({"views": row.0}))
                 .unwrap();
             Html(res)
         }
         Err(e) => Html(e.to_string()),
     }
+
+    // Html("ok".to_string())
 }
 
 async fn sleep_handler() -> Html<String> {
