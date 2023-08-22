@@ -3,7 +3,7 @@ god.hhai.dev {
 }
 
 hhai.dev {
-	handle_path /api {
+	handle_path /api/* {
 		reverse_proxy api:3000
 	}
 
