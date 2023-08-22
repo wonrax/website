@@ -26,7 +26,7 @@ on:
         required: true
 
 jobs:
-  build-and-push-migrate:
+  build-and-push:
     name: ${{ inputs.name }} - Build and push Docker image
     runs-on: ubuntu-latest
 
