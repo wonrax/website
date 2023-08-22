@@ -6,6 +6,7 @@ use axum::{
     routing::get,
     Router,
 };
+use dotenv::dotenv;
 use handlebars::Handlebars;
 use serde_json::json;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
@@ -20,11 +21,15 @@ struct APIContext {
 
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
+
+    let postgres_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
+
     let pool = PgPoolOptions::new()
         .max_connections(10)
         .idle_timeout(Duration::from_secs(120))
         .acquire_timeout(Duration::from_secs(10))
-        .connect("postgres://postgres@localhost:5432/hhai-dev")
+        .connect(&postgres_url)
         .await
         .expect("couldn't connect to db");
 
@@ -77,7 +82,9 @@ async fn handler(
     let mut row: Result<(i64,), sqlx::Error>;
 
     if cache.get(&_ip).await.is_none() {
-        cache.insert(_ip.clone(), true, Duration::from_secs(1)).await;
+        cache
+            .insert(_ip.clone(), true, Duration::from_secs(1))
+            .await;
         row = sqlx::query_as(
             "
             UPDATE counters SET count = count + 1
