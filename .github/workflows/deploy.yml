@@ -24,5 +24,5 @@ jobs:
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker compose -f docker/docker-compose.prod.yml -p hhai-dev pull
             docker compose -f docker/docker-compose.prod.yml -p hhai-dev up --detach --no-build --remove-orphans
-            docker compose -f docker/docker-compose.prod.yml -p hhai-dev restart hhai-dev-caddy
+            docker compose -f docker/docker-compose.prod.yml -p hhai-dev restart caddy
             docker system prune --all --volumes --force
