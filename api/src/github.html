@@ -1,45 +1,27 @@
-<svg
-  xmlns="http://www.w3.org/2000/svg"
-  width="300"
-  height="48"
-  Box="0 0 300 48"
-  fill="none"
-  role="img"
-  aria-labelledby="descId"
->
-  <title id="titleId" />
-  <desc id="descId" />
-  <style>
-    .header {
-      font: 500 16px sans-serif;
-      fill: #2f80ed;
-      animation: fadeInAnimation 0.8s ease-in-out forwards;
-    }
-    @supports (-moz-appearance: auto) {
-      /* Selector detects Firefox */
-      .header {
-        font-size: 15.5px;
-      }
-    }
-  </style>
-
-  <rect
-    data-testid="card-bg"
-    x="0.5"
-    y="0.5"
-    rx="4.5"
-    height="98%"
-    stroke="#e4e2e2"
-    width="299"
-    fill="#fffefe"
-    stroke-opacity="1"
-  />
-
-  <g data-testid="card-title" transform="translate(25, 30)">
-    <g transform="translate(0, 0)">
-      <text x="0" y="0" class="header" data-testid="header">
-        Profile views: {{views}}
-      </text>
-    </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="{{total-width}}" height="20">
+  <linearGradient id="b" x2="0" y2="100%">
+    <stop offset="0" stop-color="#bbb" stop-opacity=".1" />
+    <stop offset="1" stop-opacity=".1" />
+  </linearGradient>
+  <mask id="a">
+    <rect width="{{total-width}}" height="20" rx="3" fill="#fff" />
+  </mask>
+  <g mask="url(#a)">
+    <rect width="81" height="20" fill="#555" />
+    <rect x="81" width="{{views-width}}" height="20" fill="#2cb7de" />
+    <rect width="{{total-width}}" height="20" fill="url(#b)" />
+  </g>
+  <g
+    fill="#fff"
+    text-anchor="middle"
+    font-family="DejaVu Sans,Verdana,Geneva,sans-serif"
+    font-size="11"
+  >
+    <text x="40.5" y="15" fill="#010101" fill-opacity=".3">Profile views</text>
+    <text x="40.5" y="14">Profile views</text>
+    <text x="{{views-offset-x}}" y="15" fill="#010101" fill-opacity=".3">
+      {{views}}
+    </text>
+    <text x="{{views-offset-x}}" y="14">{{views}}</text>
   </g>
 </svg>

@@ -1,22 +1,21 @@
 use axum::{
-    debug_handler,
     extract::{ConnectInfo, State},
-    http::{HeaderMap, header},
+    http::{header, HeaderMap},
+    response::{IntoResponse, Response},
     routing::get,
-    Router, response::{Response, IntoResponse},
+    Router,
 };
 use dotenv::dotenv;
-use handlebars::Handlebars;
-use serde_json::json;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 #[derive(Clone)]
 struct APIContext {
     pool: Pool<Postgres>,
-    handlebars: Handlebars<'static>,
     counters_ttl_cache: Arc<retainer::Cache<String, bool>>,
 }
+
+const GITHUB_VIEWS_HTML_TEMPLATE: &str = include_str!("github.html");
 
 #[tokio::main]
 async fn main() {
@@ -32,16 +31,8 @@ async fn main() {
         .await
         .expect("couldn't connect to db");
 
-    let github_views_html_template: &str = include_str!("github.html");
-
-    let mut handlebars = Handlebars::new();
-    handlebars
-        .register_template_string("github-views", github_views_html_template)
-        .unwrap();
-
     let shared_state = APIContext {
         pool,
-        handlebars,
         counters_ttl_cache: Arc::from(retainer::Cache::new()),
     };
 
@@ -59,8 +50,7 @@ async fn main() {
         .unwrap();
 }
 
-#[debug_handler]
-async fn handler(
+async fn handler<'a>(
     State(ctx): State<APIContext>,
     headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -117,21 +107,55 @@ async fn handler(
         row = Ok((1,))
     }
 
-    let handlebars = &ctx.handlebars;
-
     match row {
         Ok(row) => {
-            let res = (&handlebars)
-                .render("github-views", &json!({"views": row.0}))
-                .unwrap();
+            let readable_views = readable_uint(row.0.to_string());
+            let int_length = readable_views.len();
+            let width = 16 + (int_length * 6);
+            let total_width = width + 81;
+            let x_offset = 81 + (width / 2);
+
+            let res = render_template(
+                GITHUB_VIEWS_HTML_TEMPLATE,
+                &[
+                    ("{{views}}", &readable_views),
+                    ("{{views-width}}", &width.to_string()),
+                    ("{{total-width}}", &total_width.to_string()),
+                    ("{{views-offset-x}}", &x_offset.to_string()),
+                ],
+            );
+
             let mut headers = HeaderMap::new();
             headers.insert(header::CONTENT_TYPE, "image/svg+xml".parse().unwrap());
-            headers.insert(header::CACHE_CONTROL, "max-age=0, no-cache, no-store, must-revalidate".parse().unwrap());
-            (
-                headers,
-                res
-            ).into_response()
+            headers.insert(
+                header::CACHE_CONTROL,
+                "max-age=0, no-cache, no-store, must-revalidate"
+                    .parse()
+                    .unwrap(),
+            );
+            (headers, res).into_response()
         }
         Err(e) => e.to_string().into_response(),
     }
+}
+
+fn render_template(template: &str, data: &[(&str, &str)]) -> String {
+    let mut result = String::from(template);
+
+    for (placeholder, value) in data {
+        result = result.replace(placeholder, value);
+    }
+
+    result
+}
+
+fn readable_uint(int_str: String) -> String {
+    let mut s = String::new();
+    for (i ,char) in int_str.chars().rev().enumerate() {
+        if i % 3 == 0 && i != 0 {
+            s.insert(0, ',');
+        }
+        s.insert(0, char);
+    }
+    return s
 }
