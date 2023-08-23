@@ -43,7 +43,7 @@ services:
     container_name: hhai-dev-migrator
     build:
       context: ..
-      dockerfile: docker/prisma-migrator.Dockerfile
+      dockerfile: docker/hhai-dev-migrator.Dockerfile
     env_file:
       - ../.env
 

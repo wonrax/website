@@ -6,13 +6,23 @@ name: hhai.dev container CI/CD
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - "apps/**"
+      - "api/**"
+      - "packages/**"
+      - "docker/**"
+      - "package.json"
+      - "package-lock.json"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "turbo.json"
 
   workflow_dispatch:
 
 jobs:
 
   files-changed:
-    name: Detect what files changed
+    name: Detect what files changed to decide what to build
     runs-on: ubuntu-latest
     timeout-minutes: 3
     # Map a step output to a job output
@@ -32,12 +42,16 @@ jobs:
             www:
               - "apps/hhai.dev/**"
               - "packages/**"
+              - "docker/hhai-dev-www.Dockerfile"
             api:
               - "api/src/**"
               - "api/Cargo.toml"
+              - "api/Cargo.lock"
+              - "docker/hhai-dev-api.Dockerfile"
             migrate:
               - "api/migrations/**"
               - "api/schema.prisma"
+              - "docker/hhai-dev-migrator.Dockerfile"
 
   build-and-push-www:
     name: hhai.dev www - Build and push Docker image
@@ -69,7 +83,7 @@ jobs:
     with:
       name: hhai.dev migrate
       tags: ghcr.io/wonrax/hhai-dev-migrator:latest
-      dockerfile: docker/prisma-migrator.Dockerfile
+      dockerfile: docker/hhai-dev-migrator.Dockerfile
     secrets: inherit
 
   deploy:
