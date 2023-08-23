@@ -8,7 +8,7 @@
     "configurations": [
         {
             "name": "Debug hhai.dev API",
-            "type": "lldb",
+            "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceRoot}/target/debug/api",
             "args": [],
