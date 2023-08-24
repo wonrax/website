@@ -118,7 +118,7 @@ export default function BlogPost(props: PageProps) {
           <ScrollToTopButton />
         </div>
       </div> */}
-      <div className="hidden flex-col gap-1 col-start-1 row-start-1 row-span-2 justify-self-end max-w-[256px] 2xl:flex">
+      <div className="hidden flex-col gap-1 col-start-1 row-start-1 row-span-2 justify-self-start ml-8 max-w-[256px] 2xl:flex">
         <span className="font-medium text-gray-800">Ha Huy Long Hai</span>
         <span className="text-sm font-medium text-gray-400">
           {new Date(post.published).toLocaleDateString("en-UK", {
@@ -152,7 +152,7 @@ export default function BlogPost(props: PageProps) {
         {/* <div className="w-full h-[1px] mt-4 bg-gray-200"></div> */}
       </div>
       <div className="2xl:col-start-3 2xl:order-2 col-start-2 order-1 w-full max-w-[700px] mx-auto 2xl:mx-0 border-b 2xl:border-none pb-8 px-4 md:px-0">
-        <div className="sticky top-6 text-sm w-full 2xl:max-w-[256px]">
+        <div className="sticky top-6 text-sm w-full 2xl:max-w-[256px] float-right mr-8">
           <p className="font-bold uppercase tracking-wide text-gray-600 mb-2">
             Content
           </p>
