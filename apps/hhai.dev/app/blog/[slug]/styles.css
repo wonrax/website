@@ -41,7 +41,7 @@ h6[id] {
 }
 
 .feature-table-md {
-  @apply col-span-3 mx-auto w-fit border border-gray-200 rounded-xl overflow-x-auto max-w-full lg:max-w-[900px] mb-4 z-10;
+  @apply col-span-3 mx-auto w-fit border border-gray-200 rounded-lg overflow-x-auto max-w-full lg:max-w-[900px] mb-4 z-10;
 }
 
 pre[data-theme="dark"],

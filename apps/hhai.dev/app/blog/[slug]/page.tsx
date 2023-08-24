@@ -24,12 +24,15 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
   const post = allBlogPosts.find((post) => post.slug === slug);
   if (!post) return {};
   return {
+    metadataBase:
+      process.env.NODE_ENV == "production" ? new URL("https://hhai.dev") : null,
     title: post.title,
     description: post.description,
     openGraph: {
       title: post.title,
       description: post.description,
       siteName: "hhai.dev",
+      images: "/images/thumbnail-og.jpg",
     },
   };
 }

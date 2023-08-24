@@ -1,4 +1,20 @@
+import { Metadata } from "next";
 import Link from "next/link";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    metadataBase:
+      process.env.NODE_ENV == "production" ? new URL("https://hhai.dev") : null,
+    title: "hhai.dev",
+    description: "hhai.dev personal website",
+    openGraph: {
+      title: "hhai.dev",
+      description: "hhai.dev personal website",
+      siteName: "hhai.dev",
+      images: "/images/thumbnail-og.jpg",
+    },
+  };
+}
 
 export default function Page() {
   const mainColorStyles = "text-gray-900";

@@ -1,5 +1,21 @@
+import { Metadata } from "next";
 import { allBlogPosts, BlogPost } from "contentlayer/generated";
 import Link from "next/link";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    metadataBase:
+      process.env.NODE_ENV == "production" ? new URL("https://hhai.dev") : null,
+    title: "hhai.dev blog",
+    description: "hhai.dev blog",
+    openGraph: {
+      title: "hhai.dev blog",
+      description: "hhai.dev blog posts",
+      siteName: "hhai.dev",
+      images: "/images/thumbnail-og.jpg",
+    },
+  };
+}
 
 export default function Blog() {
   return (
