@@ -29,7 +29,7 @@ export default function RootLayout({
       </head>
       <body>
         <NextTopLoader />
-        <section className="text-center text-gray-700 p-2 text-sm absolute w-full bg-gray-900 bg-opacity-5">
+        <section className="text-center text-gray-700 p-2 text-sm w-full bg-yellow-400 bg-opacity-5">
           ⚠️ Site's under construction. Please expect unfinished business in
           every part of the site. ⚠️
         </section>

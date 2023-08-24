@@ -119,7 +119,11 @@ export default function BlogImage({
         width={i.width}
         height={i.height}
         loading="lazy"
-        style={{ marginLeft: "auto", marginRight: "auto" }}
+        style={{
+          marginLeft: "auto",
+          marginRight: "auto",
+          boxShadow: "0px 0px 96px 48px #fff",
+        }}
       />
       <a
         className="invisible block relative shadow-sm border group-hover:visible left-5 bottom-20 text-gray-700 w-8 h-8 font-medium text-base px-2 py-1 rounded-lg bg-white cursor-pointer no-underline"

@@ -104,15 +104,16 @@ export default function BlogPost(props: PageProps) {
     "max-w-full lg:max-w-[900px] px-4 lg:px-0",
     // "lg:-mt-5", // TODO this is a hack to fix the margin of the first element
     "prose prose-a:break-words",
-    "prose-pre:px-0 prose-pre:my-0 prose-pre:bg-transparent prose-pre:text-sm prose-pre:leading-loose",
+    "prose-pre:px-0 prose-pre:my-0 prose-pre:bg-transparent prose-pre:text-sm prose-pre:leading-relaxed",
+    "prose-code:font-normal",
     "prose-td:whitespace-break-spaces prose-td:break-words prose-table:m-0",
     "prose-td:px-4 prose-td:py-2 prose-th:px-4 prose-th:py-2",
     // "prose-img:rounded-2xl",
-    "pb-8 flex flex-col items-center col-start-2 -mt-5 order-1",
+    "pb-8 flex flex-col items-center col-start-2 order-1",
     "prose-h2:font-medium prose-h3:font-medium",
   ].join(" ");
   return (
-    <div className="grid grid-cols-[0fr_100%_0fr] lg:grid-cols-[1fr_900px_1fr] gap-y-4 gap-x-0 lg:gap-x-8 max-w-full mt-4">
+    <div className="flex flex-row gap-8 max-w-full justify-center mt-4">
       {/* <div className="col-start-1 row-span-3 justify-self-end">
         <div className="sticky hidden top-6 mt-3 xl:flex flex-col gap-4 items-center h-[94vh] justify-between">
           <Link href="/blog" className="font-medium">
@@ -121,7 +122,7 @@ export default function BlogPost(props: PageProps) {
           <ScrollToTopButton />
         </div>
       </div> */}
-      <div className="hidden flex-col gap-1 col-start-1 row-start-1 row-span-2 justify-self-start ml-8 max-w-[256px] 2xl:flex">
+      {/* <div className="hidden flex-col gap-1 col-start-1 row-start-1 row-span-2 justify-self-start ml-8 max-w-[256px] 2xl:flex">
         <span className="font-medium text-gray-800">Ha Huy Long Hai</span>
         <span className="text-sm font-medium text-gray-400">
           {new Date(post.published).toLocaleDateString("en-UK", {
@@ -146,16 +147,9 @@ export default function BlogPost(props: PageProps) {
         >
           View markdown source
         </Link>
-      </div>
-      <div
-        className="flex flex-col self-start items-start gap-4 w-full max-w-[700px] px-4 md:px-0 mx-auto col-start-2"
-        // style={{ maxWidth: BLOG_FEATURE_SM_MAX_LENGTH }}
-      >
-        <ArticleHead post={post} />
-        {/* <div className="w-full h-[1px] mt-4 bg-gray-200"></div> */}
-      </div>
-      <div className="2xl:col-start-3 2xl:order-2 col-start-2 order-1 w-full max-w-[700px] mx-auto 2xl:mx-0 border-b 2xl:border-none pb-8 px-4 md:px-0">
-        <div className="sticky top-6 text-sm w-full 2xl:max-w-[256px] float-right mr-8">
+      </div> */}
+      <div className="2xl:col-start-3 2xl:order-2 col-start-2 order-1 max-w-[700px] mx-auto 2xl:mx-0 border-b 2xl:border-none pb-8 px-4 md:px-0">
+        <div className="sticky top-6 text-sm w-full 2xl:max-w-[256px] border-l px-4 py-2">
           <p className="font-bold uppercase tracking-wide text-gray-600 mb-2">
             Content
           </p>
@@ -166,6 +160,13 @@ export default function BlogPost(props: PageProps) {
         </div>
       </div>
       <div className={articleStyles}>
+        <div
+          className="flex flex-col self-start items-start gap-4 w-full max-w-[700px] px-4 md:px-0 mx-auto col-start-2"
+          // style={{ maxWidth: BLOG_FEATURE_SM_MAX_LENGTH }}
+        >
+          <ArticleHead post={post} />
+          {/* <div className="w-full h-[1px] mt-4 bg-gray-200"></div> */}
+        </div>
         <Article
           mdxContent={MDXContent}
           raw={post.body.raw}
@@ -257,7 +258,7 @@ const Article = ({
 const ArticleHead = ({ post }: { post: BlogPost }) => {
   return (
     <div className="w-full">
-      <h1 className="font-medium text-4xl mb-4 tracking-tight leading-none text-gray-800">
+      <h1 className="font-medium text-4xl mb-4 tracking-tight leading-tight text-gray-800">
         {post.title}
       </h1>
     </div>

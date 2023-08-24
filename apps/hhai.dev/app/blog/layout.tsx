@@ -7,21 +7,33 @@ export default function BlogLayout({
 }) {
   return (
     <>
-      <div
-        className="min-h-screen"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(227,250,255,1) 0, rgba(223,255,252,0.4) 70px, rgba(254,255,251,1) 220px, rgba(255,255,255,1) 500px)",
-        }}
-      >
-        <div className="w-full max-w-[700px] mx-auto pt-16 pb-4 flex flex-row gap-2 rounded-lg px-4 md:px-0 col-start-2">
-          <Link href="/" className="text-cyan-900 font-bold w-fit">
-            hhai.dev
-          </Link>
-          <h3 className="text-cyan-900 font-medium">/</h3>
-          <Link href="/blog" className="text-cyan-900 font-medium">
-            blog
-          </Link>
+      <div className="min-h-screen">
+        <div className="w-full border-b flex flex-row justify-center py-3 mb-8">
+          <div className="flex flex-row items-center gap-8 w-[986px]">
+            <div className="flex flex-row gap-2">
+              <img
+                height={24}
+                width={24}
+                src="/favicon.svg"
+                alt="hhai.dev logo"
+              />
+              <Link
+                href="/"
+                className="text-gray-900 text-xl tracking-tight font-medium w-fit"
+              >
+                hhai.dev
+              </Link>
+            </div>
+            <Link href="/blog" className="text-gray-900">
+              blog
+            </Link>
+            <Link href="/blog" className="text-gray-900">
+              snippets
+            </Link>
+            <Link href="/blog" className="text-gray-900">
+              links
+            </Link>
+          </div>
         </div>
         {children}
       </div>

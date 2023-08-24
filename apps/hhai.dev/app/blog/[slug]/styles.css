@@ -37,7 +37,7 @@ h6[id] {
 }
 
 .feature-lg {
-  @apply w-screen max-w-[1920px] z-10;
+  @apply w-screen max-w-[1920px] z-10 ml-[135px];
 }
 
 .feature-table-md {
@@ -102,5 +102,5 @@ div[data-rehype-pretty-code-fragment] code .line [data-highlighted-chars] {
 }
 
 code {
-  @apply bg-gray-50 border border-gray-300 px-1 py-0.5 rounded-md;
+  @apply bg-gray-100  px-1 py-0.5 rounded-md;
 }
