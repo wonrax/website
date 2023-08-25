@@ -110,7 +110,7 @@ export default function BlogImage({
   }
 
   return (
-    <span className="static group">
+    <div>
       <img
         src={i.src}
         alt={alt}
@@ -123,15 +123,17 @@ export default function BlogImage({
           marginLeft: "auto",
           marginRight: "auto",
           boxShadow: "0px 0px 96px 48px #fff",
+          marginBottom: "8px",
         }}
+        className="rounded-xl"
       />
       <a
-        className="invisible block relative shadow-sm border group-hover:visible left-5 bottom-20 text-gray-700 w-8 h-8 font-medium text-base px-2 py-1 rounded-lg bg-white cursor-pointer no-underline"
+        className="block bg-gray-100 mr-2 bottom-20 text-gray-700 w-7 h-7 font-medium text-base text-center rounded-full cursor-pointer no-underline float-right leading-relaxed"
         href={i.src}
         target="_blank"
       >
         ↓
       </a>
-    </span>
+    </div>
   );
 }

@@ -3,6 +3,10 @@
   @apply w-full max-w-[900px];
 }
 
+.image-caption {
+  @apply mt-3 mb-0 mx-2 font-medium text-gray-500 text-xs;
+}
+
 /* .feature-sm img,
 .feature-lg img,
 .feature-table-md {
@@ -37,7 +41,7 @@ h6[id] {
 }
 
 .feature-lg {
-  @apply w-screen max-w-[1920px] z-10 ml-[135px];
+  @apply w-[95vw] max-w-[1920px] z-10 ml-[326px];
 }
 
 .feature-table-md {

@@ -9,28 +9,28 @@ export default function BlogLayout({
     <>
       <div className="min-h-screen">
         <div className="w-full border-b flex flex-row justify-center py-3 mb-8">
-          <div className="flex flex-row items-center gap-8 w-[986px]">
-            <div className="flex flex-row gap-2">
+          <div className="flex flex-row items-center gap-10 w-[1024px]">
+            <div className="flex flex-row gap-3">
               <img
-                height={24}
-                width={24}
+                height={20}
+                width={20}
                 src="/favicon.svg"
                 alt="hhai.dev logo"
               />
               <Link
                 href="/"
-                className="text-gray-900 text-xl tracking-tight font-medium w-fit"
+                className="text-gray-900 text-xl tracking-tight w-fit"
               >
-                hhai.dev
+                hhai-dev
               </Link>
             </div>
-            <Link href="/blog" className="text-gray-900">
+            <Link href="/blog" className="text-gray-600 text-sm font-medium">
               blog
             </Link>
-            <Link href="/blog" className="text-gray-900">
+            <Link href="/blog" className="text-gray-600 text-sm font-medium">
               snippets
             </Link>
-            <Link href="/blog" className="text-gray-900">
+            <Link href="/blog" className="text-gray-600 text-sm font-medium">
               links
             </Link>
           </div>
