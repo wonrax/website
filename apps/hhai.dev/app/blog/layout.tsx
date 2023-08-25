@@ -17,10 +17,7 @@ export default function BlogLayout({
                 src="/favicon.svg"
                 alt="hhai.dev logo"
               />
-              <Link
-                href="/"
-                className="text-gray-900 text-xl tracking-tight w-fit"
-              >
+              <Link href="/" className="text-gray-900 text-xl w-fit">
                 hhai-dev
               </Link>
             </div>

@@ -19,8 +19,8 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function Page() {
   const mainColorStyles = "text-gray-900";
   const secondaryColorStyles = "text-gray-400";
-  const headingStyles = "text-xl tracking-tighter leading-none";
-  const paragraphStyles = "text-base tracking-tight leading-7";
+  const headingStyles = "text-xl leading-none";
+  const paragraphStyles = "text-base leading-7";
   const linkStyles = `${paragraphStyles} ${mainColorStyles} underline`;
   return (
     <div className="flex flex-col items-center w-full py-16">

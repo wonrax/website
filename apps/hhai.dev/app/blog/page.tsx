@@ -20,9 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function Blog() {
   return (
     <div className="mx-auto max-w-[732px] mt-4 h-full">
-      <p className="px-4 py-2 font-medium text-lg text-gray-400 tracking-tight">
-        2023
-      </p>
+      <p className="px-4 py-2 font-medium text-lg text-gray-400">2023</p>
       <ul className="flex flex-col transition-all">
         {allBlogPosts.map((post) => (
           <li key={post.slug}>
@@ -40,7 +38,7 @@ const Article = ({ blogPost }: { blogPost: BlogPost }) => {
   return (
     <div className="flex flex-row rounded-lg p-4 justify-between items-start group hover:bg-gray-900 hover:bg-opacity-5">
       <div className="flex flex-col gap-2 items-stretch">
-        <h3 className="tracking-tight leading-none font-medium text-gray-800">
+        <h3 className="leading-none font-medium text-gray-800">
           {blogPost.title}
         </h3>
         <p className="text-sm leading-none text-gray-500">
