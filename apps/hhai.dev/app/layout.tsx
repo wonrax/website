@@ -22,10 +22,10 @@ export default function RootLayout({
           href="https://fonts.gstatic.com"
           crossOrigin="anonymous"
         />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+        {/* <link
+          href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;1,700&display=swap"
           rel="stylesheet"
-        ></link>
+        ></link> */}
       </head>
       <body>
         <NextTopLoader />

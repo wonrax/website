@@ -150,9 +150,7 @@ export default function BlogPost(props: PageProps) {
       </div> */}
       <div className="hidden xl:block order-2 self-stretch">
         <div className="sticky top-6 text-sm xl:max-w-[300px] px-6 py-2">
-          <p className="text-gray-800 tracking-tight mb-2 text-lg">
-            On this page
-          </p>
+          <p className="text-gray-800 mb-2 text-lg">On this page</p>
           <TableOfContents headings={headings} />
           <div className="mt-6">
             <ScrollToTopButton />
@@ -279,7 +277,7 @@ const Article = ({
 const ArticleHead = ({ post }: { post: BlogPost }) => {
   return (
     <div className="w-full">
-      <h1 className="font-medium text-4xl mb-4 tracking-tight leading-tight text-gray-800">
+      <h1 className="font-medium text-4xl mb-4 leading-tight text-gray-800">
         {post.title}
       </h1>
     </div>

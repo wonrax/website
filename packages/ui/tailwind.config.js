@@ -10,7 +10,13 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Inter", ...defaultTheme.fontFamily.sans],
+        sans: [
+          "sans-serif",
+          "Archivo",
+          "IBM Plex Sans",
+          "Inter",
+          ...defaultTheme.fontFamily.sans,
+        ],
       },
       typography: {
         DEFAULT: {
