@@ -122,7 +122,7 @@ export default function BlogImage({
         style={{
           marginLeft: "auto",
           marginRight: "auto",
-          boxShadow: "0px 0px 96px 48px #fff",
+          // boxShadow: "0px 0px 96px 48px #fff",
           marginBottom: "8px",
         }}
         className="rounded-xl"
