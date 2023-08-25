@@ -7,7 +7,7 @@ hhai.dev {
 		reverse_proxy api:3000
 	}
 
-	handle / {
+	handle {
 		root * /www/hhai.dev
 		try_files {path}.html
 		file_server
