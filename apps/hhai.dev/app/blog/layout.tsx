@@ -17,18 +17,21 @@ export default function BlogLayout({
                 src="/favicon.svg"
                 alt="hhai.dev logo"
               />
-              <Link href="/" className="text-gray-900 text-xl w-fit">
-                hhai-dev
+              <Link
+                href="/"
+                className="text-gray-900 tracking-normal text-xl w-fit"
+              >
+                Ha Huy Long Hai
               </Link>
             </div>
-            <Link href="/blog" className="text-gray-600 text-sm font-medium">
-              blog
+            <Link href="/blog" className="text-gray-600">
+              Blog
             </Link>
-            <Link href="/blog" className="text-gray-600 text-sm font-medium">
-              snippets
+            <Link href="/blog" className="text-gray-600">
+              Snippets
             </Link>
-            <Link href="/blog" className="text-gray-600 text-sm font-medium">
-              links
+            <Link href="/blog" className="text-gray-600">
+              Links
             </Link>
           </div>
         </div>

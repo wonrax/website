@@ -149,8 +149,17 @@ export default function BlogPost(props: PageProps) {
         </Link>
       </div> */}
       <div className="hidden xl:block order-2 self-stretch">
-        <div className="sticky top-6 text-sm xl:max-w-[300px] px-6 py-2">
-          <p className="text-gray-800 mb-2 text-lg">On this page</p>
+        <div className="sticky top-6 text-sm xl:w-[300px] px-6 py-2">
+          {post.tags && (
+            <div>
+              {post.tags.map((tag) => (
+                <span className="px-2 py-1 rounded-md bg-gray-100 text-xs font-medium text-gray-500 mr-1 mb-1 inline-block">
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="text-gray-800 my-2 text-lg">On this page</p>
           <TableOfContents headings={headings} />
           <div className="mt-6">
             <ScrollToTopButton />
@@ -165,9 +174,11 @@ export default function BlogPost(props: PageProps) {
           <ArticleHead post={post} />
           {/* <div className="w-full h-[1px] mt-4 bg-gray-200"></div> */}
         </div>
-        <div className="hidden flex-col gap-1 w-full max-w-[700px] 2xl:flex">
+        <div className="flex flex-col gap-1 w-full max-w-[700px] mb-4">
           <div className="flex flex-row gap-4 items-baseline">
-            <span className="font-medium text-gray-800">Ha Huy Long Hai</span>
+            <span className="font-medium text-sm text-gray-800">
+              Ha Huy Long Hai
+            </span>
             <span className="text-sm font-medium text-gray-400">
               {new Date(post.published).toLocaleDateString("en-UK", {
                 year: "numeric",
@@ -176,15 +187,6 @@ export default function BlogPost(props: PageProps) {
               })}
             </span>
           </div>
-          {post.tags && (
-            <div>
-              {post.tags.map((tag) => (
-                <span className="px-2 py-1 rounded-md bg-gray-100 text-xs font-medium text-gray-500 mr-1 mb-1 inline-block">
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
         <Article
           mdxContent={MDXContent}

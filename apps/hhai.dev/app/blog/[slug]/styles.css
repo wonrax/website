@@ -41,7 +41,7 @@ h6[id] {
 }
 
 .feature-lg {
-  @apply w-[95vw] max-w-[1920px] z-10 xl:ml-[326px];
+  @apply w-[95vw] max-w-[1920px] z-10 xl:ml-[330px];
 }
 
 .feature-table-md {
