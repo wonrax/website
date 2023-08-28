@@ -19,18 +19,18 @@ export default function BlogLayout({
               />
               <Link
                 href="/"
-                className="text-gray-900 tracking-normal text-xl w-fit"
+                className="text-gray-900 tracking-normal font-medium w-fit"
               >
                 Ha Huy Long Hai
               </Link>
             </div>
-            <Link href="/blog" className="text-gray-600">
+            <Link href="/blog" className="text-gray-600 text-sm font-medium">
               Blog
             </Link>
-            <Link href="/blog" className="text-gray-600">
+            <Link href="/blog" className="text-gray-600 text-sm font-medium">
               Snippets
             </Link>
-            <Link href="/blog" className="text-gray-600">
+            <Link href="/blog" className="text-gray-600 text-sm font-medium">
               Links
             </Link>
           </div>
