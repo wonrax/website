@@ -6,7 +6,8 @@
     "apps/hhai.dev",
     "packages/ui",
     "packages/remark-feature-element",
-    "packages/lib/nextjs-toploader"
+    "packages/lib/nextjs-toploader",
+    "apps/astro"
   ],
   "scripts": {
     "build": "turbo run build",
