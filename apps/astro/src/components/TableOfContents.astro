@@ -1,0 +1,9 @@
+---
+import HeadingElement from "./HeadingElement.astro";
+
+const headings = Astro.props.headings;
+---
+
+<>
+  {headings.map((heading) => <a href={`#${heading.slug}`}>{heading.text}</a>)}
+</>

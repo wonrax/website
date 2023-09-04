@@ -1,7 +1,8 @@
 {
+  "extends": "astro/tsconfigs/base",
   "compilerOptions": {
     "declaration": true,
-    "emitDeclarationOnly": true,
+    // "emitDeclarationOnly": true,
     "strict": true,
     // All packages are built with ESBuild, so we can use `moduleResolution: 'bundler'`
     "moduleResolution": "bundler",
