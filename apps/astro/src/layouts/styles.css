@@ -13,6 +13,10 @@
   @apply shadow-[0_0_50px_60px_rgba(255,255,255,1)] static;
 } */
 
+maxwidth {
+  @apply w-[700px] max-w-full lg:max-w-[700px] lg:min-w-[700px] z-20;
+}
+
 .icon.icon-link {
   opacity: 0;
 }
