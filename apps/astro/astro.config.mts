@@ -19,13 +19,12 @@ export default defineConfig({
       remarkImageToComponent,
       () => {
         return (tree) => {
-          console.log("tree", JSON.stringify(tree, null, 2));
           visit(tree, "mdxJsxFlowElement", (node: MdxJsxFlowElement) => {
             if (node.name != "__AstroImage__") {
               return;
             }
-            // console.log(node);
-            node.name = "__CustomImage__";
+            console.log(node);
+            // node.name = "__CustomImage__";
           });
 
           tree.children.unshift(
