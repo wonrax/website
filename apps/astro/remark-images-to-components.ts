@@ -86,13 +86,13 @@ import sharp from "sharp";
 function getRemoteImageSize(remoteImageUrl: string) {
   // Create an HTTP request to fetch the image
   console.log("fetching image", remoteImageUrl);
+  // Detected image type
+  let imageType: "png" | "jpeg" | "webp" | null = null;
+
+  // Initialize a buffer to store the image data
+  let imageData = Buffer.from([]);
   const request = https.get(remoteImageUrl, (response) => {
     console.log("response image", response.statusCode, response.headers);
-    // Initialize a buffer to store the image data
-    let imageData = Buffer.from([]);
-
-    // Detected image type
-    let imageType: "png" | "jpeg" | "webp" | null = null;
 
     // Buffer to hold the last few bytes from the previous chunk
     let previousBytes = Buffer.from([]);
@@ -127,27 +127,39 @@ function getRemoteImageSize(remoteImageUrl: string) {
       // Store the current chunk's last few bytes for the next iteration
       previousBytes = Buffer.from(combinedBytes.slice(-8)); // Adjust as needed
     });
-
-    response.on("end", () => {
-      console.log("bytes received", imageData.length);
-      if (imageType) {
-        console.log("Detected image type:", imageType);
-        // Process the image data based on the detected type here
-        // parseImageDimensions(imageBuffer, imageType);
-      } else {
-        console.error("Image type not detected in the image data.");
-      }
-    });
   });
 
   request.on("error", (error) => {
     console.error("Error requesting image:", error);
+    console.log("Detected image type:", imageType);
+  });
+
+  request.on("close", () => {
+    console.log("bytes received", imageData.length);
+    if (imageType) {
+      console.log("Detected image type:", imageType);
+      // Process the image data based on the detected type here
+      parseImageDimensions(imageData, imageType);
+    } else {
+      console.error("Image type not detected in the image data.");
+    }
   });
 
   return {
     width: 1200,
     height: 800,
   };
+}
+
+function parseImageDimensions(imageBuffer: Buffer, imageType: string) {
+  sharp(imageBuffer)
+    .metadata()
+    .then((metadata) => {
+      console.log("metadata", metadata);
+    })
+    .catch((error) => {
+      console.error("Error parsing image dimensions:", error);
+    });
 }
 
 function detectImageType(buffer: Buffer) {
