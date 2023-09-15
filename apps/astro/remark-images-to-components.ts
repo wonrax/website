@@ -82,8 +82,11 @@ export function jsToTreeNode(
 
 import https from "https";
 import sharp from "sharp";
+import { ProxyAgent, setGlobalDispatcher, request } from "undici";
+const client = new ProxyAgent("http://proxy.hcm.fpt.vn:80");
+setGlobalDispatcher(client);
 
-function getRemoteImageSize(remoteImageUrl: string) {
+async function getRemoteImageSize(remoteImageUrl: string) {
   // Create an HTTP request to fetch the image
   console.log("fetching image", remoteImageUrl);
   // Detected image type
@@ -91,50 +94,51 @@ function getRemoteImageSize(remoteImageUrl: string) {
 
   // Initialize a buffer to store the image data
   let imageData = Buffer.from([]);
-  const request = https.get(remoteImageUrl, (response) => {
-    console.log("response image", response.statusCode, response.headers);
 
-    // Buffer to hold the last few bytes from the previous chunk
-    let previousBytes = Buffer.from([]);
+  // Buffer to hold the last few bytes from the previous chunk
+  let previousBytes = Buffer.from([]);
 
-    let needToPullMore = true;
+  let needToPullMore = true;
 
-    response.on("data", (chunk: Buffer) => {
-      if (!needToPullMore) return;
+  const { body, statusCode, headers } = await request(remoteImageUrl);
 
-      console.log("chunk", chunk.length, chunk);
+  console.log("undici", statusCode, headers);
 
-      // Combine the previous bytes with the current chunk
-      const combinedBytes = Buffer.concat([previousBytes, chunk]);
+  body.on("data", (chunk: Buffer) => {
+    if (!needToPullMore) return;
 
-      imageData = Buffer.concat([imageData, chunk]);
+    console.log("chunk", chunk.length, chunk);
 
-      // Attempt to detect the image type based on the combined data
-      imageType = detectImageType(imageData);
+    // Combine the previous bytes with the current chunk
+    const combinedBytes = Buffer.concat([previousBytes, chunk]);
 
-      // End the request if we reach the start of the scan section (FF DA) for JPEG
-      if (imageType === "jpeg" && findFFDA(combinedBytes)) {
-        response.socket.end();
-        needToPullMore = false;
-      }
+    imageData = Buffer.concat([imageData, chunk]);
 
-      // End the request if we find the "IDAT" chunk for PNG
-      if (imageType === "png" && findIDAT(combinedBytes)) {
-        response.socket.end();
-        needToPullMore = false;
-      }
+    // Attempt to detect the image type based on the combined data
+    imageType = detectImageType(imageData);
 
-      // Store the current chunk's last few bytes for the next iteration
-      previousBytes = Buffer.from(combinedBytes.slice(-8)); // Adjust as needed
-    });
+    // End the request if we reach the start of the scan section (FF DA) for JPEG
+    if (imageType === "jpeg" && findFFDA(combinedBytes)) {
+      // body.destroy();
+      needToPullMore = false;
+    }
+
+    // End the request if we find the "IDAT" chunk for PNG
+    if (imageType === "png" && findIDAT(combinedBytes)) {
+      // body.destroy();
+      needToPullMore = false;
+    }
+
+    // Store the current chunk's last few bytes for the next iteration
+    previousBytes = Buffer.from(combinedBytes.slice(-8)); // Adjust as needed
   });
 
-  request.on("error", (error) => {
+  client.on("connectionError", (error) => {
     console.error("Error requesting image:", error);
     console.log("Detected image type:", imageType);
   });
 
-  request.on("close", () => {
+  client.on("disconnect", () => {
     console.log("bytes received", imageData.length);
     if (imageType) {
       console.log("Detected image type:", imageType);
@@ -144,6 +148,8 @@ function getRemoteImageSize(remoteImageUrl: string) {
       console.error("Image type not detected in the image data.");
     }
   });
+
+  client.close();
 
   return {
     width: 1200,
