@@ -8,7 +8,7 @@ import mdx from "@astrojs/mdx";
 import remarkFeatureElement from "remark-feature-element";
 import {
   jsToTreeNode,
-  remarkImageToComponent,
+  // remarkImageToComponent,
 } from "./remark-images-to-components";
 
 // https://astro.build/config
@@ -16,15 +16,15 @@ export default defineConfig({
   markdown: {
     syntaxHighlight: false,
     remarkPlugins: [
-      remarkImageToComponent,
+      // remarkImageToComponent,
       () => {
         return (tree) => {
           visit(tree, "mdxJsxFlowElement", (node: MdxJsxFlowElement) => {
-            if (node.name != "__AstroImage__") {
+            console.log(node);
+            if (node.name != "astro-image" && node.name != "img") {
               return;
             }
-            console.log(node);
-            // node.name = "__CustomImage__";
+            node.name = "__CustomImage__";
           });
 
           tree.children.unshift(
@@ -38,6 +38,6 @@ export default defineConfig({
   integrations: [tailwind(), mdx()],
   image: {
     service: sharpImageService(),
-    domains: ["astro.build"],
+    domains: ["astro.build", "picsum.photos"],
   },
 });

@@ -11,9 +11,9 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/mdx": "^1.0.0",
+    "@astrojs/mdx": "^1.1.0",
     "@astrojs/tailwind": "^5.0.0",
-    "astro": "^3.0.3",
+    "astro": "^3.2.0",
     "remark-feature-element": "file:../../packages/remark-feature-element",
     "tailwindcss": "^3.3.3"
   },

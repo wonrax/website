@@ -11,7 +11,7 @@ type Props = {
   deviceSizes?: number[];
 } & Omit<ImageTransform, "src"> &
   Omit<astroHTML.JSX.ImgHTMLAttributes, "src" | "width" | "height">;
-const {
+let {
   src,
   format,
   width: propsWidth,
@@ -27,15 +27,23 @@ const {
 if (!src) {
   throw new Error("src is required");
 }
-const originalWidth = src.width;
-const originalHeight = src.height;
+
+propsWidth = parseInt(propsWidth as string);
+height = parseInt(height as string);
+
+console.log("passed props", Astro.props);
+
+const originalWidth = src.width || propsWidth;
+const originalHeight = src.height || height;
 const aspectRatio = originalHeight / originalWidth;
 // If propsWidth is provided, use it as the maximum size
 const maxWidth =
   propsWidth && propsWidth <= originalWidth ? propsWidth : originalWidth;
+console.log("maxWidth", maxWidth);
 // Filter out sizes that are larger than the max width
 const validSizes = deviceSizes.filter((size) => size <= maxWidth);
 const generateSrcSet = async (size: number) => {
+  console.log("generating image size", size, Math.round(size * aspectRatio));
   const resizedImg = await getImage({
     src,
     format,
@@ -55,6 +63,11 @@ const sizesAttr = `
   ${sizesAttrMapped},
   ${maxWidth}px
 `;
+console.log(
+  "original image size",
+  maxWidth,
+  Math.round(maxWidth * aspectRatio)
+);
 const original = await getImage({
   src,
   format,
