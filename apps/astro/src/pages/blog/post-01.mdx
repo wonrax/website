@@ -84,10 +84,14 @@ Automatically spans out to fit the table content:
 
 #TODO feature image or table by enlarging it outside the reading width
 
-![img](https://static.techgoing.com/2023/01/ChatGPT-development-1024x705.png)
+<img src="https://picsum.photos/1920/1080"
+	alt="sample scenery"
+	width="1920"
+	height="1080"
+/>
 A normal image will always fit within the reading line width.
 
-![img] -- (./IMG_0225.jpg)
+![img](./IMG_0831.jpg)
 A normal image will always fit within the reading line width.
 
 ## Image optimization
@@ -97,8 +101,20 @@ screen resolutions. If the image path starts with `./`, it will be relative with
 the `mdx` file. Otherwise, it will look for images inside the
 `content/blog/images` directory.
 
-```md /feature-sm/ /lg/
-![sample scenery](scenery.png)
+```mdx /feature-sm/ /lg/
+// local images are optimized
+![sample scenery](./scenery.png)
+
+// remote images are not optimized unless you specify the size
+![sample scenery](https://example.com/scenery.png)
+
+// this will be optimized
+<img src="https://example.com/scenery.png"
+	alt="sample scenery"
+	width="300"
+	height="200" />
+
 ![sample scenery|feature-sm](scenery.png)
+
 ![sample scenery|feature-lg](scenery.png)
 ```

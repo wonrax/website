@@ -4,7 +4,7 @@ import { h } from "hastscript";
 
 export default function remarkFeatureElement(options) {
   return (tree) => {
-    const children: Element[] = tree.children;
+    const children: any[] = tree.children;
 
     let wrapQueue: Element[] = [];
     let finalChildren: Element[] = [];
@@ -17,6 +17,12 @@ export default function remarkFeatureElement(options) {
     }
 
     for (const node of children) {
+      // ignore import statements
+      if (node.type === "mdxjsEsm") {
+        finalChildren.push(node);
+        continue;
+      }
+
       if (node.tagName == "table") {
         flushWrapper();
         finalChildren.push(h("div", { class: "feature-table-md" }, node));
@@ -24,7 +30,18 @@ export default function remarkFeatureElement(options) {
       }
 
       // check if node contains img element
-      const imgNode = select("img", node);
+      // const imgNode = select("__CustomImage__", node);
+
+      let imgNode;
+      if (node.children === undefined) continue;
+      for (const child of node.children) {
+        if (child.name === "__CustomImage__") {
+          console.log("found image", JSON.stringify(node, null, 2));
+          imgNode = node;
+          break;
+        }
+      }
+
       if (imgNode) {
         const pushImgElement = (
           as: string,

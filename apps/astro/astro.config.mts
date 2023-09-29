@@ -1,52 +1,56 @@
-import { defineConfig, sharpImageService } from "astro/config";
-import tailwind from "@astrojs/tailwind";
-import path from "path";
-
-import { visit } from "unist-util-visit";
-import type { MdxJsxFlowElement } from "mdast-util-mdx";
-
 import mdx from "@astrojs/mdx";
+import tailwind from "@astrojs/tailwind";
+import { defineConfig, sharpImageService } from "astro/config";
+import path, { dirname } from "path";
 import remarkFeatureElement from "remark-feature-element";
-import {
-  jsToTreeNode,
-  // remarkImageToComponent,
-} from "./remark-images-to-components";
-
-import { dirname } from "path";
 import { fileURLToPath } from "url";
+import remarkResponsiveImage from "./plugins/remarkResponsiveImage";
+import rehypePrettyCode from "rehype-pretty-code";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+const codeHighlightOptions = {
+  // Use one of Shiki's packaged themes
+  theme: {
+    light: "github-light",
+    dark: "github-dark",
+  },
+
+  // Keep the background or use a custom background color?
+  keepBackground: false,
+
+  // Callback hooks to add custom logic to nodes when visiting
+  // them.
+  onVisitLine(node: any) {
+    // Prevent lines from collapsing in `display: grid` mode, and
+    // allow empty lines to be copy/pasted
+    if (node.children.length === 0) {
+      node.children = [{ type: "text", value: " " }];
+    }
+    if (!node.properties.className) {
+      node.properties.className = ["line"];
+    }
+  },
+  onVisitHighlightedLine(node: any) {
+    node.properties.className.push("highlighted");
+  },
+  onVisitHighlightedWord() {},
+};
 
 // https://astro.build/config
 export default defineConfig({
   markdown: {
     syntaxHighlight: false,
-    remarkPlugins: [
-      // remarkImageToComponent,
-      () => {
-        return (tree) => {
-          visit(tree, "mdxJsxFlowElement", (node: MdxJsxFlowElement) => {
-            console.log(node);
-            if (node.name != "astro-image" && node.name != "img") {
-              return;
-            }
-            node.name = "__CustomImage__";
-          });
-
-          tree.children.unshift(
-            jsToTreeNode(
-              `import __CustomImage__ from "@/components/ResponsiveImage.astro";`
-            )
-          );
-        };
-      },
+    remarkPlugins: [remarkResponsiveImage],
+    rehypePlugins: [
+      remarkFeatureElement,
+      [rehypePrettyCode, codeHighlightOptions],
     ],
-    rehypePlugins: [remarkFeatureElement],
   },
   integrations: [tailwind(), mdx()],
   image: {
     service: sharpImageService(),
-    domains: ["astro.build"],
+    domains: ["astro.build", "picsum.photos"],
   },
   vite: {
     resolve: {
