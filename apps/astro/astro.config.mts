@@ -1,5 +1,6 @@
 import { defineConfig, sharpImageService } from "astro/config";
 import tailwind from "@astrojs/tailwind";
+import path from "path";
 
 import { visit } from "unist-util-visit";
 import type { MdxJsxFlowElement } from "mdast-util-mdx";
@@ -10,6 +11,11 @@ import {
   jsToTreeNode,
   // remarkImageToComponent,
 } from "./remark-images-to-components";
+
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // https://astro.build/config
 export default defineConfig({
@@ -28,7 +34,9 @@ export default defineConfig({
           });
 
           tree.children.unshift(
-            jsToTreeNode(`import __CustomImage__ from "../../../Image.astro";`)
+            jsToTreeNode(
+              `import __CustomImage__ from "@/components/ResponsiveImage.astro";`
+            )
           );
         };
       },
@@ -38,6 +46,13 @@ export default defineConfig({
   integrations: [tailwind(), mdx()],
   image: {
     service: sharpImageService(),
-    domains: ["astro.build", "picsum.photos"],
+    domains: ["astro.build"],
+  },
+  vite: {
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
+    },
   },
 });
