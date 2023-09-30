@@ -2,10 +2,10 @@ import mdx from "@astrojs/mdx";
 import tailwind from "@astrojs/tailwind";
 import { defineConfig, sharpImageService } from "astro/config";
 import path, { dirname } from "path";
-import remarkFeatureElement from "remark-feature-element";
-import { fileURLToPath } from "url";
-import remarkResponsiveImage from "./plugins/remarkResponsiveImage";
 import rehypePrettyCode from "rehype-pretty-code";
+import { fileURLToPath } from "url";
+import rehypeBlogPost from "./plugins/rehypeBlogPost";
+import remarkResponsiveImage from "./plugins/remarkResponsiveImage";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -42,10 +42,7 @@ export default defineConfig({
   markdown: {
     syntaxHighlight: false,
     remarkPlugins: [remarkResponsiveImage],
-    rehypePlugins: [
-      remarkFeatureElement,
-      [rehypePrettyCode, codeHighlightOptions],
-    ],
+    rehypePlugins: [rehypeBlogPost, [rehypePrettyCode, codeHighlightOptions]],
   },
   integrations: [tailwind(), mdx()],
   image: {
