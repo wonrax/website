@@ -1,5 +1,5 @@
 ---
-layout: "../../layouts/BlogPostLayout.astro"
+layout: "../../../layouts/BlogPostLayout.astro"
 title: "Markdown features and very long meaningless string to test stuff"
 description: 'How to use markdown in this site'
 published: '02 April 2023'
@@ -84,15 +84,12 @@ Automatically spans out to fit the table content:
 
 #TODO feature image or table by enlarging it outside the reading width
 
-<img src="https://picsum.photos/1920/1080"
-	alt="sample scenery"
-	width="1920"
-	height="1080"
-/>
-A normal image will always fit within the reading line width.
+![img](https://share.hhai.dev/IMG_1203.png '#width=1920;height=816;featuretype=sm')
+Remote image with small feature type
 
-![img](./IMG_0831.jpg)
-A normal image will always fit within the reading line width.
+![img](https://share.hhai.dev/IMG_1203.png '#width=1920;height=816;featuretype=lg')
+Remote image with large feature type
+
 
 ## Image optimization
 
@@ -101,20 +98,17 @@ screen resolutions. If the image path starts with `./`, it will be relative with
 the `mdx` file. Otherwise, it will look for images inside the
 `content/blog/images` directory.
 
-```mdx /feature-sm/ /lg/
-// local images are optimized
-![sample scenery](./scenery.png)
+```md /feature-sm/ /lg/
+<img src="https://picsum.photos/1112/340" width="1112" height="340" />
+> Remote image
 
-// remote images are not optimized unless you specify the size
-![sample scenery](https://example.com/scenery.png)
+![img](https://share.hhai.dev/IMG_1203.png '#width=1920;height=816;featuretype=lg')
+Remote image
 
-// this will be optimized
-<img src="https://example.com/scenery.png"
-	alt="sample scenery"
-	width="300"
-	height="200" />
+![img](./img.jpg '#featuretype=sm')
+Local image
 
+![sample scenery](scenery.png)
 ![sample scenery|feature-sm](scenery.png)
-
 ![sample scenery|feature-lg](scenery.png)
 ```

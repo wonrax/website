@@ -1,5 +1,6 @@
 import type { Element } from "hast";
 import { h } from "hastscript";
+import type { MdxJsxFlowElement, MdxJsxAttribute } from "mdast-util-mdx";
 
 // add extra custom modification like feature image etc.
 export default function rehypeBlogPost() {
@@ -15,7 +16,9 @@ export default function rehypeBlogPost() {
 
     function flushWrapper() {
       if (wrapQueue.length > 0) {
-        finalChildren.push(h("MaxWidth", wrapQueue));
+        finalChildren.push(
+          h("div", { class: "reading-line-width" }, wrapQueue)
+        );
         wrapQueue = [];
       }
     }
@@ -37,16 +40,16 @@ export default function rehypeBlogPost() {
       }
 
       // check if node contains img element or is the img element itself
-      let imgNode;
-      let imageIsNested = true;
+      let imgNode: MdxJsxFlowElement | undefined = undefined;
+      let parent: any = undefined;
       if (node.children === undefined) continue;
       if (node.name === "__CustomImage__") {
         imgNode = node;
-        imageIsNested = false;
       } else {
         for (const child of node.children) {
           if (child.name === "__CustomImage__") {
-            imgNode = node;
+            imgNode = child;
+            parent = node;
             break;
           }
         }
@@ -60,13 +63,14 @@ export default function rehypeBlogPost() {
       const pushImgElement = (
         as: string,
         queue: Array<any>,
-        children: Array<any>,
-        classes: string[] | string = []
+        imgNode: MdxJsxFlowElement,
+        classes: string[] | string | undefined = undefined
       ) => {
         // Find the image caption
         let imageCaption: Array<any> | undefined = undefined;
-        if (imageIsNested) {
-          if (children.length > 1) imageCaption = children.slice(1);
+        if (parent && parent.children) {
+          if (parent.children.length > 1)
+            imageCaption = parent.children.slice(1);
         } else {
           // the image caption is the second next node if the next node
           // is a \n text node and the second next node is a blockquote
@@ -86,14 +90,10 @@ export default function rehypeBlogPost() {
           }
         }
 
-        console.log("image caption", imageCaption);
-
         const imageCaptionElement =
           imageCaption && h("div", { class: "image-caption" }, imageCaption);
 
-        let childrenToPush;
-        if (imageIsNested) childrenToPush = [children[0], imageCaptionElement];
-        else childrenToPush = [node, imageCaptionElement];
+        const childrenToPush = [imgNode as any, imageCaptionElement];
 
         queue.push(
           h(as, { class: classes }, [
@@ -112,7 +112,24 @@ export default function rehypeBlogPost() {
         );
       };
 
-      console.log("img node", node);
+      console.log("img node", JSON.stringify(imgNode, null, 2));
+
+      // find the featuretype attribute
+      const featureTypeAttr = imgNode.attributes.find(
+        (attr) => attr.type === "mdxJsxAttribute" && attr.name == "featuretype"
+      ) as MdxJsxAttribute | undefined;
+
+      if (!featureTypeAttr || !featureTypeAttr.value) {
+        pushImgElement("div", wrapQueue, imgNode);
+        continue;
+      }
+
+      flushWrapper();
+      pushImgElement("div", finalChildren, imgNode, [
+        "feature",
+        "feature-" + featureTypeAttr.value,
+      ]);
+
       console.log(
         "next to img node",
         tree.children[tree.children.indexOf(node) + 1]
@@ -120,33 +137,6 @@ export default function rehypeBlogPost() {
       console.log(
         "next 2 to img node",
         tree.children[tree.children.indexOf(node) + 2]
-      );
-
-      if (!imgNode.properties || !imgNode.properties.alt) {
-        pushImgElement("div", wrapQueue, node.children);
-        continue;
-      }
-
-      // First part of alt text is the actual alt text
-      // and the second part is the feature type
-      const altComponents = imgNode.properties.alt.toString().split("|");
-
-      if (altComponents.length <= 1) {
-        pushImgElement("div", wrapQueue, node.children);
-        continue;
-      }
-
-      if (!node.properties) node.properties = {};
-      imgNode.properties.alt = altComponents[0].trim();
-      const featureType = altComponents[1].split("-")[1].trim();
-      imgNode.properties["feature-type"] = featureType; // We also need to set this in order to enable responsive images
-
-      flushWrapper();
-      pushImgElement(
-        "div",
-        finalChildren,
-        node.children,
-        altComponents.slice(1)
       );
     }
 
