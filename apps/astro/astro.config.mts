@@ -6,6 +6,7 @@ import rehypePrettyCode from "rehype-pretty-code";
 import { fileURLToPath } from "url";
 import rehypeBlogPost from "./plugins/rehypeBlogPost";
 import remarkResponsiveImage from "./plugins/remarkResponsiveImage";
+import "./plugins/proxy";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
