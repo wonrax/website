@@ -78,7 +78,7 @@ export default function remarkResponsiveImage() {
 
     tree.children.unshift(
       jsToTreeNode(
-        `import __CustomImage__ from "@/components/ResponsiveImage.astro";`
+        `import __CustomImage__ from "@/components/BlogResponsiveImage.astro";`
       )
     );
   };

@@ -47,7 +47,7 @@ export default defineConfig({
   integrations: [tailwind(), mdx()],
   image: {
     service: sharpImageService(),
-    domains: ["astro.build", "picsum.photos"],
+    domains: ["astro.build", "picsum.photos", "share.hhai.dev"],
   },
   vite: {
     resolve: {
