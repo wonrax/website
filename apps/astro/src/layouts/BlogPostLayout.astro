@@ -37,8 +37,14 @@ const articleStyles = [
             </div>
           )
         }
-        <p class="text-gray-800 my-2 text-lg">On this page</p>
-        <TableOfContents headings={headings} />
+        {
+          headings.length ? (
+            <>
+              <p class="text-gray-800 my-2 text-lg">On this page</p>
+              <TableOfContents headings={headings} />
+            </>
+          ) : null
+        }
         <div class="mt-6">
           <!-- <ScrollToTopButton /> -->
         </div>

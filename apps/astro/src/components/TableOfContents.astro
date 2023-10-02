@@ -1,9 +1,36 @@
 ---
-import HeadingElement from "./HeadingElement.astro";
+type Heading = {
+  text: string;
+  slug: string;
+  depth: number;
+};
 
-const headings = Astro.props.headings;
+type Props = {
+  headings: Heading[];
+};
+
+// Shift the levels to base 0 by finding the smallest depth
+const minDepth = Math.min(...Astro.props.headings.map((h) => h.depth));
+Astro.props.headings.forEach((h) => (h.depth -= minDepth - 1));
+
+const headings: Heading[] = Astro.props.headings;
+
+const mapDepthToMarginLeft = ["ml-0", "ml-2", "ml-4", "ml-6", "ml-6", "ml-6"];
+const mapDepthToPaddingTop = ["mt-2", "mt-1", "mt-0", "mt-0", "mt-0", "mt-0"];
 ---
 
 <>
-  {headings.map((heading) => <a href={`#${heading.slug}`}>{heading.text}</a>)}
+  {
+    headings.map((heading) => (
+      <div
+        class={`${mapDepthToMarginLeft[heading.depth - 1]} ${
+          mapDepthToPaddingTop[heading.depth - 1]
+        }`}
+      >
+        <a class="py-0.5 block" href={`#${heading.slug}`}>
+          {heading.text}
+        </a>
+      </div>
+    ))
+  }
 </>
