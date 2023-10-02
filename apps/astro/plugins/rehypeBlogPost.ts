@@ -112,8 +112,6 @@ export default function rehypeBlogPost() {
         );
       };
 
-      console.log("img node", JSON.stringify(imgNode, null, 2));
-
       // find the featuretype attribute
       const featureTypeAttr = imgNode.attributes.find(
         (attr) => attr.type === "mdxJsxAttribute" && attr.name == "featuretype"
@@ -129,15 +127,6 @@ export default function rehypeBlogPost() {
         "feature",
         "feature-" + featureTypeAttr.value,
       ]);
-
-      console.log(
-        "next to img node",
-        tree.children[tree.children.indexOf(node) + 1]
-      );
-      console.log(
-        "next 2 to img node",
-        tree.children[tree.children.indexOf(node) + 2]
-      );
     }
 
     flushWrapper();
