@@ -8,6 +8,10 @@ import type {
 } from "mdast-util-mdx";
 import { visit } from "unist-util-visit";
 
+// By default images in mdx are not responsive. This plugin
+// converts all images to our own responsive image components, which are
+// responsive by default. It also allows for custom attributes to be passed
+// to the image component via the title attribute.
 export default function remarkResponsiveImage() {
   return (tree: any) => {
     visit(tree, "mdxJsxFlowElement", (node: MdxJsxFlowElement) => {
