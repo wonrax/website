@@ -1,44 +1,67 @@
 ---
-import { getCollection, getEntry } from "astro:content";
 import BlogRouteLayout from "@/layouts/BlogRouteLayout.astro";
+import type { Frontmatter } from "@/layouts/BlogPostLayout.astro";
 
-const allPosts = await Astro.glob("./**/*.mdx");
-console.log("allPosts", allPosts);
-console.log("postUrl", allPosts[0].url);
+const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
 ---
 
 <BlogRouteLayout>
-  <div class="mx-auto max-w-[732px] mt-4 h-full">
-    <p class="px-4 py-2 font-medium text-lg text-gray-400">2023</p>
-    <ul class="flex flex-col transition-all">
+  <main class="blog-main">
+    <ul class="article-list">
       {
         allPosts.map((post) => (
-          <li>
-            <a href={post.url}>
-              <div class="flex flex-row rounded-lg p-4 justify-between items-start group hover:bg-gray-900 hover:bg-opacity-5">
-                <div class="flex flex-col gap-2 items-stretch">
-                  <h3 class="leading-none font-medium text-gray-800">
-                    {post.frontmatter.title}
-                  </h3>
-                  <p class="text-sm leading-none text-gray-500">
-                    {post.frontmatter.description}
-                  </p>
-                </div>
-
-                <p class="text-xs font-medium leading-none tracking-wide text-gray-500">
-                  {new Date(post.frontmatter.published)
-                    .toLocaleDateString("en-UK", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })
-                    .toUpperCase()}
-                </p>
-              </div>
-            </a>
+          <li class="article-entry">
+            <a href={post.url}>{post.frontmatter.title}</a>
+            <p>
+              <span class="article-date">
+                {new Date(post.frontmatter.published)
+                  .toLocaleDateString("en-UK", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })
+                  .toUpperCase()}
+              </span>
+              <span class="article-description">
+                {post.frontmatter.description}
+              </span>
+            </p>
           </li>
         ))
       }
     </ul>
-  </div>
+  </main>
 </BlogRouteLayout>
+
+<style lang="scss" is:global>
+  .blog-main {
+    max-width: 100%;
+    width: 1048px;
+    margin: 0 auto;
+
+    .article-list {
+      list-style-type: none;
+      padding-inline-start: 0;
+
+      .article-entry {
+        margin-bottom: 24px;
+
+        p {
+          margin: 8px 0;
+        }
+
+        .article-date {
+          text-transform: uppercase;
+          color: #666;
+          font-size: 14px;
+        }
+
+        .article-description {
+          color: #444;
+          font-size: 14px;
+          margin-left: 8px;
+        }
+      }
+    }
+  }
+</style>
