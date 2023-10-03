@@ -14,7 +14,6 @@ const codeHighlightOptions = {
   // Use one of Shiki's packaged themes
   theme: {
     light: "github-light",
-    dark: "github-dark",
   },
 
   // Keep the background or use a custom background color?
@@ -29,13 +28,23 @@ const codeHighlightOptions = {
       node.children = [{ type: "text", value: " " }];
     }
     if (!node.properties.className) {
-      node.properties.className = ["line"];
+      node.properties.className = ["code-block-line"];
     }
+
+    // remove data-line attribute
+    delete node.properties["data-line"];
   },
   onVisitHighlightedLine(node: any) {
     node.properties.className.push("highlighted");
+
+    // remove data-highlighted-line attribute
+    delete node.properties["data-highlighted-line"];
   },
   onVisitHighlightedWord() {},
+  onVisitTitle(node: any) {
+    node.properties.className = ["code-block-title"];
+    delete node.properties["data-rehype-pretty-code-title"];
+  },
 };
 
 // https://astro.build/config

@@ -1,5 +1,5 @@
 ---
-import "./styles.css";
+import "./styles.scss";
 import TableOfContents from "../components/TableOfContents.astro";
 import BlogRouteLayout from "./BlogRouteLayout.astro";
 
@@ -7,16 +7,16 @@ const post = Astro.props.frontmatter;
 const headings = Astro.props.headings;
 
 const articleStyles = [
-  "max-w-full lg:max-w-[900px] px-4 lg:px-0",
+  // "max-w-full lg:max-w-[900px] px-4 lg:px-0",
   // "lg:-mt-5", // TODO this is a hack to fix the margin of the first element
-  "prose prose-a:break-words",
-  "prose-pre:px-0 prose-pre:my-0 prose-pre:bg-transparent prose-pre:text-sm prose-pre:leading-relaxed",
-  "prose-code:font-normal",
-  "prose-td:whitespace-break-spaces prose-td:break-words prose-table:m-0",
-  "prose-td:px-4 prose-td:py-2 prose-th:px-4 prose-th:py-2",
+  // "prose prose-a:break-words",
+  // "prose-pre:px-0 prose-pre:my-0 prose-pre:bg-transparent prose-pre:text-sm prose-pre:leading-relaxed",
+  // "prose-code:font-normal",
+  // "prose-td:whitespace-break-spaces prose-td:break-words prose-table:m-0",
+  // "prose-td:px-4 prose-td:py-2 prose-th:px-4 prose-th:py-2",
   // "prose-img:rounded-2xl",
-  "pb-8 flex flex-col items-center col-start-2 order-1",
-  "prose-h2:font-medium prose-h3:font-medium",
+  // "pb-8 flex flex-col items-center col-start-2 order-1",
+  // "prose-h2:font-medium prose-h3:font-medium",
 ].join(" ");
 ---
 
@@ -50,7 +50,7 @@ const articleStyles = [
         </div>
       </div>
     </div>
-    <div class={articleStyles}>
+    <div class="article">
       <div
         class="flex flex-col self-start items-start gap-4 w-full max-w-[700px] md:px-0 mx-auto col-start-2"
         style={{ maxWidth: 700 }}
@@ -62,23 +62,21 @@ const articleStyles = [
         </div>
         {/* <div class="w-full h-[1px] mt-4 bg-gray-200"></div> */}
       </div>
-      <div class="flex flex-col gap-1 w-full max-w-[700px] mb-4">
-        <div class="flex flex-row gap-4 items-baseline">
-          <span class="font-medium text-sm text-gray-800">
-            Ha Huy Long Hai</span
-          >
-          <span class="text-sm font-medium text-gray-400">
-            {
-              new Date(post.published).toLocaleDateString("en-UK", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })
-            }
-          </span>
-        </div>
+      <div class="article-author-date">
+        <span class="article-author"> Ha Huy Long Hai</span>
+        <span class="article-date">
+          {
+            new Date(post.published).toLocaleDateString("en-UK", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })
+          }
+        </span>
       </div>
-      <slot />
+      <div class="article-body">
+        <slot />
+      </div>
     </div>
   </div>
 </BlogRouteLayout>
