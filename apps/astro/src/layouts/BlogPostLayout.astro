@@ -3,36 +3,38 @@ import "./styles.scss";
 import TableOfContents from "../components/TableOfContents.astro";
 import BlogRouteLayout from "./BlogRouteLayout.astro";
 
+type Frontmatter = {
+  title: string;
+  description: string;
+  published: string;
+  updated: string;
+  tags: string[];
+};
+
+export type Heading = {
+  text: string;
+  slug: string;
+  depth: number;
+};
+
+type Props = {
+  frontmatter: Frontmatter;
+  headings: Heading[];
+};
+
 const post = Astro.props.frontmatter;
 const headings = Astro.props.headings;
-
-const articleStyles = [
-  // "max-w-full lg:max-w-[900px] px-4 lg:px-0",
-  // "lg:-mt-5", // TODO this is a hack to fix the margin of the first element
-  // "prose prose-a:break-words",
-  // "prose-pre:px-0 prose-pre:my-0 prose-pre:bg-transparent prose-pre:text-sm prose-pre:leading-relaxed",
-  // "prose-code:font-normal",
-  // "prose-td:whitespace-break-spaces prose-td:break-words prose-table:m-0",
-  // "prose-td:px-4 prose-td:py-2 prose-th:px-4 prose-th:py-2",
-  // "prose-img:rounded-2xl",
-  // "pb-8 flex flex-col items-center col-start-2 order-1",
-  // "prose-h2:font-medium prose-h3:font-medium",
-].join(" ");
 ---
 
 <BlogRouteLayout title={post.title}>
-  <div
-    class="flex flex-row gap-8 max-w-full items-center xl:items-start justify-center mt-4"
-  >
-    <div class="hidden xl:block order-2 self-stretch">
-      <div class="sticky top-6 text-sm xl:w-[300px] px-6 py-2">
+  <main class="main">
+    <div class="right-sidebar">
+      <div class="right-sidebar-content">
         {
           post.tags && (
             <div>
               {post.tags.map((tag) => (
-                <span class="px-2 py-1 rounded-md bg-gray-100 text-xs font-medium text-gray-500 mr-1 mb-1 inline-block">
-                  #{tag}
-                </span>
+                <span class="post-tag">#{tag}</span>
               ))}
             </div>
           )
@@ -40,28 +42,20 @@ const articleStyles = [
         {
           headings.length ? (
             <>
-              <p class="text-gray-800 my-2 text-lg">On this page</p>
+              <h3>On this page</h3>
               <TableOfContents headings={headings} />
             </>
           ) : null
         }
-        <div class="mt-6">
-          <!-- <ScrollToTopButton /> -->
-        </div>
+        <!-- <div class="mt-6">
+          <ScrollToTopButton />
+        </div> -->
       </div>
     </div>
     <div class="article">
-      <div
-        class="flex flex-col self-start items-start gap-4 w-full max-w-[700px] md:px-0 mx-auto col-start-2"
-        style={{ maxWidth: 700 }}
-      >
-        <div class="w-full">
-          <h1 class="font-medium text-4xl mb-4 leading-tight text-gray-800">
-            {post.title}
-          </h1>
-        </div>
-        {/* <div class="w-full h-[1px] mt-4 bg-gray-200"></div> */}
-      </div>
+      <h1 class="post-title">
+        {post.title}
+      </h1>
       <div class="article-author-date">
         <span class="article-author"> Ha Huy Long Hai</span>
         <span class="article-date">
@@ -78,5 +72,5 @@ const articleStyles = [
         <slot />
       </div>
     </div>
-  </div>
+  </main>
 </BlogRouteLayout>

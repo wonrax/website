@@ -1,9 +1,87 @@
+.main {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  max-width: 100%;
+  justify-content: center;
+}
+
+.right-sidebar {
+  // hidden xl:block order-2 self-stretch
+  display: none;
+
+  @media (min-width: 1280px) {
+    display: block;
+    order: 2;
+    align-self: stretch;
+  }
+
+  .right-sidebar-content {
+    position: sticky;
+    top: 24px;
+    padding: 16px;
+
+    @media (min-width: 1280px) {
+      width: 300px;
+    }
+  }
+
+  .post-tag {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background-color: #eee;
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+    margin: 0 4px 4px 0;
+  }
+}
+
 .article {
   max-width: 100%;
 
   @media (min-width: 1024px) {
     max-width: 900px;
-    padding: 0;
+  }
+}
+
+.article .post-title {
+  max-width: 700px;
+  width: 100%;
+  margin: 16px auto;
+  font-size: 32px;
+  font-weight: 500;
+}
+
+.article .article-author-date {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 16px;
+  max-width: 700px;
+  margin: 0 auto;
+
+  .article-author {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+  }
+
+  .article-date {
+    font-size: 14px;
+    font-weight: 500;
+    color: #555;
+  }
+}
+
+.article .article-body {
+  li {
+    margin: 8px 0;
+
+    p {
+      margin: 0;
+    }
   }
 }
 
@@ -12,6 +90,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+
+  @media (min-width: 1024px) {
+    padding: 0;
+  }
 
   .reading-line-width {
     max-width: 100%;
@@ -210,32 +292,5 @@
     border-radius: 0 0 6px 6px;
     border: solid 1px #ddd;
     border-top: none;
-  }
-}
-
-.article .article-author-date {
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  gap: 16px;
-  max-width: 700px;
-  margin: 0 auto;
-
-  .article-author {
-    font-size: 14px;
-    font-weight: 500;
-    color: #333;
-  }
-
-  .article-date {
-    font-size: 14px;
-    font-weight: 500;
-    color: #555;
-  }
-}
-
-.article .article-body {
-  li {
-    margin: 8px 0;
   }
 }
