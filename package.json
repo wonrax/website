@@ -3,11 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "workspaces": [
-    "apps/hhai.dev",
-    "packages/ui",
-    "packages/remark-feature-element",
-    "packages/lib/nextjs-toploader",
-    "apps/astro"
+    "apps/hhai.dev"
   ],
   "scripts": {
     "build": "turbo run build",

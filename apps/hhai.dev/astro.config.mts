@@ -1,5 +1,4 @@
 import mdx from "@astrojs/mdx";
-import tailwind from "@astrojs/tailwind";
 import { defineConfig, sharpImageService } from "astro/config";
 import path, { dirname } from "path";
 import rehypePrettyCode from "rehype-pretty-code";
@@ -54,7 +53,7 @@ export default defineConfig({
     remarkPlugins: [remarkResponsiveImage],
     rehypePlugins: [rehypeBlogPost, [rehypePrettyCode, codeHighlightOptions]],
   },
-  integrations: [tailwind(), mdx()],
+  integrations: [mdx()],
   image: {
     service: sharpImageService(),
     domains: ["astro.build", "picsum.photos", "share.hhai.dev"],

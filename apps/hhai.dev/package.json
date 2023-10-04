@@ -1,5 +1,5 @@
 {
-  "name": "astro-www",
+  "name": "hhai.dev",
   "type": "module",
   "version": "0.0.1",
   "private": true,
@@ -12,13 +12,8 @@
   },
   "dependencies": {
     "@astrojs/mdx": "^1.1.0",
-    "@astrojs/tailwind": "^5.0.0",
     "astro": "^3.2.0",
     "rehype-pretty-code": "^0.10.1",
-    "sass": "^1.68.0",
-    "tailwindcss": "^3.3.3"
-  },
-  "devDependencies": {
-    "ui": "file:../../packages/ui"
+    "sass": "^1.68.0"
   }
 }

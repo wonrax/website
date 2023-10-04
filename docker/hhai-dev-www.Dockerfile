@@ -6,14 +6,11 @@ WORKDIR /src
 COPY package.json .
 COPY package-lock.json .
 COPY apps/hhai.dev/package.json ./apps/hhai.dev/package.json
-COPY packages/ui/package.json ./packages/ui/package.json
-COPY packages/remark-feature-element/package.json ./packages/remark-feature-element/package.json
-COPY packages/lib/nextjs-toploader/package.json ./packages/lib/nextjs-toploader/package.json
 
 RUN npm i -w hhai.dev
 
 # Somehow wildcard (*) doesn't work, had to use dot (.)
-COPY packages/. ./packages
+# COPY packages/. ./packages
 COPY turbo.json .
 
 # Build 'hhai.dev's dependencies, but not 'hhai.dev' itself
@@ -25,6 +22,6 @@ RUN npx turbo build --filter=hhai.dev
 
 FROM busybox:latest
 
-COPY --from=build-step /src/apps/hhai.dev/out /build
+COPY --from=build-step /src/apps/hhai.dev/dist /build
 
 ENTRYPOINT ["sh", "-c", "cp -r /build/* /.mount"]

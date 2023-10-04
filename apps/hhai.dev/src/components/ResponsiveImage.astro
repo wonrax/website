@@ -116,6 +116,14 @@ const original = await getImage({
   decoding={decoding}
   width={originalWidth}
   height={originalHeight}
-  class="w-full h-auto"
   {...rest}
 />
+
+<style>
+  img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+}
+</style>
