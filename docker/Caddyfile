@@ -3,15 +3,15 @@ god.hhai.dev {
 }
 
 hhai.dev {
-	# handle_path /api/* {
-	# 	reverse_proxy api:3000
-	# }
+	handle_path /api/* {
+		reverse_proxy api:3000
+	}
 
-	# handle {
+	handle {
 		root * /www/hhai.dev
 		try_files {path}.html
 		file_server
-	# }
+	}
 }
 
 next.hhai.dev {
