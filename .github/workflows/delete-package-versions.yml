@@ -13,19 +13,19 @@ jobs:
         with:
           package-name: 'hhai-dev-www'
           package-type: 'container'
-          min-versions-to-keep: 0
+          min-versions-to-keep: 5
           delete-only-untagged-versions: 'true'
 
       - uses: actions/delete-package-versions@v4
         with:
           package-name: 'hhai-dev-api'
           package-type: 'container'
-          min-versions-to-keep: 0
+          min-versions-to-keep: 5
           delete-only-untagged-versions: 'true'
 
       - uses: actions/delete-package-versions@v4
         with:
           package-name: 'hhai-dev-migrator'
           package-type: 'container'
-          min-versions-to-keep: 0
+          min-versions-to-keep: 5
           delete-only-untagged-versions: 'true'
