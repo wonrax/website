@@ -3,10 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "workspaces": [
-    "apps/hhai.dev",
-    "packages/ui",
-    "packages/remark-feature-element",
-    "packages/lib/nextjs-toploader"
+    "apps/hhai.dev"
   ],
   "scripts": {
     "build": "turbo run build",
@@ -16,7 +13,7 @@
   },
   "devDependencies": {
     "prettier": "latest",
-    "turbo": "^1.10.12"
+    "turbo": "^1.10.13"
   },
   "packageManager": "npm@9.5.0",
   "engines": {

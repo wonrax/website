@@ -1,0 +1,72 @@
+---
+import Layout from "./Layout.astro";
+
+const { title = "Blog" } = Astro.props;
+---
+
+<Layout title={title}>
+  <div class="blog-container">
+    <nav class="nav-bar">
+      <div class="nav-bar-content">
+        <div class="logo-name">
+          <img height={20} width={20} src="/favicon.svg" alt="hhai.dev logo" />
+          <a href="/" class="logo-name-text"> Ha Huy Long Hai</a>
+        </div>
+        <a href="/blog" class="nav-bar-link-item"> Blog</a>
+        <a href="/blog" class="nav-bar-link-item"> Snippets</a>
+        <a href="/blog" class="nav-bar-link-item"> as</a>
+      </div>
+    </nav>
+    <slot />
+  </div>
+  <footer class="footer">
+    <a href="/">hhai.dev</a>
+  </footer>
+</Layout>
+
+<style lang="scss" is:global>
+  .blog-container {
+    min-height: 100vh;
+  }
+
+  .nav-bar {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    padding: 48px 0 16px 0;
+
+    .nav-bar-content {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 32px;
+      width: 1048px;
+    }
+
+    .logo-name {
+      display: flex;
+      flex-direction: row;
+      gap: 8px;
+      align-items: center;
+
+      .logo-name-text {
+        font-size: 16px;
+        font-weight: 500;
+      }
+    }
+
+    .nav-bar-link-item {
+      font-size: 14px;
+      font-weight: 400;
+    }
+  }
+
+  .footer {
+    background-color: #f5f5f5;
+    padding: 32px 0;
+    display: flex;
+    flex-direction: col;
+    justify-content: center;
+  }
+</style>

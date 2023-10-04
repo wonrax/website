@@ -1,0 +1,75 @@
+---
+import type { Heading } from "@/layouts/BlogPostLayout.astro";
+import HeadingElement from "./HeadingElement.astro";
+
+type Props = {
+  headings: Heading[];
+};
+
+// Shift the levels to base 0 by finding the smallest depth
+const minDepth = Math.min(...Astro.props.headings.map((h) => h.depth));
+Astro.props.headings.forEach((h) => (h.depth -= minDepth - 1));
+
+const headings: Heading[] = Astro.props.headings;
+
+export type NestedHeading = {
+  text: string;
+  slug: string;
+  children: NestedHeading[];
+};
+
+// convert flat heading array to nested list
+const nestedHeadings: NestedHeading[] = [];
+headings.forEach((heading) => {
+  const { depth, text, slug } = heading;
+  const parent = nestedHeadings[depth - 1];
+  const child = { text, slug, children: [] };
+  if (parent) {
+    parent.children.push(child);
+  } else {
+    nestedHeadings.push(child);
+  }
+});
+---
+
+<ol class="table-of-content level-1">
+  {
+    nestedHeadings.map((heading) => (
+      <li>
+        <HeadingElement heading={heading} depth={2} />
+      </li>
+    ))
+  }
+</ol>
+
+<style lang="scss" is:global>
+  .table-of-content {
+    margin: 0;
+    padding-inline-start: 1em;
+
+    ul {
+      padding-inline-start: 0;
+      list-style-type: none;
+    }
+
+    & > li {
+      margin-top: 8px;
+    }
+
+    a {
+      display: block;
+      padding: 4px;
+    }
+  }
+
+  .level-1 > li > a {
+    font-size: 1em;
+    font-weight: 500;
+  }
+
+  .level-2 > li > a {
+    font-size: 14px;
+    font-weight: 400;
+    color: #555;
+  }
+</style>

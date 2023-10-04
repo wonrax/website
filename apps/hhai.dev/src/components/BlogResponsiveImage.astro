@@ -1,0 +1,47 @@
+---
+import ResponsiveImage from "./ResponsiveImage.astro";
+
+type Props = {
+  src: any;
+  alt: string;
+  width?: number | string;
+  height?: number | string;
+  featuretype?: string;
+};
+
+const { src, width, height, alt, featuretype } = Astro.props;
+
+let parsedWidth: number | undefined;
+let parsedHeight: number | undefined;
+
+if (typeof width === "string") parsedWidth = parseInt(width);
+else parsedWidth = width;
+if (typeof height === "string") parsedHeight = parseInt(height);
+else parsedHeight = height;
+
+let sizes: string | undefined;
+switch (featuretype) {
+  case undefined:
+    sizes = "(max-width: 700px) 100vw, 700px";
+    break;
+  case "sm":
+    sizes = "(max-width: 900px) 100vw, 900px";
+    break;
+  case "lg":
+    sizes = "(max-width: 1920px) 100vw, 1920px";
+    break;
+  default:
+    sizes = undefined;
+    break;
+}
+---
+
+<ResponsiveImage
+  src={src}
+  alt={alt}
+  width={parsedWidth}
+  height={parsedHeight}
+  sizes={sizes}
+  format="png"
+  deviceSizes={[350, 700, 900, 1920, 3840, 5760]}
+/>

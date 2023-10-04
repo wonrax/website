@@ -7,6 +7,8 @@ services:
       service: database
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
+    volumes:
+      - ./.mount/postgres-db:/var/lib/postgresql/data
 
   adminer:
     image: adminer

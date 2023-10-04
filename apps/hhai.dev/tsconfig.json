@@ -1,39 +1,17 @@
 {
+  "extends": "astro/tsconfigs/base",
   "compilerOptions": {
-    "baseUrl": "./",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
-    "paths": {
-      "contentlayer/generated": ["./.contentlayer/generated"]
-    },
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": false,
-    "forceConsistentCasingInFileNames": true,
-    "noEmit": true,
-    "incremental": true,
+    "declaration": true,
+    // "emitDeclarationOnly": true,
+    "strict": true,
+    // All packages are built with ESBuild, so we can use `moduleResolution: 'bundler'`
+    "moduleResolution": "bundler",
+    "module": "ES2022",
     "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "preserve",
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ]
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "paths": {
+      "@/*": ["./src/*"],
+    }
   },
-  "include": [
-    "next-env.d.ts",
-    ".next/types/**/*.ts",
-    "**/*.ts",
-    "**/*.tsx",
-  ],
-  "exclude": [
-    "node_modules"
-  ]
 }

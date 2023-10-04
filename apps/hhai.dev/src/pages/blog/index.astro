@@ -1,0 +1,67 @@
+---
+import BlogRouteLayout from "@/layouts/BlogRouteLayout.astro";
+import type { Frontmatter } from "@/layouts/BlogPostLayout.astro";
+
+const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
+---
+
+<BlogRouteLayout>
+  <main class="blog-main">
+    <ul class="article-list">
+      {
+        allPosts.map((post) => (
+          <li class="article-entry">
+            <a href={post.url}>{post.frontmatter.title}</a>
+            <p>
+              <span class="article-date">
+                {new Date(post.frontmatter.published)
+                  .toLocaleDateString("en-UK", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })
+                  .toUpperCase()}
+              </span>
+              <span class="article-description">
+                {post.frontmatter.description}
+              </span>
+            </p>
+          </li>
+        ))
+      }
+    </ul>
+  </main>
+</BlogRouteLayout>
+
+<style lang="scss" is:global>
+  .blog-main {
+    max-width: 100%;
+    width: 1048px;
+    margin: 0 auto;
+
+    .article-list {
+      list-style-type: none;
+      padding-inline-start: 0;
+
+      .article-entry {
+        margin-bottom: 24px;
+
+        p {
+          margin: 8px 0;
+        }
+
+        .article-date {
+          text-transform: uppercase;
+          color: #666;
+          font-size: 14px;
+        }
+
+        .article-description {
+          color: #444;
+          font-size: 14px;
+          margin-left: 8px;
+        }
+      }
+    }
+  }
+</style>

@@ -1,0 +1,152 @@
+---
+import MainLayout from "../layouts/Layout.astro";
+---
+
+<MainLayout title="hhai.dev home">
+  <main class="home-main">
+    <div class="profile-summary">
+      <h3>Ha Huy Long Hai</h3>
+      <h4 class="job-title">Software Engineer</h4>
+      <p class="profile-description">
+        I'm building the missing products that people need.
+      </p>
+      <p class="profile-description">
+        I design everything from software system to the user interface. I code
+        religiously, take photos and practice witchcraft. I love open-source.
+      </p>
+      <div class="links-section">
+        <!-- <a href="/blog" class="link">Blog</a> -->
+        {
+          /* <a href="/photographs" class={linkStyles} prefetch={false} >
+          Photographs
+        </a> */
+        }
+      </div>
+      <p>con&#116;ac&#116;&#64;&#104;hai&#46;dev</p>
+    </div>
+    <div class="projects-section">
+      <h3>Projects</h3>
+      <div class="project-entry">
+        <h4>2021 — Vietnamese sentiment analysis</h4>
+        <p class="project-description">
+          During my graduation thesis, I created a BERT-based model that tries
+          to predict the sentiment of Vietnamese texts.{" "}
+          <a
+            href="https://huggingface.co/wonrax/phobert-base-vietnamese-sentiment"
+            target="_blank"
+            class="link"
+          >
+            Published on Hugging Face
+          </a>{" "}
+           and has over 200,000 downloads.{" "}
+          <a
+            href="https://github.com/wonrax/phobert-base-vietnamese-sentiment"
+            target="_blank"
+            class="link"
+          >
+            GitHub
+          </a>
+        </p>
+      </div>
+      <div class="project-entry">
+        <h4>2021 — Mybk Mobile Android app</h4>
+        <p class="project-description">
+          This is the app that I feel missing while attending college. Mybk
+          Mobile helps you find your class schedules and other information
+          quickly, even without the internet so you don't miss your exam day.
+          The app is{" "}
+          <a
+            href="https://play.google.com/store/apps/details?id=com.wonrax.mybk"
+            target="_blank"
+            class="link"
+          >
+            published on the Google Play Store
+          </a>{" "}
+           and has 1,500 monthly active users.{" "}
+          <a
+            href="https://github.com/wonrax/mybk-mobile"
+            target="_blank"
+            class="link"
+          >
+            GitHub
+          </a>
+        </p>
+      </div>
+    </div>
+  </main>
+</MainLayout>
+
+<style lang="scss" is:global>
+  .home-main {
+    display: flex;
+    flex-direction: row;
+    gap: 32px;
+    justify-content: center;
+    padding: 32px 16px;
+
+    p {
+      margin: 16px 0;
+    }
+
+    .profile-summary {
+      max-width: 295px;
+
+      .job-title {
+        color: #555;
+        margin-top: 0;
+      }
+
+      .profile-description {
+        color: #555;
+        line-height: 1.5em;
+      }
+    }
+
+    .link {
+      color: #000;
+      text-decoration: underline;
+    }
+
+    h3,
+    h4 {
+      font-weight: 500;
+      margin: 8px 0;
+    }
+
+    .projects-section {
+      max-width: 500px;
+
+      h3 {
+        margin-bottom: 24px;
+      }
+
+      .project-entry {
+        margin-bottom: 32px;
+
+        h4 {
+          margin-bottom: 0;
+        }
+
+        .project-description {
+          color: #555;
+          line-height: 1.5em;
+        }
+      }
+    }
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+      align-items: center;
+
+      .profile-summary {
+        max-width: 100%;
+        width: 100%;
+      }
+
+      .projects-section {
+        max-width: 100%;
+        width: 100%;
+      }
+    }
+  }
+</style>
