@@ -41,6 +41,8 @@ jobs:
             www:
               - "apps/hhai.dev/**"
               - "docker/hhai-dev-www.Dockerfile"
+              - "package.json"
+              - "package-lock.json"
             api:
               - "api/src/**"
               - "api/Cargo.toml"
