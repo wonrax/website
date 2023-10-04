@@ -1,0 +1,31 @@
+name: Build and push Docker image
+
+on:
+  workflow_dispatch:
+
+jobs:
+  delete-packages:
+    name: Clean up packages
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/delete-package-versions@v4
+        with:
+          package-name: 'hhai-dev-www'
+          package-type: 'container'
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: 'true'
+
+      - uses: actions/delete-package-versions@v4
+        with:
+          package-name: 'hhai-dev-api'
+          package-type: 'container'
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: 'true'
+
+      - uses: actions/delete-package-versions@v4
+        with:
+          package-name: 'hhai-dev-migrator'
+          package-type: 'container'
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: 'true'
