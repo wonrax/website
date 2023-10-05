@@ -100,6 +100,12 @@ const headings = Astro.props.headings;
       top: 24px;
       padding: 16px;
 
+      h3 {
+        font-size: 16px;
+        font-weight: 500;
+        color: #333;
+      }
+
       @media (min-width: 1280px) {
         width: 300px;
       }
@@ -109,10 +115,10 @@ const headings = Astro.props.headings;
       display: inline-block;
       padding: 4px 8px;
       border-radius: 6px;
-      background-color: #eee;
+      background-color: #f4f4f4;
       font-size: 14px;
       font-weight: 500;
-      color: #333;
+      color: #444;
       margin: 0 4px 4px 0;
     }
   }
@@ -424,3 +430,39 @@ const headings = Astro.props.headings;
     --shiki-token-link: #ee0000;
   }
 </style>
+
+<script>
+  const observer = new IntersectionObserver(
+    (entries) => {
+      let currentId: string | null = null;
+      for (const entry of entries) {
+        const id = entry.target.getAttribute("id");
+        if (entry.isIntersecting) {
+          document
+            .querySelector(`.right-sidebar .table-of-content a[href="#${id}"]`)
+            ?.parentElement?.classList.add("active");
+          currentId = id;
+          break;
+        }
+      }
+      if (currentId)
+        document
+          .querySelectorAll(".right-sidebar .table-of-content .active a")
+          .forEach((entry) => {
+            const id = entry.getAttribute("href");
+            if (id !== "#" + currentId) {
+              entry.parentElement?.classList.remove("active");
+            }
+          });
+    },
+    {
+      rootMargin: "0px 0px -70% 0px",
+      threshold: 1,
+    }
+  );
+
+  // Track all sections that have an `id` applied
+  document.querySelectorAll("h1[id],h2[id],h3[id]").forEach((section) => {
+    observer.observe(section);
+  });
+</script>
