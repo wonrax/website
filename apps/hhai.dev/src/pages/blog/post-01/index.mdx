@@ -1,6 +1,6 @@
 ---
 layout: "../../../layouts/BlogPostLayout.astro"
-title: "Authoring in markdown"
+title: "Authoring in Markdown"
 description: 'How to use markdown in this site'
 published: '02 April 2023'
 updated: '04 October 2023'
@@ -8,32 +8,49 @@ tags:
   - markdown
   - stylesheets
 ---
-This post shows you markdown features that I've integrated into this site.
 
-## Code
+Markdown is really nice to work with, especially when you're a developer.  This
+is precisely why it has become the default language choice for document writing
+among software engineers. Its design emphasizes readability in plain text,
+allowing you to effortlessly read and edit raw text without relying on a parser
+like [Pandoc](https://pandoc.org/) to convert it into HTML or a renderer such as a browser to view the
+formatted HTML.
 
-I use [rehype-pretty-code](https://rehype-pretty-code.netlify.app/) for syntax
-highlighting.
+The widespread adoption of Markdown speaks for itself; it has become so
+prevalent that its usage hardly needs any further explanation. The vast
+ecosystem has almost everything I need through Remark and Rehype plugins. I have
+even created custom plugins for this blog due to the ease and how
+straightforward it is to modify the Markdown syntax tree.
 
-### Inline code
+This post demonstrates my customized Markdown-to-blog post process, serving as
+both documentation and a guide for future reference, saving me from revisiting
+the code.
 
--	Inline code: `` `_variable` `` turns into `_variable`
--	Even syntax highlighted: `var x = 2{:md}{:go}` turns into `var x = 2{:go}`
+## Markdown but more powerful
 
-### Code block
+[GitHub Flavored Markdown](https://github.github.com/gfm) enhances standard
+Markdown by incorporating additional features such as tables, task list items,
+and autolinks, automatically converting plain text URLs into clickable links.
+GFM is the default formatting in [Astro](https://astro.build/), the framework I
+used for this site.
 
--	Show file name with: `title="example.go"`
--	Highlight specific lines with: `{3-7, 9, 15}` (highlights lines 3 to 7, 9, and 15)
--	Highlight words with: `/Zipcode/` (highlights all occurrences of `Zipcode`)
--	Show line numbers with: `showLineNumbers`
+Beyond Markdown, it's MDX, a superset supporting embedded components from
+various frameworks. This versatility ensures I'm well-equipped, especially when
+creating interactive posts.
 
-`````md
-```go showLineNumbers title="example.go" {1, 3} /Zipcode string/ ... ```
-`````
+## Writing code
 
-turns into:
+I'm a software developer, so I should expect code in my blog posts. And I want
+them to be nicely syntax highlighted like in the IDEs too. I chose
+[rehype-pretty-code](https://rehype-pretty-code.netlify.app/), a wrapper of
+[shiki](https://github.com/shikijs/shiki) for Markdown so I don't have to think
+much about it.
 
-```go showLineNumbers title="example.go" {1, 3} /Zipcode string/
+Aside from syntax highlighting, it has some other nice features too. The inline
+code can also be colored: `var x = 2{:go}`. With the code block, you can add
+title, show line numbers or highlight specific lines or words.
+
+```go showLineNumbers title="example.go" {4-6, 1} /Address/
 package main
 
 type Address struct {
@@ -42,43 +59,6 @@ type Address struct {
 	Zipcode string `json:"zipcode"`
 }
 ```
-
-## GitHub Markdown Flavor testing 123
-
-### Autolink literals
-
-www.example.com, https://example.com, and contact@example.com.
-
-### Footnote
-
-A note[^1]
-
-[^1]: Big note.
-
-### Strikethrough
-
-~one~ or ~~two~~ tildes.
-
-### Table
-
-| Tables   |      Are      |  Cool |
-|----------|:-------------:|------:|
-| col 1 is |  left-aligned | $1600 |
-| col 2 is |    centered   |   $12 |
-| col 3 is | right-aligned |    $1 |
-
-Automatically spans out to fit the table content:
-
-| Key                    | Example                          | Description                                                                                    | Required  |
-|------------------------|----------------------------------|------------------------------------------------------------------------------------------------|:---------:|
-| SERVICE_PORT           | "3001"                           | The port this service listen on                                                                | ✅        |
-| POSTGRESQL_HOST        | "postgres", "localhost"          | Host name of the PostgreSQL instance                                                           | ✅        |
-| ENVIRONMENT            | ["dev", "staging", "production"] | Environment indication for development, debugging and deployment and to make this line loooonger | ✅        |
-
-### Tasklist
-
-* [ ] to do
-* [x] done
 
 ## Feature section
 
