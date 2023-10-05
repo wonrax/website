@@ -21,8 +21,6 @@ export type NestedHeading = {
 // filter headings to only include level 1 and 2
 const filteredHeadings = headings.filter((h) => h.depth <= 2);
 
-console.log(filteredHeadings);
-
 // convert to nested structure
 const nestedHeadings: NestedHeading[] = [];
 for (const h of filteredHeadings) {
