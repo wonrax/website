@@ -12,7 +12,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const codeHighlightOptions = {
   // Use one of Shiki's packaged themes
   theme: {
-    light: "github-light",
+    light: "css-variables",
   },
 
   // Keep the background or use a custom background color?
@@ -56,7 +56,7 @@ export default defineConfig({
   integrations: [mdx()],
   image: {
     service: sharpImageService(),
-    domains: ["astro.build", "picsum.photos", "share.hhai.dev"],
+    domains: ["share.hhai.dev"],
   },
   vite: {
     resolve: {

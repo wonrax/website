@@ -313,6 +313,11 @@ const headings = Astro.props.headings;
       font-weight: 500;
       margin: 32px 0 16px 0;
     }
+
+    a,
+    a:visited {
+      color: #dd0000;
+    }
   }
 
   // Code block stylying
@@ -395,11 +400,27 @@ const headings = Astro.props.headings;
       border-top: none;
     }
   }
+
   .article .article-body span[data-rehype-pretty-code-fragment],
   code {
     padding: 2px 4px;
     background-color: #eee;
     border-radius: 4px;
     font-size: 15px;
+  }
+
+  // code syntax highlighting
+  :root {
+    --shiki-color-text: #000;
+    --shiki-color-background: #333333;
+    --shiki-token-constant: #660000;
+    --shiki-token-string: #770000;
+    --shiki-token-comment: #880000;
+    --shiki-token-keyword: #6e1111;
+    --shiki-token-parameter: #aa0000;
+    --shiki-token-function: #bb0000;
+    --shiki-token-string-expression: #cc0000;
+    --shiki-token-punctuation: #dd0000;
+    --shiki-token-link: #ee0000;
   }
 </style>
