@@ -35,9 +35,10 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
 
 <style lang="scss" is:global>
   .blog-main {
-    max-width: 100%;
-    width: 1004px;
     margin: 0 auto;
+    max-width: 100%;
+    width: 700px;
+    padding: 0 16px;
 
     .article-list {
       list-style-type: none;
@@ -62,6 +63,9 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
           margin-left: 8px;
         }
       }
+    }
+    @media (min-width: 1280px) {
+      width: 1004px;
     }
   }
 </style>
