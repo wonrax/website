@@ -1,8 +1,8 @@
 ---
-import MainLayout from "../layouts/Layout.astro";
+import RootLayout from "../layouts/Layout.astro";
 ---
 
-<MainLayout title="hhai.dev home">
+<RootLayout title="hhai.dev home" description="hhai.dev homepage">
   <main class="home-main">
     <div class="profile-summary">
       <h3>Ha Huy Long Hai</h3>
@@ -15,7 +15,7 @@ import MainLayout from "../layouts/Layout.astro";
         religiously, take photos and practice witchcraft. I love open-source.
       </p>
       <div class="links-section">
-        <!-- <a href="/blog" class="link">Blog</a> -->
+        <a href="/blog" class="link">Blog</a>
         {
           /* <a href="/photographs" class={linkStyles} prefetch={false} >
           Photographs
@@ -74,7 +74,7 @@ import MainLayout from "../layouts/Layout.astro";
       </div>
     </div>
   </main>
-</MainLayout>
+</RootLayout>
 
 <style lang="scss" is:global>
   .home-main {
