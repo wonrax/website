@@ -8,19 +8,14 @@ import RootLayout from "../layouts/Layout.astro";
       <h3>Ha Huy Long Hai</h3>
       <h4 class="job-title">Software Engineer</h4>
       <p class="profile-description">
-        I'm building the missing products that people need.
-      </p>
-      <p class="profile-description">
         I design everything from software system to the user interface. I code
         religiously, take photos and practice witchcraft. I love open-source.
       </p>
       <div class="links-section">
         <a href="/blog" class="link">Blog</a>
-        {
-          /* <a href="/photographs" class={linkStyles} prefetch={false} >
-          Photographs
-        </a> */
-        }
+        <a href="https://www.instagram.com/wnrax/" target="_blank" class="link"
+          >Photos</a
+        >
       </div>
       <p>con&#116;ac&#116;&#64;&#104;hai&#46;dev</p>
     </div>
@@ -29,32 +24,21 @@ import RootLayout from "../layouts/Layout.astro";
       <div class="project-entry">
         <h4>2021 — Vietnamese sentiment analysis</h4>
         <p class="project-description">
-          During my graduation thesis, I created a BERT-based model that tries
-          to predict the sentiment of Vietnamese texts.{" "}
+          In my graduation thesis, I developed a BERT-based model to predict
+          sentiment in Vietnamese texts.{" "}
           <a
             href="https://huggingface.co/wonrax/phobert-base-vietnamese-sentiment"
             target="_blank"
-            class="link"
-          >
-            Published on Hugging Face
-          </a>{" "}
-           and has over 200,000 downloads.{" "}
-          <a
-            href="https://github.com/wonrax/phobert-base-vietnamese-sentiment"
-            target="_blank"
-            class="link"
-          >
-            GitHub
-          </a>
+            class="link">Published on Hugging Face</a
+          >, it has garnered 200,000+ downloads.
         </p>
       </div>
       <div class="project-entry">
         <h4>2021 — Mybk Mobile Android app</h4>
         <p class="project-description">
-          This is the app that I feel missing while attending college. Mybk
-          Mobile helps you find your class schedules and other information
-          quickly, even without the internet so you don't miss your exam day.
-          The app is{" "}
+          The app I wished for during my college days. It effortlessly fetches
+          class schedules and vital info, even offline, ensuring you never miss
+          an exam,{" "}
           <a
             href="https://play.google.com/store/apps/details?id=com.wonrax.mybk"
             target="_blank"
@@ -62,13 +46,13 @@ import RootLayout from "../layouts/Layout.astro";
           >
             published on the Google Play Store
           </a>{" "}
-           and has 1,500 monthly active users.{" "}
+           and has over 3,000 monthly active users.{" "}
           <a
             href="https://github.com/wonrax/mybk-mobile"
             target="_blank"
             class="link"
           >
-            GitHub
+            Open source on GitHub.
           </a>
         </p>
       </div>
@@ -100,6 +84,12 @@ import RootLayout from "../layouts/Layout.astro";
         color: #555;
         line-height: 1.5em;
       }
+    }
+
+    .links-section {
+      display: flex;
+      flex-direction: row;
+      gap: 16px;
     }
 
     .link {
