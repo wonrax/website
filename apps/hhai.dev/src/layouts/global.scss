@@ -1,13 +1,19 @@
 body {
-    margin: 0;
-    font-size: 16px;
+  margin: 0;
+  font-size: 16px;
+
+  // attempt to fix safari unexpected large font size
+  // https://stackoverflow.com/questions/3226001/some-font-sizes-rendered-larger-on-safari-iphone
+  @media screen and (max-device-width: 480px) {
+    -webkit-text-size-adjust: 100%;
+  }
 }
 
 a {
-    color: #222;
-    text-decoration: none;
+  color: #222;
+  text-decoration: none;
 
-    &:visited {
-        color: #222;
-    }
+  &:visited {
+    color: #222;
+  }
 }
