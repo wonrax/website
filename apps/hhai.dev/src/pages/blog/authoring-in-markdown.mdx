@@ -31,9 +31,9 @@ revisiting the code to figure out what I implemented.
 [GitHub Flavored Markdown](https://github.github.com/gfm) enhances standard
 Markdown by incorporating additional features such as tables, task list items,
 and autolinks, automatically converting plain text URLs into clickable links.
-I'm so used to writing Markdown on GitHub that I didn't even know I didn't
-realize they were extensions, not part of standard Markdown. GFM is the default
-formatting in [Astro](https://astro.build/), the framework powering site.
+I'm so used to writing Markdown on GitHub that I didn't realize they were
+extensions, not part of standard Markdown. GFM is the default formatting in
+[Astro](https://astro.build/), the framework powering this site.
 
 Beyond Markdown, there's MDX, a superset supporting embedded components from
 various frameworks. This flexibility ensures I'm well-equipped, especially when
@@ -83,7 +83,7 @@ This is when I need to write my own Markdown plugin to swap out the default
 image with my custom responsive image component. This component generates
 different resolutions for an image at build time and provides instructions on
 which resolution to use for specific screen sizes. It would be easier if you use
-image hosting services so you can just put a query parameter in the end of the
+image hosting services so you can just put a query parameter at the end of the
 URL like `image.service/my-image.png?width=1600` and call it a day.  The service
 will handle image resizing and caching for you. But it's just a personal blog, I
 don't want to pay extra money for a thing that I don't even know if it would
@@ -105,7 +105,7 @@ it can start receiving traffic.
 There's one more aspect to consider: I want the optimization to apply to remote
 images as well. This way, I can avoid committing large image files to my code
 repository. During the build process, Astro will download remote images and
-transform them into custom resolutions. However, the API demands width and
+transform them into custom resolutions. However, the API requires width and
 height attributes for remote images. To mitigate this, I customized Markdown
 image's title syntax to allow the injection of attributes.
 
