@@ -3,9 +3,10 @@ body {
 }
 
 a {
+    color: #222;
     text-decoration: none;
 
     &:visited {
-        color: initial;
+        color: #222;
     }
 }
