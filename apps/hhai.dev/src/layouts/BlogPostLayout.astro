@@ -332,8 +332,6 @@ const headings = Astro.props.headings;
 
     pre {
       overflow-x: auto;
-      font-size: 14px;
-      padding: 0 0;
       line-height: 1.65em;
       margin: 0;
       padding: 16px 0;
@@ -405,12 +403,15 @@ const headings = Astro.props.headings;
     }
   }
 
+  code {
+    font-size: 14px;
+  }
+
   .article .article-body span[data-rehype-pretty-code-fragment],
   :not(span[data-rehype-pretty-code-fragment]) > code {
     padding: 2px 4px;
     background-color: rgba($color: #000000, $alpha: 0.05);
     border-radius: 4px;
-    font-size: 15px;
   }
 
   // code syntax highlighting
