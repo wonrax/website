@@ -10,29 +10,30 @@ tags:
 ---
 
 Markdown is really nice to work with, especially when you're a developer.  This
-is precisely why it has become the default language choice for document writing
-among software engineers. Its design emphasizes readability in plain text,
-allowing you to effortlessly read and edit raw text without relying on a parser
-like [Pandoc](https://pandoc.org/) to convert it into HTML or a renderer such as a browser to view the
-formatted HTML.
+is why it has become the default language choice for document writing among
+software engineers. Its design emphasizes readability in plain text, allowing
+you to read and edit raw text without relying on a parser like
+[Pandoc](https://pandoc.org/) to convert it into HTML or a renderer such as a
+browser to view the formatted HTML.
 
-The widespread adoption of Markdown speaks for itself; it has become so
+The widespread adoption of Markdown really speaks for itself; it has become so
 prevalent that its usage hardly needs any further explanation. The vast
 ecosystem has almost everything I need through Remark and Rehype plugins. I have
 even created custom plugins for this blog due to the ease and how
 straightforward it is to modify the Markdown syntax tree.
 
-This post demonstrates my customized Markdown-to-blog post process, serving as
-both documentation and a guide for future reference, saving me from revisiting
-the code.
+This post demonstrates my customized Markdown-to-post process, serving as both
+documentation and a guide for future reference, saving me from revisiting the
+code to figure out what I implemented.
 
-## Markdown but more powerful
+## Markdown, but more powerful
 
 [GitHub Flavored Markdown](https://github.github.com/gfm) enhances standard
 Markdown by incorporating additional features such as tables, task list items,
 and autolinks, automatically converting plain text URLs into clickable links.
-GFM is the default formatting in [Astro](https://astro.build/), the framework I
-used for this site.
+I'm so used to writing Markdown on GitHub I didn't even know these features are
+extensions and not in the Markdown standard.  GFM is the default formatting in
+[Astro](https://astro.build/), the framework I used for this site.
 
 Beyond Markdown, it's MDX, a superset supporting embedded components from
 various frameworks. This versatility ensures I'm well-equipped, especially when
@@ -50,7 +51,7 @@ Aside from syntax highlighting, it has some other nice features too. The inline
 code can also be colored: `var x = 2{:go}`. With the code block, you can add
 title, show line numbers or highlight specific lines or words.
 
-```go showLineNumbers title="example.go" {4-6, 1} /Address/
+```go showLineNumbers title="example.go" {5-6, 1} /Address/
 package main
 
 type Address struct {
@@ -59,6 +60,8 @@ type Address struct {
 	Zipcode string `json:"zipcode"`
 }
 ```
+
+## Image
 
 ## Feature section
 
