@@ -94,7 +94,7 @@ const headings = Astro.props.headings;
       top: 24px;
 
       h3 {
-        font-size: 16px;
+        font-size: 18px;
         font-weight: 500;
         color: #333;
       }
@@ -106,10 +106,11 @@ const headings = Astro.props.headings;
   }
 
   .article {
+    font-size: 18px;
     max-width: 100%;
 
     @media (min-width: 1024px) {
-      max-width: 900px;
+      max-width: 800px;
     }
 
     .post-tag {
@@ -130,6 +131,10 @@ const headings = Astro.props.headings;
       color: #666;
       white-space: nowrap;
       margin-right: 8px;
+    }
+
+    figure {
+      margin: 32px 0;
     }
   }
 
@@ -179,7 +184,7 @@ const headings = Astro.props.headings;
   .article .article-body {
     padding-left: 16px;
     padding-right: 16px;
-    padding-bottom: 64px;
+    padding-bottom: 128px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -195,14 +200,10 @@ const headings = Astro.props.headings;
       width: 700px;
     }
 
-    .feature {
-      margin: 24px 0;
-    }
-
     /* <!-- TODO move to using tailwind or smth, add toggle for line numbers --> */
     .feature-sm {
       width: 100%;
-      max-width: 900px;
+      max-width: 800px;
     }
 
     .image-caption {
@@ -257,17 +258,18 @@ const headings = Astro.props.headings;
       }
     }
 
-    .feature-table-md {
+    .feature-code {
+      width: 100%;
+      max-width: 100%;
+    }
+
+    .feature-table {
       width: fit-content;
       max-width: 100%;
       margin: 0 auto;
       border-radius: 6px;
       border: 1px solid #dddddd;
       overflow-y: auto;
-
-      @media (min-width: 1024px) {
-        max-width: 900px;
-      }
     }
 
     table {
@@ -329,7 +331,7 @@ const headings = Astro.props.headings;
   .article .article-body div[data-rehype-pretty-code-fragment] {
     margin-top: 24px;
     border: 1px solid #dddddd;
-    border-radius: 6px;
+    border-radius: 12px;
 
     pre {
       overflow-x: auto;
@@ -377,7 +379,7 @@ const headings = Astro.props.headings;
 
         display: inline-block;
         width: 1rem;
-        margin: 0 12px 0 8px;
+        margin: 0 12px;
         color: #888;
         text-align: right;
       }
@@ -396,16 +398,16 @@ const headings = Astro.props.headings;
       height: 32px;
       width: fit-content;
       font-size: 15px;
-      margin-left: 8px;
+      margin-left: 16px;
       box-shadow: 0 1px 2px 0 rgba($color: #000000, $alpha: 0.05);
-      border-radius: 0 0 6px 6px;
+      border-radius: 0 0 8px 8px;
       border: solid 1px #ddd;
       border-top: none;
     }
   }
 
   code {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .article .article-body span[data-rehype-pretty-code-fragment],

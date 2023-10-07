@@ -51,7 +51,7 @@ export default defineConfig({
   markdown: {
     syntaxHighlight: false,
     remarkPlugins: [remarkResponsiveImage],
-    rehypePlugins: [rehypeBlogPost, [rehypePrettyCode, codeHighlightOptions]],
+    rehypePlugins: [[rehypePrettyCode, codeHighlightOptions], rehypeBlogPost],
   },
   integrations: [mdx()],
   image: {

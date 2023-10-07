@@ -35,7 +35,17 @@ export default function rehypeBlogPost() {
       // table is a special case and is feature by default
       if (node.tagName == "table") {
         flushWrapper();
-        finalChildren.push(h("div", { class: "feature-table-md" }, node));
+        finalChildren.push(h("div", { class: "feature-table" }, node));
+        continue;
+      }
+
+      // code block is a special case and is feature by default
+      if (
+        node.tagName == "div" &&
+        node.properties?.["data-rehype-pretty-code-fragment"] == ""
+      ) {
+        flushWrapper();
+        finalChildren.push(h("div", { class: "feature-code" }, node));
         continue;
       }
 
@@ -118,12 +128,12 @@ export default function rehypeBlogPost() {
       ) as MdxJsxAttribute | undefined;
 
       if (!featureTypeAttr || !featureTypeAttr.value) {
-        pushImgElement("div", wrapQueue, imgNode);
+        pushImgElement("figure", wrapQueue, imgNode);
         continue;
       }
 
       flushWrapper();
-      pushImgElement("div", finalChildren, imgNode, [
+      pushImgElement("figure", finalChildren, imgNode, [
         "feature",
         "feature-" + featureTypeAttr.value,
       ]);

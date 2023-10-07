@@ -43,9 +43,14 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
     .article-list {
       list-style-type: none;
       padding-inline-start: 0;
+      margin-top: 32px;
 
       .article-entry {
         margin-bottom: 24px;
+
+        a {
+          font-weight: 500;
+        }
 
         p {
           margin: 8px 0;
@@ -53,12 +58,12 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
 
         .article-date {
           text-transform: uppercase;
-          color: #666;
-          font-size: 14px;
+          color: #999;
+          font-size: 13px;
         }
 
         .article-description {
-          color: #444;
+          color: #666;
           font-size: 14px;
           margin-left: 8px;
         }

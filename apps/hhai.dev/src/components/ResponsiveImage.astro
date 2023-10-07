@@ -1,4 +1,7 @@
 ---
+// An adaption of
+// https://gist.github.com/sannajammeh/d1dfddc8c2538062de53714b07953cdf
+
 import type { ImageMetadata, ImageTransform } from "astro";
 import { getImage } from "astro:assets";
 type Props = {
@@ -124,7 +127,7 @@ const original = await getImage({
     display: block;
     width: 100%;
     height: auto;
-    border-radius: 8px;
+    border-radius: 12px;
   }
 }
 </style>
