@@ -24,4 +24,4 @@ FROM busybox:latest
 
 COPY --from=build-step /src/apps/hhai.dev/dist /build
 
-ENTRYPOINT ["sh", "-c", "cp -r /build/* /.mount"]
+ENTRYPOINT ["sh", "-c", "rm -rf /.mount/* && cp -r /build/* /.mount"]
