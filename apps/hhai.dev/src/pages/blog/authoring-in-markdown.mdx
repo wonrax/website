@@ -30,9 +30,9 @@ revisiting the code to figure out what I implemented.
 
 [GitHub Flavored Markdown](https://github.github.com/gfm) enhances standard
 Markdown by incorporating additional features such as tables, task list items,
-and autolinks, automatically converting plain text URLs into clickable links.
-I'm so used to writing Markdown on GitHub that I didn't realize they were
-extensions, not part of standard Markdown. GFM is the default formatting in
+and converting plain text URLs into clickable links. I'm so used to writing
+Markdown on GitHub that I didn't realize they were extensions, not part of
+standard Markdown. GFM is the default formatting in
 [Astro](https://astro.build/), the framework powering this site.
 
 Beyond Markdown, there's MDX, a superset supporting embedded components from
@@ -66,11 +66,11 @@ type Address struct {
 Adding image in Markdown is straightforward and supported by default. However,
 ensuring they are optimized and performant on the web is a challenge. I don't
 want to serve a full-fledged 4K uncompressed image to a phone user, and it
-probably doesn't look good too. The ideal image resolution matches the width and
-height of the rendered element in the browser. For example, if you set an image
-to display on your site at 1600px wide, it looks the sharpest when the actual
-image's width is exactly 1600px. The method to achieve this is called responsive
-image and MDN has [a great
+probably doesn't look good too. The ideal image resolution should match the
+width and height of the rendered element in the browser. For example, if you set
+an image to display on your site at 1600px wide, it looks the sharpest when the
+actual image's width is exactly 1600px. The method to achieve this is called
+responsive image and MDN has [a great
 article](https://developer.mozilla.org/en-US/docs/Learn/HTML/Multimedia_and_embedding/Responsive_images)
 about this.
 
@@ -121,10 +121,10 @@ Another way to do remote image, same end result as above:
 
 ![img](./img.jpg)
 Text right after the image is automatically recognized as image caption (without
-additional line breakss)
+additional line breaks)
 
 <img src="https://share.hhai.dev/IMG_1203.png" width="1920" height="816" />
-> With the <img> tag, you need to put the caption inside block quote
+> With the <img> tag, you need to put the caption inside a block quote
 ```
 
 ## Feature section
