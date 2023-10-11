@@ -109,7 +109,7 @@ const headings = Astro.props.headings;
     font-size: 18px;
     max-width: 100%;
 
-    @media (min-width: 1024px) {
+    @media (min-width: 1280px) {
       max-width: 800px;
     }
 
@@ -140,8 +140,8 @@ const headings = Astro.props.headings;
 
   .article .post-header {
     max-width: 700px;
-    margin: 16px auto;
-    padding: 0 16px;
+    margin: 0 auto;
+    box-sizing: border-box;
 
     h1 {
       font-size: 42px;
@@ -165,8 +165,8 @@ const headings = Astro.props.headings;
       }
     }
 
-    @media (min-width: 1024px) {
-      padding: 0;
+    @media (max-width: 800px) {
+      padding: 0 32px;
     }
   }
 
@@ -182,13 +182,18 @@ const headings = Astro.props.headings;
   }
 
   .article .article-body {
-    padding-left: 16px;
-    padding-right: 16px;
+    // padding-left: 16px;
+    // padding-right: 16px;
     padding-bottom: 128px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    // display: flex;
+    // flex-direction: column;
+    // align-items: center;
     word-wrap: break-word;
+
+    & > * {
+      margin-left: auto;
+      margin-right: auto;
+    }
 
     @media (min-width: 1024px) {
       padding-left: 0;
@@ -198,12 +203,22 @@ const headings = Astro.props.headings;
     .reading-line-width {
       max-width: 100%;
       width: 700px;
+      box-sizing: border-box;
+
+      @media (max-width: 800px) {
+        padding: 0 32px;
+      }
     }
 
     /* <!-- TODO move to using tailwind or smth, add toggle for line numbers --> */
     .feature-sm {
       width: 100%;
       max-width: 800px;
+      box-sizing: border-box;
+
+      @media (max-width: 1280px) {
+        padding: 0 16px;
+      }
     }
 
     .image-caption {
@@ -213,7 +228,7 @@ const headings = Astro.props.headings;
       font-size: 14px;
 
       code {
-        font-size: 14px;
+        font-size: 13px;
       }
     }
 
@@ -245,22 +260,26 @@ const headings = Astro.props.headings;
     }
 
     .feature-lg {
-      max-width: 100%;
-      width: 90vw;
       z-index: 10;
+      position: relative;
+      max-width: 1104px;
+      width: 1104px;
+      box-sizing: border-box;
 
-      @media (min-width: 1024px) {
-        max-width: 1728px;
-      }
-
-      @media (min-width: 1280px) {
-        margin-left: 300px;
+      @media (max-width: 1280px) {
+        padding: 0 8px;
+        max-width: 100%;
       }
     }
 
     .feature-code {
       width: 100%;
-      max-width: 100%;
+      max-width: 800px;
+      box-sizing: border-box;
+
+      @media (max-width: 1280px) {
+        padding: 0 16px;
+      }
     }
 
     .feature-table {

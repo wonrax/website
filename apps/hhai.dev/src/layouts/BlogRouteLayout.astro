@@ -41,13 +41,18 @@ const { title = "Blog", description = "hhai.dev blog index" } = Astro.props;
     flex-direction: row;
     align-items: center;
     gap: 32px;
-    max-width: 700px;
+    max-width: 1004px;
+    margin: 0 auto;
     width: 100%;
-    padding: 0 16px;
+    box-sizing: border-box;
 
-    @media (min-width: 1280px) {
-      max-width: 1004px;
+    @media (max-width: 1280px) {
+      max-width: 700px;
       padding: 0;
+    }
+
+    @media (max-width: 800px) {
+      padding: 0 32px;
     }
 
     .logo-name-text {
@@ -67,7 +72,7 @@ const { title = "Blog", description = "hhai.dev blog index" } = Astro.props;
     display: flex;
     flex-direction: row;
     justify-content: center;
-    align-items: end;
+    align-items: start;
     height: 10vh;
   }
 </style>
