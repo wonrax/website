@@ -5,6 +5,8 @@ import rehypePrettyCode from "rehype-pretty-code";
 import { fileURLToPath } from "url";
 import rehypeBlogPost from "./plugins/rehypeBlogPost";
 import remarkResponsiveImage from "./plugins/remarkResponsiveImage";
+import remarkCalloutDirectives from "@microflash/remark-callout-directives";
+import remarkDirective from "remark-directive";
 import "./plugins/proxy";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -50,7 +52,11 @@ const codeHighlightOptions = {
 export default defineConfig({
   markdown: {
     syntaxHighlight: false,
-    remarkPlugins: [remarkResponsiveImage],
+    remarkPlugins: [
+      remarkDirective,
+      remarkCalloutDirectives,
+      remarkResponsiveImage,
+    ],
     rehypePlugins: [[rehypePrettyCode, codeHighlightOptions], rehypeBlogPost],
   },
   integrations: [mdx()],
