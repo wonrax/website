@@ -8,6 +8,7 @@ import remarkResponsiveImage from "./plugins/remarkResponsiveImage";
 import remarkCalloutDirectives from "@microflash/remark-callout-directives";
 import remarkDirective from "remark-directive";
 import "./plugins/proxy";
+import { remarkDirectiveHtml } from "./plugins/remarkDirective";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -55,6 +56,7 @@ export default defineConfig({
     remarkPlugins: [
       remarkDirective,
       remarkCalloutDirectives,
+      remarkDirectiveHtml,
       remarkResponsiveImage,
     ],
     rehypePlugins: [[rehypePrettyCode, codeHighlightOptions], rehypeBlogPost],
