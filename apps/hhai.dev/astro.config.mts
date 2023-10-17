@@ -64,7 +64,7 @@ export default defineConfig({
   integrations: [mdx()],
   image: {
     service: sharpImageService(),
-    domains: ["share.hhai.dev"],
+    domains: ["share.hhai.dev", "res.cloudinary.com"],
   },
   vite: {
     resolve: {
