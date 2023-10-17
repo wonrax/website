@@ -370,6 +370,47 @@ const headings = Astro.props.headings;
         }
       }
     }
+
+    aside.callout {
+      .callout-title {
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .callout-content {
+        margin-top: 8px;
+      }
+
+      p {
+        font-size: 16px;
+      }
+    }
+
+    .callout.callout-note {
+      background-color: #eff5fc;
+
+      .callout-title {
+        color: #5f8abb;
+      }
+
+      p {
+        color: #163a63;
+      }
+    }
+
+    .callout.callout-warning {
+      background-color: #fff9ec;
+
+      .callout-title {
+        color: #b69245;
+      }
+
+      p {
+        color: #794e0f;
+      }
+    }
   }
 
   // Code block stylying

@@ -11,6 +11,9 @@ export function remarkDirectiveHtml() {
         node.type === "leafDirective" ||
         node.type === "textDirective"
       ) {
+        // exclude remark callout directives
+        if (["note", "warning"].includes(node.name)) return;
+
         const data = node.data || (node.data = {});
         const hast: any = h(node.name, node.attributes || {});
 

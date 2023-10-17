@@ -55,7 +55,21 @@ export default defineConfig({
     syntaxHighlight: false,
     remarkPlugins: [
       remarkDirective,
-      remarkCalloutDirectives,
+      [
+        remarkCalloutDirectives,
+        {
+          callouts: {
+            note: {
+              title: "Note",
+              hint: "",
+            },
+            warning: {
+              title: "Warning",
+              hint: "",
+            },
+          },
+        },
+      ],
       remarkDirectiveHtml,
       remarkResponsiveImage,
     ],
