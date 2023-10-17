@@ -345,23 +345,29 @@ const headings = Astro.props.headings;
       color: #dd0000;
     }
 
-    aside {
-      background-color: #fafafa;
-      padding: 16px;
-      border-radius: 12px;
-      width: 100%;
-      max-width: 732px;
-      box-sizing: border-box;
-      margin: 16px 0;
-
-      p {
-        font-size: 15px;
-        color: #707070;
-        margin: 0;
+    .feature-aside {
+      @media (max-width: 1280px) {
+        padding: 0 16px;
       }
 
-      code {
-        font-size: 13px;
+      aside {
+        background-color: #fafafa;
+        padding: 16px;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 732px;
+        box-sizing: border-box;
+        margin: 16px auto;
+
+        p {
+          font-size: 15px;
+          color: #707070;
+          margin: 0;
+        }
+
+        code {
+          font-size: 13px;
+        }
       }
     }
   }

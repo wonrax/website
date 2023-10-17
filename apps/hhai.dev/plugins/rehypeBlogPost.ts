@@ -42,7 +42,7 @@ export default function rehypeBlogPost() {
       // aside is a special case and is feature by default
       if (node.tagName == "aside") {
         flushWrapper();
-        finalChildren.push(node);
+        finalChildren.push(h("div", { class: "feature-aside" }, node));
         continue;
       }
 
