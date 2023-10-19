@@ -39,6 +39,13 @@ export default function rehypeBlogPost() {
         continue;
       }
 
+      // aside is a special case and is feature by default
+      if (node.tagName == "aside") {
+        flushWrapper();
+        finalChildren.push(h("div", { class: "feature-aside" }, node));
+        continue;
+      }
+
       // code block is a special case and is feature by default
       if (
         node.tagName == "div" &&

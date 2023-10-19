@@ -5,7 +5,10 @@ import rehypePrettyCode from "rehype-pretty-code";
 import { fileURLToPath } from "url";
 import rehypeBlogPost from "./plugins/rehypeBlogPost";
 import remarkResponsiveImage from "./plugins/remarkResponsiveImage";
+import remarkCalloutDirectives from "@microflash/remark-callout-directives";
+import remarkDirective from "remark-directive";
 import "./plugins/proxy";
+import { remarkDirectiveHtml } from "./plugins/remarkDirective";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -50,13 +53,32 @@ const codeHighlightOptions = {
 export default defineConfig({
   markdown: {
     syntaxHighlight: false,
-    remarkPlugins: [remarkResponsiveImage],
+    remarkPlugins: [
+      remarkDirective,
+      [
+        remarkCalloutDirectives,
+        {
+          callouts: {
+            note: {
+              title: "Note",
+              hint: "",
+            },
+            warning: {
+              title: "Warning",
+              hint: "",
+            },
+          },
+        },
+      ],
+      remarkDirectiveHtml,
+      remarkResponsiveImage,
+    ],
     rehypePlugins: [[rehypePrettyCode, codeHighlightOptions], rehypeBlogPost],
   },
   integrations: [mdx()],
   image: {
     service: sharpImageService(),
-    domains: ["share.hhai.dev"],
+    domains: ["share.hhai.dev", "res.cloudinary.com"],
   },
   vite: {
     resolve: {

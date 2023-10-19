@@ -87,15 +87,19 @@ image hosting services so you can just put a query parameter at the end of the
 URL like `image.service/my-image.png?width=1600` and call it a day.  The service
 will handle image resizing and caching for you. But it's just a personal blog, I
 don't want to pay extra money for a thing that I don't even know if it would
-actually have traffic. That's also why I moved off from Next.js, they have
-`export` mode which generates static files, thus doesn't need a Next.js server
-to run. But this mode doesn't support pre-generating images at build time.
-There's [a discussion](https://github.com/vercel/next.js/discussions/19065) that
-addresses this and despite being one of the most requested features since 2020,
-they still haven't implemented it. Maybe because it's incredibly hard to change
-the internal without breaking things. I've also heard some people claim it's due
-to Vercel's image optimization service or something, which I don't really
+actually have traffic.
+
+:::aside
+This is also why I moved off from Next.js, they have `export` mode which
+generates static files, thus doesn't need a Next.js server to run. But this mode
+doesn't support pre-generating images at build time.  There's [a
+discussion](https://github.com/vercel/next.js/discussions/19065) that addresses
+this and despite being one of the most requested features since 2020, they still
+haven't implemented it. Maybe because it's incredibly hard to change the
+internal without breaking things. I've also heard some people claim it's due to
+Vercel's image optimization service or something, which I don't really
 understand – I'm not exactly a business guy.
+:::
 
 Anyway, fortunately, Astro can. They even expose the API that optimizes image
 behind the scene so it's really easy to create a custom image component tailored
@@ -140,10 +144,10 @@ default because they tend to be wide and require ample horizontal space to
 display properly. You'll need to be on desktop to see the below examples in
 effect.
 
-![img](https://share.hhai.dev/IMG_1203.png
+![img](https://res.cloudinary.com/dmdgv6qrg/image/upload/v1697514558/hhai.dev%20blog/authoring%20in%20markdown/IMG_1203_asjkac.png
 '#width=1920;height=816;featuretype=sm') Remote image with `featuretype=sm`
 
-![img](https://share.hhai.dev/IMG_1219.png
+![img](https://res.cloudinary.com/dmdgv6qrg/image/upload/v1697514531/hhai.dev%20blog/authoring%20in%20markdown/IMG_1219_uibxtp.png
 '#width=2048;height=871;featuretype=lg') Remote image with `featuretype=lg`
 
 ## I want more
@@ -151,10 +155,10 @@ effect.
 This post might never truly be finished. As I continue to introduce new
 features, I'll revisit this space, editing and documenting those additions.
 
-**Or will I?**
-
-This could very well be my last post. Ironically, what's the purpose of all
-these efforts if I don't keep writing?
+:::warning
+**Or will I?** This could very well be my last post. Ironically, what's the
+purpose of all these efforts if I don't keep writing?
+:::
 
 Anyway, these are the features that I want to add in the future:
 
