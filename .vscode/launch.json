@@ -7,13 +7,36 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Debug hhai.dev www",
+            "request": "launch",
+            "runtimeExecutable": "turbo",
+            "runtimeArgs": [
+                "dev"
+            ],
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "type": "node",
+            "outputCapture": "std"
+        },
+        {
             "name": "Debug hhai.dev API",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceRoot}/target/debug/api",
             "args": [],
             "cwd": "${workspaceRoot}",
-            "preLaunchTask": "cargo debug build api"
+            "preLaunchTask": "cargo debug build api",
         },
+    ],
+    "compounds": [
+        {
+            "name": "hhai.dev full",
+            "configurations": [
+                "Debug hhai.dev API",
+                "Debug hhai.dev www"
+            ],
+            "stopAll": true
+        }
     ]
 }

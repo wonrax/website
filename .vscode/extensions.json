@@ -1,7 +1,6 @@
 {
     "recommendations": [
         "rust-lang.rust-analyzer",
-        "bradlc.vscode-tailwindcss",
         "github.vscode-github-actions",
         "prisma.prisma",
         "ms-vscode.cpptools",
