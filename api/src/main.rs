@@ -1,14 +1,14 @@
 use axum::{
-    extract::{ConnectInfo, State},
+    extract::{ConnectInfo, Path, State},
     http::{header, HeaderMap},
     response::{IntoResponse, Response},
     routing::get,
     Json, Router,
 };
-use core::time;
 use dotenv::dotenv;
+use serde::Serialize;
 use sqlx::{
-    postgres::{PgPoolOptions, PgRow},
+    postgres::PgPoolOptions,
     FromRow, Pool, Postgres,
 };
 use std::{net::SocketAddr, sync::Arc, time::Duration};
@@ -49,7 +49,7 @@ async fn main() {
             "/public/github-profile-views",
             get(handle_fetch_git_hub_profile_views),
         )
-        .route("/public/comments", get(handle_fetch_blog_post_comments))
+        .route("/public/blog/:slug/comments", get(get_blog_post_comments))
         .with_state(shared_state);
 
     // run it
@@ -150,7 +150,7 @@ async fn handle_fetch_git_hub_profile_views<'a>(
     }
 }
 
-#[derive(FromRow, Debug, Clone)]
+#[derive(FromRow, Debug, Serialize)]
 struct Comment {
     id: i32,
     author_ip: String,
@@ -159,23 +159,26 @@ struct Comment {
     content: String,
     post_id: i32,
     parent_id: Option<i32>,
+    created_at: chrono::NaiveDateTime,
 }
 
-async fn handle_fetch_blog_post_comments(
+async fn get_blog_post_comments(
     State(ctx): State<APIContext>,
-    headers: HeaderMap,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
-) -> Response {
-    let mut rows = sqlx::query_as::<_, Comment>(
+    Path(slug): Path<String>,
+) -> Json<Vec<Comment>> {
+    let rows = sqlx::query_as::<_, Comment>(
         "
-        SELECT * FROM comments;
+        SELECT * FROM comments
+        JOIN posts ON posts.id = comments.post_id
+        WHERE posts.slug = $1;
         ",
     )
-    .fetch(&ctx.pool);
+    .bind(slug)
+    .fetch_all(&ctx.pool)
+    .await;
 
-    while let Some(row) = futures_util::StreamExt::next(&mut rows).await {
-        println!("{:?}", row);
+    match rows {
+        Ok(rows) => Json(rows),
+        Err(_) => Json(vec![]),
     }
-
-    "hehe".into_response()
 }
