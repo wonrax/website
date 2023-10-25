@@ -3,11 +3,18 @@ use axum::{
     http::{header, HeaderMap},
     response::{IntoResponse, Response},
     routing::get,
-    Router,
+    Json, Router,
 };
+use core::time;
 use dotenv::dotenv;
-use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
+use sqlx::{
+    postgres::{PgPoolOptions, PgRow},
+    FromRow, Pool, Postgres,
+};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
+
+mod utils;
+use utils::{readable_uint, render_template};
 
 #[derive(Clone)]
 struct APIContext {
@@ -38,7 +45,11 @@ async fn main() {
 
     // build our application with a route
     let app = Router::new()
-        .route("/public/github-profile-views", get(handler))
+        .route(
+            "/public/github-profile-views",
+            get(handle_fetch_git_hub_profile_views),
+        )
+        .route("/public/comments", get(handle_fetch_blog_post_comments))
         .with_state(shared_state);
 
     // run it
@@ -50,7 +61,7 @@ async fn main() {
         .unwrap();
 }
 
-async fn handler<'a>(
+async fn handle_fetch_git_hub_profile_views<'a>(
     State(ctx): State<APIContext>,
     headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -139,23 +150,32 @@ async fn handler<'a>(
     }
 }
 
-fn render_template(template: &str, data: &[(&str, &str)]) -> String {
-    let mut result = String::from(template);
-
-    for (placeholder, value) in data {
-        result = result.replace(placeholder, value);
-    }
-
-    result
+#[derive(FromRow, Debug, Clone)]
+struct Comment {
+    id: i32,
+    author_ip: String,
+    author_name: String,
+    author_email: String,
+    content: String,
+    post_id: i32,
+    parent_id: Option<i32>,
 }
 
-fn readable_uint(int_str: String) -> String {
-    let mut s = String::new();
-    for (i ,char) in int_str.chars().rev().enumerate() {
-        if i % 3 == 0 && i != 0 {
-            s.insert(0, ',');
-        }
-        s.insert(0, char);
+async fn handle_fetch_blog_post_comments(
+    State(ctx): State<APIContext>,
+    headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> Response {
+    let mut rows = sqlx::query_as::<_, Comment>(
+        "
+        SELECT * FROM comments;
+        ",
+    )
+    .fetch(&ctx.pool);
+
+    while let Some(row) = futures_util::StreamExt::next(&mut rows).await {
+        println!("{:?}", row);
     }
-    return s
+
+    "hehe".into_response()
 }

@@ -4,12 +4,36 @@ datasource db {
 }
 
 model counters {
-  id        Int      @id @default(autoincrement())
-  key       String
-  name      String
-  count     BigInt
+  id         Int      @id @default(autoincrement())
+  key        String
+  name       String
+  count      BigInt
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
 
-  @@unique([key, name], map: "counter_key_name")
+  @@unique([key, name], map: "counters_key_name_unique")
+}
+
+model posts {
+  id       Int        @id @default(autoincrement())
+  category String
+  slug     String
+  title    String
+  comments comments[]
+
+  @@unique([category, slug], map: "posts_category_slug_unique")
+}
+
+model comments {
+  id           Int        @id @default(autoincrement())
+  author_ip    String
+  author_name  String
+  author_email String?
+  content      String
+  post_id      Int
+  post         posts      @relation(fields: [post_id], references: [id])
+  parent_id    Int?
+  parent       comments?  @relation("ChildComment", fields: [parent_id], references: [id])
+  comments     comments[] @relation("ChildComment")
+  created_at   DateTime   @default(now())
 }
