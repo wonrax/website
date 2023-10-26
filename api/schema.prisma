@@ -31,9 +31,10 @@ model comments {
   author_email String?
   content      String
   post_id      Int
-  post         posts      @relation(fields: [post_id], references: [id])
   parent_id    Int?
+  created_at   DateTime   @default(now())
+  upvote       Int        @default(0)
   parent       comments?  @relation("ChildComment", fields: [parent_id], references: [id])
   comments     comments[] @relation("ChildComment")
-  created_at   DateTime   @default(now())
+  post         posts      @relation(fields: [post_id], references: [id])
 }

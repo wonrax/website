@@ -4,13 +4,13 @@ use std::{
 };
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, State, Query},
     http::StatusCode,
     response::IntoResponse,
     routing::get,
     Json, Router,
 };
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use serde_json::json;
 use sqlx::FromRow;
 
@@ -82,18 +82,55 @@ impl From<sqlx::Error> for AppError {
     }
 }
 
+#[derive(Deserialize)]
+struct Pagination {
+    page_offset: usize,
+    page_size: usize,
+}
+
 async fn get_blog_post_comments(
     State(ctx): State<APIContext>,
     Path(slug): Path<String>,
+    pagination: Query<Pagination>
 ) -> Result<Json<Vec<Rc<CommentIntermediate>>>, AppError> {
     let rows = sqlx::query_as::<_, Comment>(
         "
-        SELECT comments.* FROM comments
-        JOIN posts ON posts.id = comments.post_id
-        WHERE posts.slug = $1;
+        WITH RECURSIVE t(parent_id, id, author_name, content, root, level, created_at)
+        AS (
+            (
+                SELECT
+                    comments.parent_id,
+                    comments.id,
+                    comments.author_name,
+                    comments.content,
+                    ARRAY [comments.id],
+                    0,
+                    comments.created_at
+                FROM comments
+                JOIN posts ON (posts.id = comments.post_id)
+                WHERE posts.category = 'qwe'
+                AND posts.slug = 'authoring-in-1'
+                AND comments.parent_id IS NULL
+                LIMIT 10 OFFSET 0
+            )
+            UNION ALL
+            SELECT
+                comments.parent_id,
+                comments.id,
+                comments.author_name,
+                comments.content,
+                array_append(root, comments.id),
+                t.level + 1,
+                comments.created_at
+            FROM t
+                JOIN comments ON (comments.parent_id = t.id)
+        )
+        SELECT * FROM t
+        ORDER BY root;
         ",
     )
-    .bind(slug)
+    .bind(pagination.page_size as i64)
+    .bind(pagination.page_offset as i64)
     .fetch_all(&ctx.pool)
     .await?;
 
