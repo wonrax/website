@@ -1,4 +1,4 @@
-// replace placeholder in template with data
+/// Replace placeholder in template with data.
 pub fn render_template(template: &str, data: &[(&str, &str)]) -> String {
     let mut result = String::from(template);
 
@@ -9,7 +9,7 @@ pub fn render_template(template: &str, data: &[(&str, &str)]) -> String {
     result
 }
 
-// convert uint to readable format
+/// Convert uint to readable format. Example: `12345 -> 12,345`.
 pub fn readable_uint(int_str: String) -> String {
     let mut s = String::new();
     for (i, char) in int_str.chars().rev().enumerate() {

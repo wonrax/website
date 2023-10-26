@@ -13,3 +13,8 @@
 - custom image tranformation to allow image sharpening
 - hide the ToC when featuretype=lg element presents
 - build fonts locally so the site doesn't have to pull from 3rd party CDN
+
+### infras todo
+
+- **IMPORTANT** update caddy to forward client IP, bc right now it's forwarding
+cloudflare's ip
