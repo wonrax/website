@@ -95,23 +95,26 @@ async fn get_blog_post_comments(
 ) -> Result<Json<Vec<Rc<CommentIntermediate>>>, AppError> {
     let rows = sqlx::query_as::<_, Comment>(
         "
-        WITH RECURSIVE t(parent_id, id, author_name, content, root, level, created_at)
-        AS (
+        WITH RECURSIVE root_comments AS (
+            SELECT
+                comments.parent_id,
+                comments.id,
+                comments.author_name,
+                comments.content,
+                ARRAY [comments.id],
+                0,
+                comments.created_at,
+                comments.upvote
+            FROM comments
+            JOIN posts ON (posts.id = comments.post_id)
+            WHERE posts.category = 'blog'
+            AND posts.slug = 'authoring-in-markdown'
+            AND comments.parent_id IS NULL
+            ORDER BY comments.upvote DESC, comments.created_at
+            LIMIT 10 OFFSET 0
+        ), t(parent_id, id, author_name, content, root, level, created_at, upvote) AS (
             (
-                SELECT
-                    comments.parent_id,
-                    comments.id,
-                    comments.author_name,
-                    comments.content,
-                    ARRAY [comments.id],
-                    0,
-                    comments.created_at
-                FROM comments
-                JOIN posts ON (posts.id = comments.post_id)
-                WHERE posts.category = 'qwe'
-                AND posts.slug = 'authoring-in-1'
-                AND comments.parent_id IS NULL
-                LIMIT 10 OFFSET 0
+                SELECT * FROM root_comments
             )
             UNION ALL
             SELECT
@@ -121,7 +124,8 @@ async fn get_blog_post_comments(
                 comments.content,
                 array_append(root, comments.id),
                 t.level + 1,
-                comments.created_at
+                comments.created_at,
+                comments.upvote
             FROM t
                 JOIN comments ON (comments.parent_id = t.id)
         )
