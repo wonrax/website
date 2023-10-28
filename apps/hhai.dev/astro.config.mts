@@ -9,6 +9,8 @@ import remarkCalloutDirectives from "@microflash/remark-callout-directives";
 import remarkDirective from "remark-directive";
 import "./plugins/proxy";
 import { remarkDirectiveHtml } from "./plugins/remarkDirective";
+import rehypeKatex from "rehype-katex";
+import remarkMath from "remark-math";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -54,6 +56,7 @@ export default defineConfig({
   markdown: {
     syntaxHighlight: false,
     remarkPlugins: [
+      remarkMath,
       remarkDirective,
       [
         remarkCalloutDirectives,
@@ -73,7 +76,11 @@ export default defineConfig({
       remarkDirectiveHtml,
       remarkResponsiveImage,
     ],
-    rehypePlugins: [[rehypePrettyCode, codeHighlightOptions], rehypeBlogPost],
+    rehypePlugins: [
+      rehypeKatex,
+      [rehypePrettyCode, codeHighlightOptions],
+      rehypeBlogPost,
+    ],
   },
   integrations: [mdx()],
   image: {
