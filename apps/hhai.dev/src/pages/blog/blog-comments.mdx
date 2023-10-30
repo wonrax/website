@@ -1,0 +1,156 @@
+---
+layout: "../../layouts/BlogPostLayout.astro"
+title: "Complicating my blog comments"
+description: 'Reddit like threads sorting algorithm'
+published: '28 October 2023'
+updated: '28 October 2023'
+tags:
+  - rust
+  - algo
+---
+
+:::note
+This post documents the thought process of me planning to solve this problem.
+So it might not be well polished and could be a bit hard to read.
+:::
+
+We have this schema. We need to fetch the comments and their replies and have them ranked to display under a post.
+
+```js showLineNumbers
+// schema.prisma
+
+model posts {
+  id       Int        @id @default(autoincrement())
+  category String
+  slug     String
+  title    String
+  comments comments[]
+}
+
+model comments {
+  id           Int        @id @default(autoincrement())
+  author_name  String
+  content      String
+  post_id      Int
+  parent_id    Int?
+  created_at   DateTime   @default(now())
+  upvote       Int        @default(0)
+}
+```
+
+## Get data from PostgreSQL
+
+It's just too complex to get a final result just using only the database. So what we're doing is to only sort the top level comments (by upvote), and then get all the child comments, including their children. This is Hacker News-like threads fetching.
+
+```sql showLineNumbers
+WITH RECURSIVE root_comments AS (
+    SELECT
+        comments.parent_id,
+        comments.id,
+        comments.author_name,
+        comments.content,
+        ARRAY [comments.id],
+        0,
+        comments.created_at,
+        comments.upvote
+    FROM comments
+    JOIN posts ON (posts.id = comments.post_id)
+    WHERE posts.category = 'blog'
+    AND posts.slug = $1
+    AND comments.parent_id IS NULL
+    ORDER BY comments.upvote DESC, comments.created_at
+    LIMIT $2 OFFSET $3
+), t(parent_id, id, author_name, content, root, level, created_at, upvote) AS (
+    (
+        SELECT * FROM root_comments
+    )
+    UNION ALL
+    SELECT
+        comments.parent_id,
+        comments.id,
+        comments.author_name,
+        comments.content,
+        array_append(root, comments.id),
+        t.level + 1,
+        comments.created_at,
+        comments.upvote
+    FROM t
+        JOIN comments ON (comments.parent_id = t.id)
+)
+SELECT * FROM t
+ORDER BY root;
+```
+
+Executing the SQL query, we'll have a list of sorted comments. Any comment is guaranteed to be placed behind their parent comment in the list. To be honest, I still don't fully understand how the query runs, especially the recursive part.
+
+| parent_id | id | author_name | content  | root        | level | created_at | upvote |
+|-----------|----|-------------|----------|-------------|-------|------------|--------|
+| NULL      | 1  | wonrax      | 1.       | \{1\}       | 0     | 2023-10-25 | 0      |
+| 1         | 2  | wonrax      | 1.1.     | \{1,2\}     | 1     | 2023-10-25 | 0      |
+| 2         | 3  | wonrax      | 1.1.1.   | \{1,2,3\}   | 2     | 2023-10-26 | 0      |
+| 3         | 6  | wonrax      | 1.1.1.1. | \{1,2,3,6\} | 3     | 2023-10-26 | 0      |
+| 1         | 4  | wonrax      | 1.2.     | \{1,4\}     | 1     | 2023-10-26 | 1      |
+| 1         | 5  | wonrax      | 1.3.     | \{1,5\}     | 1     | 2023-10-26 | 0      |
+| NULL      | 7  | wonrax      | 2.       | \{7\}       | 0     | 2023-10-26 | 0      |
+| 7         | 8  | wonrax      | 2.1.     | \{7,8\}     | 1     | 2023-10-26 | 0      |
+
+Now we need to rank the children of the top level comments in the application level.
+
+## Method 1: Recursively iterate through the list
+
+Our recursive ranking function will receive a vec of comments as input. Iterating through the comments, it will do a loop of:
+
+- Find all child of the current comment - `O(n)` where `n` is number of child of the current comment. We do this by iterating until we get a node whose level is equal to or higher than the parent node. Call this node `next` and forget about it for now.
+ - Call our recursive function with all of its children. This function returns the sorted (or ranked) children.
+ - Emplace the result back to the original vec.
+ - Continue with the `next` node.
+ 
+After we sort all children of our top level comments, we need to sort the top level comments themselves. While finding the `next` node, we also store the indices of the node in a vec. Now we copy the top level nodes to a seperate vec, sort them and emplace their children to this new vec - `O(m*log(m))` where `m` is number of top level comments.
+
+Return the new vec.
+
+The complexity of this algorithm is:
+
+$$
+O(n) + O(m) + m * (O(n) + O(m) + m * (O(n) + O(m) + ...))
+$$
+
+Which deduces to:
+
+$$
+O(n^a + m ^ a * n^{a-1})
+$$
+
+with $a$ being the depth of the reply tree. If $a$ is unlimited, the complexity is simplified to:
+
+$$
+O(n^n)
+$$
+
+![img](https://external-preview.redd.it/yakdR1JN3jRYma3ouf1WutD8kPRQD2nUlsajfpdsmOc.jpg?width=640&crop=smart&auto=webp&s=d1d91124f66b1a602d5f70296c8f69e77e58c0d9
+'#width=320;height=240')
+
+## Method 2: Turn the list into a intermediate tree, sort the tree and turn it back to list
+
+We're going to iterate through the vec and construct a comment tree. This is `O(n)` with the help of a hash map.
+
+Having the tree, we can just recursively sort the children. This is also `O(n^n)` if the reply depth is unlimited.
+
+We turn the tree back into list by doing a depth first search, which has the complexity of `O(n)`
+
+The complexity of this algorithm is:
+
+$$
+O(n) + O(n^n) + O(n)
+$$
+
+Which simplifies to:
+
+$$
+O(n^n)
+$$
+
+![img](https://external-preview.redd.it/yakdR1JN3jRYma3ouf1WutD8kPRQD2nUlsajfpdsmOc.jpg?width=640&crop=smart&auto=webp&s=d1d91124f66b1a602d5f70296c8f69e77e58c0d9
+'#width=320;height=240')
+
+Well, if both are $O(n^n)$, I think I'm going with the second method, since it seems easier.

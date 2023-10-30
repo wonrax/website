@@ -1,10 +1,9 @@
 ---
 import Layout from "./Layout.astro";
-
-const { title = "Blog", description = "hhai.dev blog index" } = Astro.props;
 ---
 
-<Layout title={title} description={description}>
+<Layout>
+  <slot name="head" slot="head" />
   <div class="blog-container">
     <nav class="nav-bar">
       <div class="nav-bar-content">

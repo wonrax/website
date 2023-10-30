@@ -6,6 +6,8 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
 ---
 
 <BlogRouteLayout>
+  <title slot="head">Blog</title>
+  <meta slot="head" name="description" content="hhai.dev blog index" />
   <main class="blog-main">
     <ul class="article-list">
       {

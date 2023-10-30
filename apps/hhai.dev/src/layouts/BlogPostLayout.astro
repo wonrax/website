@@ -25,7 +25,22 @@ const post = Astro.props.frontmatter;
 const headings = Astro.props.headings;
 ---
 
-<BlogRouteLayout title={post.title} description={post.description}>
+<BlogRouteLayout>
+  <title slot="head">{post.title}</title>
+  <meta slot="head" name="description" content={post.description} />
+  <link slot="head" rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link
+    slot="head"
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.css"
+    integrity="sha384-OH8qNTHoMMVNVcKdKewlipV4SErXqccxxlg6HC9Cwjr5oZu2AdBej1TndeCirael"
+    crossorigin="anonymous"
+  />
+  <link
+    slot="head"
+    href="https://cdn.jsdelivr.net/npm/@fontsource/cascadia-code@4.2.1/index.min.css"
+    rel="stylesheet"
+  />
   <main class="blog-post-main">
     <div class="right-sidebar">
       <div class="right-sidebar-content">
@@ -106,7 +121,7 @@ const headings = Astro.props.headings;
   }
 
   .article {
-    font-size: 18px;
+    font-size: 17px;
     max-width: 100%;
 
     @media (min-width: 1280px) {
@@ -144,7 +159,7 @@ const headings = Astro.props.headings;
     box-sizing: border-box;
 
     h1 {
-      font-size: 42px;
+      font-size: 32px;
       font-weight: 500;
       margin: 16px 0;
       color: #333;
@@ -159,8 +174,8 @@ const headings = Astro.props.headings;
 
       .separator-line {
         height: 1px;
-        background-color: #666;
-        width: 100%;
+        background-color: #555;
+        width: 12px;
         display: inline-block;
       }
     }
@@ -208,6 +223,12 @@ const headings = Astro.props.headings;
 
       @media (max-width: 800px) {
         padding: 0 32px;
+      }
+    }
+
+    .feature {
+      img {
+        width: 100%;
       }
     }
 
@@ -277,6 +298,7 @@ const headings = Astro.props.headings;
       width: 100%;
       max-width: 800px;
       box-sizing: border-box;
+      margin: 32px auto;
 
       @media (max-width: 1280px) {
         padding: 0 16px;
@@ -286,9 +308,8 @@ const headings = Astro.props.headings;
     .feature-table {
       width: fit-content;
       max-width: 100%;
-      margin: 0 auto;
-      border-radius: 6px;
-      border: 1px solid #dddddd;
+      margin: 32px auto;
+      border-radius: 12px;
       overflow-y: auto;
     }
 
@@ -327,18 +348,21 @@ const headings = Astro.props.headings;
       font-size: 32px;
       font-weight: 500;
       margin: 32px 0 16px 0;
+      line-height: 1.35em;
     }
 
     h2 {
       font-size: 24px;
       font-weight: 500;
       margin: 48px 0 24px 0;
+      line-height: 1.35em;
     }
 
     h3 {
       font-size: 20px;
       font-weight: 500;
       margin: 32px 0 16px 0;
+      line-height: 1.35em;
     }
 
     a,
@@ -347,6 +371,8 @@ const headings = Astro.props.headings;
     }
 
     .feature-aside {
+      margin: 32px auto;
+
       @media (max-width: 1280px) {
         padding: 0 16px;
       }
@@ -358,7 +384,7 @@ const headings = Astro.props.headings;
         width: 100%;
         max-width: 748px;
         box-sizing: border-box;
-        margin: 16px auto;
+        margin: 0 auto;
 
         p {
           font-size: 16px;
@@ -412,6 +438,13 @@ const headings = Astro.props.headings;
         color: #794e0f;
       }
     }
+
+    img {
+      display: block;
+      height: auto;
+      border-radius: 12px;
+      margin: 0 auto;
+    }
   }
 
   // Code block stylying
@@ -422,7 +455,7 @@ const headings = Astro.props.headings;
 
     pre {
       overflow-x: auto;
-      line-height: 1.65em;
+      line-height: 1.4em;
       margin: 0;
       padding: 16px 0;
     }
@@ -430,13 +463,18 @@ const headings = Astro.props.headings;
     code {
       display: grid;
       counter-reset: line;
-      padding: 0;
       margin: 0;
+      padding: 0;
       background-color: transparent;
 
       & > .code-block-line {
         /* make up for the highlighted leftmost border width */
         border-left: solid 2px transparent;
+
+        padding-top: 0;
+        padding-right: 8px;
+        padding-bottom: 0;
+        padding-left: 0;
 
         [data-highlighted-chars] {
           background-color: rgba($color: #770000, $alpha: 0.05);
@@ -507,7 +545,7 @@ const headings = Astro.props.headings;
   }
 
   // code syntax highlighting
-  :root {
+  .article {
     --shiki-color-text: #000;
     --shiki-color-background: #333333;
     --shiki-token-constant: #660000;
