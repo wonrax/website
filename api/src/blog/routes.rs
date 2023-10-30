@@ -31,6 +31,7 @@ struct Comment {
     parent_id: Option<i32>,
     created_at: chrono::NaiveDateTime,
     upvote: i32,
+    depth: i32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -42,6 +43,7 @@ struct CommentView {
     created_at: chrono::NaiveDateTime,
     children: Option<Vec<Rc<RefCell<CommentView>>>>,
     upvote: i32,
+    depth: usize,
 }
 
 enum AppError {
@@ -100,7 +102,7 @@ async fn get_blog_post_comments(
             AND comments.parent_id IS NULL
             ORDER BY comments.upvote DESC, comments.created_at
             LIMIT $2 OFFSET $3
-        ), t(parent_id, id, author_name, content, root, level, created_at, upvote) AS (
+        ), t(parent_id, id, author_name, content, root, depth, created_at, upvote) AS (
             (
                 SELECT * FROM root_comments
             )
@@ -111,7 +113,7 @@ async fn get_blog_post_comments(
                 comments.author_name,
                 comments.content,
                 array_append(root, comments.id),
-                t.level + 1,
+                t.depth + 1,
                 comments.created_at,
                 comments.upvote
             FROM t
@@ -154,6 +156,7 @@ fn turn_flat_comments_to_nested(comments: Vec<Comment>) -> Vec<Rc<RefCell<Commen
             created_at: comment.created_at,
             children: None,
             upvote: comment.upvote,
+            depth: comment.depth as usize,
         }));
 
         tree.insert(c.borrow().id, c.clone());
