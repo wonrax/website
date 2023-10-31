@@ -1,29 +1,23 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use axum::{
-    extract::{Path, Query, State},
-    http::StatusCode,
-    response::IntoResponse,
-    routing::get,
-    Json, Router,
-};
-use serde::{Deserialize, Serialize};
-use serde_json::json;
-use sqlx::FromRow;
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use rand::Rng;
 
-use crate::APIContext;
-
-pub fn route() -> Router<APIContext> {
-    Router::<APIContext>::new().route("/:slug/comments", get(get_blog_post_comments))
+pub fn criterion_benchmark(c: &mut Criterion) {
+    let mut group = c.benchmark_group("blog_comments");
+    for i in [10, 1000, 10000, 100000].iter() {
+        let comments = generate_comments(*i, i / 100);
+        group.bench_function(BenchmarkId::new("iterative_recursive", i), |b| {
+            b.iter(|| iterative_recursive_sort(comments.clone()))
+        });
+        group.bench_function(BenchmarkId::new("intermediate_tree", i), |b| {
+            b.iter(|| intermediate_tree_sort(comments.clone()))
+        });
+    }
+    group.finish();
 }
 
-#[derive(Serialize)]
-struct ErrorResponse {
-    code: String,
-    msg: Option<String>,
-}
-
-#[derive(FromRow, Debug, Serialize, Clone)]
+#[derive(Clone)]
 struct Comment {
     id: i32,
     author_name: String,
@@ -34,7 +28,8 @@ struct Comment {
     depth: i32,
 }
 
-#[derive(Debug, Serialize, Clone, PartialEq)]
+#[allow(dead_code)]
+#[derive(Clone)]
 struct CommentView {
     id: i32,
     author_name: String,
@@ -46,94 +41,23 @@ struct CommentView {
     depth: usize,
 }
 
-enum AppError {
-    DatabaseError(sqlx::Error),
-}
-
-impl IntoResponse for AppError {
-    fn into_response(self) -> axum::response::Response {
-        let (status_code, error_response) = match self {
-            AppError::DatabaseError(e) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ErrorResponse {
-                    code: "DB_ERR".into(),
-                    msg: Some(format!("Fetching data error: {}", e.to_string())),
-                },
-            ),
+fn generate_comments(n: usize, max_depth: usize) -> Vec<Comment> {
+    let mut comments = vec![];
+    for i in 0..n {
+        let depth = rand::thread_rng().gen_range(0..max_depth + 1);
+        let comment = Comment {
+            id: i as i32,
+            author_name: "author".to_string(),
+            content: "content".to_string(),
+            parent_id: None,
+            created_at: chrono::offset::Local::now().naive_local(),
+            upvote: 0,
+            depth: depth as i32,
         };
-
-        (status_code, Json(json!(error_response))).into_response()
+        comments.push(comment);
     }
+    comments
 }
-
-impl From<sqlx::Error> for AppError {
-    fn from(e: sqlx::Error) -> Self {
-        AppError::DatabaseError(e)
-    }
-}
-
-#[derive(Deserialize)]
-struct Pagination {
-    page_offset: usize,
-    page_size: usize,
-}
-
-async fn get_blog_post_comments(
-    State(ctx): State<APIContext>,
-    Path(slug): Path<String>,
-    pagination: Query<Pagination>,
-) -> Result<Json<Vec<CommentView>>, AppError> {
-    let rows = sqlx::query_as::<_, Comment>(
-        "
-        WITH RECURSIVE root_comments AS (
-            SELECT
-                comments.parent_id,
-                comments.id,
-                comments.author_name,
-                comments.content,
-                ARRAY [comments.id],
-                0,
-                comments.created_at,
-                comments.upvote
-            FROM comments
-            JOIN posts ON (posts.id = comments.post_id)
-            WHERE posts.category = 'blog'
-            AND posts.slug = $1
-            AND comments.parent_id IS NULL
-            ORDER BY comments.upvote DESC, comments.created_at
-            LIMIT $2 OFFSET $3
-        ), t(parent_id, id, author_name, content, root, depth, created_at, upvote) AS (
-            (
-                SELECT * FROM root_comments
-            )
-            UNION ALL
-            SELECT
-                comments.parent_id,
-                comments.id,
-                comments.author_name,
-                comments.content,
-                array_append(root, comments.id),
-                t.depth + 1,
-                comments.created_at,
-                comments.upvote
-            FROM t
-                JOIN comments ON (comments.parent_id = t.id)
-        )
-        SELECT * FROM t
-        ORDER BY root;
-        ",
-    )
-    .bind(slug)
-    .bind(pagination.page_size as i64)
-    .bind(pagination.page_offset as i64)
-    .fetch_all(&ctx.pool)
-    .await?;
-
-    let result = intermediate_tree_sort(rows);
-
-    Ok(Json(result))
-}
-
 fn intermediate_tree_sort(comments: Vec<Comment>) -> Vec<CommentView> {
     let num_comments = comments.len();
 
@@ -214,7 +138,6 @@ fn depth_first_search(comment: Rc<RefCell<CommentView>>, mut result: &mut Vec<Co
     }
 }
 
-#[allow(dead_code)]
 fn iterative_recursive_sort(comments: Vec<Comment>) -> Vec<CommentView> {
     use std::borrow::BorrowMut;
     sort_comments(comments.into_iter().map(Rc::new).collect())
@@ -287,37 +210,5 @@ fn sort_comments(comments: Vec<Rc<Comment>>) -> Vec<Rc<Comment>> {
     result
 }
 
-#[cfg(test)]
-mod test {
-    use rand::Rng;
-
-    use super::Comment;
-
-    #[test]
-    fn test_correctness_using_two_implementations() {
-        let comments = generate_comments(10000, 5);
-        let tree_based_sorted_comments = super::intermediate_tree_sort(comments.clone());
-        let array_based_sorted_comments = super::iterative_recursive_sort(comments.clone());
-
-        assert_eq!(tree_based_sorted_comments, array_based_sorted_comments);
-    }
-
-    // Generate comments randomly
-    fn generate_comments(n: usize, max_depth: usize) -> Vec<Comment> {
-        let mut comments = vec![];
-        for i in 0..n {
-            let depth = rand::thread_rng().gen_range(0..max_depth + 1);
-            let comment = Comment {
-                id: i as i32,
-                author_name: "author".to_string(),
-                content: "content".to_string(),
-                parent_id: None,
-                created_at: chrono::offset::Local::now().naive_local(),
-                upvote: 0,
-                depth: depth as i32,
-            };
-            comments.push(comment);
-        }
-        comments
-    }
-}
+criterion_group!(benches, criterion_benchmark);
+criterion_main!(benches);
