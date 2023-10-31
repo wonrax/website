@@ -58,6 +58,7 @@ dependencies = [
  "chrono",
  "dotenv",
  "futures-util",
+ "rand",
  "retainer",
  "serde",
  "serde_json",

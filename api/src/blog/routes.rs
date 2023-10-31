@@ -9,7 +9,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::FromRow;
+use sqlx::{error::DatabaseError, FromRow};
 
 use crate::APIContext;
 
@@ -34,7 +34,7 @@ struct Comment {
     depth: i32,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Serialize, Clone, PartialEq)]
 struct CommentView {
     id: i32,
     author_name: String,
@@ -82,7 +82,7 @@ async fn get_blog_post_comments(
     State(ctx): State<APIContext>,
     Path(slug): Path<String>,
     pagination: Query<Pagination>,
-) -> Result<Json<Vec<Rc<RefCell<CommentView>>>>, AppError> {
+) -> Result<Json<Vec<CommentView>>, AppError> {
     let rows = sqlx::query_as::<_, Comment>(
         "
         WITH RECURSIVE root_comments AS (
@@ -129,20 +129,27 @@ async fn get_blog_post_comments(
     .fetch_all(&ctx.pool)
     .await?;
 
-    let mut nested = turn_flat_comments_to_nested(rows.clone());
+    // let result = tree_based_sorting(rows);
+    let result = array_based_sorting(rows);
+
+    Ok(Json(result))
+}
+
+fn tree_based_sorting(comments: Vec<Comment>) -> Vec<CommentView> {
+    let mut nested = turn_flat_comments_to_nested(comments);
     sort_comments_by_upvote(&mut nested);
 
-    let mut result: Vec<Rc<RefCell<CommentView>>> = vec![];
+    let mut result: Vec<CommentView> = vec![];
     for comment in nested {
         depth_first_search(comment.clone(), &mut result);
     }
 
     // remove all children that are still referenced
-    for comment in &result {
-        comment.borrow_mut().children = None;
+    for comment in &mut result {
+        comment.children = None;
     }
 
-    Ok(Json(result))
+    result
 }
 
 fn turn_flat_comments_to_nested(comments: Vec<Comment>) -> Vec<Rc<RefCell<CommentView>>> {
@@ -196,14 +203,106 @@ fn sort_comments_by_upvote(comments: &mut Vec<Rc<RefCell<CommentView>>>) {
     }
 }
 
-fn depth_first_search(
-    comment: Rc<RefCell<CommentView>>,
-    mut result: &mut Vec<Rc<RefCell<CommentView>>>,
-) {
-    result.push(comment.clone());
+fn depth_first_search(comment: Rc<RefCell<CommentView>>, mut result: &mut Vec<CommentView>) {
+    result.push(comment.borrow_mut().to_owned());
     if let Some(children) = comment.borrow().children.as_ref() {
         for child in children {
             depth_first_search(child.clone(), &mut result);
         }
+    }
+}
+
+fn array_based_sorting(comments: Vec<Comment>) -> Vec<CommentView> {
+    sort_array(comments)
+        .into_iter()
+        .map(|comment| CommentView {
+            id: comment.id,
+            author_name: comment.author_name,
+            content: comment.content,
+            parent_id: comment.parent_id,
+            created_at: comment.created_at,
+            children: None,
+            upvote: comment.upvote,
+            depth: comment.depth as usize,
+        })
+        .collect()
+}
+
+fn sort_array(comments: Vec<Comment>) -> Vec<Comment> {
+    if comments.len() == 0 {
+        return vec![];
+    }
+    let mut result = vec![];
+
+    let mut top_level_comments_children: HashMap<i32, Vec<Comment>> = HashMap::new();
+
+    let mut i = 0;
+    let mut current_root_comment_id = comments[0].id;
+    let root_depth = comments[0].depth;
+    while i < comments.len() {
+        let comment = &comments[i];
+        if comment.depth > root_depth {
+            top_level_comments_children
+                .entry(current_root_comment_id)
+                .or_insert(vec![])
+                .push(comment.clone());
+        } else {
+            current_root_comment_id = comment.id;
+            result.push(comment.clone());
+            top_level_comments_children.insert(comment.id, vec![]);
+        }
+        i += 1;
+    }
+
+    result.sort_unstable_by_key(|k| (-k.upvote, k.created_at));
+
+    let mut curr = 0;
+    for top_level_comment in result.clone() {
+        let children = top_level_comments_children
+            .remove(&top_level_comment.id)
+            .unwrap();
+        let children_length = children.len();
+        let sorted_children = sort_array(children);
+        for (k, child_comment) in sorted_children.iter().enumerate() {
+            result.insert(k + curr + 1, child_comment.to_owned());
+        }
+        curr += children_length + 1;
+    }
+
+    result
+}
+
+#[cfg(test)]
+mod test {
+    use rand::Rng;
+
+    use super::Comment;
+
+    #[test]
+    fn test_correctness_using_two_implementations() {
+        let comments = generate_comments(10000, 5);
+        let tree_based_sorted_comments = super::tree_based_sorting(comments.clone());
+        let array_based_sorted_comments = super::array_based_sorting(comments.clone());
+
+        assert_eq!(tree_based_sorted_comments, array_based_sorted_comments);
+    }
+
+    // Generate comments randomly
+    fn generate_comments(n: usize, max_depth: usize) -> Vec<Comment> {
+        let mut comments = vec![];
+        for i in 0..n {
+            let depth = rand::thread_rng().gen_range(0..max_depth + 1);
+            let comment = Comment {
+                id: i as i32,
+                author_name: "author".to_string(),
+                content: "content".to_string(),
+                parent_id: None,
+                created_at: chrono::offset::Local::now().naive_local(),
+                upvote: 0,
+                depth: depth as i32,
+            };
+            comments.push(comment);
+        }
+        comments
     }
 }
