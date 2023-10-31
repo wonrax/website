@@ -24,7 +24,6 @@ model posts {
   category String
   slug     String
   title    String
-  comments comments[]
 }
 
 model comments {
@@ -112,19 +111,19 @@ Return the new vec.
 The complexity of this algorithm is:
 
 $$
-O(n) + O(m) + m * (O(n) + O(m) + m * (O(n) + O(m) + ...))
+O(n + m \cdot log(m) + m \cdot (n + m \cdot log(m) + m \cdot (n + m \cdot log(m) + m \cdot (...))))
 $$
 
 Which deduces to:
 
 $$
-O(n^a + m ^ a * n^{a-1})
+O(n \cdot m^{a-1} + m^{a} \cdot log(m))
 $$
 
 with $a$ being the depth of the reply tree. If $a$ is unlimited, the complexity is simplified to:
 
 $$
-O(n^n)
+O(n^{n} + n^{n} \cdot log(n))
 $$
 
 ![img](https://external-preview.redd.it/yakdR1JN3jRYma3ouf1WutD8kPRQD2nUlsajfpdsmOc.jpg?width=640&crop=smart&auto=webp&s=d1d91124f66b1a602d5f70296c8f69e77e58c0d9
@@ -141,16 +140,18 @@ We turn the tree back into list by doing a depth first search, which has the com
 The complexity of this algorithm is:
 
 $$
-O(n) + O(n^n) + O(n)
+O(n) + O(m \cdot log(m) + m \cdot (m \cdot log(m) + m \cdot (m \cdot log(m) + m \cdot (...)))) + O(n)
 $$
 
 Which simplifies to:
 
 $$
-O(n^n)
+O(2n + n^{n} \cdot log(n))
 $$
 
 ![img](https://external-preview.redd.it/yakdR1JN3jRYma3ouf1WutD8kPRQD2nUlsajfpdsmOc.jpg?width=640&crop=smart&auto=webp&s=d1d91124f66b1a602d5f70296c8f69e77e58c0d9
 '#width=320;height=240')
 
-Well, if both are $O(n^n)$, I think I'm going with the second method, since it seems easier.
+It seems the second method could be a bit faster despite both being $O(n^n)$.
+But for the sake of learning Rust, and to verify my calculation and reasoning,
+I implemented both solutions and did a benchmark.
