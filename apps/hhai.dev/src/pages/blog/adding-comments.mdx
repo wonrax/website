@@ -1,0 +1,398 @@
+---
+layout: "../../layouts/BlogPostLayout.astro"
+title: "Adding comments"
+description: "Adding comments to my blog"
+published: "28 October 2023"
+updated: "28 October 2023"
+tags:
+  - rust
+  - algo
+---
+
+We have this schema. We need to fetch the comments and their replies and have them ranked to display under a post.
+
+```js showLineNumbers
+// schema.prisma
+
+model posts {
+  id       Int        @id @default(autoincrement())
+  category String
+  slug     String
+  title    String
+}
+
+model comments {
+  id           Int        @id @default(autoincrement())
+  author_name  String
+  content      String
+  post_id      Int
+  parent_id    Int?
+  created_at   DateTime   @default(now())
+  upvote       Int        @default(0)
+}
+```
+
+## Get data from PostgreSQL
+
+It's just too complex to get a final result just using only the database. So what we're doing is to only sort the top level comments (by upvote), and then get all the child comments, including their children. This is Hacker News-like threads fetching.
+
+```sql showLineNumbers
+WITH RECURSIVE root_comments AS (
+    SELECT
+        comments.parent_id,
+        comments.id,
+        comments.author_name,
+        comments.content,
+        ARRAY [comments.id],
+        0,
+        comments.created_at,
+        comments.upvote
+    FROM comments
+    JOIN posts ON (posts.id = comments.post_id)
+    WHERE posts.category = 'blog'
+    AND posts.slug = $1
+    AND comments.parent_id IS NULL
+    ORDER BY comments.upvote DESC, comments.created_at
+    LIMIT $2 OFFSET $3
+), t(parent_id, id, author_name, content, root, level, created_at, upvote) AS (
+    (
+        SELECT * FROM root_comments
+    )
+    UNION ALL
+    SELECT
+        comments.parent_id,
+        comments.id,
+        comments.author_name,
+        comments.content,
+        array_append(root, comments.id),
+        t.level + 1,
+        comments.created_at,
+        comments.upvote
+    FROM t
+        JOIN comments ON (comments.parent_id = t.id)
+)
+SELECT * FROM t
+ORDER BY root;
+```
+
+Executing the SQL query, we'll have a list of sorted comments. Any comment is guaranteed to be placed behind their parent comment in the list. To be honest, I still don't fully understand how the query runs, especially the recursive part.
+
+| parent_id | id  | author_name | content  | root        | level | created_at | upvote |
+| --------- | --- | ----------- | -------- | ----------- | ----- | ---------- | ------ |
+| NULL      | 1   | wonrax      | 1.       | \{1\}       | 0     | 2023-10-25 | 0      |
+| 1         | 2   | wonrax      | 1.1.     | \{1,2\}     | 1     | 2023-10-25 | 0      |
+| 2         | 3   | wonrax      | 1.1.1.   | \{1,2,3\}   | 2     | 2023-10-26 | 0      |
+| 3         | 6   | wonrax      | 1.1.1.1. | \{1,2,3,6\} | 3     | 2023-10-26 | 0      |
+| 1         | 4   | wonrax      | 1.2.     | \{1,4\}     | 1     | 2023-10-26 | 1      |
+| 1         | 5   | wonrax      | 1.3.     | \{1,5\}     | 1     | 2023-10-26 | 0      |
+| NULL      | 7   | wonrax      | 2.       | \{7\}       | 0     | 2023-10-26 | 0      |
+| 7         | 8   | wonrax      | 2.1.     | \{7,8\}     | 1     | 2023-10-26 | 0      |
+
+Now we need to rank the children of the top level comments in the application level.
+
+## Method 1: Recursively iterate through the list
+
+Our recursive ranking function will receive a vec of comments as input.
+Iterating through the comments, it will do a loop of:
+
+- Find all child of the current comment - `O(n)` where `n` is number of child of
+  the current comment. We do this by iterating until we get a node whose level is
+  equal to or higher than the parent node. Call this node `next` and forget about
+  it for now. - Call our recursive function with all of its children. This
+  function returns the sorted (or ranked) children. - Emplace the result back to
+  the original vec. - Continue with the `next` node.
+
+After we sort all children of our top level comments, we need to sort the top
+level comments themselves. While finding the `next` node, we also store the
+indices of the node in a vec. Now we copy the top level nodes to a seperate vec,
+sort them and emplace their children to this new vec - `O(m*log(m))` where `m`
+is number of top level comments.
+
+Return the new vec.
+
+The complexity of this algorithm is:
+
+$$
+O(n + m \cdot log(m) + m \cdot (n + m \cdot log(m) + m \cdot (n + m \cdot log(m) + m \cdot (...))))
+$$
+
+Which deduces to:
+
+$$
+O(n \cdot m^{a-1} + m^{a} \cdot log(m))
+$$
+
+with $a$ being the depth of the reply tree. If $a$ is unlimited, the complexity is simplified to:
+
+$$
+O(n^{n} + n^{n} \cdot log(n))
+$$
+
+![img](https://external-preview.redd.it/yakdR1JN3jRYma3ouf1WutD8kPRQD2nUlsajfpdsmOc.jpg?width=640&crop=smart&auto=webp&s=d1d91124f66b1a602d5f70296c8f69e77e58c0d9 "#width=320;height=240")
+
+## Method 2: Use an intermediate tree
+
+We're going to iterate through the vec and construct a comment tree. This is
+`O(n)` with the help of a hash map.
+
+Having the tree, we can just recursively sort the children. This is also
+`O(n^n)` if the reply depth is unlimited.
+
+We turn the tree back into list by doing a depth first search, which has the
+complexity of `O(n)`
+
+The complexity of this algorithm is:
+
+$$
+O(n) + O(m \cdot log(m) + m \cdot (m \cdot log(m) + m \cdot (m \cdot log(m) + m \cdot (...)))) + O(n)
+$$
+
+Which simplifies to:
+
+$$
+O(2n + n^{n} \cdot log(n))
+$$
+
+![img](https://external-preview.redd.it/yakdR1JN3jRYma3ouf1WutD8kPRQD2nUlsajfpdsmOc.jpg?width=640&crop=smart&auto=webp&s=d1d91124f66b1a602d5f70296c8f69e77e58c0d9 "#width=320;height=240")
+
+It seems the second method could be a bit faster despite both being $O(n^n)$.
+But for the sake of learning Rust, and to verify my calculation and reasoning,
+I implemented both solutions and did a benchmark.
+
+| Number of comments | Iterative recursive | Intermediate tree |
+| ------------------ | ------------------- | ----------------- |
+| 10                 | **1.3687 µs**       | 1.6782 µs         |
+| 1000               | 252.51 µs           | **201.47 µs**     |
+| 10000              | 3.3283 ms           | **1.9920 ms**     |
+| 100000             | 61.469 ms           | **27.919 ms**     |
+
+## The code
+
+### Benchmark code
+
+```rust showLineNumbers
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use rand::Rng;
+
+#[derive(Clone)]
+struct Comment {
+    id: i32,
+    author_name: String,
+    content: String,
+    parent_id: Option<i32>,
+    created_at: chrono::NaiveDateTime,
+    upvote: i32,
+    depth: i32,
+}
+
+#[derive(Clone)]
+struct CommentView {
+    id: i32,
+    author_name: String,
+    content: String,
+    parent_id: Option<i32>,
+    created_at: chrono::NaiveDateTime,
+    children: Option<Vec<Rc<RefCell<CommentView>>>>,
+    upvote: i32,
+    depth: usize,
+}
+
+pub fn criterion_benchmark(c: &mut Criterion) {
+    let mut group = c.benchmark_group("blog_comments");
+    for i in [10, 1000, 10000, 100000].iter() {
+        let comments = generate_comments(*i, i / 100);
+        group.bench_function(BenchmarkId::new("iterative_recursive", i), |b| {
+            b.iter(|| iterative_recursive_sort(comments.clone()))
+        });
+        group.bench_function(BenchmarkId::new("intermediate_tree", i), |b| {
+            b.iter(|| intermediate_tree_sort(comments.clone()))
+        });
+    }
+    group.finish();
+}
+
+fn generate_comments(n: usize, max_depth: usize) -> Vec<Comment> {
+    let mut comments = vec![];
+    for i in 0..n {
+        let depth = rand::thread_rng().gen_range(0..max_depth + 1);
+        let comment = Comment {
+            id: i as i32,
+            author_name: "author".to_string(),
+            content: "content".to_string(),
+            parent_id: None,
+            created_at: chrono::offset::Local::now().naive_local(),
+            upvote: 0,
+            depth: depth as i32,
+        };
+        comments.push(comment);
+    }
+    comments
+}
+
+criterion_group!(benches, criterion_benchmark);
+criterion_main!(benches);
+```
+
+### Iterative recursive
+
+```rust showLineNumbers
+use std::{collections::HashMap, rc::Rc};
+
+fn iterative_recursive_sort(comments: Vec<Comment>) -> Vec<CommentView> {
+    use std::borrow::BorrowMut;
+    sort_comments(comments.into_iter().map(Rc::new).collect())
+        .into_iter()
+        .map(|mut comment| CommentView {
+            id: comment.id,
+            author_name: comment.borrow_mut().author_name.to_owned(),
+            content: comment.borrow_mut().content.to_owned(),
+            parent_id: comment.parent_id,
+            created_at: comment.created_at,
+            children: None,
+            upvote: comment.upvote,
+            depth: comment.depth as usize,
+        })
+        .collect()
+}
+
+fn sort_comments(comments: Vec<Rc<Comment>>) -> Vec<Rc<Comment>> {
+    if comments.len() == 0 {
+        return vec![];
+    }
+
+    let mut result = Vec::with_capacity(comments.len());
+
+    // Map root comment id to its children
+    let mut top_level_comments_children: HashMap<i32, Vec<Rc<Comment>>> = HashMap::new();
+
+    // Because the comments are already sorted by id and depth, the first
+    // comment's depth is the most shallow depth
+    let root_depth = comments[0].depth;
+    let mut current_root_comment_id = comments[0].id;
+    let mut i = 0;
+    while i < comments.len() {
+        let comment = &comments[i];
+        if comment.depth > root_depth {
+            top_level_comments_children
+                .get_mut(&current_root_comment_id)
+                .unwrap()
+                .push(comment.clone());
+        } else {
+            // Indicating we have reached a new root comment
+            current_root_comment_id = comment.id;
+            result.push(comment.clone());
+            top_level_comments_children.insert(comment.id, vec![]);
+        }
+        i += 1;
+    }
+
+    // By now, result only contains the root comments
+    result.sort_unstable_by_key(|k| (-k.upvote, k.created_at));
+
+    // Sort the children recursively
+    let mut curr = 0;
+    for top_level_comment in result.clone() {
+        let children = top_level_comments_children
+            .remove(&top_level_comment.id)
+            .unwrap();
+        let children_length = children.len();
+
+        let sorted_children = sort_comments(children);
+
+        // emplace the children back into the result array
+        for (k, child_comment) in sorted_children.iter().enumerate() {
+            result.insert(k + curr + 1, child_comment.to_owned());
+        }
+
+        curr += children_length + 1;
+    }
+
+    result
+}
+```
+
+### Intermediate tree
+
+```rust showLineNumbers
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
+
+fn intermediate_tree_sort(comments: Vec<Comment>) -> Vec<CommentView> {
+    let num_comments = comments.len();
+
+    let mut nested = flat_comments_to_tree(comments);
+    sort_comments_by_upvote(&mut nested);
+
+    let mut result: Vec<CommentView> = Vec::with_capacity(num_comments);
+    for comment in nested {
+        depth_first_search(comment.clone(), &mut result);
+    }
+
+    // children are not needed anymore
+    for comment in &mut result {
+        comment.children = None;
+    }
+
+    result
+}
+
+fn flat_comments_to_tree(comments: Vec<Comment>) -> Vec<Rc<RefCell<CommentView>>> {
+    let mut tree = HashMap::<i32, Rc<RefCell<CommentView>>>::new();
+    let mut final_comments: Vec<Rc<RefCell<CommentView>>> = vec![];
+
+    for comment in comments {
+        let c = Rc::new(RefCell::new(CommentView {
+            id: comment.id,
+            author_name: comment.author_name,
+            content: comment.content,
+            parent_id: comment.parent_id,
+            created_at: comment.created_at,
+            children: None,
+            upvote: comment.upvote,
+            depth: comment.depth as usize,
+        }));
+
+        tree.insert(c.borrow().id, c.clone());
+
+        if let Some(parent_id) = c.borrow().parent_id {
+            // If this is a child comment, add it to its parent's children
+            let parent = tree.get(&parent_id);
+            if let Some(parent) = parent {
+                let mut mut_parent = parent.borrow_mut();
+                if let Some(children) = mut_parent.children.as_mut() {
+                    children.push(c.clone());
+                } else {
+                    let children = vec![c.clone()];
+                    mut_parent.children = Some(children);
+                }
+            }
+        };
+
+        if comment.parent_id.is_none() {
+            final_comments.push(c.clone());
+        }
+    }
+
+    final_comments
+}
+
+fn sort_comments_by_upvote(comments: &mut Vec<Rc<RefCell<CommentView>>>) {
+    // sort the top level comments
+    comments.sort_unstable_by_key(|k| (-k.borrow().upvote, k.borrow().created_at));
+
+    // sort the children recursively
+    for comment in comments {
+        if let Some(children) = comment.borrow_mut().children.as_mut() {
+            sort_comments_by_upvote(children);
+        }
+    }
+}
+
+fn depth_first_search(comment: Rc<RefCell<CommentView>>, mut result: &mut Vec<CommentView>) {
+    result.push(comment.borrow_mut().to_owned());
+    if let Some(children) = comment.borrow().children.as_ref() {
+        for child in children {
+            depth_first_search(child.clone(), &mut result);
+        }
+    }
+}
+```
