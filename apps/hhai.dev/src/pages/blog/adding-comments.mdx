@@ -1,7 +1,7 @@
 ---
 layout: "../../layouts/BlogPostLayout.astro"
-title: "Adding comments"
-description: "Adding comments to my blog"
+title: "Adding comments to my blogs"
+description: "Technical explanation of data fetching and ranking algorithm"
 published: "28 October 2023"
 updated: "28 October 2023"
 tags:
@@ -9,7 +9,37 @@ tags:
   - algo
 ---
 
-We have this schema. We need to fetch the comments and their replies and have them ranked to display under a post.
+I'd love to hear other people's opinion on my post. So I'm adding the ability to
+post and view comments to this blog.
+
+There are solutions that make integrating comments very easy, with
+[Disqus](https://disqus.com/) being the oldest service I know. However, I
+haven't had good experience with Disqus as an audience in other blogs. Disqus
+always took very long to load the comments, sometimes even failed to do so. And
+their UI is also not quite my taste.
+
+There's also [giscus](https://github.com/giscus/giscus) or
+[utterances](https://github.com/utterance) which use GitHub to authenticate user
+and store the underlying comments data. But I don't feel so comfortable letting
+my website depend on a hacky way like that. What if one day GitHub decides to
+change their API? Is there possible migration plan to move existing comments off
+GitHub? Since GitHub didn't create GitHub Discussions to be used like that, they
+don't have the responsibility to keep things the way you want forever. Also, I
+want creating comments on my blog as easy as possible, no login needed, just
+enter your name.
+
+I also have an API and a PostgreSQL just for increase the view count for each
+post. I better make more use of that. So I decided to implement my own comment
+platform. This means I have to take care of many things (not supposed to be an
+exhausted list):
+
+- Data modelling and APIs to `GET`/`POST` comments
+- UI to display and submit comments
+- Markdown (rendering) support and content sanitization
+- Content moderation and spam prevention
+
+This post will cover the half of first bullet point, which is the data schema,
+data fetching and implementation to rank and fetch the comments to display.
 
 ```js showLineNumbers
 // schema.prisma
@@ -34,7 +64,10 @@ model comments {
 
 ## Get data from PostgreSQL
 
-It's just too complex to get a final result just using only the database. So what we're doing is to only sort the top level comments (by upvote), and then get all the child comments, including their children. This is Hacker News-like threads fetching.
+It's just too complex to get a final result just using only the database. So
+what we're doing is to only sort the top level comments (by upvote), and then
+get all the child comments, including their children. This is Hacker News-like
+threads fetching.
 
 ```sql showLineNumbers
 WITH RECURSIVE root_comments AS (
@@ -75,7 +108,9 @@ SELECT * FROM t
 ORDER BY root;
 ```
 
-Executing the SQL query, we'll have a list of sorted comments. Any comment is guaranteed to be placed behind their parent comment in the list. To be honest, I still don't fully understand how the query runs, especially the recursive part.
+Executing the SQL query, we'll have a list of sorted comments. Any comment is
+guaranteed to be placed behind their parent comment in the list. To be honest, I
+still don't fully understand how the query runs, especially the recursive part.
 
 | parent_id | id  | author_name | content  | root        | level | created_at | upvote |
 | --------- | --- | ----------- | -------- | ----------- | ----- | ---------- | ------ |
@@ -88,7 +123,8 @@ Executing the SQL query, we'll have a list of sorted comments. Any comment is gu
 | NULL      | 7   | wonrax      | 2.       | \{7\}       | 0     | 2023-10-26 | 0      |
 | 7         | 8   | wonrax      | 2.1.     | \{7,8\}     | 1     | 2023-10-26 | 0      |
 
-Now we need to rank the children of the top level comments in the application level.
+Now we need to rank the children of the top level comments in the application
+level.
 
 ## Method 1: Recursively iterate through the list
 
@@ -96,11 +132,14 @@ Our recursive ranking function will receive a vec of comments as input.
 Iterating through the comments, it will do a loop of:
 
 - Find all child of the current comment - `O(n)` where `n` is number of child of
-  the current comment. We do this by iterating until we get a node whose level is
-  equal to or higher than the parent node. Call this node `next` and forget about
-  it for now. - Call our recursive function with all of its children. This
-  function returns the sorted (or ranked) children. - Emplace the result back to
-  the original vec. - Continue with the `next` node.
+the current comment. We do this by iterating until we get a node whose level is
+equal to or higher than the parent node. Call this node `next` and forget about
+it for now.
+
+- Call our recursive function with all of its children. This function returns
+the sorted (or ranked) children.
+
+- Emplace the result back to the original vec. - Continue with the `next` node.
 
 After we sort all children of our top level comments, we need to sort the top
 level comments themselves. While finding the `next` node, we also store the
@@ -122,13 +161,15 @@ $$
 O(n \cdot m^{a-1} + m^{a} \cdot log(m))
 $$
 
-with $a$ being the depth of the reply tree. If $a$ is unlimited, the complexity is simplified to:
+with $a$ being the depth of the reply tree. If $a$ is unlimited, the complexity
+is simplified to:
 
 $$
 O(n^{n} + n^{n} \cdot log(n))
 $$
 
-![img](https://external-preview.redd.it/yakdR1JN3jRYma3ouf1WutD8kPRQD2nUlsajfpdsmOc.jpg?width=640&crop=smart&auto=webp&s=d1d91124f66b1a602d5f70296c8f69e77e58c0d9 "#width=320;height=240")
+![img](https://external-preview.redd.it/yakdR1JN3jRYma3ouf1WutD8kPRQD2nUlsajfpdsmOc.jpg?width=640&crop=smart&auto=webp&s=d1d91124f66b1a602d5f70296c8f69e77e58c0d9
+"#width=320;height=240")
 
 ## Method 2: Use an intermediate tree
 
@@ -153,7 +194,8 @@ $$
 O(2n + n^{n} \cdot log(n))
 $$
 
-![img](https://external-preview.redd.it/yakdR1JN3jRYma3ouf1WutD8kPRQD2nUlsajfpdsmOc.jpg?width=640&crop=smart&auto=webp&s=d1d91124f66b1a602d5f70296c8f69e77e58c0d9 "#width=320;height=240")
+![img](https://external-preview.redd.it/yakdR1JN3jRYma3ouf1WutD8kPRQD2nUlsajfpdsmOc.jpg?width=640&crop=smart&auto=webp&s=d1d91124f66b1a602d5f70296c8f69e77e58c0d9
+"#width=320;height=240")
 
 It seems the second method could be a bit faster despite both being $O(n^n)$.
 But for the sake of learning Rust, and to verify my calculation and reasoning,
@@ -387,7 +429,10 @@ fn sort_comments_by_upvote(comments: &mut Vec<Rc<RefCell<CommentView>>>) {
     }
 }
 
-fn depth_first_search(comment: Rc<RefCell<CommentView>>, mut result: &mut Vec<CommentView>) {
+fn depth_first_search(
+    comment: Rc<RefCell<CommentView>>,
+    mut result: &mut Vec<CommentView>)
+{
     result.push(comment.borrow_mut().to_owned());
     if let Some(children) = comment.borrow().children.as_ref() {
         for child in children {
