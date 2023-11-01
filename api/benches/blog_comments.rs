@@ -65,21 +65,24 @@ fn intermediate_tree_sort(comments: Vec<Comment>) -> Vec<CommentView> {
     let mut nested = flat_comments_to_tree(comments);
     sort_tree(&mut nested);
 
-   let mut result: Vec<Rc<RefCell<CommentView>>> = Vec::with_capacity(num_comments);
-   for comment in nested {
-       depth_first_search(&comment, &mut result);
-   }
+    let mut result: Vec<Rc<RefCell<CommentView>>> = Vec::with_capacity(num_comments);
+    for comment in nested {
+        depth_first_search(&comment, &mut result);
+    }
 
-   // children are not needed anymore
-   for comment in &mut result {
-       comment.borrow_mut().children = None;
-   }
+    // children are not needed anymore
+    for comment in &mut result {
+        comment.borrow_mut().children = None;
+    }
 
-   result.into_iter().map(|c| c.borrow_mut().to_owned()).collect()
+    result
+        .into_iter()
+        .map(|c| c.borrow_mut().to_owned())
+        .collect()
 }
 
 fn flat_comments_to_tree(comments: Vec<Comment>) -> Vec<Rc<RefCell<CommentView>>> {
-    let mut tree = HashMap::<i32, Rc<RefCell<CommentView>>>::new();
+    let mut tree = HashMap::<i32, Rc<RefCell<CommentView>>>::with_capacity(comments.len());
     let mut final_comments: Vec<Rc<RefCell<CommentView>>> = vec![];
 
     for comment in comments {
@@ -141,7 +144,6 @@ fn depth_first_search(
         }
     }
 }
-
 
 #[allow(dead_code)]
 fn iterative_recursive_sort(comments: Vec<Comment>) -> Vec<CommentView> {
