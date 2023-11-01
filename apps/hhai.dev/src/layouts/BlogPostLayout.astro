@@ -8,6 +8,8 @@ export type Frontmatter = {
   published: string;
   updated: string;
   tags: string[];
+  draft?: boolean;
+  hidden?: boolean;
 };
 
 export type Heading = {
@@ -80,6 +82,21 @@ const headings = Astro.props.headings;
         </div>
       </div>
       <div class="article-body">
+        {
+          post.draft ? (
+            <div class="feature-aside">
+              <aside class="callout callout-warning">
+                <div class="callout-title">Draft</div>
+                <div class="callout-content">
+                  <p>
+                    This post is a draft and is not yet ready for public
+                    viewing.
+                  </p>
+                </div>
+              </aside>
+            </div>
+          ) : null
+        }
         <slot />
       </div>
     </article>
@@ -401,7 +418,7 @@ const headings = Astro.props.headings;
 
     aside.callout {
       .callout-title {
-        font-size: 12px;
+        font-size: 13px;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.05em;

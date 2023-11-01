@@ -7,6 +7,7 @@ updated: "28 October 2023"
 tags:
   - rust
   - algo
+draft: true
 ---
 
 I'd love to hear other people's opinion on my post. So I'm adding the ability to
@@ -38,8 +39,12 @@ exhausted list):
 - Markdown (rendering) support and content sanitization
 - Content moderation and spam prevention
 
-This post will cover the half of first bullet point, which is the data schema,
+This post will cover half of the first bullet point, which is the data schema,
 data fetching and implementation to rank and fetch the comments to display.
+
+## Data modelling
+
+
 
 ```js showLineNumbers
 // schema.prisma
@@ -61,8 +66,6 @@ model comments {
   upvote       Int        @default(0)
 }
 ```
-
-## Get data from PostgreSQL
 
 It's just too complex to get a final result just using only the database. So
 what we're doing is to only sort the top level comments (by upvote), and then

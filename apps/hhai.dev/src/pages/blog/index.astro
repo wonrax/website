@@ -11,25 +11,31 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
   <main class="blog-main">
     <ul class="article-list">
       {
-        allPosts.map((post) => (
-          <li class="article-entry">
-            <a href={post.url}>{post.frontmatter.title}</a>
-            <p>
-              <span class="article-date">
-                {new Date(post.frontmatter.published)
-                  .toLocaleDateString("en-UK", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })
-                  .toUpperCase()}
-              </span>
-              <span class="article-description">
-                {post.frontmatter.description}
-              </span>
-            </p>
-          </li>
-        ))
+        allPosts
+          .filter(
+            (post) =>
+              process.env.NODE_ENV != "production" ||
+              (!post.frontmatter.draft && !post.frontmatter.hidden)
+          )
+          .map((post) => (
+            <li class="article-entry">
+              <a href={post.url}>{post.frontmatter.title}</a>
+              <p>
+                <span class="article-date">
+                  {new Date(post.frontmatter.published)
+                    .toLocaleDateString("en-UK", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })
+                    .toUpperCase()}
+                </span>
+                <span class="article-description">
+                  {post.frontmatter.description}
+                </span>
+              </p>
+            </li>
+          ))
       }
     </ul>
   </main>
