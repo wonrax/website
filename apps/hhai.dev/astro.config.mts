@@ -1,4 +1,5 @@
 import mdx from "@astrojs/mdx";
+import react from "@astrojs/react";
 import { defineConfig, sharpImageService } from "astro/config";
 import path, { dirname } from "path";
 import rehypePrettyCode from "rehype-pretty-code";
@@ -82,7 +83,7 @@ export default defineConfig({
       rehypeBlogPost,
     ],
   },
-  integrations: [mdx()],
+  integrations: [mdx(), react()],
   image: {
     service: sharpImageService(),
     domains: ["share.hhai.dev", "res.cloudinary.com"],

@@ -139,7 +139,7 @@ const headings = Astro.props.headings;
 
   .article {
     font-size: 17px;
-    max-width: 100%;
+    width: 100%;
 
     @media (min-width: 1280px) {
       max-width: 800px;
@@ -484,6 +484,7 @@ const headings = Astro.props.headings;
       margin: 0;
       padding: 0;
       background-color: transparent;
+      width: 100%;
 
       & > .code-block-line {
         /* make up for the highlighted leftmost border width */
@@ -545,6 +546,33 @@ const headings = Astro.props.headings;
       font-weight: 500;
       margin-left: 16px;
       border-radius: 0 0 8px 8px;
+    }
+  }
+
+  .article .article-body .code-group {
+    .code-group-tabs {
+      display: flex;
+      padding-left: 16px;
+      padding-right: 16px;
+      overflow-y: auto;
+
+      .code-block-title {
+        margin-left: 2px;
+        cursor: pointer;
+
+        &.active {
+          background-color: #333;
+          color: white;
+        }
+
+        &:not(.active):hover {
+          background-color: #ccc;
+        }
+      }
+    }
+
+    pre {
+      max-height: 600px;
     }
   }
 

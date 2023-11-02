@@ -1,5 +1,5 @@
 ---
-layout: "../../layouts/BlogPostLayout.astro"
+layout: "@/layouts/BlogPostLayout.astro"
 title: "Adding comments to my blogs"
 description: "Technical explanation of data fetching and ranking algorithm"
 published: "28 October 2023"
@@ -9,6 +9,8 @@ tags:
   - algo
 draft: true
 ---
+
+import CodeGroup from '@/components/CodeGroup.tsx'
 
 I'd love to hear other people's opinion on my post. So I'm adding the ability to
 post and view comments to this blog.
@@ -44,28 +46,84 @@ data fetching and implementation to rank and fetch the comments to display.
 
 ## Data modelling
 
+<CodeGroup client:load>
 
-
-```js showLineNumbers
-// schema.prisma
-
-model posts {
-  id       Int        @id @default(autoincrement())
+```js showLineNumbers title="schema.prisma"
+model Post {
+  id       Int       @id @default(autoincrement())
   category String
   slug     String
   title    String
+  comments Comment[]
+
+  @@unique([category, slug], map: "posts_category_slug_unique")
+  @@map("posts")
 }
 
-model comments {
-  id           Int        @id @default(autoincrement())
+model Comment {
+  id           Int      @id @default(autoincrement())
+  author_ip    String
   author_name  String
+  author_email String?
   content      String
   post_id      Int
   parent_id    Int?
-  created_at   DateTime   @default(now())
-  upvote       Int        @default(0)
+  created_at   DateTime @default(now())
+  upvote       Int      @default(0)
+
+  parent   Comment?  @relation("ChildComment", fields: [parent_id], references: [id])
+  comments Comment[] @relation("ChildComment")
+  post     Post      @relation(fields: [post_id], references: [id])
+
+  @@map("comments")
 }
 ```
+
+```sql showLineNumbers title="01_add_comments.sql"
+-- CreateTable
+CREATE TABLE "posts" (
+    "id" SERIAL NOT NULL,
+    "category" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    CONSTRAINT "posts_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "comments" (
+    "id" SERIAL NOT NULL,
+    "author_ip" TEXT NOT NULL,
+    "author_name" TEXT NOT NULL,
+    "author_email" TEXT,
+    "content" TEXT NOT NULL,
+    "post_id" INTEGER NOT NULL,
+    "parent_id" INTEGER,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "upvote" INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT "comments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "posts_category_slug_unique" ON "posts"("category", "slug");
+
+-- AddForeignKey
+ALTER TABLE
+    "comments"
+ADD
+    CONSTRAINT "comments_parent_id_fkey" FOREIGN KEY ("parent_id")
+        REFERENCES "comments"("id") ON DELETE
+SET
+    NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE
+    "comments"
+ADD
+    CONSTRAINT "comments_post_id_fkey" FOREIGN KEY ("post_id")
+        REFERENCES "posts"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+```
+
+</CodeGroup>
 
 It's just too complex to get a final result just using only the database. So
 what we're doing is to only sort the top level comments (by upvote), and then
@@ -211,11 +269,8 @@ I implemented both solutions and did a benchmark.
 | 10000              | 3.3283 ms           | **1.9920 ms**     |
 | 100000             | 61.469 ms           | **27.919 ms**     |
 
-## The code
-
-### Benchmark code
-
-```rust showLineNumbers
+<CodeGroup client:load>
+```rust showLineNumbers title="benchmark.rs"
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use rand::Rng;
 
@@ -278,9 +333,7 @@ criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);
 ```
 
-### Iterative recursive
-
-```rust showLineNumbers
+```rust showLineNumbers title="iterative_recursive.rs"
 use std::{collections::HashMap, rc::Rc};
 
 fn iterative_recursive_sort(comments: Vec<Comment>) -> Vec<CommentView> {
@@ -356,9 +409,7 @@ fn sort_comments(comments: Vec<Rc<Comment>>) -> Vec<Rc<Comment>> {
 }
 ```
 
-### Intermediate tree
-
-```rust showLineNumbers
+```rust showLineNumbers title="intermediate_tree.rs"
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 fn intermediate_tree_sort(comments: Vec<Comment>) -> Vec<CommentView> {
@@ -444,3 +495,4 @@ fn depth_first_search(
     }
 }
 ```
+</CodeGroup>
