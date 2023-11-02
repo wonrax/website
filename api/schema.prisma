@@ -3,7 +3,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model counters {
+// for seed scripts
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Counter {
   id         Int      @id @default(autoincrement())
   key        String
   name       String
@@ -12,29 +17,34 @@ model counters {
   updated_at DateTime @default(now()) @updatedAt
 
   @@unique([key, name], map: "counters_key_name_unique")
+  @@map("counters")
 }
 
-model posts {
-  id       Int        @id @default(autoincrement())
+model Post {
+  id       Int       @id @default(autoincrement())
   category String
   slug     String
   title    String
-  comments comments[]
+  comments Comment[]
 
   @@unique([category, slug], map: "posts_category_slug_unique")
+  @@map("posts")
 }
 
-model comments {
-  id           Int        @id @default(autoincrement())
+model Comment {
+  id           Int      @id @default(autoincrement())
   author_ip    String
   author_name  String
   author_email String?
   content      String
   post_id      Int
   parent_id    Int?
-  created_at   DateTime   @default(now())
-  upvote       Int        @default(0)
-  parent       comments?  @relation("ChildComment", fields: [parent_id], references: [id])
-  comments     comments[] @relation("ChildComment")
-  post         posts      @relation(fields: [post_id], references: [id])
+  created_at   DateTime @default(now())
+  upvote       Int      @default(0)
+
+  parent   Comment?  @relation("ChildComment", fields: [parent_id], references: [id])
+  comments Comment[] @relation("ChildComment")
+  post     Post      @relation(fields: [post_id], references: [id])
+
+  @@map("comments")
 }
