@@ -11,7 +11,6 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/lit": "^3.0.2",
     "@astrojs/mdx": "^1.1.0",
     "@astrojs/react": "^3.0.4",
     "@microflash/remark-callout-directives": "^1.6.0",
