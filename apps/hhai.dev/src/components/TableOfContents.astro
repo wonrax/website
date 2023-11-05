@@ -74,7 +74,7 @@ for (const h of filteredHeadings) {
 
     li.active > a,
     a:hover {
-      font-weight: 500;
+      font-weight: var(--font-weight-medium);
       color: black;
       box-shadow: inset 0 -2px 0 0 black;
       animation: tocEntryMorphIn 0.3s ease-in-out forwards;
@@ -95,12 +95,12 @@ for (const h of filteredHeadings) {
   }
 
   .level-1 > li > a {
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
     padding: 6px 4px;
   }
 
   .level-2 > li > a {
-    font-weight: 400;
+    font-weight: var(--font-weight-normal);
     padding: 4px 4px;
   }
 </style>

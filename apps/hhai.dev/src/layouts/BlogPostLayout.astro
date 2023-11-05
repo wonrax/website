@@ -176,11 +176,13 @@ const headings = Astro.props.headings;
     box-sizing: border-box;
 
     h1 {
-      font-size: 32px;
-      font-weight: 500;
+      font-size: 40px;
+      font-weight: 400;
+      font-style: italic;
       margin: 16px 0;
       color: #333;
       letter-spacing: -0.01em;
+      font-family: Libre Baskerville;
     }
 
     .separator {
@@ -355,6 +357,8 @@ const headings = Astro.props.headings;
       margin: 16px 0;
       line-height: 1.65em;
       color: #333;
+      letter-spacing: -0.02em;
+      font-weight: var(--font-weight-normal);
     }
 
     ul {
@@ -419,7 +423,7 @@ const headings = Astro.props.headings;
     aside.callout {
       .callout-title {
         font-size: 13px;
-        font-weight: 700;
+        font-weight: var(--font-weight-medium);
         text-transform: uppercase;
         letter-spacing: 0.05em;
       }
