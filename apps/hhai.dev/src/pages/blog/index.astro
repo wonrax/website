@@ -15,7 +15,7 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
           .filter(
             (post) =>
               process.env.NODE_ENV != "production" ||
-              (!post.frontmatter.draft && !post.frontmatter.hidden)
+              (!post.frontmatter.isDraft && !post.frontmatter.hidden)
           )
           .map((post) => (
             <li class="article-entry">

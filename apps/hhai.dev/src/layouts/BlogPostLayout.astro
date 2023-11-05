@@ -8,7 +8,7 @@ export type Frontmatter = {
   published: string;
   updated: string;
   tags: string[];
-  draft?: boolean;
+  isDraft?: boolean;
   hidden?: boolean;
 };
 
@@ -83,7 +83,7 @@ const headings = Astro.props.headings;
       </div>
       <div class="article-body">
         {
-          post.draft ? (
+          post.isDraft ? (
             <div class="feature-aside">
               <aside class="callout callout-warning">
                 <div class="callout-title">Draft</div>
@@ -206,8 +206,10 @@ const headings = Astro.props.headings;
 
   .article .article-body {
     li {
+      color: #444;
       margin: 8px 0;
       line-height: 1.65em;
+      letter-spacing: -0.02em;
 
       p {
         margin: 0;
@@ -357,7 +359,7 @@ const headings = Astro.props.headings;
     p {
       margin: 16px 0;
       line-height: 1.65em;
-      color: #333;
+      color: #444;
       letter-spacing: -0.02em;
       font-weight: var(--font-weight-normal);
     }
@@ -367,6 +369,7 @@ const headings = Astro.props.headings;
     }
 
     h1 {
+      font-family: Libre Baskerville;
       font-size: 32px;
       font-weight: var(--font-weight-medium);
       margin: 32px 0 16px 0;
@@ -375,6 +378,7 @@ const headings = Astro.props.headings;
     }
 
     h2 {
+      font-family: Libre Baskerville;
       font-size: 24px;
       font-weight: var(--font-weight-medium);
       margin: 48px 0 24px 0;
@@ -415,7 +419,12 @@ const headings = Astro.props.headings;
         p {
           font-size: 16px;
           color: #707070;
-          margin: 0;
+          margin-top: 16px;
+          margin-bottom: 0;
+
+          &:nth-child(1) {
+            margin-top: 0;
+          }
         }
 
         code {
@@ -429,7 +438,6 @@ const headings = Astro.props.headings;
         font-size: 13px;
         font-weight: var(--font-weight-medium);
         text-transform: uppercase;
-        letter-spacing: 0.05em;
       }
 
       .callout-content {

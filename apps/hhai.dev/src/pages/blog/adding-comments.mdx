@@ -1,12 +1,13 @@
 ---
 layout: "@/layouts/BlogPostLayout.astro"
-title: "Adding comments to my blogs"
+title: "Adding comments"
 description: "Technical explanation of data fetching and ranking algorithm"
 published: "28 October 2023"
 updated: "28 October 2023"
 tags:
   - rust
   - algo
+isDraft: true
 ---
 
 import CodeGroup from '@/components/CodeGroup.tsx'
@@ -30,10 +31,10 @@ don't have the responsibility to keep things the way you want forever. Also, I
 want creating comments on my blog as easy as possible, no login needed, just
 enter your name.
 
-I also have an API and a PostgreSQL just for increase the view count for each
-post. I better make more use of that. So I decided to implement my own comment
-platform. This means I have to take care of many things (not supposed to be an
-exhausted list):
+I also have an API written in Rust (yes, I'm on the hype train too) and a
+PostgreSQL just for increase the view count for each post. I better make more
+use of that. So I decided to implement my own comment platform. This means I
+have to take care of many things (not supposed to be an exhausted list):
 
 - Data modelling and APIs to `GET`/`POST` comments
 - UI to display and submit comments
@@ -44,6 +45,10 @@ This post will cover half of the first bullet point, which is the data schema,
 data fetching and implementation to rank and fetch the comments to display.
 
 ## Data modelling
+
+It may sound ridiculously complex but it's just me designing database schemas
+after researching for a suitable model for storage and easy querying. Below is
+schema in Prisma and a corresponding SQL migration script.
 
 <CodeGroup client:load>
 
@@ -78,7 +83,7 @@ model Comment {
 }
 ```
 
-```sql showLineNumbers title="01_add_comments.sql"
+```sql showLineNumbers title="01_comments.sql"
 -- CreateTable
 CREATE TABLE "posts" (
     "id" SERIAL NOT NULL,
@@ -106,23 +111,33 @@ CREATE TABLE "comments" (
 CREATE UNIQUE INDEX "posts_category_slug_unique" ON "posts"("category", "slug");
 
 -- AddForeignKey
-ALTER TABLE
-    "comments"
-ADD
-    CONSTRAINT "comments_parent_id_fkey" FOREIGN KEY ("parent_id")
-        REFERENCES "comments"("id") ON DELETE
-SET
-    NULL ON UPDATE CASCADE;
+ALTER TABLE "comments"
+    ADD CONSTRAINT "comments_parent_id_fkey" FOREIGN KEY ("parent_id")
+        REFERENCES "comments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE
-    "comments"
-ADD
-    CONSTRAINT "comments_post_id_fkey" FOREIGN KEY ("post_id")
+ALTER TABLE "comments"
+    ADD CONSTRAINT "comments_post_id_fkey" FOREIGN KEY ("post_id")
         REFERENCES "posts"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ```
 
 </CodeGroup>
+
+:::note
+I use Prisma schema but it doesn't mean I'm using the client for API. Prisma
+just has a very good DX for migration and dev stuff. I only use the client for
+seed scripts. For the backend, I use [Rust
+sqlx](https://github.com/launchbadge/sqlx) and write plane SQL like a normal
+person.
+
+`prisma db push` to push the new schema to the database, `db pull` to pull the
+database schema and update the schema file. So making changes to the schema is
+quite easy.
+
+When satisfied with the new schema, I run `migrate dev` to generate migration
+files. And on production, I spin a new docker container to run `migrate deploy`
+to make changes to the production database.
+:::
 
 It's just too complex to get a final result just using only the database. So
 what we're doing is to only sort the top level comments (by upvote), and then
