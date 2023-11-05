@@ -243,9 +243,6 @@ $$
 O(n^{n} + n^{n} \cdot log(n))
 $$
 
-![img](https://external-preview.redd.it/yakdR1JN3jRYma3ouf1WutD8kPRQD2nUlsajfpdsmOc.jpg?width=640&crop=smart&auto=webp&s=d1d91124f66b1a602d5f70296c8f69e77e58c0d9
-"#width=320;height=240")
-
 ## Method 2: Use an intermediate tree
 
 We're going to iterate through the vec and construct a comment tree. This is
@@ -269,12 +266,10 @@ $$
 O(2n + n^{n} \cdot log(n))
 $$
 
-![img](https://external-preview.redd.it/yakdR1JN3jRYma3ouf1WutD8kPRQD2nUlsajfpdsmOc.jpg?width=640&crop=smart&auto=webp&s=d1d91124f66b1a602d5f70296c8f69e77e58c0d9
-"#width=320;height=240")
-
 It seems the second method could be a bit faster despite both being $O(n^n)$.
 But for the sake of learning Rust, and to verify my calculation and reasoning,
-I implemented both solutions and did a benchmark.
+I implemented both solutions and did a benchmark. Below is a table showing the
+time each implementation took in average for input of `n` comments.
 
 | Number of comments | Iterative recursive | Intermediate tree |
 | ------------------ | ------------------- | ----------------- |
@@ -282,6 +277,11 @@ I implemented both solutions and did a benchmark.
 | 1000               | 252.51 µs           | **201.47 µs**     |
 | 10000              | 3.3283 ms           | **1.9920 ms**     |
 | 100000             | 61.469 ms           | **27.919 ms**     |
+
+Below is the code. I use Rust criterion for benchmarking. It's a bit sad that
+`cargo bench` is still under-development and I had to copy every implementations
+code for benchmarking (it's not possible to import because my Rust project is
+binary, not lib).
 
 <CodeGroup client:load>
 ```rust showLineNumbers title="benchmark.rs"
@@ -510,3 +510,15 @@ fn depth_first_search(
 }
 ```
 </CodeGroup>
+
+I think both implementations can be further optimized. Like the
+`iterative_recursive` could use slices instead of Vec (?). But I think it's
+enough for my blog and stop.
+
+:::warning
+At the time of writing this post, I only finished the API part, not the UI and
+moderation and stuff (it still has a very long way ahead), so it's still not
+possible to create comments.
+
+You'll know when it's possible 🙂
+:::
