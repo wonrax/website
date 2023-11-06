@@ -1,0 +1,33 @@
+---
+layout: "@/layouts/BlogPostLayout.astro"
+title: "Test"
+description: "Test"
+published: "29 October 2023"
+updated: "29 October 2023"
+tags:
+  - rust
+  - algo
+hidden: true
+---
+
+import CodeGroup from '@/components/CodeGroup.tsx'
+
+<CodeGroup client:load>
+
+```rust title="file_01.rs"
+fn main() {}
+```
+```rust title="file_02.rs"
+fn main() {
+    println!("hehe");
+}
+```
+
+</CodeGroup>
+
+
+```rust title="file_02.rs"
+fn main() {
+    println!("hehe");
+}
+```

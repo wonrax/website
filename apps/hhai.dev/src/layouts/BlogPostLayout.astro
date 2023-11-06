@@ -8,6 +8,8 @@ export type Frontmatter = {
   published: string;
   updated: string;
   tags: string[];
+  isDraft?: boolean;
+  hidden?: boolean;
 };
 
 export type Heading = {
@@ -25,7 +27,22 @@ const post = Astro.props.frontmatter;
 const headings = Astro.props.headings;
 ---
 
-<BlogRouteLayout title={post.title} description={post.description}>
+<BlogRouteLayout>
+  <title slot="head">{post.title}</title>
+  <meta slot="head" name="description" content={post.description} />
+  <link slot="head" rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link
+    slot="head"
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.css"
+    integrity="sha384-OH8qNTHoMMVNVcKdKewlipV4SErXqccxxlg6HC9Cwjr5oZu2AdBej1TndeCirael"
+    crossorigin="anonymous"
+  />
+  <link
+    slot="head"
+    href="https://cdn.jsdelivr.net/npm/@fontsource/cascadia-code@4.2.1/index.min.css"
+    rel="stylesheet"
+  />
   <main class="blog-post-main">
     <div class="right-sidebar">
       <div class="right-sidebar-content">
@@ -65,6 +82,21 @@ const headings = Astro.props.headings;
         </div>
       </div>
       <div class="article-body">
+        {
+          post.isDraft ? (
+            <div class="feature-aside">
+              <aside class="callout callout-warning">
+                <div class="callout-title">Draft</div>
+                <div class="callout-content">
+                  <p>
+                    This post is a draft and is not yet ready for public
+                    viewing.
+                  </p>
+                </div>
+              </aside>
+            </div>
+          ) : null
+        }
         <slot />
       </div>
     </article>
@@ -95,7 +127,7 @@ const headings = Astro.props.headings;
 
       h3 {
         font-size: 18px;
-        font-weight: 500;
+        font-weight: var(--font-weight-medium);
         color: #333;
       }
 
@@ -106,8 +138,8 @@ const headings = Astro.props.headings;
   }
 
   .article {
-    font-size: 18px;
-    max-width: 100%;
+    font-size: 17px;
+    width: 100%;
 
     @media (min-width: 1280px) {
       max-width: 800px;
@@ -120,14 +152,14 @@ const headings = Astro.props.headings;
       margin-left: 8px;
       // background-color: #f4f4f4;
       font-size: 14px;
-      font-weight: 500;
+      font-weight: var(--font-weight-medium);
       color: #666;
       // margin: 0 4px 4px 0;
     }
 
     .article-date {
       font-size: 14px;
-      font-weight: 500;
+      font-weight: var(--font-weight-medium);
       color: #666;
       white-space: nowrap;
       margin-right: 8px;
@@ -144,11 +176,13 @@ const headings = Astro.props.headings;
     box-sizing: border-box;
 
     h1 {
-      font-size: 42px;
-      font-weight: 500;
+      font-size: 40px;
+      font-weight: 400;
+      font-style: italic;
       margin: 16px 0;
       color: #333;
       letter-spacing: -0.01em;
+      font-family: Libre Baskerville;
     }
 
     .separator {
@@ -159,8 +193,8 @@ const headings = Astro.props.headings;
 
       .separator-line {
         height: 1px;
-        background-color: #666;
-        width: 100%;
+        background-color: #555;
+        width: 12px;
         display: inline-block;
       }
     }
@@ -172,8 +206,10 @@ const headings = Astro.props.headings;
 
   .article .article-body {
     li {
-      margin: 16px 0;
+      color: #444;
+      margin: 8px 0;
       line-height: 1.65em;
+      letter-spacing: -0.02em;
 
       p {
         margin: 0;
@@ -211,6 +247,12 @@ const headings = Astro.props.headings;
       }
     }
 
+    .feature {
+      img {
+        width: 100%;
+      }
+    }
+
     /* <!-- TODO move to using tailwind or smth, add toggle for line numbers --> */
     .feature-sm {
       width: 100%;
@@ -224,7 +266,7 @@ const headings = Astro.props.headings;
 
     .image-caption {
       margin: 12px;
-      font-weight: 500;
+      font-weight: var(--font-weight-medium);
       color: #666;
       font-size: 14px;
 
@@ -277,6 +319,7 @@ const headings = Astro.props.headings;
       width: 100%;
       max-width: 800px;
       box-sizing: border-box;
+      margin: 32px auto;
 
       @media (max-width: 1280px) {
         padding: 0 16px;
@@ -286,9 +329,8 @@ const headings = Astro.props.headings;
     .feature-table {
       width: fit-content;
       max-width: 100%;
-      margin: 0 auto;
-      border-radius: 6px;
-      border: 1px solid #dddddd;
+      margin: 32px auto;
+      border-radius: 12px;
       overflow-y: auto;
     }
 
@@ -298,25 +340,28 @@ const headings = Astro.props.headings;
       border-spacing: 0;
 
       tbody {
-        color: #333;
+        color: #555;
       }
 
       td {
         white-space: break-spaces;
         overflow-wrap: break-word;
         padding: 8px 16px;
-        border-top: 1px solid #dddddd;
+        border-top: 1px solid #eee;
       }
 
       th {
         padding: 8px 16px;
+        font-weight: var(--font-weight-medium);
       }
     }
 
     p {
       margin: 16px 0;
       line-height: 1.65em;
-      color: #333;
+      color: #444;
+      letter-spacing: -0.02em;
+      font-weight: var(--font-weight-normal);
     }
 
     ul {
@@ -324,46 +369,62 @@ const headings = Astro.props.headings;
     }
 
     h1 {
+      font-family: Libre Baskerville;
       font-size: 32px;
-      font-weight: 500;
+      font-weight: var(--font-weight-medium);
       margin: 32px 0 16px 0;
+      line-height: 1.35em;
+      letter-spacing: -0.02em;
     }
 
     h2 {
+      font-family: Libre Baskerville;
       font-size: 24px;
-      font-weight: 500;
+      font-weight: var(--font-weight-medium);
       margin: 48px 0 24px 0;
+      line-height: 1.35em;
+      letter-spacing: -0.02em;
     }
 
     h3 {
       font-size: 20px;
-      font-weight: 500;
+      font-weight: var(--font-weight-medium);
       margin: 32px 0 16px 0;
+      line-height: 1.35em;
+      letter-spacing: -0.02em;
     }
 
     a,
     a:visited {
-      color: #dd0000;
+      color: black;
+      text-decoration: underline;
     }
 
     .feature-aside {
+      margin: 32px auto;
+
       @media (max-width: 1280px) {
         padding: 0 16px;
       }
 
       aside {
-        background-color: #fafafa;
+        background-color: #f5f5f5;
         padding: 24px;
         border-radius: 12px;
         width: 100%;
         max-width: 748px;
         box-sizing: border-box;
-        margin: 16px auto;
+        margin: 0 auto;
 
         p {
           font-size: 16px;
           color: #707070;
-          margin: 0;
+          margin-top: 16px;
+          margin-bottom: 0;
+
+          &:nth-child(1) {
+            margin-top: 0;
+          }
         }
 
         code {
@@ -374,10 +435,9 @@ const headings = Astro.props.headings;
 
     aside.callout {
       .callout-title {
-        font-size: 12px;
-        font-weight: 700;
+        font-size: 13px;
+        font-weight: var(--font-weight-medium);
         text-transform: uppercase;
-        letter-spacing: 0.05em;
       }
 
       .callout-content {
@@ -412,17 +472,24 @@ const headings = Astro.props.headings;
         color: #794e0f;
       }
     }
+
+    img {
+      display: block;
+      height: auto;
+      border-radius: 12px;
+      margin: 0 auto;
+    }
   }
 
   // Code block stylying
   .article .article-body div[data-rehype-pretty-code-fragment] {
     margin-top: 24px;
-    border: 1px solid #dddddd;
     border-radius: 12px;
+    background-color: #f5f5f5;
 
     pre {
       overflow-x: auto;
-      line-height: 1.65em;
+      line-height: 1.4em;
       margin: 0;
       padding: 16px 0;
     }
@@ -430,26 +497,31 @@ const headings = Astro.props.headings;
     code {
       display: grid;
       counter-reset: line;
-      padding: 0;
       margin: 0;
+      padding: 0;
       background-color: transparent;
+      width: 100%;
 
       & > .code-block-line {
         /* make up for the highlighted leftmost border width */
         border-left: solid 2px transparent;
 
+        padding-top: 0;
+        padding-right: 8px;
+        padding-bottom: 0;
+        padding-left: 0;
+
         [data-highlighted-chars] {
-          background-color: rgba($color: #770000, $alpha: 0.05);
+          background-color: rgba($color: #000000, $alpha: 0.05);
           padding: 2px 4px;
           margin: 0 -4px;
           border-radius: 6px;
-          // border: solid 1px rgba($color: #000000, $alpha: 0.1);
         }
       }
 
       & > .code-block-line.highlighted {
-        background-color: rgba($color: #770000, $alpha: 0.05);
-        border-left: solid 2px #770000;
+        background-color: rgba($color: #000000, $alpha: 0.05);
+        border-left: solid 2px #686868;
       }
 
       &[data-line-numbers-max-digits="2"] > .code-block-line::before {
@@ -466,8 +538,9 @@ const headings = Astro.props.headings;
 
         display: inline-block;
         width: 1rem;
-        margin: 0 12px;
-        color: #e2c7c7;
+        margin-left: 16px;
+        margin-right: 24px;
+        color: #ccc;
         text-align: right;
       }
 
@@ -480,23 +553,47 @@ const headings = Astro.props.headings;
       display: flex;
       flex-direction: column;
       justify-content: center;
-      background-color: white;
+      background-color: #e7e7e7;
       padding: 0 16px;
       height: 32px;
       width: fit-content;
-      color: #770000;
-      font-size: 15px;
-      font-weight: 500;
+      color: #333;
+      font-size: 14px;
+      font-weight: var(--font-weight-medium);
       margin-left: 16px;
-      box-shadow: 0 1px 2px 0 rgba($color: #000000, $alpha: 0.05);
       border-radius: 0 0 8px 8px;
-      border: solid 1px #ddd;
-      border-top: none;
+    }
+  }
+
+  .article .article-body .code-group {
+    .code-group-tabs {
+      display: flex;
+      padding-left: 16px;
+      padding-right: 16px;
+      overflow-y: auto;
+
+      .code-block-title {
+        margin-left: 2px;
+        cursor: pointer;
+
+        &.active {
+          background-color: #333;
+          color: white;
+        }
+
+        &:not(.active):hover {
+          background-color: #ccc;
+        }
+      }
+    }
+
+    pre {
+      max-height: 600px;
     }
   }
 
   code {
-    font-size: 15px;
+    font-size: 14px;
   }
 
   .article .article-body span[data-rehype-pretty-code-fragment],
@@ -506,19 +603,8 @@ const headings = Astro.props.headings;
     border-radius: 4px;
   }
 
-  // code syntax highlighting
-  :root {
-    --shiki-color-text: #000;
-    --shiki-color-background: #333333;
-    --shiki-token-constant: #660000;
-    --shiki-token-string: #770000;
-    --shiki-token-comment: #880000;
-    --shiki-token-keyword: #6e1111;
-    --shiki-token-parameter: #aa0000;
-    --shiki-token-function: #bb0000;
-    --shiki-token-string-expression: #cc0000;
-    --shiki-token-punctuation: #dd0000;
-    --shiki-token-link: #ee0000;
+  .katex-display {
+    overflow-y: auto;
   }
 </style>
 
