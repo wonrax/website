@@ -51,6 +51,23 @@ const headings = Astro.props.headings;
             <>
               <h3>On this page</h3>
               <TableOfContents headings={headings} />
+              <button id="go-to-top">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="21"
+                  height="21"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="lucide lucide-chevron-up"
+                >
+                  <path d="m18 15-6-6-6 6" />
+                </svg>
+                Go to top
+              </button>
             </>
           ) : null
         }
@@ -124,6 +141,8 @@ const headings = Astro.props.headings;
     .right-sidebar-content {
       position: sticky;
       top: 24px;
+      overflow-y: auto;
+      max-height: 90vh;
 
       h3 {
         font-size: 18px;
@@ -606,6 +625,28 @@ const headings = Astro.props.headings;
   .katex-display {
     overflow-y: auto;
   }
+
+  #go-to-top {
+    background-color: #eee;
+    color: #333;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    border: none;
+    outline: none;
+    padding: 4px 10px 4px 8px;
+    margin-top: 24px;
+    font-family: Inter; // TODO move this to global selector
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+
+    &:hover {
+      background-color: #ddd;
+    }
+  }
 </style>
 
 <script>
@@ -641,5 +682,12 @@ const headings = Astro.props.headings;
   // Track all sections that have an `id` applied
   document.querySelectorAll("h1[id],h2[id],h3[id]").forEach((section) => {
     observer.observe(section);
+  });
+
+  document.querySelector("#go-to-top")?.addEventListener("click", () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   });
 </script>

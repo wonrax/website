@@ -55,15 +55,16 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
       margin-top: 32px;
 
       .article-entry {
-        margin-bottom: 24px;
+        margin-bottom: 20px;
 
         a {
           font-weight: var(--font-weight-medium);
           font-size: 18px;
+          letter-spacing: -0.02em;
         }
 
         p {
-          margin: 8px 0;
+          margin: 4px 0;
         }
 
         .article-date {
