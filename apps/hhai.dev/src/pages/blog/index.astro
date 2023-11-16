@@ -6,28 +6,42 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
 ---
 
 <BlogRouteLayout>
+  <title slot="head">Blog</title>
+  <meta slot="head" name="description" content="hhai.dev blog index" />
   <main class="blog-main">
     <ul class="article-list">
       {
-        allPosts.map((post) => (
-          <li class="article-entry">
-            <a href={post.url}>{post.frontmatter.title}</a>
-            <p>
-              <span class="article-date">
-                {new Date(post.frontmatter.published)
-                  .toLocaleDateString("en-UK", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })
-                  .toUpperCase()}
-              </span>
-              <span class="article-description">
-                {post.frontmatter.description}
-              </span>
-            </p>
-          </li>
-        ))
+        allPosts
+          .filter(
+            (post) =>
+              process.env.NODE_ENV != "production" ||
+              (!post.frontmatter.isDraft && !post.frontmatter.hidden)
+          )
+          .map((post) => (
+            <li
+              class={`article-entry${
+                post.frontmatter.isDraft || post.frontmatter.hidden
+                  ? " hidden"
+                  : ""
+              }`}
+            >
+              <a href={post.url}>{post.frontmatter.title}</a>
+              <p>
+                <span class="article-date">
+                  {new Date(post.frontmatter.published)
+                    .toLocaleDateString("en-UK", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })
+                    .toUpperCase()}
+                </span>
+                <span class="article-description">
+                  {post.frontmatter.description}
+                </span>
+              </p>
+            </li>
+          ))
       }
     </ul>
   </main>
@@ -47,15 +61,22 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
       margin-top: 32px;
 
       .article-entry {
-        margin-bottom: 24px;
+        margin-bottom: 20px;
+
+        &.hidden {
+          a {
+            color: #999;
+          }
+        }
 
         a {
-          font-weight: 500;
+          font-weight: var(--font-weight-medium);
           font-size: 18px;
+          letter-spacing: -0.02em;
         }
 
         p {
-          margin: 8px 0;
+          margin: 4px 0;
         }
 
         .article-date {

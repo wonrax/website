@@ -1,31 +1,22 @@
 ---
 import "./global.scss";
-
-interface Props {
-  title: string;
-  description: string;
-}
-
-const { title, description } = Astro.props;
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="generator" content={Astro.generator} />
-    <title>{title}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link
-      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@430;530&family=Libre+Baskerville:ital@1&display=swap"
       rel="stylesheet"
     />
-    <link href="https://cdn.jsdelivr.net/npm/@fontsource/cascadia-code@4.2.1/index.min.css" rel="stylesheet">
+    <slot name="head" />
+    <link rel="alternate icon" type="image/png" href="/favicon.png">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     {process.env.NODE_ENV === "production" &&
       <script>
         !(function (t, e) {
@@ -86,11 +77,16 @@ const { title, description } = Astro.props;
 </html>
 <style is:global>
   html {
-    font-family: Archivo, system-ui, sans-serif;
+    font-family: Inter, Lora, Archivo, system-ui, sans-serif;
   }
   code {
     font-family:
       Cascadia Code,
       monospace;
+  }
+
+  :root {
+    --font-weight-normal: 430;
+    --font-weight-medium: 530;
   }
 </style>

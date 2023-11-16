@@ -53,7 +53,7 @@ for (const h of filteredHeadings) {
 <style lang="scss" is:global>
   .table-of-content {
     margin: 0;
-    padding-inline-start: 1em;
+    padding-inline-start: 1.1em;
 
     ul {
       padding-inline-start: 0;
@@ -61,43 +61,48 @@ for (const h of filteredHeadings) {
     }
 
     & > li {
-      margin-top: 8px;
+      // margin-top: 8px;
     }
 
     li::marker,
     a,
     a:visited {
-      color: #333;
+      color: #777;
       font-size: 15px;
+      line-height: 1.35em;
+      letter-spacing: -0.02em;
+      hyphens: auto;
     }
 
-    li.active > a {
-      font-weight: 500;
-      color: #dd0000;
-      box-shadow: inset 0 -2px 0 0 #dd0000;
+    li.active > a,
+    a:hover {
+      font-weight: var(--font-weight-medium);
+      color: black;
+      box-shadow: inset 0 -2px 0 0 black;
       animation: tocEntryMorphIn 0.3s ease-in-out forwards;
 
       @keyframes tocEntryMorphIn {
         from {
-          box-shadow: inset 0px 0px 0 0 #eedd33;
+          box-shadow: inset 0px 0px 0 0 black;
         }
         to {
-          box-shadow: inset -2px 0 0 0 #dd0000;
+          box-shadow: inset -2px 0 0 0 black;
         }
       }
     }
 
     a {
       display: block;
-      padding: 4px;
     }
   }
 
   .level-1 > li > a {
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
+    padding: 6px 8px 6px 4px;
   }
 
   .level-2 > li > a {
-    font-weight: 400;
+    font-weight: var(--font-weight-normal);
+    padding: 4px 8px 4px 4px;
   }
 </style>

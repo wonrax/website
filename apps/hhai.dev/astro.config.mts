@@ -1,4 +1,5 @@
 import mdx from "@astrojs/mdx";
+import react from "@astrojs/react";
 import { defineConfig, sharpImageService } from "astro/config";
 import path, { dirname } from "path";
 import rehypePrettyCode from "rehype-pretty-code";
@@ -9,13 +10,15 @@ import remarkCalloutDirectives from "@microflash/remark-callout-directives";
 import remarkDirective from "remark-directive";
 import "./plugins/proxy";
 import { remarkDirectiveHtml } from "./plugins/remarkDirective";
+import rehypeKatex from "rehype-katex";
+import remarkMath from "remark-math";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const codeHighlightOptions = {
   // Use one of Shiki's packaged themes
   theme: {
-    light: "css-variables",
+    light: "github-light",
   },
 
   // Keep the background or use a custom background color?
@@ -54,6 +57,7 @@ export default defineConfig({
   markdown: {
     syntaxHighlight: false,
     remarkPlugins: [
+      remarkMath,
       remarkDirective,
       [
         remarkCalloutDirectives,
@@ -73,9 +77,13 @@ export default defineConfig({
       remarkDirectiveHtml,
       remarkResponsiveImage,
     ],
-    rehypePlugins: [[rehypePrettyCode, codeHighlightOptions], rehypeBlogPost],
+    rehypePlugins: [
+      rehypeKatex,
+      [rehypePrettyCode, codeHighlightOptions],
+      rehypeBlogPost,
+    ],
   },
-  integrations: [mdx()],
+  integrations: [mdx(), react()],
   image: {
     service: sharpImageService(),
     domains: ["share.hhai.dev", "res.cloudinary.com"],

@@ -56,6 +56,13 @@ export default function rehypeBlogPost() {
         continue;
       }
 
+      // code group is a special case and is feature by default
+      if (node.type == "mdxJsxFlowElement" && node.name == "CodeGroup") {
+        flushWrapper();
+        finalChildren.push(h("div", { class: "feature-code" }, node));
+        continue;
+      }
+
       // check if node contains img element or is the img element itself
       let imgNode: MdxJsxFlowElement | undefined = undefined;
       let parent: any = undefined;

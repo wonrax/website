@@ -1,0 +1,547 @@
+---
+layout: "@/layouts/BlogPostLayout.astro"
+title: "Adding comments"
+description: "Technical explanation of data fetching and ranking algorithm"
+published: "28 October 2023"
+updated: "16 November 2023"
+tags:
+  - rust
+  - algo
+---
+
+import CodeGroup from '@/components/CodeGroup.tsx'
+
+I'd love to hear other people's opinions on my post. So I'm adding the ability
+to post and view comments to this blog.
+
+There are solutions that streamline the integration of comments, with
+[Disqus](https://disqus.com/) being the oldest service I know. However, I
+haven't had good experience with Disqus as an audience in other blogs. Disqus
+always took very long to load the comments, sometimes failing altogether, and
+their UI is also not quite my taste.
+
+Alternatives like [giscus](https://github.com/giscus/giscus) or
+[utterances](https://github.com/utterance) use GitHub to authenticate user and
+store the underlying comments data. But I don't feel so comfortable letting my
+website depend on a makeshift solution like that. I want my own website to last.
+Without a clear migration plan for existing comments, the longevity of these
+solutions becomes uncertain. Since GitHub didn't create GitHub Discussions to be
+used like that, they don't have the responsibility to keep things the way you
+want forever. Additionally, I aim to keep the comment creation process on my
+blog as easy as possible, requiring no login—just enter your name.
+
+Given my existing API written in Rust (yes, I'm on the hype train too) and a
+PostgreSQL database used to increase post views, I better make more use of that.
+So I decided to create my own comment platform. This means I have to address
+various aspects (not supposed to be an exhaustive list):
+
+- Data modelling and APIs to `GET`/`POST` comments
+- UI for displaying and submitting comments
+- Markdown rendering support and content sanitization
+- Content moderation and spam prevention
+
+This post will delve into the first half of the data modeling process, covering
+the data schema, data fetching, and the implementation to rank and fetch
+comments for display.
+
+
+## Data modelling
+
+Modelling involves designing database schemas after researching a suitable model
+for storage and easy querying. To sum up, I went for the adjencency list model.
+Each comment is a record in the database containing comment data and a
+`parent_id` pointing to the comment it's replying to. If `parent_id` is `NULL`,
+it is a root comment. To simplify things, there's no depth limit, and it's easy
+to enforce this later on the application level. Below is the schema in Prisma,
+along with a corresponding SQL migration script.
+
+<CodeGroup client:load>
+
+```js showLineNumbers title="schema.prisma"
+model Post {
+  id       Int       @id @default(autoincrement())
+  category String
+  slug     String
+  title    String
+  comments Comment[]
+
+  @@unique([category, slug], map: "posts_category_slug_unique")
+  @@map("posts")
+}
+
+model Comment {
+  id           Int      @id @default(autoincrement())
+  author_ip    String
+  author_name  String
+  author_email String?
+  content      String
+  post_id      Int
+  parent_id    Int?
+  created_at   DateTime @default(now())
+  upvote       Int      @default(0)
+
+  parent   Comment?  @relation("ChildComment", fields: [parent_id], references: [id])
+  comments Comment[] @relation("ChildComment")
+  post     Post      @relation(fields: [post_id], references: [id])
+
+  @@map("comments")
+}
+```
+
+```sql showLineNumbers title="01_comments.sql"
+-- CreateTable
+CREATE TABLE "posts" (
+    "id" SERIAL NOT NULL,
+    "category" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    CONSTRAINT "posts_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "comments" (
+    "id" SERIAL NOT NULL,
+    "author_ip" TEXT NOT NULL,
+    "author_name" TEXT NOT NULL,
+    "author_email" TEXT,
+    "content" TEXT NOT NULL,
+    "post_id" INTEGER NOT NULL,
+    "parent_id" INTEGER,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "upvote" INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT "comments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "posts_category_slug_unique" ON "posts"("category", "slug");
+
+-- AddForeignKey
+ALTER TABLE "comments"
+    ADD CONSTRAINT "comments_parent_id_fkey" FOREIGN KEY ("parent_id")
+        REFERENCES "comments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "comments"
+    ADD CONSTRAINT "comments_post_id_fkey" FOREIGN KEY ("post_id")
+        REFERENCES "posts"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+```
+
+</CodeGroup>
+
+:::note
+While I use Prisma schema for migration and development purposes, the backend
+employs Rust [sqlx](https://github.com/launchbadge/sqlx) for handling SQL
+queries. I'm not embedding an engine into the API just to do basic SQL
+operations.
+:::
+
+To simplify things again, we're just going to sort the comments by upvotes and
+the timestamp, but the nested replies have to be sorted too. That means we have
+to sort every level of every comment replies. It's too complex (for me) to get a
+final result using only the database queries. So what we're doing in SQL is to
+only sort the top level comments for pagination, and then get all the child
+comments. This is Hacker News-like thread fetching. Sorting nested comments is
+deferred to the Rust API.
+
+```sql showLineNumbers
+WITH RECURSIVE root_comments AS (
+    SELECT
+        comments.parent_id,
+        comments.id,
+        comments.author_name,
+        comments.content,
+        ARRAY [comments.id],
+        0,
+        comments.created_at,
+        comments.upvote
+    FROM comments
+    JOIN posts ON (posts.id = comments.post_id)
+    WHERE posts.category = 'blog'
+    AND posts.slug = $1
+    AND comments.parent_id IS NULL
+    ORDER BY comments.upvote DESC, comments.created_at
+    LIMIT $2 OFFSET $3
+), t(parent_id, id, author_name, content, root, level, created_at, upvote) AS (
+    (
+        SELECT * FROM root_comments
+    )
+    UNION ALL
+    SELECT
+        comments.parent_id,
+        comments.id,
+        comments.author_name,
+        comments.content,
+        array_append(root, comments.id),
+        t.level + 1,
+        comments.created_at,
+        comments.upvote
+    FROM t
+        JOIN comments ON (comments.parent_id = t.id)
+)
+SELECT * FROM t
+ORDER BY root;
+```
+
+This SQL snippet draws significant inspiration from a Stack Overflow response
+that I regrettably couldn't relocate. Executing the SQL query, we'll have a list
+of sorted comments. Any comment is guaranteed to be placed behind their parent
+comment in the list. The SQL query employs recursive common table expressions
+(CTE) for this purpose, ensuring comments are ordered based on their
+hierarchical structure.
+
+
+| parent_id | id  | author_name | content  | root        | level | created_at | upvote |
+| --------- | --- | ----------- | -------- | ----------- | ----- | ---------- | ------ |
+| NULL      | 1   | wonrax      | 1.       | \{1\}       | 0     | 2023-10-25 | 0      |
+| 1         | 2   | wonrax      | 1.1.     | \{1,2\}     | 1     | 2023-10-25 | 0      |
+| 2         | 3   | wonrax      | 1.1.1.   | \{1,2,3\}   | 2     | 2023-10-26 | 0      |
+| 3         | 6   | wonrax      | 1.1.1.1. | \{1,2,3,6\} | 3     | 2023-10-26 | 0      |
+| 1         | 4   | wonrax      | 1.2.     | \{1,4\}     | 1     | 2023-10-26 | 1      |
+| 1         | 5   | wonrax      | 1.3.     | \{1,5\}     | 1     | 2023-10-26 | 2      |
+| NULL      | 7   | wonrax      | 2.       | \{7\}       | 0     | 2023-10-26 | 0      |
+| 7         | 8   | wonrax      | 2.1.     | \{7,8\}     | 1     | 2023-10-26 | 0      |
+
+Now we need to rank the children of the top level comments in the application
+level. The end result we want is similar to the one above, but all the comments
+in the same level are also sorted by upvote and timestamp.
+
+## Algorithms
+
+### Method 1: Recursively iterate through the list
+
+Our recursive iterative ranking function will receive a list of comments as
+input and output a sorted list. Firstly, it will do a loop of:
+
+- Find all child of the current comment - this takes $O(n)$ where $n$ is number
+of children of the current comment. We do this by incrementing the index until
+we get a node whose level is equal to or higher than the current node. Call this
+node `next` and forget about it for now.
+
+- Call our own recursive function with all of its children. This function
+returns the sorted children.
+
+- Emplace the result back to the original vec.
+
+- Skip until `next` node and repeat the process or stop if we reach the end of
+the list.
+
+After we sort all children of our top level comments, we need to sort the top
+level comments themselves. While finding the `next` (top level) nodes, we also
+store the indices of the these nodes in a seperate list. Now we sort the top
+level nodes and emplace their children to this new list - $O(m \cdot log(m))$
+where $m$ is number of top level comments.
+
+We finish the function by returning this new list.
+
+The complexity of this algorithm is:
+
+$$
+O(n + m \cdot log(m) + m \cdot (n + m \cdot log(m) + m \cdot (n + m \cdot log(m) + m \cdot (...))))
+$$
+
+Which deduces to:
+
+$$
+O(n \cdot m^{a-1} + m^{a} \cdot log(m))
+$$
+
+with $a$ being the depth of the reply tree. If $a$ is unlimited and we assume
+the worst case which the branching factor being a constant $n$, the complexity
+is simplified to:
+
+$$
+O(n^{n} + n^{n} \cdot log(n))
+$$
+
+### Method 2: Use an intermediate tree
+
+For this method, first we iterate through the list and construct a comment tree.
+This is $O(n)$ with the help of a hash map.
+
+Having the tree, we can just recursively sort the children. This is also
+$O(n^n)$ if the reply depth is unlimited and assuming the branching factor is a
+constant $n$.
+
+Finally, we turn the tree back into list by doing a depth first search, which
+has the complexity of $O(n)$.
+
+The complexity of this algorithm is:
+
+$$
+O(n) + O(n \cdot log(n) + n \cdot (n \cdot log(n) + n \cdot (n \cdot log(n) + n \cdot (...)))) + O(n)
+$$
+
+Which simplifies to:
+
+$$
+O(2n + n^{n} \cdot log(n))
+$$
+
+## Benchmark
+
+It seems the second method could be a bit faster despite both being $O(n^n)$,
+and easier to reason about and implement too. But for the sake of learning Rust,
+and to verify my calculation and reasoning, I implemented both solutions and did
+a benchmark. Below is a table showing the time each implementation took in
+average for input of `n` comments.
+
+| Number of comments | Iterative recursive | Intermediate tree |
+| ------------------ | ------------------- | ----------------- |
+| 10                 | **1.3687 µs**       | 1.6782 µs         |
+| 1000               | 252.51 µs           | **201.47 µs**     |
+| 10000              | 3.3283 ms           | **1.9920 ms**     |
+| 100000             | 61.469 ms           | **27.919 ms**     |
+
+For a relatively small number of comments, the iterative recursive
+implementation is faster probably due to the fact that it doesn't need to
+construct a new tree and converting it back to list, which has more overhead
+than the algorithm itself. But as $n$ increases, we can see the intermediate
+tree implementation is the clear winner here.
+
+Does it mean that my reasoning and calculation is correct? No, far from that,
+I'm afraid. But I feel more confident about my ability to approximate (or in
+academic term, asymptotically analyze) worst-case complexity of an algorithm.
+One thing that I wish I could do to make this post more complete is space
+complexity, or memory usage of these two algorithms. But I'm too lazy.
+
+## The code
+
+I use the [criterion](https://docs.rs/criterion/latest/criterion/) crate for
+benchmarking. I think both implementations can be further optimized if I really
+try. Like the `iterative_recursive` could use slices instead of Vec so it
+doesn't need to allocate new ones. But until this becomes an actual problem,
+I'll optimize it.
+
+<CodeGroup client:load>
+```rust showLineNumbers title="benchmark.rs"
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use rand::Rng;
+
+#[derive(Clone)]
+struct Comment {
+    id: i32,
+    author_name: String,
+    content: String,
+    parent_id: Option<i32>,
+    created_at: chrono::NaiveDateTime,
+    upvote: i32,
+    depth: i32,
+}
+
+#[derive(Clone)]
+struct CommentView {
+    id: i32,
+    author_name: String,
+    content: String,
+    parent_id: Option<i32>,
+    created_at: chrono::NaiveDateTime,
+    children: Option<Vec<Rc<RefCell<CommentView>>>>,
+    upvote: i32,
+    depth: usize,
+}
+
+pub fn criterion_benchmark(c: &mut Criterion) {
+    let mut group = c.benchmark_group("blog_comments");
+    for i in [10, 1000, 10000, 100000].iter() {
+        let comments = generate_comments(*i, i / 100);
+        group.bench_function(BenchmarkId::new("iterative_recursive", i), |b| {
+            b.iter(|| iterative_recursive_sort(comments.clone()))
+        });
+        group.bench_function(BenchmarkId::new("intermediate_tree", i), |b| {
+            b.iter(|| intermediate_tree_sort(comments.clone()))
+        });
+    }
+    group.finish();
+}
+
+fn generate_comments(n: usize, max_depth: usize) -> Vec<Comment> {
+    let mut comments = vec![];
+    for i in 0..n {
+        let depth = rand::thread_rng().gen_range(0..max_depth + 1);
+        let comment = Comment {
+            id: i as i32,
+            author_name: "author".to_string(),
+            content: "content".to_string(),
+            parent_id: None,
+            created_at: chrono::offset::Local::now().naive_local(),
+            upvote: 0,
+            depth: depth as i32,
+        };
+        comments.push(comment);
+    }
+    comments
+}
+
+criterion_group!(benches, criterion_benchmark);
+criterion_main!(benches);
+```
+
+```rust showLineNumbers title="iterative_recursive.rs"
+use std::{collections::HashMap, rc::Rc};
+
+fn iterative_recursive_sort(comments: Vec<Comment>) -> Vec<CommentView> {
+    use std::borrow::BorrowMut;
+    sort_vec(comments.into_iter().map(Rc::new).collect())
+        .into_iter()
+        .map(|mut comment| CommentView {
+            id: comment.id,
+            author_name: comment.borrow_mut().author_name.to_owned(),
+            content: comment.borrow_mut().content.to_owned(),
+            parent_id: comment.parent_id,
+            created_at: comment.created_at,
+            children: None,
+            upvote: comment.upvote,
+            depth: comment.depth as usize,
+        })
+        .collect()
+}
+
+fn sort_vec(comments: Vec<Rc<Comment>>) -> Vec<Rc<Comment>> {
+    if comments.len() == 0 {
+        return vec![];
+    }
+
+    let mut result = Vec::with_capacity(comments.len());
+
+    // Map root comment id to its children
+    let mut top_level_comments_children: HashMap<i32, Vec<Rc<Comment>>> = HashMap::new();
+
+    // Because the comments are already sorted by id and depth, the first
+    // comment's depth is the most shallow depth
+    let root_depth = comments[0].depth;
+    let mut current_root_comment_id = comments[0].id;
+
+    for comment in comments {
+        if comment.depth > root_depth {
+            top_level_comments_children
+                .get_mut(&current_root_comment_id)
+                .unwrap()
+                .push(comment.clone());
+        } else {
+            // Indicating we have reached a new root comment
+            current_root_comment_id = comment.id;
+            result.push(comment.clone());
+            top_level_comments_children.insert(comment.id, vec![]);
+        }
+    }
+
+    // By now, result only contains the root comments
+    result.sort_unstable_by_key(|k| (-k.upvote, k.created_at));
+
+    // Sort the children recursively
+    let mut curr = 0;
+    for top_level_comment in result.clone() {
+        let children = top_level_comments_children
+            .remove(&top_level_comment.id)
+            .unwrap();
+        let children_length = children.len();
+
+        let sorted_children = sort_vec(children);
+
+        // emplace the children back into the result array
+        result.splice(curr + 1..curr + 1, sorted_children.into_iter());
+
+        curr += children_length + 1;
+    }
+
+    result
+}
+```
+
+```rust showLineNumbers title="intermediate_tree.rs"
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
+
+fn intermediate_tree_sort(comments: Vec<Comment>) -> Vec<CommentView> {
+    let num_comments = comments.len();
+
+    let mut nested = flat_comments_to_tree(comments);
+    sort_tree(&mut nested);
+
+    let mut result: Vec<Rc<RefCell<CommentView>>> = Vec::with_capacity(num_comments);
+    for comment in nested {
+        depth_first_search(&comment, &mut result);
+    }
+
+    // children are not needed anymore
+    for comment in &mut result {
+        comment.borrow_mut().children = None;
+    }
+
+    result
+        .into_iter()
+        .map(|c| c.borrow_mut().to_owned())
+        .collect()
+}
+
+fn flat_comments_to_tree(comments: Vec<Comment>) -> Vec<Rc<RefCell<CommentView>>> {
+    let mut tree = HashMap::<i32, Rc<RefCell<CommentView>>>::with_capacity(comments.len());
+    let mut final_comments: Vec<Rc<RefCell<CommentView>>> = vec![];
+
+    for comment in comments {
+        let c = Rc::new(RefCell::new(CommentView {
+            id: comment.id,
+            author_name: comment.author_name,
+            content: comment.content,
+            parent_id: comment.parent_id,
+            created_at: comment.created_at,
+            children: None,
+            upvote: comment.upvote,
+            depth: comment.depth as usize,
+        }));
+
+        tree.insert(c.borrow().id, c.clone());
+
+        if let Some(parent_id) = c.borrow().parent_id {
+            // If this is a child comment, add it to its parent's children
+            let parent = tree.get(&parent_id);
+            if let Some(parent) = parent {
+                let mut mut_parent = parent.borrow_mut();
+                if let Some(children) = mut_parent.children.as_mut() {
+                    children.push(c.clone());
+                } else {
+                    let children = vec![c.clone()];
+                    mut_parent.children = Some(children);
+                }
+            }
+        };
+
+        if comment.parent_id.is_none() {
+            final_comments.push(c.clone());
+        }
+    }
+
+    final_comments
+}
+
+fn sort_tree(comments: &mut Vec<Rc<RefCell<CommentView>>>) {
+    // sort the top level comments
+    comments.sort_unstable_by_key(|k| (-k.borrow().upvote, k.borrow().created_at));
+
+    // sort the children recursively
+    for comment in comments {
+        if let Some(children) = comment.borrow_mut().children.as_mut() {
+            sort_tree(children);
+        }
+    }
+}
+
+fn depth_first_search(
+    comment: &Rc<RefCell<CommentView>>,
+    mut result: &mut Vec<Rc<RefCell<CommentView>>>,
+) {
+    result.push(comment.clone());
+    if let Some(children) = comment.borrow().children.as_ref() {
+        for child in children {
+            depth_first_search(child, &mut result);
+        }
+    }
+}
+```
+</CodeGroup>
+
+:::note
+As of writing this post, only the API part of the comment platform is completed,
+and the UI and moderation features are still in progress (very long way to go).
+
+You'll know when it's available 🙂
+:::
