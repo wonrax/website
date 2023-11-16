@@ -10,6 +10,7 @@ export type Frontmatter = {
   tags: string[];
   isDraft?: boolean;
   hidden?: boolean;
+  ogImageUrl?: string;
 };
 
 export type Heading = {
@@ -30,6 +31,11 @@ const headings = Astro.props.headings;
 <BlogRouteLayout>
   <title slot="head">{post.title}</title>
   <meta slot="head" name="description" content={post.description} />
+  {
+    post.ogImageUrl ? (
+      <meta slot="head" property="og:image" content={post.ogImageUrl} />
+    ) : null
+  }
   <link slot="head" rel="preconnect" href="https://cdn.jsdelivr.net" />
   <link
     slot="head"
@@ -398,8 +404,8 @@ const headings = Astro.props.headings;
 
     h2 {
       font-family: Libre Baskerville;
-      font-size: 24px;
-      font-weight: var(--font-weight-medium);
+      font-size: 28px;
+      font-weight: 400;
       margin: 48px 0 24px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
@@ -605,14 +611,10 @@ const headings = Astro.props.headings;
         }
       }
     }
-
-    pre {
-      max-height: 600px;
-    }
   }
 
   code {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .article .article-body span[data-rehype-pretty-code-fragment],
