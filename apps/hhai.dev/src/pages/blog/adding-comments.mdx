@@ -210,18 +210,16 @@ in the same level are also sorted by upvote and timestamp.
 
 ### Method 1: Recursively iterate through the list
 
-Our recursive iterative ranking function will receive a list of comments as
-input and output a sorted list. Firstly, it will do a loop of:
+Our recursive iterative ranking function receives a list of comments as input
+and outputs a sorted list. Firstly, it will do a loop of:
 
-- Find all child of the current comment - this takes $O(n)$ where $n$ is number
-of children of the current comment. We do this by incrementing the index until
-we get a node whose level is equal to or higher than the current node. Call this
-node `next` and forget about it for now.
+- Find all children of the current comment - this takes $O(n)$ where $n$ is
+number of children of the current comment. We do this by incrementing the index
+until we get a node whose level is equal to or higher than the current node.
+Call this node `next` and forget about it for now.
 
 - Call our own recursive function with all of its children. This function
 returns the sorted children.
-
-- Emplace the result back to the original vec.
 
 - Skip until `next` node and repeat the process or stop if we reach the end of
 the list.
@@ -230,7 +228,8 @@ After we sort all children of our top level comments, we need to sort the top
 level comments themselves. While finding the `next` (top level) nodes, we also
 store the indices of the these nodes in a seperate list. Now we sort the top
 level nodes and emplace their children to this new list - $O(m \cdot log(m))$
-where $m$ is number of top level comments.
+where $m$ is number of top level comments, according to Rust's built-in
+`sort_unstable_by_key` function.
 
 We finish the function by returning this new list.
 
