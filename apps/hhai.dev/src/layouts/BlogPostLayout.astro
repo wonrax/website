@@ -10,6 +10,7 @@ export type Frontmatter = {
   tags: string[];
   isDraft?: boolean;
   hidden?: boolean;
+  ogImageUrl?: string;
 };
 
 export type Heading = {
@@ -30,6 +31,11 @@ const headings = Astro.props.headings;
 <BlogRouteLayout>
   <title slot="head">{post.title}</title>
   <meta slot="head" name="description" content={post.description} />
+  {
+    post.ogImageUrl ? (
+      <meta slot="head" property="og:image" content={post.ogImageUrl} />
+    ) : null
+  }
   <link slot="head" rel="preconnect" href="https://cdn.jsdelivr.net" />
   <link
     slot="head"
@@ -51,6 +57,23 @@ const headings = Astro.props.headings;
             <>
               <h3>On this page</h3>
               <TableOfContents headings={headings} />
+              <button id="go-to-top">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="21"
+                  height="21"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="lucide lucide-chevron-up"
+                >
+                  <path d="m18 15-6-6-6 6" />
+                </svg>
+                Go to top
+              </button>
             </>
           ) : null
         }
@@ -124,6 +147,8 @@ const headings = Astro.props.headings;
     .right-sidebar-content {
       position: sticky;
       top: 24px;
+      overflow-y: auto;
+      max-height: 90vh;
 
       h3 {
         font-size: 18px;
@@ -371,7 +396,8 @@ const headings = Astro.props.headings;
     h1 {
       font-family: Libre Baskerville;
       font-size: 32px;
-      font-weight: var(--font-weight-medium);
+      font-weight: 400;
+      font-style: italic;
       margin: 32px 0 16px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
@@ -379,8 +405,9 @@ const headings = Astro.props.headings;
 
     h2 {
       font-family: Libre Baskerville;
-      font-size: 24px;
-      font-weight: var(--font-weight-medium);
+      font-size: 28px;
+      font-weight: 400;
+      font-style: italic;
       margin: 48px 0 24px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
@@ -450,14 +477,14 @@ const headings = Astro.props.headings;
     }
 
     .callout.callout-note {
-      background-color: #eff5fc;
+      background-color: #fbf7ff;
 
       .callout-title {
-        color: #5f8abb;
+        color: #7b5fbb;
       }
 
       p {
-        color: #163a63;
+        color: #220e5a;
       }
     }
 
@@ -485,7 +512,7 @@ const headings = Astro.props.headings;
   .article .article-body div[data-rehype-pretty-code-fragment] {
     margin-top: 24px;
     border-radius: 12px;
-    background-color: #f5f5f5;
+    background-color: #f8f8f8;
 
     pre {
       overflow-x: auto;
@@ -586,10 +613,6 @@ const headings = Astro.props.headings;
         }
       }
     }
-
-    pre {
-      max-height: 600px;
-    }
   }
 
   code {
@@ -605,6 +628,28 @@ const headings = Astro.props.headings;
 
   .katex-display {
     overflow-y: auto;
+  }
+
+  #go-to-top {
+    background-color: #eee;
+    color: #333;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    border: none;
+    outline: none;
+    padding: 4px 10px 4px 8px;
+    margin-top: 24px;
+    font-family: Inter; // TODO move this to global selector
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+
+    &:hover {
+      background-color: #ddd;
+    }
   }
 </style>
 
@@ -641,5 +686,12 @@ const headings = Astro.props.headings;
   // Track all sections that have an `id` applied
   document.querySelectorAll("h1[id],h2[id],h3[id]").forEach((section) => {
     observer.observe(section);
+  });
+
+  document.querySelector("#go-to-top")?.addEventListener("click", () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   });
 </script>

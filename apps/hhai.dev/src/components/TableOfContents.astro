@@ -53,7 +53,7 @@ for (const h of filteredHeadings) {
 <style lang="scss" is:global>
   .table-of-content {
     margin: 0;
-    padding-inline-start: 1em;
+    padding-inline-start: 1.1em;
 
     ul {
       padding-inline-start: 0;
@@ -70,6 +70,8 @@ for (const h of filteredHeadings) {
       color: #777;
       font-size: 15px;
       line-height: 1.35em;
+      letter-spacing: -0.02em;
+      hyphens: auto;
     }
 
     li.active > a,
@@ -96,11 +98,11 @@ for (const h of filteredHeadings) {
 
   .level-1 > li > a {
     font-weight: var(--font-weight-medium);
-    padding: 6px 4px;
+    padding: 6px 8px 6px 4px;
   }
 
   .level-2 > li > a {
     font-weight: var(--font-weight-normal);
-    padding: 4px 4px;
+    padding: 4px 8px 4px 4px;
   }
 </style>

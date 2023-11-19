@@ -18,7 +18,13 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
               (!post.frontmatter.isDraft && !post.frontmatter.hidden)
           )
           .map((post) => (
-            <li class="article-entry">
+            <li
+              class={`article-entry${
+                post.frontmatter.isDraft || post.frontmatter.hidden
+                  ? " hidden"
+                  : ""
+              }`}
+            >
               <a href={post.url}>{post.frontmatter.title}</a>
               <p>
                 <span class="article-date">
@@ -55,15 +61,23 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
       margin-top: 32px;
 
       .article-entry {
-        margin-bottom: 24px;
+        margin-bottom: 20px;
+
+        &.hidden {
+          a {
+            color: #999;
+          }
+        }
 
         a {
           font-weight: var(--font-weight-medium);
           font-size: 18px;
+          letter-spacing: -0.02em;
+          text-decoration: underline;
         }
 
         p {
-          margin: 8px 0;
+          margin: 4px 0;
         }
 
         .article-date {
@@ -76,6 +90,7 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
           color: #666;
           font-size: 16px;
           margin-left: 8px;
+          line-height: 1.45em;
         }
       }
     }
