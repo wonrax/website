@@ -1,5 +1,6 @@
 ---
 import "./global.scss";
+import "@fontsource-variable/inter"
 ---
 
 <!doctype html>
@@ -8,12 +9,6 @@ import "./global.scss";
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="generator" content={Astro.generator} />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@430;530;700&family=Libre+Baskerville:ital@1&display=swap"
-      rel="stylesheet"
-    />
     <slot name="head" />
     <link rel="alternate icon" type="image/png" href="/favicon.png">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -77,11 +72,11 @@ import "./global.scss";
 </html>
 <style is:global>
   html {
-    font-family: Inter, Lora, Archivo, system-ui, sans-serif;
+    font-family: Inter Variable, Lora, Archivo, system-ui, sans-serif;
   }
   code {
     font-family:
-      Cascadia Code,
+      Inconsolata,
       monospace;
   }
 
