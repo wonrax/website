@@ -1,6 +1,8 @@
 ---
 import TableOfContents from "../components/TableOfContents.astro";
 import BlogRouteLayout from "./BlogRouteLayout.astro";
+import "@fontsource/inconsolata/500.css";
+import "katex/dist/katex.css";
 
 export type Frontmatter = {
   title: string;
@@ -36,19 +38,6 @@ const headings = Astro.props.headings;
       <meta slot="head" property="og:image" content={post.ogImageUrl} />
     ) : null
   }
-  <link slot="head" rel="preconnect" href="https://cdn.jsdelivr.net" />
-  <link
-    slot="head"
-    rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.css"
-    integrity="sha384-OH8qNTHoMMVNVcKdKewlipV4SErXqccxxlg6HC9Cwjr5oZu2AdBej1TndeCirael"
-    crossorigin="anonymous"
-  />
-  <link
-    slot="head"
-    href="https://cdn.jsdelivr.net/npm/@fontsource/cascadia-code@4.2.1/index.min.css"
-    rel="stylesheet"
-  />
   <main class="blog-post-main">
     <div class="right-sidebar">
       <div class="right-sidebar-content">
@@ -201,13 +190,13 @@ const headings = Astro.props.headings;
     box-sizing: border-box;
 
     h1 {
-      font-size: 40px;
-      font-weight: 400;
-      font-style: italic;
+      font-size: 36px;
+      font-weight: var(--font-weight-normal);
+      // font-style: italic;
       margin: 16px 0;
       color: #333;
-      letter-spacing: -0.01em;
-      font-family: Libre Baskerville;
+      letter-spacing: -0.02em;
+      // font-family: IBM Plex Serif;
     }
 
     .separator {
@@ -296,7 +285,7 @@ const headings = Astro.props.headings;
       font-size: 14px;
 
       code {
-        font-size: 13px;
+        font-size: 15px;
       }
     }
 
@@ -394,20 +383,20 @@ const headings = Astro.props.headings;
     }
 
     h1 {
-      font-family: Libre Baskerville;
+      // font-family: IBM Plex Serif;
       font-size: 32px;
-      font-weight: 400;
-      font-style: italic;
+      font-weight: var(--font-weight-medium);
+      // font-style: italic;
       margin: 32px 0 16px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
     }
 
     h2 {
-      font-family: Libre Baskerville;
-      font-size: 28px;
-      font-weight: 400;
-      font-style: italic;
+      // font-family: IBM Plex Serif;
+      font-size: 24px;
+      font-weight: var(--font-weight-medium);
+      // font-style: italic;
       margin: 48px 0 24px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
@@ -455,7 +444,7 @@ const headings = Astro.props.headings;
         }
 
         code {
-          font-size: 14px;
+          font-size: 15px;
         }
       }
     }
@@ -516,13 +505,13 @@ const headings = Astro.props.headings;
 
     pre {
       overflow-x: auto;
-      line-height: 1.3em;
+      line-height: 1.4em;
       margin: 0;
       padding: 16px 0;
     }
 
     code {
-      font-size: 14px;
+      font-size: 17px;
       display: grid;
       counter-reset: line;
       margin: 0;
@@ -617,7 +606,7 @@ const headings = Astro.props.headings;
   }
 
   code {
-    font-size: 15px;
+    font-size: 18px;
   }
 
   .article .article-body span[data-rehype-pretty-code-fragment],
@@ -642,7 +631,7 @@ const headings = Astro.props.headings;
     outline: none;
     padding: 4px 10px 4px 8px;
     margin-top: 24px;
-    font-family: Inter; // TODO move this to global selector
+    font-family: Inter Variable; // TODO move this to global selector
     display: flex;
     flex-direction: row;
     align-items: center;
