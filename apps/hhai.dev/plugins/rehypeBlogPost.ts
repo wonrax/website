@@ -48,8 +48,8 @@ export default function rehypeBlogPost() {
 
       // code block is a special case and is feature by default
       if (
-        node.tagName == "div" &&
-        node.properties?.["data-rehype-pretty-code-fragment"] == ""
+        node.tagName == "figure" &&
+        node.properties?.["data-rehype-pretty-code-figure"] == ""
       ) {
         flushWrapper();
         finalChildren.push(h("div", { class: "feature-code" }, node));

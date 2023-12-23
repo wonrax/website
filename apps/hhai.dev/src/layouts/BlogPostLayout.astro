@@ -509,19 +509,20 @@ const headings = Astro.props.headings;
   }
 
   // Code block stylying
-  .article .article-body div[data-rehype-pretty-code-fragment] {
+  .article .article-body figure[data-rehype-pretty-code-figure] {
     margin-top: 24px;
     border-radius: 12px;
     background-color: #f8f8f8;
 
     pre {
       overflow-x: auto;
-      line-height: 1.4em;
+      line-height: 1.3em;
       margin: 0;
       padding: 16px 0;
     }
 
     code {
+      font-size: 14px;
       display: grid;
       counter-reset: line;
       margin: 0;
@@ -585,7 +586,7 @@ const headings = Astro.props.headings;
       height: 32px;
       width: fit-content;
       color: #333;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: var(--font-weight-medium);
       margin-left: 16px;
       border-radius: 0 0 8px 8px;
@@ -680,7 +681,7 @@ const headings = Astro.props.headings;
     {
       rootMargin: "0px 0px -70% 0px",
       threshold: 1,
-    }
+    },
   );
 
   // Track all sections that have an `id` applied

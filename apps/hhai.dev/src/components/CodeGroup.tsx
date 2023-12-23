@@ -12,7 +12,7 @@ export default function CodeGroup({ children }) {
   const slides = React.Children.map(content, (child, index) => {
     if (
       !React.isValidElement(child) ||
-      typeof child.props?.["data-rehype-pretty-code-fragment"] === "undefined"
+      typeof child.props?.["data-rehype-pretty-code-figure"] === "undefined"
     ) {
       return null;
     }
@@ -37,7 +37,7 @@ export default function CodeGroup({ children }) {
     );
   });
   return (
-    <div data-rehype-pretty-code-fragment className="code-group">
+    <figure data-rehype-pretty-code-figure className="code-group">
       <div className="code-group-tabs">
         {titles.map((title, index) => (
           <div
@@ -50,6 +50,6 @@ export default function CodeGroup({ children }) {
         ))}
       </div>
       {slides}
-    </div>
+    </figure>
   );
 }
