@@ -11,6 +11,9 @@ hhai.dev {
 		root * /www/hhai.dev
 		try_files {path}.html
 		file_server
+
+		header           Cache-Control max-age=300
+		header /_astro/* Cache-Control max-age=31536000
 	}
 }
 
