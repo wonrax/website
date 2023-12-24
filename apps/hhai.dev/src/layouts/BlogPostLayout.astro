@@ -152,7 +152,7 @@ const headings = Astro.props.headings;
   }
 
   .article {
-    font-size: 17px;
+    font-size: 16px;
     width: 100%;
 
     @media (min-width: 1280px) {
@@ -190,8 +190,8 @@ const headings = Astro.props.headings;
     box-sizing: border-box;
 
     h1 {
-      font-size: 36px;
-      font-weight: var(--font-weight-normal);
+      font-size: 28px;
+      font-weight: var(--font-weight-medium);
       // font-style: italic;
       margin: 16px 0;
       color: #333;
@@ -285,7 +285,7 @@ const headings = Astro.props.headings;
       font-size: 14px;
 
       code {
-        font-size: 15px;
+        font-size: 14px;
       }
     }
 
@@ -374,7 +374,7 @@ const headings = Astro.props.headings;
       margin: 16px 0;
       line-height: 1.65em;
       color: #444;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.01em;
       font-weight: var(--font-weight-normal);
     }
 
@@ -390,6 +390,7 @@ const headings = Astro.props.headings;
       margin: 32px 0 16px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
+      color: #333;
     }
 
     h2 {
@@ -400,6 +401,7 @@ const headings = Astro.props.headings;
       margin: 48px 0 24px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
+      color: #333;
     }
 
     h3 {
@@ -408,6 +410,7 @@ const headings = Astro.props.headings;
       margin: 32px 0 16px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
+      color: #333;
     }
 
     a,
@@ -433,7 +436,7 @@ const headings = Astro.props.headings;
         margin: 0 auto;
 
         p {
-          font-size: 16px;
+          font-size: 15px;
           color: #707070;
           margin-top: 16px;
           margin-bottom: 0;
@@ -444,7 +447,7 @@ const headings = Astro.props.headings;
         }
 
         code {
-          font-size: 15px;
+          font-size: 14px;
         }
       }
     }
@@ -511,7 +514,7 @@ const headings = Astro.props.headings;
     }
 
     code {
-      font-size: 17px;
+      font-size: 16px;
       display: grid;
       counter-reset: line;
       margin: 0;
@@ -606,7 +609,7 @@ const headings = Astro.props.headings;
   }
 
   code {
-    font-size: 18px;
+    font-size: 16px;
   }
 
   .article .article-body span[data-rehype-pretty-code-fragment],
@@ -670,7 +673,7 @@ const headings = Astro.props.headings;
     {
       rootMargin: "0px 0px -70% 0px",
       threshold: 1,
-    },
+    }
   );
 
   // Track all sections that have an `id` applied
