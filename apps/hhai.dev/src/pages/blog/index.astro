@@ -1,6 +1,7 @@
 ---
 import BlogRouteLayout from "@/layouts/BlogRouteLayout.astro";
 import type { Frontmatter } from "@/layouts/BlogPostLayout.astro";
+import OgImage from "@/components/OgImage/OgImage.astro";
 
 const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
 ---
@@ -8,6 +9,7 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
 <BlogRouteLayout>
   <title slot="head">Blog</title>
   <meta slot="head" name="description" content="hhai.dev blog index" />
+  <OgImage slot="head" ogImageUrl={Astro.url.pathname + "og-image.png"} />
   <main class="blog-main">
     <ul class="article-list">
       {

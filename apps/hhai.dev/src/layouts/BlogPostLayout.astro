@@ -1,4 +1,5 @@
 ---
+import OgImage from "@/components/OgImage/OgImage.astro";
 import TableOfContents from "../components/TableOfContents.astro";
 import BlogRouteLayout from "./BlogRouteLayout.astro";
 import "@fontsource/inconsolata/500.css";
@@ -28,16 +29,14 @@ type Props = {
 
 const post = Astro.props.frontmatter;
 const headings = Astro.props.headings;
+
+const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
 ---
 
 <BlogRouteLayout>
   <title slot="head">{post.title}</title>
   <meta slot="head" name="description" content={post.description} />
-  {
-    post.ogImageUrl ? (
-      <meta slot="head" property="og:image" content={post.ogImageUrl} />
-    ) : null
-  }
+  <OgImage slot="head" ogImageUrl={ogImageUrl} />
   <main class="blog-post-main">
     <div class="right-sidebar">
       <div class="right-sidebar-content">
