@@ -16,25 +16,26 @@ import "@fontsource-variable/inter";
   <body>
     <slot />
   </body>
-  <style is:global>
-    html {
-      font-family:
-        Inter Variable,
-        Lora,
-        Archivo,
-        system-ui,
-        sans-serif;
-    }
-    code {
-      font-family: Inconsolata, monospace;
-    }
-
-    :root {
-      --font-weight-normal: 450;
-      --font-weight-medium: 550;
-    }
-  </style>
 </html>
+
+<style is:global>
+  html {
+    font-family:
+      Inter Variable,
+      Lora,
+      Archivo,
+      system-ui,
+      sans-serif;
+  }
+  code {
+    font-family: Inconsolata, monospace;
+  }
+
+  :root {
+    --font-weight-normal: 450;
+    --font-weight-medium: 550;
+  }
+</style>
 
 <script>
   if (process.env.NODE_ENV === "production") {
