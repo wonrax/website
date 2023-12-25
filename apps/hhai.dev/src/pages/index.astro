@@ -1,10 +1,12 @@
 ---
+import OgImage from "@/components/OgImage/OgImage.astro";
 import RootLayout from "../layouts/Layout.astro";
 ---
 
 <RootLayout title="hhai.dev home" description="hhai.dev homepage">
   <title slot="head">hhai.dev home</title>
   <meta slot="head" name="description" content="hhai.dev homepage" />
+  <OgImage slot="head" ogImageUrl={Astro.url.pathname + "og-image.png"} />
   <main class="home-main">
     <div class="profile-summary">
       <h3>Ha Huy Long Hai</h3>

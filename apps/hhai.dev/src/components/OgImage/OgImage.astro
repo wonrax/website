@@ -1,0 +1,11 @@
+---
+type Props = {
+  ogImageUrl: string;
+};
+
+const ogImageUrl = Astro.props.ogImageUrl;
+---
+
+<meta property="og:image" content={ogImageUrl} />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content={ogImageUrl} />

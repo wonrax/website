@@ -16,6 +16,7 @@
     "@fontsource-variable/inter": "^5.0.16",
     "@fontsource/inconsolata": "^5.0.16",
     "@microflash/remark-callout-directives": "^2.0.0",
+    "@resvg/resvg-js": "^2.6.0",
     "astro": "^4.0.7",
     "html-react-parser": "^5.0.11",
     "posthog-js": "^1.96.1",
