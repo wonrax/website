@@ -108,6 +108,6 @@ jobs:
     if: ${{ !failure() && (
       needs.build-and-push-backend.result == 'success' ||
       needs.build-and-push-www.result == 'success' ||
-      needs.build-and-push-migrate.result == 'success') 
-      needs.files-changed.output.deploy == 'success' || }}
+      needs.build-and-push-migrate.result == 'success' ||
+      needs.files-changed.output.deploy == 'success' ) }}
     secrets: inherit
