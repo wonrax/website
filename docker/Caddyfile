@@ -2,27 +2,30 @@ god.hhai.dev {
 	reverse_proxy host.docker.internal:9090
 }
 
-hhai.dev {
-	handle_path /api/* {
-		reverse_proxy api:3000
-	}
+# This is ineffective because the host machine is not directly accessible
+# through this domain. Instead, a CloudFront distribution is used to serve
+# the static files at static.hhai.dev.
+# hhai.dev {
+# 	handle_path /api/* {
+# 		reverse_proxy api:3000
+# 	}
 
-	handle {
-		root * /www/hhai.dev
-		try_files {path}.html
+# 	handle {
+# 		root * /www/hhai.dev
+# 		try_files {path}.html
 
-		file_server {
-			precompressed zstd gzip
-		}
+# 		file_server {
+# 			precompressed zstd gzip
+# 		}
 
-		route {
-			header Cache-Control max-age=300
-			header /_astro/* Cache-Control max-age=31536000
-		}
-	}
+# 		route {
+# 			header Cache-Control max-age=300
+# 			header /_astro/* Cache-Control max-age=31536000
+# 		}
+# 	}
 
-	encode zstd gzip
-}
+# 	encode zstd gzip
+# }
 
 static.hhai.dev {
 	handle_path /hhai.dev/* {
