@@ -28,8 +28,9 @@ static.hhai.dev {
 	handle_path /hhai.dev/* {
 		root * /www/hhai.dev
 		try_files {path}.html
-		file_server
-		disable_canonical_uris
+		file_server {
+			disable_canonical_uris
+		}
 
 		route {
 			header Cache-Control max-age=300
