@@ -13,9 +13,28 @@ hhai.dev {
 		file_server
 
 		route {
-			header           Cache-Control max-age=300
+			header Cache-Control max-age=300
 			header /_astro/* Cache-Control max-age=31536000
 		}
+	}
+}
+
+static.hhai.dev {
+	handle_path /hhai.dev/* {
+		root * /www/hhai.dev
+		try_files {path}.html
+		file_server
+
+		route {
+			header Cache-Control max-age=300
+			header /_astro/* Cache-Control max-age=31536000
+		}
+	}
+}
+
+api.hhai.dev {
+	handle_path /api/* {
+		reverse_proxy api:3000
 	}
 }
 
