@@ -29,6 +29,8 @@ jobs:
       www: ${{ steps.changes.outputs.www }}
       backend: ${{ steps.changes.outputs.api }}
       migrate: ${{ steps.changes.outputs.migrate }}
+      # Config related changes that do not require a build but trigger a deploy
+      deploy: ${{ steps.changes.outputs.deploy }}
     steps:
       - uses: actions/checkout@v3
 
@@ -52,6 +54,8 @@ jobs:
               - "api/migrations/**"
               - "api/schema.prisma"
               - "docker/hhai-dev-migrator.Dockerfile"
+            deploy:
+              - "docker/Caddyfile"
 
   build-and-push-www:
     name: hhai.dev www - Build and push Docker image
@@ -93,6 +97,7 @@ jobs:
       - build-and-push-www
       - build-and-push-backend
       - build-and-push-migrate
+      - files-changed
     # According to GHA docs, this job won't run if one of its needs is
     # skipped. We want to deploy if at least one needed job is successful
     # and no jobs fail. We don't care about skipping job because we don't
@@ -103,5 +108,6 @@ jobs:
     if: ${{ !failure() && (
       needs.build-and-push-backend.result == 'success' ||
       needs.build-and-push-www.result == 'success' ||
-      needs.build-and-push-migrate.result == 'success') }}
+      needs.build-and-push-migrate.result == 'success') 
+      needs.files-changed.output.deploy == 'success' || }}
     secrets: inherit
