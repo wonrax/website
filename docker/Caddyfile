@@ -10,13 +10,18 @@ hhai.dev {
 	handle {
 		root * /www/hhai.dev
 		try_files {path}.html
-		file_server
+
+		file_server {
+			precompressed zstd gzip
+		}
 
 		route {
-			header           Cache-Control max-age=300
+			header Cache-Control max-age=300
 			header /_astro/* Cache-Control max-age=31536000
 		}
 	}
+
+	encode zstd gzip
 }
 
 next.hhai.dev {
@@ -31,6 +36,8 @@ share.hhai.dev {
 		browse
 	}
 	header Access-Control-Allow-Origin "*"
+
+	encode zstd gzip
 }
 
 hang.hhai.dev {
