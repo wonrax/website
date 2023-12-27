@@ -13,31 +13,45 @@ html {
 }
 
 :root {
-  --bg-color: white;
-  --text-color-90: #222;
-  --text-color-60: #555;
-  --text-color-50: #666;
-  --text-color-40: #777;
-  --text-color-30: #888;
-  --text-color-10: #eee;
+  --white-1: #fff;
+  --white-2: #f9f9f9;
+  --white-3: #f1f1f1;
+  --white-4: #e9e9e9;
+  --black-1: #282828;
+  --black-2: #1f1f1f;
+  --black-3: #161616;
+  --black-4: #0d0d0d;
+  --black-pure: #000;
+  --grey-1: #ccc;
+  --grey-2: #aaa;
+  --grey-3: #909090;
+  --grey-4: #717171;
+  --grey-5: #606060;
+
+  --additive-background-light: rgba($color: black, $alpha: 0.05);
+  --additive-background-medium: rgba($color: black, $alpha: 0.1);
+  // --additive-background-heavy: rgba($color: black, $alpha: 0.2);
+
+  // --bg-color: white;
+  // --text-color-heavy: #222;
+  // --text-color-medium: #555;
+  // --text-color-light: #666;
+  // --text-color-40: #777;
+  // --text-color-30: #888;
+  // --text-color-10: #eee;
 
   // Blog
-  --text-body-color-90: #444;
-  --text-body-color-60: var(--text-color-60);
-  --text-body-color-50: var(--text-color-50);
-  --text-body-color-40: var(--text-color-40);
-  --text-body-color-10: var(--text-color-10);
-  --bg-text-body-color-90: rgba(0, 0, 0, 0.05); // background to encapsulate txt
-  --bg-text-body-hover-color-90: rgba(0, 0, 0, 0.1);
-  --bg-text-body-color-40: rgba(0, 0, 0, 0.03);
-  --bg-text-body-color-10: rgba(0, 0, 0, 0.9);
-  --text-heading-color: #333;
-  --text-body-link-color: var(--text-color-90);
-  --text-body-link-visited-color: var(--text-color-50);
-  --bg-code-block-color: #f5f5f5;
-  --bg-code-block-elevated-color: #eee;
+  --text-body-heavy: var(--black-1);
+  --text-body-medium: var(--grey-5);
+  --text-body-light: var(--grey-1);
+  --bg-aside: var(--additive-background);
+  --text-heading-color: var(--black-4);
+  --text-body-link-color: var(--black-1);
+  --text-body-link-visited-color: var(--grey-5);
+  --bg-code-block-color: var(--white-3);
+  --bg-code-block-elevated-color: var(--white-2);
   --bg-code-block-elevated-hover-color: rgba(255, 255, 255, 0.75);
-  --bg-code-block-highlighted-line-color: var(--bg-text-body-color-90);
+  --bg-code-block-highlighted-line-color: var(--additive-background);
   --code-block-accent-color: #555;
   --text-code-block-line-number-color: #999;
 }
@@ -71,10 +85,6 @@ html {
     --bg-code-block-highlighted-line-color: var(--bg-text-body-color-90);
     --code-block-accent-color: #aaa;
     --text-code-block-line-number-color: #555;
-  }
-
-  .katex-display {
-    color: var(--text-body-color-90);
   }
 }
 

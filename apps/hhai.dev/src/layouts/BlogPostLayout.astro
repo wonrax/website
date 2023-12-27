@@ -219,7 +219,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
 
   .article .article-body {
     li {
-      color: var(--text-body-color-90);
+      color: var(--text-body-heavy);
       margin: 8px 0;
       line-height: 1.65em;
       letter-spacing: -0.02em;
@@ -281,7 +281,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     .image-caption {
       margin: 12px;
       font-weight: var(--font-weight-medium);
-      color: var(--text-body-color-50);
+      color: var(--text-body-medium);
       font-size: 14px;
 
       code {
@@ -354,34 +354,34 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       border-spacing: 0;
 
       tbody {
-        color: var(--text-body-color-60);
+        color: var(--text-body-medium);
       }
 
       td {
         white-space: break-spaces;
         overflow-wrap: break-word;
         padding: 8px 16px;
-        border-top: 1px solid var(--text-body-color-10);
+        border-top: 1px solid var(--text-body-light);
         font-weight: var(--font-weight-normal);
       }
 
       th {
         padding: 8px 16px;
         font-weight: var(--font-weight-medium);
-        color: var(--text-body-color-90);
+        color: var(--text-body-heavy);
       }
     }
 
     p {
       margin: 16px 0;
       line-height: 1.65em;
-      color: var(--text-body-color-90);
+      color: var(--text-body-heavy);
       letter-spacing: -0.01em;
       font-weight: var(--font-weight-normal);
     }
 
     ul {
-      color: var(--text-body-color-90);
+      color: var(--text-body-heavy);
     }
 
     h1 {
@@ -643,11 +643,12 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
 
   .katex-display {
     overflow-y: auto;
+    color: var(--text-body-heavy);
   }
 
   #go-to-top {
     background-color: var(--bg-text-body-color-90);
-    color: var(--text-body-color-90);
+    color: var(--TODO);
     border-radius: 8px;
     font-size: 14px;
     font-weight: var(--font-weight-medium);
