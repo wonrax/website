@@ -67,7 +67,7 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
 
         &.hidden {
           a {
-            color: #999;
+            color: var(--text-body-light);
           }
         }
 
@@ -84,12 +84,12 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
 
         .article-date {
           text-transform: uppercase;
-          color: #999;
+          color: var(--text-body-medium);
           font-size: 14px;
         }
 
         .article-description {
-          color: #666;
+          color: var(--text-body-light);
           font-size: 16px;
           margin-left: 8px;
           line-height: 1.45em;

@@ -12,6 +12,8 @@ hidden: true
 
 import CodeGroup from '@/components/CodeGroup.tsx'
 
+Congrats, you discovered my secret den for testing!
+
 <CodeGroup client:load>
 
 ```rust title="file_01.rs"
@@ -31,3 +33,15 @@ fn main() {
     println!("hehe");
 }
 ```
+
+:::warning
+**Or will I?** This could very well be my last post. Ironically, what's the
+purpose of all these efforts if I don't keep writing?
+:::
+
+:::note
+While I use Prisma schema for migration and development purposes, the backend
+employs Rust [sqlx](https://github.com/launchbadge/sqlx) for handling SQL
+queries. I'm not embedding an engine into the API just to do basic SQL
+operations.
+:::

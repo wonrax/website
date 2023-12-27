@@ -43,7 +43,6 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
         {
           headings.length ? (
             <>
-              <h3>On this page</h3>
               <TableOfContents headings={headings} />
               <button id="go-to-top">
                 <svg
@@ -138,12 +137,6 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       overflow-y: auto;
       max-height: 90vh;
 
-      h3 {
-        font-size: 18px;
-        font-weight: var(--font-weight-medium);
-        color: var(--text-heading-color);
-      }
-
       @media (min-width: 1280px) {
         width: 240px;
       }
@@ -166,14 +159,14 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       // background-color: #f4f4f4;
       font-size: 14px;
       font-weight: var(--font-weight-medium);
-      color: var(--text-color-50);
+      color: var(--text-body-medium);
       // margin: 0 4px 4px 0;
     }
 
     .article-date {
       font-size: 14px;
       font-weight: var(--font-weight-medium);
-      color: var(--text-color-50);
+      color: var(--text-body-medium);
       white-space: nowrap;
       margin-right: 8px;
     }
@@ -193,7 +186,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       font-weight: var(--font-weight-medium);
       // font-style: italic;
       margin: 16px 0;
-      color: var(--text-heading-color);
+      color: var(--text-heading);
       letter-spacing: -0.02em;
       // font-family: IBM Plex Serif;
     }
@@ -206,7 +199,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
 
       .separator-line {
         height: 1px;
-        background-color: var(--text-color-50);
+        background-color: var(--text-body-medium);
         width: 12px;
         display: inline-block;
       }
@@ -361,7 +354,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
         white-space: break-spaces;
         overflow-wrap: break-word;
         padding: 8px 16px;
-        border-top: 1px solid var(--text-body-light);
+        border-top: 1px solid var(--bg-additive-medium);
         font-weight: var(--font-weight-normal);
       }
 
@@ -392,7 +385,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       margin: 32px 0 16px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
-      color: var(--text-heading-color);
+      color: var(--text-heading);
     }
 
     h2 {
@@ -403,7 +396,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       margin: 48px 0 24px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
-      color: var(--text-heading-color);
+      color: var(--text-heading);
     }
 
     h3 {
@@ -412,14 +405,14 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       margin: 32px 0 16px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
-      color: var(--text-heading-color);
+      color: var(--text-heading);
     }
 
     a {
       text-decoration: underline;
-      color: var(--text-body-link-color);
+      color: var(--text-body-link);
       &:visited {
-        color: var(--text-body-link-visited-color);
+        color: var(--text-body-link-visited);
       }
     }
 
@@ -431,7 +424,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       }
 
       aside {
-        background-color: var(--bg-text-body-color-40);
+        background-color: var(--bg-aside);
         padding: 24px;
         border-radius: 12px;
         width: 100%;
@@ -441,7 +434,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
 
         p {
           font-size: 15px;
-          color: var(--text-body-color-40);
+          color: var(--text-body-light);
           margin-top: 16px;
           margin-bottom: 0;
 
@@ -473,26 +466,40 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     }
 
     .callout.callout-note {
-      background-color: #fbf7ff;
+      background-color: var(--info-light);
 
       .callout-title {
-        color: #7b5fbb;
+        color: var(--info-medium);
       }
 
       p {
-        color: #220e5a;
+        color: var(--info-heavy);
+      }
+
+      a {
+        color: var(--info-heavy);
+        &:visited {
+          color: var(--info-medium);
+        }
       }
     }
 
     .callout.callout-warning {
-      background-color: #fff9ec;
+      background-color: var(--warning-light);
 
       .callout-title {
-        color: #b69245;
+        color: var(--warning-medium);
       }
 
       p {
-        color: #794e0f;
+        color: var(--warning-heavy);
+      }
+
+      a {
+        color: var(--warning-heavy);
+        &:visited {
+          color: var(--warning-medium);
+        }
       }
     }
 
@@ -508,7 +515,10 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
   .article .article-body figure[data-rehype-pretty-code-figure] {
     margin-top: 24px;
     border-radius: 12px;
-    background-color: var(--bg-code-block-color);
+    background-color: var(--bg-code-block);
+    overflow: hidden;
+    border: solid 1px var(--bg-additive-light);
+    box-shadow: 0 4px 4px 0px rgba($color: black, $alpha: 0.025);
 
     pre {
       overflow-x: auto;
@@ -536,7 +546,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
         padding-left: 0;
 
         [data-highlighted-chars] {
-          background-color: var(--bg-code-block-highlighted-line-color);
+          background-color: var(--bg-code-block-highlighted-line);
           padding: 2px 4px;
           margin: 0 -4px;
           border-radius: 6px;
@@ -544,8 +554,8 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       }
 
       & > .code-block-line.highlighted {
-        background-color: var(--bg-code-block-highlighted-line-color);
-        border-left: solid 2px var(--code-block-accent-color);
+        background-color: var(--bg-code-block-highlighted-line);
+        border-left: solid 2px var(--code-block-accent);
       }
 
       &[data-line-numbers-max-digits="2"] > .code-block-line::before {
@@ -564,7 +574,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
         width: 1rem;
         margin-left: 16px;
         margin-right: 24px;
-        color: var(--text-code-block-line-number-color);
+        color: var(--text-code-block-line-number);
         text-align: right;
       }
 
@@ -577,11 +587,12 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       display: flex;
       flex-direction: column;
       justify-content: center;
-      background-color: var(--bg-code-block-elevated-color);
       padding: 0 16px;
       height: 32px;
       width: fit-content;
-      color: var(--text-color-90);
+      background-color: var(--bg-code-block-elevated-active);
+      color: var(--text-body-heavy);
+      box-shadow: 0 2px 2px 0px rgba($color: black, $alpha: 0.04);
       font-size: 14px;
       font-weight: var(--font-weight-medium);
       margin-left: 16px;
@@ -594,22 +605,24 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       display: flex;
       padding-left: 16px;
       padding-right: 16px;
-      overflow-y: auto;
+      padding-bottom: 4px;
+      overflow-y: visible;
+      overflow-x: auto;
 
       .code-block-title {
         margin-left: 0px;
         cursor: pointer;
-        box-sizing: border-box;
-        border-top: solid 2px transparent;
+        background-color: transparent;
+        box-shadow: none;
 
         &.active {
-          background-color: var(--bg-color);
-          // color: var(--text-body-color-30);
-          border-top: solid 2px var(--text-body-color-90);
+          background-color: var(--bg-code-block-elevated-active);
+          color: var(--text-body-heavy);
+          box-shadow: 0 2px 2px 0px rgba($color: black, $alpha: 0.04);
         }
 
         &:not(.active):hover {
-          background-color: var(--bg-code-block-elevated-hover-color);
+          background-color: var(--bg-code-block-elevated-hover);
         }
       }
     }
@@ -637,7 +650,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
   .article .article-body span[data-rehype-pretty-code-figure],
   :not(span[data-rehype-pretty-code-figure]) > code {
     padding: 2px 4px;
-    background-color: var(--bg-code-block-color);
+    background-color: var(--bg-code-block);
     border-radius: 4px;
   }
 
@@ -647,11 +660,11 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
   }
 
   #go-to-top {
-    background-color: var(--bg-text-body-color-90);
-    color: var(--TODO);
+    background-color: var(--bg-additive-light);
+    color: var(--text-body-heavy);
     border-radius: 8px;
     font-size: 14px;
-    font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-normal);
     cursor: pointer;
     border: none;
     outline: none;
@@ -664,7 +677,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     gap: 4px;
 
     &:hover {
-      background-color: var(--bg-text-body-hover-color-90);
+      background-color: var(--bg-additive-medium);
     }
   }
 </style>

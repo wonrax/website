@@ -81,12 +81,12 @@ import RootLayout from "../layouts/Layout.astro";
       max-width: 295px;
 
       .job-title {
-        color: #555;
+        color: var(--text-body-medium);
         margin-top: 0;
       }
 
       .profile-description {
-        color: #555;
+        color: var(--text-body-medium);
         line-height: 1.5em;
       }
     }
@@ -98,7 +98,7 @@ import RootLayout from "../layouts/Layout.astro";
     }
 
     .link {
-      color: #000;
+      color: var(--text-body-link);
       text-decoration: underline;
     }
 
@@ -106,6 +106,7 @@ import RootLayout from "../layouts/Layout.astro";
     h4 {
       font-weight: var(--font-weight-medium);
       margin: 8px 0;
+      color: var(--text-body-heavy);
     }
 
     .projects-section {
@@ -123,7 +124,7 @@ import RootLayout from "../layouts/Layout.astro";
         }
 
         .project-description {
-          color: #555;
+          color: var(--text-body-medium);
           line-height: 1.5em;
         }
       }

@@ -5,11 +5,13 @@ html {
     Archivo,
     system-ui,
     sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-body-heavy);
 }
 
 :root {
-  --font-weight-normal: 450;
-  --font-weight-medium: 550;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
 }
 
 :root {
@@ -28,63 +30,64 @@ html {
   --grey-4: #717171;
   --grey-5: #606060;
 
-  --additive-background-light: rgba($color: black, $alpha: 0.05);
-  --additive-background-medium: rgba($color: black, $alpha: 0.1);
-  // --additive-background-heavy: rgba($color: black, $alpha: 0.2);
+  --bg-additive-light: rgba(0, 0, 0, 0.05);
+  --bg-additive-medium: rgba(0, 0, 0, 0.1);
 
-  // --bg-color: white;
-  // --text-color-heavy: #222;
-  // --text-color-medium: #555;
-  // --text-color-light: #666;
-  // --text-color-40: #777;
-  // --text-color-30: #888;
-  // --text-color-10: #eee;
+  --warning-light: #fff9ec;
+  --warning-medium: #b69245;
+  --warning-heavy: #794e0f;
 
-  // Blog
+  --info-light: #fbf7ff;
+  --info-medium: #7b5fbb;
+  --info-heavy: #220e5a;
+
   --text-body-heavy: var(--black-1);
   --text-body-medium: var(--grey-5);
-  --text-body-light: var(--grey-1);
-  --bg-aside: var(--additive-background);
-  --text-heading-color: var(--black-4);
-  --text-body-link-color: var(--black-1);
-  --text-body-link-visited-color: var(--grey-5);
-  --bg-code-block-color: var(--white-3);
-  --bg-code-block-elevated-color: var(--white-2);
-  --bg-code-block-elevated-hover-color: rgba(255, 255, 255, 0.75);
-  --bg-code-block-highlighted-line-color: var(--additive-background);
-  --code-block-accent-color: #555;
-  --text-code-block-line-number-color: #999;
+  --text-body-light: var(--grey-2);
+  --text-heading: var(--black-4);
+  --text-body-link: var(--black-1);
+  --text-body-link-visited: var(--grey-5);
+
+  --bg-color: var(--white-1);
+
+  // TODO move these blog related variables to blog routes only
+  --bg-aside: var(--bg-additive-light);
+  --bg-code-block: var(--white-2);
+  --bg-code-block-elevated-active: var(--white-1);
+  --bg-code-block-elevated-hover: var(--white-3);
+  --bg-code-block-highlighted-line: var(--bg-additive-light);
+  --code-block-accent: var(--grey-5);
+  --text-code-block-line-number: var(--grey-2);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-color: #151515;
-    --text-color-90: #eee;
-    --text-color-60: #999;
-    --text-color-50: #888;
-    --text-color-40: #777;
-    --text-color-10: #222;
+    --bg-additive-light: rgba(255, 255, 255, 0.05);
+    --bg-additive-medium: rgba(255, 255, 255, 0.1);
 
-    // Blog
-    --text-body-color-90: #ccc;
-    --text-body-color-60: var(--text-color-60);
-    --text-body-color-50: var(--text-color-50);
-    --text-body-color-40: var(--text-color-40);
-    --text-body-color-10: var(--text-color-10);
-    --text-body-color-30: var(--text-color-30);
-    --bg-text-body-color-90: rgba(255, 255, 255, 0.05);
-    --bg-text-body-hover-color-90: rgba(255, 255, 255, 0.1);
-    --bg-text-body-color-40: rgba(255, 255, 255, 0.03);
-    --bg-text-body-color-10: rgba(255, 255, 255, 0.9);
-    --text-heading-color: #eee;
-    --text-body-link-color: var(--text-color-90);
-    --text-body-link-visited-color: var(--text-color-50);
-    --bg-code-block-color: var(--bg-text-body-color-90);
-    --bg-code-block-elevated-color: var(--bg-text-body-color-90);
-    --bg-code-block-elevated-hover-color: rgba(255, 255, 255, 0.1);
-    --bg-code-block-highlighted-line-color: var(--bg-text-body-color-90);
-    --code-block-accent-color: #aaa;
-    --text-code-block-line-number-color: #555;
+    --warning-light: #ffbb000a;
+    --warning-medium: rgb(186, 153, 83);
+    --warning-heavy: #ecdbb5;
+
+    --info-light: #6636f613;
+    --info-medium: #937dc7;
+    --info-heavy: #e4c8ff;
+
+    --text-body-heavy: var(--white-4);
+    --text-body-medium: var(--grey-1);
+    --text-body-light: var(--grey-3);
+    --text-heading: var(--white-2);
+    --text-body-link: var(--white-2);
+    --text-body-link-visited: var(--grey-2);
+
+    --bg-color: var(--black-1);
+    --bg-aside: var(--bg-additive-light);
+    --bg-code-block: var(--bg-additive-light);
+    --bg-code-block-elevated-active: var(--bg-additive-medium);
+    --bg-code-block-elevated-hover: var(--bg-additive-light);
+    --bg-code-block-highlighted-line: var(--bg-additive-light);
+    --code-block-accent: var(--grey-1);
+    --text-code-block-line-number: var(--grey-4);
   }
 }
 
@@ -103,11 +106,8 @@ code {
   font-family: Inconsolata, monospace;
 }
 
-// a {
-//   color: #222;
-//   text-decoration: none;
-
-//   &:visited {
-//     color: #222;
-//   }
-// }
+a,
+a:visited {
+  color: var(--text-body-heavy);
+  text-decoration: none;
+}
