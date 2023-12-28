@@ -117,6 +117,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
   :root {
     --bg-aside: var(--bg-additive-light);
     --bg-code-block: var(--white-2);
+    --bg-code-inline: var(--bg-additive-light);
     --bg-code-block-elevated-active: var(--white-1);
     --bg-code-block-elevated-hover: var(--white-3);
     --bg-code-block-highlighted-line: var(--bg-additive-light);
@@ -126,6 +127,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     @media (prefers-color-scheme: dark) {
       --bg-aside: var(--bg-additive-light);
       --bg-code-block: var(--bg-additive-light);
+      --bg-code-inline: var(--bg-additive-light);
       --bg-code-block-elevated-active: var(--bg-additive-medium);
       --bg-code-block-elevated-hover: var(--bg-additive-light);
       --bg-code-block-highlighted-line: var(--bg-additive-light);
@@ -606,15 +608,17 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       flex-direction: column;
       justify-content: center;
       padding: 0 16px;
-      height: 32px;
+      height: 30px;
       width: fit-content;
       background-color: var(--bg-code-block-elevated-active);
       color: var(--text-body-heavy);
-      box-shadow: 0 2px 3px 0px rgba($color: black, $alpha: 0.1);
+      box-shadow: 0 1px 3px 0px rgba($color: black, $alpha: 0.05);
       font-size: 14px;
-      font-weight: var(--font-weight-medium);
+      font-weight: var(--font-weight-normal);
       margin-left: 16px;
       border-radius: 0 0 8px 8px;
+      border: solid 1px var(--bg-additive-medium);
+      border-top: none;
     }
   }
 
@@ -627,6 +631,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       overflow-y: visible;
       overflow-x: auto;
 
+      // TODO make this a button for accessibility
       .code-block-title {
         margin-left: 0px;
         cursor: pointer;
@@ -639,6 +644,9 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
 
         &:not(.active) {
           box-shadow: none;
+          border: solid 1px transparent;
+          border-top: none;
+
           &:hover {
             background-color: var(--bg-code-block-elevated-hover);
           }
@@ -666,10 +674,11 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     }
   }
 
+  // inline code
   .article .article-body span[data-rehype-pretty-code-figure],
   :not(span[data-rehype-pretty-code-figure]) > code {
     padding: 2px 4px;
-    background-color: var(--bg-code-block);
+    background-color: var(--bg-code-inline);
     border-radius: 4px;
   }
 

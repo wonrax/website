@@ -24,8 +24,8 @@ code {
 }
 
 :root {
-  --font-weight-normal: 400;
-  --font-weight-medium: 500;
+  --font-weight-normal: 450;
+  --font-weight-medium: 530;
 }
 
 :root {
@@ -59,8 +59,8 @@ code {
   --info-heavy: #220e5a;
 
   --text-body-heavy: var(--black-1);
-  --text-body-medium: var(--grey-5);
-  --text-body-light: var(--grey-3);
+  --text-body-medium: var(--grey-4);
+  --text-body-light: var(--grey-2);
   --text-heading: var(--black-4);
   --text-body-link: var(--black-1);
   --text-body-link-visited: var(--grey-5);
