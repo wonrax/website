@@ -16,7 +16,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const codeHighlightOptions = {
   // Use one of Shiki's packaged themes
-  theme: "github-light",
+  theme: {
+    light: "min-light",
+    dark: "min-dark",
+  },
 
   // Keep the background or use a custom background color?
   keepBackground: false,
