@@ -11,6 +11,7 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
   <meta slot="head" name="description" content="hhai.dev blog index" />
   <OgImage slot="head" ogImageUrl={Astro.url.pathname + "og-image.png"} />
   <main class="blog-main">
+    <p style={{ color: "var(--text-body-light)" }}>Newest first</p>
     <ul class="article-list">
       {
         allPosts
@@ -27,21 +28,38 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
                   : ""
               }`}
             >
-              <a href={post.url}>{post.frontmatter.title}</a>
-              <p>
-                <span class="article-date">
-                  {new Date(post.frontmatter.published)
-                    .toLocaleDateString("en-UK", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })
-                    .toUpperCase()}
-                </span>
-                <span class="article-description">
-                  {post.frontmatter.description}
-                </span>
-              </p>
+              <div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "start",
+                    gap: "12px",
+                  }}
+                >
+                  <a href={post.url}>{post.frontmatter.title}</a>
+                  <hr
+                    style={{
+                      height: "1px",
+                      flex: 1,
+                      backgroundColor: "var(--bg-additive-medium)",
+                      border: "none",
+                      margin: "0.6em 0 0 0",
+                    }}
+                  />
+                  <p class="article-date">
+                    {new Date(post.frontmatter.published).toLocaleDateString(
+                      "en-UK",
+                      {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      }
+                    )}
+                  </p>
+                </div>
+              </div>
+              <p class="article-description">{post.frontmatter.description}</p>
             </li>
           ))
       }
@@ -58,12 +76,15 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
     box-sizing: border-box;
 
     .article-list {
-      list-style-type: none;
-      padding-inline-start: 0;
+      list-style-type: decimal;
       margin-top: 32px;
+      padding-inline-start: 0;
 
       .article-entry {
         margin-bottom: 20px;
+        display: flex;
+        flex-direction: column;
+        max-width: 700px;
 
         &.hidden {
           a {
@@ -71,27 +92,32 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
           }
         }
 
+        & > div {
+          width: 100%;
+        }
+
         a {
-          font-weight: var(--font-weight-normal);
-          font-size: 18px;
-          letter-spacing: -0.02em;
-          text-decoration: underline;
+          font-weight: var(--font-weight-medium);
+          font-size: 16px;
+          letter-spacing: -0.01em;
+          line-height: 1.45em;
         }
 
         p {
-          margin: 4px 0;
+          margin: 2px 0;
         }
 
         .article-date {
-          text-transform: uppercase;
-          color: var(--text-body-medium);
+          color: var(--text-body-light);
           font-size: 14px;
+          white-space: nowrap;
+          // TODO relayout to display all instead of doing this
+          flex-shrink: 0;
         }
 
         .article-description {
-          color: var(--text-body-light);
+          color: var(--text-body-medium);
           font-size: 16px;
-          margin-left: 8px;
           line-height: 1.45em;
         }
       }

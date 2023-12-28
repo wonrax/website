@@ -114,6 +114,26 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
 </BlogRouteLayout>
 
 <style lang="scss" is:global>
+  :root {
+    --bg-aside: var(--bg-additive-light);
+    --bg-code-block: var(--white-2);
+    --bg-code-block-elevated-active: var(--white-1);
+    --bg-code-block-elevated-hover: var(--white-3);
+    --bg-code-block-highlighted-line: var(--bg-additive-light);
+    --code-block-accent: var(--grey-5);
+    --text-code-block-line-number: var(--grey-2);
+
+    @media (prefers-color-scheme: dark) {
+      --bg-aside: var(--bg-additive-light);
+      --bg-code-block: var(--bg-additive-light);
+      --bg-code-block-elevated-active: var(--bg-additive-medium);
+      --bg-code-block-elevated-hover: var(--bg-additive-light);
+      --bg-code-block-highlighted-line: var(--bg-additive-light);
+      --code-block-accent: var(--grey-1);
+      --text-code-block-line-number: var(--grey-4);
+    }
+  }
+
   .blog-post-main {
     display: flex;
     flex-direction: row;
@@ -184,11 +204,9 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     h1 {
       font-size: 28px;
       font-weight: var(--font-weight-medium);
-      // font-style: italic;
       margin: 16px 0;
       color: var(--text-heading);
       letter-spacing: -0.02em;
-      // font-family: IBM Plex Serif;
     }
 
     .separator {
@@ -592,7 +610,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       width: fit-content;
       background-color: var(--bg-code-block-elevated-active);
       color: var(--text-body-heavy);
-      box-shadow: 0 2px 2px 0px rgba($color: black, $alpha: 0.04);
+      box-shadow: 0 2px 3px 0px rgba($color: black, $alpha: 0.1);
       font-size: 14px;
       font-weight: var(--font-weight-medium);
       margin-left: 16px;
@@ -613,16 +631,17 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
         margin-left: 0px;
         cursor: pointer;
         background-color: transparent;
-        box-shadow: none;
 
         &.active {
           background-color: var(--bg-code-block-elevated-active);
           color: var(--text-body-heavy);
-          box-shadow: 0 2px 2px 0px rgba($color: black, $alpha: 0.04);
         }
 
-        &:not(.active):hover {
-          background-color: var(--bg-code-block-elevated-hover);
+        &:not(.active) {
+          box-shadow: none;
+          &:hover {
+            background-color: var(--bg-code-block-elevated-hover);
+          }
         }
       }
     }
@@ -664,7 +683,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     color: var(--text-body-heavy);
     border-radius: 8px;
     font-size: 14px;
-    font-weight: var(--font-weight-normal);
+    font-weight: var(--font-weight-medium);
     cursor: pointer;
     border: none;
     outline: none;

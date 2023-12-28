@@ -78,28 +78,24 @@ for (const h of filteredHeadings) {
     li::marker,
     a,
     a:visited {
-      color: var(--text-body-light);
+      color: var(--text-body-medium);
       font-size: 14px;
       line-height: 1.35em;
       letter-spacing: -0.02em;
       hyphens: auto;
       text-decoration: none;
+      font-weight: var(--font-weight-normal);
     }
 
     li.active > a,
     a:hover {
       color: var(--text-body-heavy);
-      box-shadow: inset 0 -2px 0 0 var(--text-body-heavy);
-      animation: tocEntryMorphIn 0.3s ease-in-out forwards;
-
-      @keyframes tocEntryMorphIn {
-        from {
-          box-shadow: inset 0px 0px 0 0 var(--text-body-heavy);
-        }
-        to {
-          box-shadow: inset -2px 0 0 0 var(--text-body-heavy);
-        }
-      }
+      box-shadow: inset -2px 0 0 0 var(--text-body-heavy);
+      background: linear-gradient(
+        90deg,
+        rgba(0, 0, 0, 0) 0%,
+        var(--bg-additive-medium) 100%
+      );
     }
 
     a {
@@ -108,12 +104,10 @@ for (const h of filteredHeadings) {
   }
 
   .level-1 > li > a {
-    font-weight: var(--font-weight-medium);
     padding: 6px 8px 6px 4px;
   }
 
   .level-2 > li > a {
-    font-weight: var(--font-weight-normal);
     padding: 4px 8px 4px 4px;
   }
 </style>
