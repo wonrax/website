@@ -1,12 +1,26 @@
 html {
   font-family:
     Inter Variable,
-    Lora,
-    Archivo,
-    system-ui,
-    sans-serif;
+    Inter fallback;
   background-color: var(--bg-color);
   color: var(--text-body-heavy);
+}
+
+// Font fallbacks config to avoid CLS
+// https://developer.chrome.com/blog/font-fallbacks/
+// https://github.com/unjs/fontaine
+// TODO do the same thing for monospace fonts
+@font-face {
+  font-family: "Inter fallback";
+  src: local("BlinkMacSystemFont"), local("Segoe UI"), local("Helvetica Neue"),
+    local("Arial"), local("Noto Sans");
+  ascent-override: 96.875%;
+  descent-override: 24.14772727%;
+  line-gap-override: 0%;
+}
+
+code {
+  font-family: Inconsolata, monospace;
 }
 
 :root {
@@ -87,10 +101,6 @@ body {
   @media screen and (max-device-width: 480px) {
     -webkit-text-size-adjust: 100%;
   }
-}
-
-code {
-  font-family: Inconsolata, monospace;
 }
 
 a,
