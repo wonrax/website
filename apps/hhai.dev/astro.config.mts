@@ -17,8 +17,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const codeHighlightOptions = {
   // Use one of Shiki's packaged themes
   theme: {
-    light: "min-light",
-    dark: "min-dark",
+    light: "rose-pine-dawn",
+    dark: "rose-pine-moon",
   },
 
   // Keep the background or use a custom background color?
