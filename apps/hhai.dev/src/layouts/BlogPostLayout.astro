@@ -1,6 +1,9 @@
 ---
+import OgImage from "@/components/OgImage/OgImage.astro";
 import TableOfContents from "../components/TableOfContents.astro";
 import BlogRouteLayout from "./BlogRouteLayout.astro";
+import "@fontsource/inconsolata/500.css";
+import "katex/dist/katex.css";
 
 export type Frontmatter = {
   title: string;
@@ -26,36 +29,20 @@ type Props = {
 
 const post = Astro.props.frontmatter;
 const headings = Astro.props.headings;
+
+const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
 ---
 
 <BlogRouteLayout>
   <title slot="head">{post.title}</title>
   <meta slot="head" name="description" content={post.description} />
-  {
-    post.ogImageUrl ? (
-      <meta slot="head" property="og:image" content={post.ogImageUrl} />
-    ) : null
-  }
-  <link slot="head" rel="preconnect" href="https://cdn.jsdelivr.net" />
-  <link
-    slot="head"
-    rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.css"
-    integrity="sha384-OH8qNTHoMMVNVcKdKewlipV4SErXqccxxlg6HC9Cwjr5oZu2AdBej1TndeCirael"
-    crossorigin="anonymous"
-  />
-  <link
-    slot="head"
-    href="https://cdn.jsdelivr.net/npm/@fontsource/cascadia-code@4.2.1/index.min.css"
-    rel="stylesheet"
-  />
+  <OgImage slot="head" ogImageUrl={ogImageUrl} />
   <main class="blog-post-main">
     <div class="right-sidebar">
       <div class="right-sidebar-content">
         {
           headings.length ? (
             <>
-              <h3>On this page</h3>
               <TableOfContents headings={headings} />
               <button id="go-to-top">
                 <svg
@@ -127,6 +114,28 @@ const headings = Astro.props.headings;
 </BlogRouteLayout>
 
 <style lang="scss" is:global>
+  :root {
+    --bg-aside: var(--bg-additive-light);
+    --bg-code-block: var(--white-2);
+    --bg-code-inline: var(--bg-additive-light);
+    --bg-code-block-elevated-active: var(--white-1);
+    --bg-code-block-elevated-hover: var(--white-3);
+    --bg-code-block-highlighted-line: var(--bg-additive-light);
+    --code-block-accent: var(--grey-5);
+    --text-code-block-line-number: var(--grey-2);
+
+    @media (prefers-color-scheme: dark) {
+      --bg-aside: var(--bg-additive-light);
+      --bg-code-block: var(--bg-additive-light);
+      --bg-code-inline: var(--bg-additive-light);
+      --bg-code-block-elevated-active: var(--bg-additive-medium);
+      --bg-code-block-elevated-hover: var(--bg-additive-light);
+      --bg-code-block-highlighted-line: var(--bg-additive-light);
+      --code-block-accent: var(--grey-1);
+      --text-code-block-line-number: var(--grey-4);
+    }
+  }
+
   .blog-post-main {
     display: flex;
     flex-direction: row;
@@ -150,12 +159,6 @@ const headings = Astro.props.headings;
       overflow-y: auto;
       max-height: 90vh;
 
-      h3 {
-        font-size: 18px;
-        font-weight: var(--font-weight-medium);
-        color: #333;
-      }
-
       @media (min-width: 1280px) {
         width: 240px;
       }
@@ -163,7 +166,7 @@ const headings = Astro.props.headings;
   }
 
   .article {
-    font-size: 17px;
+    font-size: 16px;
     width: 100%;
 
     @media (min-width: 1280px) {
@@ -178,14 +181,14 @@ const headings = Astro.props.headings;
       // background-color: #f4f4f4;
       font-size: 14px;
       font-weight: var(--font-weight-medium);
-      color: #666;
+      color: var(--text-body-medium);
       // margin: 0 4px 4px 0;
     }
 
     .article-date {
       font-size: 14px;
       font-weight: var(--font-weight-medium);
-      color: #666;
+      color: var(--text-body-medium);
       white-space: nowrap;
       margin-right: 8px;
     }
@@ -201,13 +204,11 @@ const headings = Astro.props.headings;
     box-sizing: border-box;
 
     h1 {
-      font-size: 40px;
-      font-weight: 400;
-      font-style: italic;
+      font-size: 28px;
+      font-weight: var(--font-weight-medium);
       margin: 16px 0;
-      color: #333;
-      letter-spacing: -0.01em;
-      font-family: Libre Baskerville;
+      color: var(--text-heading);
+      letter-spacing: -0.02em;
     }
 
     .separator {
@@ -218,7 +219,7 @@ const headings = Astro.props.headings;
 
       .separator-line {
         height: 1px;
-        background-color: #555;
+        background-color: var(--text-body-medium);
         width: 12px;
         display: inline-block;
       }
@@ -231,10 +232,11 @@ const headings = Astro.props.headings;
 
   .article .article-body {
     li {
-      color: #444;
+      color: var(--text-body-heavy);
       margin: 8px 0;
       line-height: 1.65em;
       letter-spacing: -0.02em;
+      font-weight: var(--font-weight-normal);
 
       p {
         margin: 0;
@@ -292,11 +294,11 @@ const headings = Astro.props.headings;
     .image-caption {
       margin: 12px;
       font-weight: var(--font-weight-medium);
-      color: #666;
+      color: var(--text-body-medium);
       font-size: 14px;
 
       code {
-        font-size: 13px;
+        font-size: 14px;
       }
     }
 
@@ -365,52 +367,56 @@ const headings = Astro.props.headings;
       border-spacing: 0;
 
       tbody {
-        color: #555;
+        color: var(--text-body-medium);
       }
 
       td {
         white-space: break-spaces;
         overflow-wrap: break-word;
         padding: 8px 16px;
-        border-top: 1px solid #eee;
+        border-top: 1px solid var(--bg-additive-medium);
+        font-weight: var(--font-weight-normal);
       }
 
       th {
         padding: 8px 16px;
         font-weight: var(--font-weight-medium);
+        color: var(--text-body-heavy);
       }
     }
 
     p {
       margin: 16px 0;
       line-height: 1.65em;
-      color: #444;
-      letter-spacing: -0.02em;
+      color: var(--text-body-heavy);
+      letter-spacing: -0.01em;
       font-weight: var(--font-weight-normal);
     }
 
     ul {
-      color: #333;
+      color: var(--text-body-heavy);
     }
 
     h1 {
-      font-family: Libre Baskerville;
+      // font-family: IBM Plex Serif;
       font-size: 32px;
-      font-weight: 400;
-      font-style: italic;
+      font-weight: var(--font-weight-medium);
+      // font-style: italic;
       margin: 32px 0 16px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
+      color: var(--text-heading);
     }
 
     h2 {
-      font-family: Libre Baskerville;
-      font-size: 28px;
-      font-weight: 400;
-      font-style: italic;
+      // font-family: IBM Plex Serif;
+      font-size: 24px;
+      font-weight: var(--font-weight-medium);
+      // font-style: italic;
       margin: 48px 0 24px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
+      color: var(--text-heading);
     }
 
     h3 {
@@ -419,12 +425,15 @@ const headings = Astro.props.headings;
       margin: 32px 0 16px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
+      color: var(--text-heading);
     }
 
-    a,
-    a:visited {
-      color: black;
+    a {
       text-decoration: underline;
+      color: var(--text-body-link);
+      &:visited {
+        color: var(--text-body-link-visited);
+      }
     }
 
     .feature-aside {
@@ -435,7 +444,7 @@ const headings = Astro.props.headings;
       }
 
       aside {
-        background-color: #f5f5f5;
+        background-color: var(--bg-aside);
         padding: 24px;
         border-radius: 12px;
         width: 100%;
@@ -444,8 +453,8 @@ const headings = Astro.props.headings;
         margin: 0 auto;
 
         p {
-          font-size: 16px;
-          color: #707070;
+          font-size: 15px;
+          color: var(--text-body-light);
           margin-top: 16px;
           margin-bottom: 0;
 
@@ -477,26 +486,40 @@ const headings = Astro.props.headings;
     }
 
     .callout.callout-note {
-      background-color: #fbf7ff;
+      background-color: var(--info-light);
 
       .callout-title {
-        color: #7b5fbb;
+        color: var(--info-medium);
       }
 
       p {
-        color: #220e5a;
+        color: var(--info-heavy);
+      }
+
+      a {
+        color: var(--info-heavy);
+        &:visited {
+          color: var(--info-medium);
+        }
       }
     }
 
     .callout.callout-warning {
-      background-color: #fff9ec;
+      background-color: var(--warning-light);
 
       .callout-title {
-        color: #b69245;
+        color: var(--warning-medium);
       }
 
       p {
-        color: #794e0f;
+        color: var(--warning-heavy);
+      }
+
+      a {
+        color: var(--warning-heavy);
+        &:visited {
+          color: var(--warning-medium);
+        }
       }
     }
 
@@ -509,10 +532,13 @@ const headings = Astro.props.headings;
   }
 
   // Code block stylying
-  .article .article-body div[data-rehype-pretty-code-fragment] {
+  .article .article-body figure[data-rehype-pretty-code-figure] {
     margin-top: 24px;
     border-radius: 12px;
-    background-color: #f8f8f8;
+    background-color: var(--bg-code-block);
+    overflow: hidden;
+    border: solid 1px var(--bg-additive-light);
+    box-shadow: 0 4px 4px 0px rgba($color: black, $alpha: 0.025);
 
     pre {
       overflow-x: auto;
@@ -522,6 +548,7 @@ const headings = Astro.props.headings;
     }
 
     code {
+      font-size: 16px;
       display: grid;
       counter-reset: line;
       margin: 0;
@@ -539,7 +566,7 @@ const headings = Astro.props.headings;
         padding-left: 0;
 
         [data-highlighted-chars] {
-          background-color: rgba($color: #000000, $alpha: 0.05);
+          background-color: var(--bg-code-block-highlighted-line);
           padding: 2px 4px;
           margin: 0 -4px;
           border-radius: 6px;
@@ -547,8 +574,8 @@ const headings = Astro.props.headings;
       }
 
       & > .code-block-line.highlighted {
-        background-color: rgba($color: #000000, $alpha: 0.05);
-        border-left: solid 2px #686868;
+        background-color: var(--bg-code-block-highlighted-line);
+        border-left: solid 2px var(--code-block-accent);
       }
 
       &[data-line-numbers-max-digits="2"] > .code-block-line::before {
@@ -567,7 +594,7 @@ const headings = Astro.props.headings;
         width: 1rem;
         margin-left: 16px;
         margin-right: 24px;
-        color: #ccc;
+        color: var(--text-code-block-line-number);
         text-align: right;
       }
 
@@ -580,15 +607,18 @@ const headings = Astro.props.headings;
       display: flex;
       flex-direction: column;
       justify-content: center;
-      background-color: #e7e7e7;
       padding: 0 16px;
-      height: 32px;
+      height: 30px;
       width: fit-content;
-      color: #333;
+      background-color: var(--bg-code-block-elevated-active);
+      color: var(--text-body-heavy);
+      box-shadow: 0 1px 3px 0px rgba($color: black, $alpha: 0.05);
       font-size: 14px;
-      font-weight: var(--font-weight-medium);
+      font-weight: var(--font-weight-normal);
       margin-left: 16px;
       border-radius: 0 0 8px 8px;
+      border: solid 1px var(--bg-additive-medium);
+      border-top: none;
     }
   }
 
@@ -597,42 +627,69 @@ const headings = Astro.props.headings;
       display: flex;
       padding-left: 16px;
       padding-right: 16px;
-      overflow-y: auto;
+      padding-bottom: 4px;
+      overflow-y: visible;
+      overflow-x: auto;
 
+      // TODO make this a button for accessibility
       .code-block-title {
-        margin-left: 2px;
+        margin-left: 0px;
         cursor: pointer;
+        background-color: transparent;
 
         &.active {
-          background-color: #333;
-          color: white;
+          background-color: var(--bg-code-block-elevated-active);
+          color: var(--text-body-heavy);
         }
 
-        &:not(.active):hover {
-          background-color: #ccc;
+        &:not(.active) {
+          box-shadow: none;
+          border: solid 1px transparent;
+          border-top: none;
+
+          &:hover {
+            background-color: var(--bg-code-block-elevated-hover);
+          }
         }
       }
     }
   }
 
   code {
-    font-size: 14px;
+    font-size: 16px;
   }
 
-  .article .article-body span[data-rehype-pretty-code-fragment],
-  :not(span[data-rehype-pretty-code-fragment]) > code {
+  // TODO I don't understand how this works to toggle dark mode
+  code[data-theme*=" "],
+  code[data-theme*=" "] span {
+    color: var(--shiki-light);
+    background-color: var(--shiki-light-bg);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    code[data-theme*=" "],
+    code[data-theme*=" "] span {
+      color: var(--shiki-dark);
+      background-color: var(--shiki-dark-bg);
+    }
+  }
+
+  // inline code
+  .article .article-body span[data-rehype-pretty-code-figure],
+  :not(span[data-rehype-pretty-code-figure]) > code {
     padding: 2px 4px;
-    background-color: rgba($color: #000000, $alpha: 0.05);
+    background-color: var(--bg-code-inline);
     border-radius: 4px;
   }
 
   .katex-display {
     overflow-y: auto;
+    color: var(--text-body-heavy);
   }
 
   #go-to-top {
-    background-color: #eee;
-    color: #333;
+    background-color: var(--bg-additive-light);
+    color: var(--text-body-heavy);
     border-radius: 8px;
     font-size: 14px;
     font-weight: var(--font-weight-medium);
@@ -641,14 +698,14 @@ const headings = Astro.props.headings;
     outline: none;
     padding: 4px 10px 4px 8px;
     margin-top: 24px;
-    font-family: Inter; // TODO move this to global selector
+    font-family: Inter Variable; // TODO move this to global selector
     display: flex;
     flex-direction: row;
     align-items: center;
     gap: 4px;
 
     &:hover {
-      background-color: #ddd;
+      background-color: var(--bg-additive-medium);
     }
   }
 </style>

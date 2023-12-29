@@ -1,3 +1,97 @@
+html {
+  font-family:
+    Inter Variable,
+    Inter fallback;
+  background-color: var(--bg-color);
+  color: var(--text-body-heavy);
+}
+
+// Font fallbacks config to avoid CLS
+// https://developer.chrome.com/blog/font-fallbacks/
+// https://github.com/unjs/fontaine
+// TODO do the same thing for monospace fonts
+@font-face {
+  font-family: "Inter fallback";
+  src: local("BlinkMacSystemFont"), local("Segoe UI"), local("Helvetica Neue"),
+    local("Arial"), local("Noto Sans");
+  ascent-override: 96.875%;
+  descent-override: 24.14772727%;
+  line-gap-override: 0%;
+}
+
+code {
+  font-family: Inconsolata, monospace;
+}
+
+:root {
+  --font-weight-normal: 450;
+  --font-weight-medium: 530;
+}
+
+:root {
+  // make user agent UI elements also follow color scheme
+  color-scheme: light dark;
+
+  --white-1: #fff;
+  --white-2: #f9f9f9;
+  --white-3: #eeeeee;
+  --white-4: #e6e6e6;
+  --black-1: #1a1c1d;
+  --black-2: #1f1f1f;
+  --black-3: #161616;
+  --black-4: #0d0d0d;
+  --black-pure: #000;
+  --grey-1: #ccc;
+  --grey-2: #aaa;
+  --grey-3: #909090;
+  --grey-4: #717171;
+  --grey-5: #606060;
+
+  --bg-additive-light: rgba(0, 0, 0, 0.05);
+  --bg-additive-medium: rgba(0, 0, 0, 0.1);
+
+  --warning-light: #fff9ec;
+  --warning-medium: #b69245;
+  --warning-heavy: #794e0f;
+
+  --info-light: #fbf7ff;
+  --info-medium: #7b5fbb;
+  --info-heavy: #220e5a;
+
+  --text-body-heavy: var(--black-1);
+  --text-body-medium: var(--grey-4);
+  --text-body-light: var(--grey-2);
+  --text-heading: var(--black-2);
+  --text-body-link: var(--black-1);
+  --text-body-link-visited: var(--grey-5);
+
+  --bg-color: var(--white-1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-additive-light: rgba(255, 255, 255, 0.05);
+    --bg-additive-medium: rgba(255, 255, 255, 0.1);
+
+    --warning-light: #ffbb000a;
+    --warning-medium: rgb(186, 153, 83);
+    --warning-heavy: #ecdbb5;
+
+    --info-light: #6636f613;
+    --info-medium: #937dc7;
+    --info-heavy: #e4c8ff;
+
+    --text-body-heavy: var(--white-4);
+    --text-body-medium: var(--grey-2);
+    --text-body-light: var(--grey-4);
+    --text-heading: var(--white-3);
+    --text-body-link: var(--white-2);
+    --text-body-link-visited: var(--grey-2);
+
+    --bg-color: var(--black-1);
+  }
+}
+
 body {
   margin: 0;
   font-size: 16px;
@@ -9,11 +103,8 @@ body {
   }
 }
 
-a {
-  color: #222;
+a,
+a:visited {
+  color: var(--text-body-heavy);
   text-decoration: none;
-
-  &:visited {
-    color: #222;
-  }
 }

@@ -8,7 +8,6 @@ import rehypeBlogPost from "./plugins/rehypeBlogPost";
 import remarkResponsiveImage from "./plugins/remarkResponsiveImage";
 import remarkCalloutDirectives from "@microflash/remark-callout-directives";
 import remarkDirective from "remark-directive";
-import "./plugins/proxy";
 import { remarkDirectiveHtml } from "./plugins/remarkDirective";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
@@ -18,7 +17,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const codeHighlightOptions = {
   // Use one of Shiki's packaged themes
   theme: {
-    light: "github-light",
+    light: "rose-pine-dawn",
+    dark: "rose-pine-moon",
   },
 
   // Keep the background or use a custom background color?
@@ -94,5 +94,6 @@ export default defineConfig({
         "@": path.resolve(__dirname, "./src"),
       },
     },
+    optimizeDeps: { exclude: ["@resvg/resvg-js"] },
   },
 });

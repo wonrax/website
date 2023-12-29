@@ -14,7 +14,6 @@
 - use a different, more optimized image format when original image is downloadable
 - custom image tranformation to allow image sharpening
 - hide the ToC when featuretype=lg element presents
-- build fonts locally so the site doesn't have to pull from 3rd party CDN
 
 ### infras todo
 

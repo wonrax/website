@@ -14,7 +14,7 @@
   "devDependencies": {
     "@prisma/client": "^5.5.2",
     "prettier": "latest",
-    "turbo": "^1.10.15"
+    "turbo": "^1.11.2"
   },
   "packageManager": "npm@9.5.0",
   "engines": {

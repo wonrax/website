@@ -1,10 +1,12 @@
 ---
+import OgImage from "@/components/OgImage/OgImage.astro";
 import RootLayout from "../layouts/Layout.astro";
 ---
 
 <RootLayout title="hhai.dev home" description="hhai.dev homepage">
   <title slot="head">hhai.dev home</title>
   <meta slot="head" name="description" content="hhai.dev homepage" />
+  <OgImage slot="head" ogImageUrl={Astro.url.pathname + "og-image.png"} />
   <main class="home-main">
     <div class="profile-summary">
       <h3>Ha Huy Long Hai</h3>
@@ -79,12 +81,12 @@ import RootLayout from "../layouts/Layout.astro";
       max-width: 295px;
 
       .job-title {
-        color: #555;
+        color: var(--text-body-medium);
         margin-top: 0;
       }
 
       .profile-description {
-        color: #555;
+        color: var(--text-body-medium);
         line-height: 1.5em;
       }
     }
@@ -96,7 +98,7 @@ import RootLayout from "../layouts/Layout.astro";
     }
 
     .link {
-      color: #000;
+      color: var(--text-body-link);
       text-decoration: underline;
     }
 
@@ -104,6 +106,7 @@ import RootLayout from "../layouts/Layout.astro";
     h4 {
       font-weight: var(--font-weight-medium);
       margin: 8px 0;
+      color: var(--text-body-heavy);
     }
 
     .projects-section {
@@ -121,7 +124,7 @@ import RootLayout from "../layouts/Layout.astro";
         }
 
         .project-description {
-          color: #555;
+          color: var(--text-body-medium);
           line-height: 1.5em;
         }
       }
