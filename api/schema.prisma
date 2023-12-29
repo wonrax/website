@@ -20,18 +20,18 @@ model Counter {
   @@map("counters")
 }
 
-model Post {
+model BlogPost {
   id       Int       @id @default(autoincrement())
   category String
   slug     String
   title    String
-  comments Comment[]
+  comments BlogComment[]
 
   @@unique([category, slug], map: "posts_category_slug_unique")
-  @@map("posts")
+  @@map("blog_posts")
 }
 
-model Comment {
+model BlogComment {
   id           Int      @id @default(autoincrement())
   author_ip    String
   author_name  String
@@ -42,9 +42,9 @@ model Comment {
   created_at   DateTime @default(now())
   upvote       Int      @default(0)
 
-  parent   Comment?  @relation("ChildComment", fields: [parent_id], references: [id])
-  comments Comment[] @relation("ChildComment")
-  post     Post      @relation(fields: [post_id], references: [id])
+  parent   BlogComment?  @relation("ChildComment", fields: [parent_id], references: [id])
+  comments BlogComment[] @relation("ChildComment")
+  post     BlogPost      @relation(fields: [post_id], references: [id])
 
-  @@map("comments")
+  @@map("blog_comments")
 }

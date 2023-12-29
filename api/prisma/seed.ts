@@ -1,21 +1,23 @@
-import { PrismaClient, Post, Comment } from "@prisma/client";
+import { PrismaClient, BlogPost, BlogComment } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  await prisma.counter.create({
-    data: {
-      key: "github-profile-views",
-      name: "wonrax",
-      count: 255,
-    },
-  });
+  try {
+    await prisma.counter.create({
+      data: {
+        key: "github-profile-views",
+        name: "wonrax",
+        count: 255,
+      },
+    });
+  } catch {}
 
   await seedPosts();
 }
 
 async function seedPosts() {
-  const post = await prisma.post.create({
+  const post = await prisma.blogPost.create({
     data: {
       category: "blog",
       slug: "test",
@@ -29,14 +31,14 @@ async function seedPosts() {
 // Add n child comments if the comment level is 1, decrease the number of child
 // comments by 1 by each level
 async function seedComments(
-  post: Post,
-  parentComment?: Comment,
+  post: BlogPost,
+  parentComment?: BlogComment,
   root: number[] = [],
   n = 3
 ) {
   for (let i = 0; i < n; i++) {
     const newRoot = [...root, i + 1];
-    const comment = await prisma.comment.create({
+    const comment = await prisma.blogComment.create({
       data: {
         author_ip: "xxx.xxx.xxx.xxx",
         author_name: "Test Author",

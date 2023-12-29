@@ -95,8 +95,8 @@ async fn get_blog_post_comments(
                 0,
                 comments.created_at,
                 comments.upvote
-            FROM comments
-            JOIN posts ON (posts.id = comments.post_id)
+            FROM blog_comments as comments
+            JOIN blog_posts as posts ON (posts.id = comments.post_id)
             WHERE posts.category = 'blog'
             AND posts.slug = $1
             AND comments.parent_id IS NULL
@@ -117,7 +117,7 @@ async fn get_blog_post_comments(
                 comments.created_at,
                 comments.upvote
             FROM t
-                JOIN comments ON (comments.parent_id = t.id)
+                JOIN blog_comments as comments ON (comments.parent_id = t.id)
         )
         SELECT * FROM t
         ORDER BY root;
@@ -129,7 +129,14 @@ async fn get_blog_post_comments(
     .fetch_all(&ctx.pool)
     .await?;
 
-    let result = intermediate_tree_sort(rows);
+    // the iterative recursive sort is faster for small number of comments
+    // since it doesn't need to allocate a new tree according to my own
+    // benchmark here https://hhai.dev/blog/adding-comments
+    let result = if rows.len() > 10 {
+        intermediate_tree_sort(rows)
+    } else {
+        iterative_recursive_sort(rows)
+    };
 
     Ok(Json(result))
 }
