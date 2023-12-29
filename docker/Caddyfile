@@ -15,6 +15,7 @@ god.hhai.dev {
 # 		try_files {path}.html
 
 # 		file_server {
+#			disable_canonical_uris
 # 			precompressed zstd gzip
 # 		}
 
@@ -33,6 +34,7 @@ static.hhai.dev {
 		try_files {path}.html
 		file_server {
 			disable_canonical_uris
+			precompressed zstd gzip
 		}
 
 		route {
@@ -40,12 +42,16 @@ static.hhai.dev {
 			header /_astro/* Cache-Control max-age=31536000
 		}
 	}
+
+	encode zstd gzip
 }
 
 api.hhai.dev {
 	handle_path /api/* {
 		reverse_proxy api:3000
 	}
+
+	encode zstd gzip
 }
 
 next.hhai.dev {
