@@ -1,14 +1,17 @@
-use axum::{routing::get, Json, Router, response::IntoResponse};
+use axum::{response::IntoResponse, routing::get, Json, Router};
 use dotenv::dotenv;
+use mimalloc::MiMalloc;
 use serde::Serialize;
 use serde_json::json;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
-mod utils;
-
 mod blog;
 mod github;
+mod utils;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[derive(Clone)]
 pub struct APIContext {
