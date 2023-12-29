@@ -129,35 +129,16 @@ async fn get_blog_post_comments(
     .fetch_all(&ctx.pool)
     .await?;
 
-    // the iterative recursive sort is faster for small number of comments
-    // since it doesn't need to allocate a new tree according to my own
-    // benchmark here https://hhai.dev/blog/adding-comments
-    let result = if rows.len() > 10 {
-        intermediate_tree_sort(rows)
-    } else {
-        iterative_recursive_sort(rows)
-    };
+    let result = intermediate_tree_sort(rows);
 
     Ok(Json(result))
 }
 
 fn intermediate_tree_sort(comments: Vec<Comment>) -> Vec<CommentView> {
-    let num_comments = comments.len();
-
     let mut nested = flat_comments_to_tree(comments);
     sort_tree(&mut nested);
 
-    let mut result: Vec<Rc<RefCell<CommentView>>> = Vec::with_capacity(num_comments);
-    for comment in nested {
-        depth_first_search(&comment, &mut result);
-    }
-
-    // children are not needed anymore
-    for comment in &mut result {
-        comment.borrow_mut().children = None;
-    }
-
-    result
+    nested
         .into_iter()
         .map(|c| c.borrow_mut().to_owned())
         .collect()
@@ -215,98 +196,20 @@ fn sort_tree(comments: &mut Vec<Rc<RefCell<CommentView>>>) {
     }
 }
 
-fn depth_first_search(
-    comment: &Rc<RefCell<CommentView>>,
-    mut result: &mut Vec<Rc<RefCell<CommentView>>>,
-) {
-    result.push(comment.clone());
-    if let Some(children) = comment.borrow().children.as_ref() {
-        for child in children {
-            depth_first_search(child, &mut result);
-        }
-    }
-}
-
-#[allow(dead_code)]
-fn iterative_recursive_sort(comments: Vec<Comment>) -> Vec<CommentView> {
-    use std::borrow::BorrowMut;
-    sort_vec(comments.into_iter().map(Rc::new).collect())
-        .into_iter()
-        .map(|mut comment| CommentView {
-            id: comment.id,
-            author_name: comment.borrow_mut().author_name.to_owned(),
-            content: comment.borrow_mut().content.to_owned(),
-            parent_id: comment.parent_id,
-            created_at: comment.created_at,
-            children: None,
-            upvote: comment.upvote,
-            depth: comment.depth as usize,
-        })
-        .collect()
-}
-
-fn sort_vec(comments: Vec<Rc<Comment>>) -> Vec<Rc<Comment>> {
-    if comments.len() == 0 {
-        return vec![];
-    }
-
-    let mut result = Vec::with_capacity(comments.len());
-
-    // Map root comment id to its children
-    let mut top_level_comments_children: HashMap<i32, Vec<Rc<Comment>>> = HashMap::new();
-
-    // Because the comments are already sorted by id and depth, the first
-    // comment's depth is the most shallow depth
-    let root_depth = comments[0].depth;
-    let mut current_root_comment_id = comments[0].id;
-
-    for comment in comments {
-        if comment.depth > root_depth {
-            top_level_comments_children
-                .get_mut(&current_root_comment_id)
-                .unwrap()
-                .push(comment.clone());
-        } else {
-            // Indicating we have reached a new root comment
-            current_root_comment_id = comment.id;
-            result.push(comment.clone());
-            top_level_comments_children.insert(comment.id, vec![]);
-        }
-    }
-
-    // By now, result only contains the root comments
-    result.sort_unstable_by_key(|k| (-k.upvote, k.created_at));
-
-    // Sort the children recursively
-    let mut curr = 0;
-    for top_level_comment in result.clone() {
-        let children = top_level_comments_children
-            .remove(&top_level_comment.id)
-            .unwrap();
-        let children_length = children.len();
-
-        let sorted_children = sort_vec(children);
-
-        // emplace the children back into the result array
-        result.splice(curr + 1..curr + 1, sorted_children.into_iter());
-
-        curr += children_length + 1;
-    }
-
-    result
-}
-
 #[cfg(test)]
 mod test {
+    use std::{cell::RefCell, collections::HashMap, rc::Rc};
+
     use rand::Rng;
 
-    use super::Comment;
+    use super::{Comment, CommentView};
 
+    // TODO this test is outputing false positive
     #[test]
     fn test_correctness_using_two_implementations() {
         let comments = generate_comments(10000, 5);
         let tree_based_sorted_comments = super::intermediate_tree_sort(comments.clone());
-        let array_based_sorted_comments = super::iterative_recursive_sort(comments.clone());
+        let array_based_sorted_comments = iterative_recursive_sort(comments.clone());
 
         assert_eq!(tree_based_sorted_comments, array_based_sorted_comments);
     }
@@ -328,5 +231,87 @@ mod test {
             comments.push(comment);
         }
         comments
+    }
+
+    fn depth_first_search(
+        comment: &Rc<RefCell<CommentView>>,
+        mut result: &mut Vec<Rc<RefCell<CommentView>>>,
+    ) {
+        result.push(comment.clone());
+        if let Some(children) = comment.borrow().children.as_ref() {
+            for child in children {
+                depth_first_search(child, &mut result);
+            }
+        }
+    }
+
+    // This implementation is not used in production but still kept for testing
+    // purposes
+    fn iterative_recursive_sort(comments: Vec<Comment>) -> Vec<CommentView> {
+        use std::borrow::BorrowMut;
+        sort_vec(comments.into_iter().map(Rc::new).collect())
+            .into_iter()
+            .map(|mut comment| CommentView {
+                id: comment.id,
+                author_name: comment.borrow_mut().author_name.to_owned(),
+                content: comment.borrow_mut().content.to_owned(),
+                parent_id: comment.parent_id,
+                created_at: comment.created_at,
+                children: None,
+                upvote: comment.upvote,
+                depth: comment.depth as usize,
+            })
+            .collect()
+    }
+
+    fn sort_vec(comments: Vec<Rc<Comment>>) -> Vec<Rc<Comment>> {
+        if comments.len() == 0 {
+            return vec![];
+        }
+
+        let mut result = Vec::with_capacity(comments.len());
+
+        // Map root comment id to its children
+        let mut top_level_comments_children: HashMap<i32, Vec<Rc<Comment>>> = HashMap::new();
+
+        // Because the comments are already sorted by id and depth, the first
+        // comment's depth is the most shallow depth
+        let root_depth = comments[0].depth;
+        let mut current_root_comment_id = comments[0].id;
+
+        for comment in comments {
+            if comment.depth > root_depth {
+                top_level_comments_children
+                    .get_mut(&current_root_comment_id)
+                    .unwrap()
+                    .push(comment.clone());
+            } else {
+                // Indicating we have reached a new root comment
+                current_root_comment_id = comment.id;
+                result.push(comment.clone());
+                top_level_comments_children.insert(comment.id, vec![]);
+            }
+        }
+
+        // By now, result only contains the root comments
+        result.sort_unstable_by_key(|k| (-k.upvote, k.created_at));
+
+        // Sort the children recursively
+        let mut curr = 0;
+        for top_level_comment in result.clone() {
+            let children = top_level_comments_children
+                .remove(&top_level_comment.id)
+                .unwrap();
+            let children_length = children.len();
+
+            let sorted_children = sort_vec(children);
+
+            // emplace the children back into the result array
+            result.splice(curr + 1..curr + 1, sorted_children.into_iter());
+
+            curr += children_length + 1;
+        }
+
+        result
     }
 }
