@@ -1,9 +1,10 @@
 ---
+import BlogComments from "@/components/BlogCommentsSolid";
 import OgImage from "@/components/OgImage/OgImage.astro";
-import TableOfContents from "../components/TableOfContents.astro";
-import BlogRouteLayout from "./BlogRouteLayout.astro";
 import "@fontsource/inconsolata/500.css";
 import "katex/dist/katex.css";
+import TableOfContents from "../components/TableOfContents.astro";
+import BlogRouteLayout from "./BlogRouteLayout.astro";
 
 export type Frontmatter = {
   title: string;
@@ -26,6 +27,8 @@ type Props = {
   frontmatter: Frontmatter;
   headings: Heading[];
 };
+
+const postSlug = Astro.url.pathname.split("/").pop();
 
 const post = Astro.props.frontmatter;
 const headings = Astro.props.headings;
@@ -109,6 +112,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
         }
         <slot />
       </div>
+      <BlogComments client:load slug={postSlug} />
     </article>
   </main>
 </BlogRouteLayout>

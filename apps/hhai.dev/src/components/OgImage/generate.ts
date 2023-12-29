@@ -1,5 +1,5 @@
 import satori from "satori";
-import OgImage from "./OgImageGenerator";
+import OgImage from "./OgImageGeneratorReact";
 import { Resvg } from "@resvg/resvg-js";
 
 type Props = {

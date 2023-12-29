@@ -1,0 +1,45 @@
+.comments {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+
+  .comment__children {
+    padding-inline-start: 0;
+    padding-inline-end: 0;
+  }
+
+  .comment {
+    list-style: none;
+    padding: 8px 0 0 0;
+
+    &.not-root-comment {
+      padding-left: 24px;
+      border-left: 1px solid var(--bg-additive-medium);
+    }
+
+    .comment__header {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+
+      .comment__author {
+        font-weight: var(--font-weight-medium);
+        margin-right: 0.5rem;
+      }
+
+      .comment__date {
+        font-size: 0.8rem;
+        color: var(--text-body-medium);
+      }
+
+      .comment__upvote {
+        font-size: 0.8rem;
+      }
+    }
+
+    .comment__content {
+      padding: 8px 0;
+      color: var(--text-body-medium);
+    }
+  }
+}

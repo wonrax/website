@@ -1,16 +1,17 @@
 import mdx from "@astrojs/mdx";
 import react from "@astrojs/react";
+import remarkCalloutDirectives from "@microflash/remark-callout-directives";
 import { defineConfig, sharpImageService } from "astro/config";
 import path, { dirname } from "path";
+import rehypeKatex from "rehype-katex";
 import rehypePrettyCode from "rehype-pretty-code";
+import remarkDirective from "remark-directive";
+import remarkMath from "remark-math";
 import { fileURLToPath } from "url";
 import rehypeBlogPost from "./plugins/rehypeBlogPost";
-import remarkResponsiveImage from "./plugins/remarkResponsiveImage";
-import remarkCalloutDirectives from "@microflash/remark-callout-directives";
-import remarkDirective from "remark-directive";
 import { remarkDirectiveHtml } from "./plugins/remarkDirective";
-import rehypeKatex from "rehype-katex";
-import remarkMath from "remark-math";
+import remarkResponsiveImage from "./plugins/remarkResponsiveImage";
+import solid from "@astrojs/solid-js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -83,7 +84,11 @@ export default defineConfig({
       rehypeBlogPost,
     ],
   },
-  integrations: [mdx(), react()],
+  integrations: [
+    mdx(),
+    react({ include: "**/*React.tsx" }),
+    solid({ include: "**/*Solid.tsx" }),
+  ],
   image: {
     service: sharpImageService(),
     domains: ["share.hhai.dev", "res.cloudinary.com"],

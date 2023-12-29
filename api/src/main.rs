@@ -1,10 +1,11 @@
-use axum::{response::IntoResponse, routing::get, Json, Router};
+use axum::{http::Method, response::IntoResponse, routing::get, Json, Router};
 use dotenv::dotenv;
 use mimalloc::MiMalloc;
 use serde::Serialize;
 use serde_json::json;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
 mod blog;
 mod github;
@@ -38,20 +39,29 @@ async fn main() {
         counters_ttl_cache: Arc::from(retainer::Cache::new()),
     };
 
+    let cors = CorsLayer::new()
+        // allow `GET` and `POST` when accessing the resource
+        .allow_methods(vec![Method::GET, Method::POST])
+        // allow requests from any origin
+        .allow_origin(AllowOrigin::predicate(|_, request| {
+            request
+                .headers
+                .get("origin")
+                .map(|origin| origin == "http://localhost:4321")
+                .unwrap_or(false)
+        }));
+
     // build our application with a route
     let app = Router::new()
         .route("/health", get(heath))
         .nest("/public/blog", blog::routes::route())
         .nest("/public", github::routes::route())
+        .layer(cors)
         .with_state(shared_state);
 
-    // run it
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    println!("listening on {}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service_with_connect_info::<SocketAddr>())
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    println!("listening on {}", "0.0.0.0:3000");
+    axum::serve(listener, app).await.unwrap();
 }
 
 #[derive(Serialize)]
