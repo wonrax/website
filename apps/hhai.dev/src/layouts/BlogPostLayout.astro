@@ -112,9 +112,9 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
         }
         <slot />
       </div>
-      <BlogComments client:load slug={postSlug} />
     </article>
   </main>
+  <BlogComments client:load slug={postSlug} />
 </BlogRouteLayout>
 
 <style lang="scss" is:global>
@@ -251,11 +251,11 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
   .article .article-body {
     // padding-left: 16px;
     // padding-right: 16px;
-    padding-bottom: 128px;
     // display: flex;
     // flex-direction: column;
     // align-items: center;
     word-wrap: break-word;
+    // margin-bottom: 64px;
     margin-top: 32px;
 
     & > * {

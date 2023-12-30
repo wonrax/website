@@ -23,6 +23,10 @@ function Comment({ comment, depth }: { comment: Comment; depth: number }) {
         <div className="comment__upvote">{comment.upvote} upvotes</div>
       </div>
       <div className="comment__content">{comment.content}</div>
+      <div className="comment__action-row">
+        <button>Reply</button>
+        <button>Upvote</button>
+      </div>
       <ol className="comment__children">
         {comment.children?.map((c) => (
           <Comment comment={c} depth={depth + 1} />
@@ -42,16 +46,24 @@ export default function BlogComments({ slug }: { slug: string | undefined }) {
   });
 
   return (
-    <ol className="comments">
-      {comments.state == "ready" ? (
-        <>
-          {comments().map((c) => (
-            <Comment comment={c} depth={0} />
-          ))}
-        </>
-      ) : (
-        "Loading..."
-      )}
-    </ol>
+    <div className="comments-container">
+      <h3>Comments</h3>
+      <form className="comment-submission">
+        <input type="text" placeholder="Name" />
+        <input type="text" placeholder="Your comment" />
+        <button type="submit">Submit</button>
+      </form>
+      <ol className="comments">
+        {comments.state == "ready" ? (
+          <>
+            {comments().map((c) => (
+              <Comment comment={c} depth={0} />
+            ))}
+          </>
+        ) : (
+          "Loading..."
+        )}
+      </ol>
+    </div>
   );
 }

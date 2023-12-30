@@ -1,45 +1,93 @@
-.comments {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-
-  .comment__children {
-    padding-inline-start: 0;
-    padding-inline-end: 0;
+.comments-container {
+  max-width: 1004px;
+  margin: 64px auto;
+  padding: 0 16px;
+  h3 {
+    // padding-left: 24px;
+    margin-bottom: 12px;
+    font-weight: var(--font-weight-medium);
+    color: var(--text-body-heavy);
   }
 
-  .comment {
-    list-style: none;
-    padding: 8px 0 0 0;
+  .comment-submission {
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+  }
 
-    &.not-root-comment {
-      padding-left: 24px;
-      border-left: 1px solid var(--bg-additive-medium);
+  .comments {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    // background-color: var(--bg-additive-light);
+    border-radius: 12px;
+    padding-inline-start: 0;
+    padding-inline-end: 0;
+    // padding: 24px;
+
+    .comment__children {
+      padding-inline-start: 0;
+      padding-inline-end: 0;
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
     }
 
-    .comment__header {
-      display: flex;
-      gap: 4px;
-      align-items: center;
+    .comment {
+      list-style: none;
 
-      .comment__author {
-        font-weight: var(--font-weight-medium);
-        margin-right: 0.5rem;
+      &.not-root-comment {
+        padding-left: 24px;
+        padding-top: 16px;
+        margin-top: 0;
+        border-left: 1px solid var(--bg-additive-medium);
       }
 
-      .comment__date {
-        font-size: 0.8rem;
+      .comment__header {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+
+        .comment__author {
+          font-weight: var(--font-weight-normal);
+          font-size: 16px;
+          margin-right: 0.5rem;
+        }
+
+        .comment__date {
+          font-size: 0.8rem;
+          color: var(--text-body-medium);
+        }
+
+        .comment__upvote {
+          font-size: 0.8rem;
+        }
+      }
+
+      .comment__content {
+        padding: 8px 0 16px 0;
         color: var(--text-body-medium);
       }
 
-      .comment__upvote {
-        font-size: 0.8rem;
-      }
-    }
+      .comment__action-row {
+        display: flex;
+        gap: 8px;
 
-    .comment__content {
-      padding: 8px 0;
-      color: var(--text-body-medium);
+        button {
+          font-size: 14px;
+          color: var(--text-body-light);
+          background-color: transparent;
+          line-height: 1em;
+          border: none;
+          cursor: pointer;
+          padding: 0;
+          margin: 0;
+          &:hover {
+            color: var(--text-body-heavy);
+          }
+        }
+      }
     }
   }
 }
