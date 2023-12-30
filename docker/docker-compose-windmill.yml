@@ -38,7 +38,7 @@ services:
       - DATABASE_URL=${WINDMILL_DATABASE_URL}
       - MODE=worker
       - WORKER_GROUP=general
-      - WORKER_TAGS=deno,flow,go,python,postgresql
+      - WORKER_TAGS=deno,go,python3,postgresql,flow,bash
     depends_on:
       - database
 
