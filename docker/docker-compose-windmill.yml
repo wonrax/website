@@ -16,8 +16,6 @@ services:
     restart: unless-stopped
     expose:
       - 8000
-    env_file:
-      - ../.env
     environment:
       - DATABASE_URL=${WINDMILL_DATABASE_URL}
       - MODE=server
@@ -36,8 +34,6 @@ services:
           cpus: "0.1"
           memory: 128M
     restart: unless-stopped
-    env_file:
-      - ../.env
     environment:
       - DATABASE_URL=${WINDMILL_DATABASE_URL}
       - MODE=worker
