@@ -41,5 +41,27 @@ services:
       service: www
     pull_policy: always
 
+  windmill_server:
+    extends:
+      file: docker-compose-windmill.yml
+      service: windmill_server
+    depends_on:
+      - database
+
+  windmill_worker_native:
+    extends:
+      file: docker-compose-windmill.yml
+      service: windmill_worker_native
+    depends_on:
+      - database
+
+  windmill_lsp:
+    extends:
+      file: docker-compose-windmill.yml
+      service: windmill_lsp
+    volumes:
+      - windmill_lsp_cache:/root/.cache
+
 volumes:
   postgres-data:
+  windmill_lsp_cache:

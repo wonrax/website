@@ -74,3 +74,8 @@ hang.hhai.dev {
 	root * /www/hang.hhai.dev
 	file_server
 }
+
+windmill.hhai.dev {
+        reverse_proxy /ws/* http://windmill_lsp:3001
+        reverse_proxy /* http://windmill_server:8000
+}
