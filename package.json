@@ -3,19 +3,26 @@
   "version": "0.0.0",
   "private": true,
   "workspaces": [
-    "apps/hhai.dev"
+    "apps/hhai.dev",
+    "api"
   ],
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "dev": "wireit",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "lint": "turbo run lint"
+  },
+  "wireit": {
+    "dev": {
+      "dependencies": ["./apps/hhai.dev:dev", "./api:dev"]
+    }
   },
   "devDependencies": {
     "@prisma/client": "^5.7.1",
     "prettier": "latest",
     "ts-node": "^10.9.2",
-    "turbo": "^1.11.2"
+    "turbo": "^1.11.2",
+    "wireit": "^0.14.1"
   },
   "packageManager": "npm@9.5.0",
   "engines": {
