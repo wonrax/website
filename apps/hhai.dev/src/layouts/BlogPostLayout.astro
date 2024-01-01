@@ -94,6 +94,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
           }
         </div>
       </div>
+      <BlogComments client:only="solid-js" slug={postSlug} />
       <div class="article-body">
         {
           post.isDraft ? (
@@ -114,7 +115,6 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       </div>
     </article>
   </main>
-  <BlogComments client:load slug={postSlug} />
 </BlogRouteLayout>
 
 <style lang="scss" is:global>

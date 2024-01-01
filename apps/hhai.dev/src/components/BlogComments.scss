@@ -66,8 +66,10 @@
       }
 
       .comment__content {
-        padding: 8px 0 16px 0;
-        color: var(--text-body-medium);
+        padding: 8px 0;
+        color: var(--text-body-heavy);
+        font-size: 15px;
+        line-height: 145%;
       }
 
       .comment__action-row {
