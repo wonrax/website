@@ -1,5 +1,14 @@
-import { createSignal, createEffect, createResource } from "solid-js";
+import {
+  createSignal,
+  createEffect,
+  createResource,
+  useContext,
+  type Accessor,
+  createRoot,
+} from "solid-js";
 import "./BlogComments.scss";
+import { createStore } from "solid-js/store";
+import { Context } from "./BlogCommentsContextSolid";
 
 type Comment = {
   id: number;
@@ -36,7 +45,7 @@ function Comment({ comment, depth }: { comment: Comment; depth: number }) {
   );
 }
 
-export default function BlogComments({ slug }: { slug: string | undefined }) {
+export function Comments({ slug }: { slug: string | undefined }) {
   const [comments] = createResource<Comment[]>(async () => {
     const res = await fetch(
       `http://localhost:3000/public/blog/${slug}/comments?page_offset=0&page_size=10`
@@ -67,3 +76,39 @@ export default function BlogComments({ slug }: { slug: string | undefined }) {
     </div>
   );
 }
+
+export function Sheet({ children }) {
+  const { SheetContext, SetSheetContext } = Context;
+
+  console.log("Sheet: context from sheet", SheetContext());
+
+  const isOpen = SheetContext().isOpen;
+
+  return (
+    <div class="side-sheet">
+      <div class={`sheet-content${isOpen() ? " open" : ""}`}>{children}</div>
+    </div>
+  );
+}
+
+export function Root({ children }) {
+  const [isOpen, setIsOpen] = createSignal(false);
+
+  function toggle() {
+    console.log("toggling");
+    setIsOpen(!isOpen());
+  }
+
+  const { SheetContext, SetSheetContext } = Context;
+  SetSheetContext((context) => {
+    console.log("setting context, old context:", context);
+    return {
+      isOpen: isOpen,
+      toggle: toggle,
+    };
+  });
+
+  return <div>{children}</div>;
+}
+
+export default Root;

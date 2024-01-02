@@ -1,5 +1,6 @@
 ---
-import BlogComments from "@/components/BlogCommentsSolid";
+import { Root, Comments, Sheet } from "@/components/BlogCommentsSolid";
+import Trigger from "@/components/BlogCommentsTriggerSolid";
 import OgImage from "@/components/OgImage/OgImage.astro";
 import "@fontsource/inconsolata/500.css";
 import "katex/dist/katex.css";
@@ -94,7 +95,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
           }
         </div>
       </div>
-      <BlogComments client:only="solid-js" slug={postSlug} />
+      <Trigger client:only="solid-js" />
       <div class="article-body">
         {
           post.isDraft ? (
@@ -114,6 +115,13 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
         <slot />
       </div>
     </article>
+    <div style="order: 2">
+      <Root client:load>
+        <Sheet client:only="solid-js">
+          <Comments client:only="solid-js" slug={postSlug} />
+        </Sheet>
+      </Root>
+    </div>
   </main>
 </BlogRouteLayout>
 
