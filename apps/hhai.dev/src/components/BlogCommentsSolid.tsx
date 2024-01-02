@@ -83,30 +83,40 @@ export function Sheet({
   ...rest
 }: {
   children: JSXElement;
-  class: string;
+  class?: string;
 }) {
   const [isOpen, setIsOpen] = createSignal(false);
 
+  function handleEsc(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      toggle();
+    }
+  }
+
   function toggle() {
-    console.log("toggling");
+    if (!isOpen()) {
+      document.addEventListener("keydown", handleEsc);
+    }
+    if (isOpen()) {
+      document.removeEventListener("keydown", handleEsc);
+    }
     setIsOpen(!isOpen());
+    document.body.classList.toggle("noscroll");
   }
 
   const { SheetContext, SetSheetContext } = Context;
 
   SetSheetContext((context) => {
-    console.log("setting context, old context:", context);
     return {
       isOpen: isOpen,
       toggle: toggle,
     };
   });
 
-  console.log("Sheet: context from sheet", SheetContext());
-
   return (
-    <div {...rest} class={`${rest["class"]}${isOpen() ? " open" : ""}`}>
-      {children}
+    <div class={`side-sheet${isOpen() ? " open" : ""}`}>
+      <div class="sheet-overlay" onClick={toggle}></div>
+      <div class="sheet-content">{children}</div>
     </div>
   );
 }
