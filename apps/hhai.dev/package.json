@@ -33,9 +33,13 @@
     "rehype-pretty-code": "^0.12.3",
     "remark-directive": "^3.0.0",
     "remark-math": "^6.0.0",
+    "remarkable": "^2.0.1",
     "sass": "^1.69.5",
     "satori": "^0.10.11",
     "sharp": "^0.33.1",
     "solid-js": "^1.8.7"
+  },
+  "devDependencies": {
+    "@types/remarkable": "^2.0.8"
   }
 }

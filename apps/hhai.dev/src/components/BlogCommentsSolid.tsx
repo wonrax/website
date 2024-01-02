@@ -1,15 +1,7 @@
-import {
-  createSignal,
-  createEffect,
-  createResource,
-  useContext,
-  type Accessor,
-  createRoot,
-  type JSXElement,
-} from "solid-js";
+import { createSignal, createResource, type JSXElement } from "solid-js";
 import "./BlogComments.scss";
-import { createStore } from "solid-js/store";
 import { Context } from "./BlogCommentsContextSolid";
+import { Remarkable } from "remarkable";
 
 type Comment = {
   id: number;
@@ -23,8 +15,28 @@ type Comment = {
 };
 
 function Comment({ comment, depth }: { comment: Comment; depth: number }) {
+  // TODO read more on the docs to identify security issues
+  const md = new Remarkable({
+    html: false, // Enable HTML tags in source
+    xhtmlOut: false, // Use '/' to close single tags (<br />)
+    breaks: false, // Convert '\n' in paragraphs into <br>
+    langPrefix: "language-", // CSS language prefix for fenced blocks
+
+    // Enable some language-neutral replacement + quotes beautification
+    typographer: false,
+
+    // Double + single quotes replacement pairs, when typographer enabled,
+    // and smartquotes on. Set doubles to '«»' for Russian, '„“' for German.
+    quotes: "“”‘’",
+
+    // Highlighter function. Should return escaped HTML,
+    // or '' if the source string is not changed
+    // highlight: function (/*str, lang*/) {
+    //   return "";
+    // },
+  });
   return (
-    <li class={`comment${depth === 0 ? "" : " not-root-comment"}`}>
+    <li class={`article comment${depth === 0 ? "" : " not-root-comment"}`}>
       <div class="comment__header">
         <div class="comment__author">{comment.author_name}</div>
         <div class="comment__date">
@@ -32,7 +44,10 @@ function Comment({ comment, depth }: { comment: Comment; depth: number }) {
         </div>
         <div class="comment__upvote">{comment.upvote} upvotes</div>
       </div>
-      <div class="comment__content">{comment.content}</div>
+      <div
+        class="comment__content article-body"
+        innerHTML={md.render(comment.content)}
+      />
       <div class="comment__action-row">
         <button>Reply</button>
         <button>Upvote</button>
@@ -47,6 +62,8 @@ function Comment({ comment, depth }: { comment: Comment; depth: number }) {
 }
 
 export function Comments({ slug }: { slug: string | undefined }) {
+  // TODO do not fetch until the first time the sheet is opened
+  // TODO prefetch when user hover over the button
   const [comments] = createResource<Comment[]>(async () => {
     const res = await fetch(
       `http://localhost:3000/public/blog/${slug}/comments?page_offset=0&page_size=10`
