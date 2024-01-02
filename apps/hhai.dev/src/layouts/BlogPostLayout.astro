@@ -115,13 +115,9 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
         <slot />
       </div>
     </article>
-    <div style="order: 2">
-      <Root client:load>
-        <Sheet client:only="solid-js">
-          <Comments client:only="solid-js" slug={postSlug} />
-        </Sheet>
-      </Root>
-    </div>
+    <Sheet class="side-sheet" client:only="solid-js">
+      <Comments client:only="solid-js" slug={postSlug} />
+    </Sheet>
   </main>
 </BlogRouteLayout>
 

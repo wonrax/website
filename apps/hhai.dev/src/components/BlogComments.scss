@@ -2,9 +2,10 @@
   max-width: 1004px;
   // margin: 64px auto;
   // padding: 0 16px;
-  padding: 32px;
+  padding: 48px;
   h3 {
     // padding-left: 24px;
+    margin-top: 0;
     margin-bottom: 12px;
     font-weight: var(--font-weight-medium);
     color: var(--text-body-heavy);
@@ -96,19 +97,19 @@
 }
 
 .side-sheet {
-  .sheet-content {
-    display: none;
-    // position: fixed;
-    right: 0;
-    top: 0;
-    background-color: var(--bg-color);
-    box-shadow: 0 0 12px 2px var(--bg-additive-medium);
-    height: 100vh;
-    overflow-y: auto;
-    width: 35vw;
+  display: none;
+  position: fixed;
+  right: 0;
+  top: 0;
+  background-color: var(--bg-color);
+  box-shadow: 0 0 24px 2px var(--bg-additive-light);
+  border-left: solid 1px var(--bg-additive-light);
+  height: 100vh;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 530px;
 
-    &.open {
-      display: block;
-    }
+  &.open {
+    display: block;
   }
 }

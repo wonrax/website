@@ -5,6 +5,7 @@ import {
   useContext,
   type Accessor,
   createRoot,
+  type JSXElement,
 } from "solid-js";
 import "./BlogComments.scss";
 import { createStore } from "solid-js/store";
@@ -77,21 +78,13 @@ export function Comments({ slug }: { slug: string | undefined }) {
   );
 }
 
-export function Sheet({ children }) {
-  const { SheetContext, SetSheetContext } = Context;
-
-  console.log("Sheet: context from sheet", SheetContext());
-
-  const isOpen = SheetContext().isOpen;
-
-  return (
-    <div class="side-sheet">
-      <div class={`sheet-content${isOpen() ? " open" : ""}`}>{children}</div>
-    </div>
-  );
-}
-
-export function Root({ children }) {
+export function Sheet({
+  children,
+  ...rest
+}: {
+  children: JSXElement;
+  class: string;
+}) {
   const [isOpen, setIsOpen] = createSignal(false);
 
   function toggle() {
@@ -100,6 +93,7 @@ export function Root({ children }) {
   }
 
   const { SheetContext, SetSheetContext } = Context;
+
   SetSheetContext((context) => {
     console.log("setting context, old context:", context);
     return {
@@ -108,7 +102,13 @@ export function Root({ children }) {
     };
   });
 
-  return <div>{children}</div>;
+  console.log("Sheet: context from sheet", SheetContext());
+
+  return (
+    <div {...rest} class={`${rest["class"]}${isOpen() ? " open" : ""}`}>
+      {children}
+    </div>
+  );
 }
 
-export default Root;
+export default Sheet;

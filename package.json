@@ -20,6 +20,7 @@
   "devDependencies": {
     "@prisma/client": "^5.7.1",
     "prettier": "latest",
+    "prisma": "^5.7.1",
     "ts-node": "^10.9.2",
     "turbo": "^1.11.2",
     "wireit": "^0.14.1"

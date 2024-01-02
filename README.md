@@ -1,5 +1,19 @@
 ## hhai.dev monorepo
 
+### getting things running
+
+Prequisites:
+- Node installed and npm in path
+- rustc installed and cargo in path
+
+These lines will spin up database and run both backend and frontend in
+development
+```bash
+npm i
+docker compose -f docker/docker-compose.dev.yml -p hhai-dev up -d
+npm run dev
+```
+
 ### blog todo
 
 - bundle Katex with the build instead of using cdn
