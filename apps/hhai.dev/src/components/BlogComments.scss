@@ -11,12 +11,6 @@
     color: var(--text-body-heavy);
   }
 
-  .comment-submission {
-    display: flex;
-    flex-direction: row;
-    gap: 4px;
-  }
-
   .comments {
     display: flex;
     flex-direction: column;
@@ -75,6 +69,15 @@
 
         strong {
           font-weight: var(--font-weight-medium);
+        }
+
+        a {
+          color: var(--text-body-heavy);
+          text-decoration: underline;
+
+          &:visited {
+            color: var(--text-body-medium);
+          }
         }
 
         pre {
@@ -270,4 +273,52 @@
 body.noscroll {
   overflow: hidden;
   padding-right: var(--scrollbar-width);
+}
+
+.comment-submission {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  input {
+    font-size: 15px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--bg-additive-medium);
+    // background-color: var(--bg-additive-light);
+    color: var(--text-body-heavy);
+    transition: border-color 0.2s ease-in-out;
+    &:focus {
+      outline: none;
+      border-color: var(--accent-color);
+    }
+  }
+
+  .author-info {
+    display: flex;
+    gap: 8px;
+  }
+
+  // TODO refactor to share style with input
+  textarea.content {
+    font-family:
+      Inter Variable,
+      sans-serif; // TODO move this to global style
+    font-size: 15px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--bg-additive-medium);
+    color: var(--text-body-heavy);
+    transition: border-color 0.2s ease-in-out;
+    &:focus {
+      outline: none;
+      border-color: var(--accent-color);
+    }
+
+    resize: vertical;
+  }
+
+  button {
+    width: fit-content;
+  }
 }

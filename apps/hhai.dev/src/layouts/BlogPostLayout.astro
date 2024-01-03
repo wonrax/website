@@ -713,6 +713,10 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     &:hover {
       background-color: var(--bg-additive-medium);
     }
+
+    &:focus {
+      outline: var(--bg-additive-medium) solid 2px;
+    }
   }
 
   #go-to-top {

@@ -95,11 +95,7 @@ export function Comments({ slug }: { slug: string | undefined }) {
   return (
     <div class="comments-container">
       <h3>Comments</h3>
-      <form class="comment-submission">
-        <input type="text" placeholder="Name" />
-        <input type="text" placeholder="Your comment" />
-        <button type="submit">Submit</button>
-      </form>
+      <CommentEditor />
       <ol class="comments">
         {comments.state == "ready" ? (
           <>
@@ -115,13 +111,7 @@ export function Comments({ slug }: { slug: string | undefined }) {
   );
 }
 
-export function Sheet({
-  children,
-  ...rest
-}: {
-  children: JSXElement;
-  class?: string;
-}) {
+export function Sheet({ children }: { children: JSXElement }) {
   const [isOpen, setIsOpen] = createSignal(false);
 
   function handleEsc(e: KeyboardEvent) {
@@ -131,6 +121,8 @@ export function Sheet({
   }
 
   function toggle() {
+    // TODO change focus to the first focusable element in the sheet for
+    // accessibility
     if (!isOpen()) {
       document.addEventListener("keydown", handleEsc);
     }
@@ -177,5 +169,18 @@ export function Trigger({
     <button {...rest} onClick={toggle}>
       {children}
     </button>
+  );
+}
+
+export function CommentEditor() {
+  return (
+    <form class="comment-submission">
+      <textarea class="content" rows={5} placeholder="Your comment" />
+      <div class="author-info">
+        <input class="name" type="text" placeholder="Your name" />
+        <input class="email" type="email" placeholder="(Optional) Your email" />
+      </div>
+      <button type="submit">Submit</button>
+    </form>
   );
 }
