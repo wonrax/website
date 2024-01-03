@@ -38,9 +38,32 @@ services:
       - DATABASE_URL=${WINDMILL_DATABASE_URL}
       - MODE=worker
       - WORKER_GROUP=native
-      - WORKER_TAGS=nativets,deno,go,python3,postgresql,flow,bash,dependency
+      # - WORKER_TAGS=nativets,deno,go,python3,postgresql,flow,bash,dependency
     depends_on:
       - database
+
+  windmill_worker:
+    image: ghcr.io/windmill-labs/windmill:main
+    pull_policy: always
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=${WINDMILL_DATABASE_URL}
+      - MODE=worker
+      - WORKER_GROUP=default
+    depends_on:
+      - database
+    # to mount the worker folder to debug, KEEP_JOB_DIR=true and mount /tmp/windmill
+    volumes:
+      # mount the docker socket to allow to run docker containers from within the workers
+      # - /var/run/docker.sock:/var/run/docker.sock
+      - worker_dependency_cache:/tmp/windmill/cache
+
 
   windmill_lsp:
     image: ghcr.io/windmill-labs/windmill-lsp:latest
@@ -53,3 +76,4 @@ services:
 
 volumes:
   windmill_lsp_cache: null
+  worker_dependency_cache: null
