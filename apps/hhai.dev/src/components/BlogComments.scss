@@ -315,6 +315,7 @@ body.noscroll {
     color: var(--text-body-heavy);
     transition: border-color 0.2s ease-in-out;
     user-select: text;
+    cursor: text;
     &:focus {
       outline: none;
       border-color: var(--accent-color);
