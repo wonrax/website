@@ -37,8 +37,8 @@ services:
     environment:
       - DATABASE_URL=${WINDMILL_DATABASE_URL}
       - MODE=worker
-      - WORKER_GROUP=general
-      - WORKER_TAGS=deno,go,python3,postgresql,flow,bash
+      - WORKER_GROUP=native
+      - WORKER_TAGS=nativets,deno,go,python3,postgresql,flow,bash,dependency
     depends_on:
       - database
 
