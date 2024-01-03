@@ -175,10 +175,25 @@ export function Trigger({
 export function CommentEditor() {
   return (
     <form class="comment-submission">
-      <textarea class="content" rows={5} placeholder="Your comment" />
+      <div
+        contentEditable
+        class="content"
+        role="textbox"
+        aria-placeholder="Your comment"
+      ></div>
       <div class="author-info">
-        <input class="name" type="text" placeholder="Your name" />
-        <input class="email" type="email" placeholder="(Optional) Your email" />
+        <input
+          class="name"
+          autocomplete="false"
+          type="text"
+          placeholder="Your name"
+        />
+        <input
+          class="email"
+          autocomplete="false"
+          type="email"
+          placeholder="(Optional and not displayed) Your email"
+        />
       </div>
       <button type="submit">Submit</button>
     </form>

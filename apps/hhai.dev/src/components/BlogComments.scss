@@ -297,10 +297,14 @@ body.noscroll {
   .author-info {
     display: flex;
     gap: 8px;
+
+    & * {
+      flex: 1;
+    }
   }
 
   // TODO refactor to share style with input
-  textarea.content {
+  .content {
     font-family:
       Inter Variable,
       sans-serif; // TODO move this to global style
@@ -310,12 +314,19 @@ body.noscroll {
     border: 1px solid var(--bg-additive-medium);
     color: var(--text-body-heavy);
     transition: border-color 0.2s ease-in-out;
+    user-select: text;
     &:focus {
       outline: none;
       border-color: var(--accent-color);
     }
 
     resize: vertical;
+
+    &:empty:before {
+      content: attr(aria-placeholder);
+      color: var(--text-body-medium);
+      display: block; /* For Firefox */
+    }
   }
 
   button {
