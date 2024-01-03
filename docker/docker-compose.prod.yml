@@ -72,3 +72,4 @@ services:
 volumes:
   postgres-data:
   windmill_lsp_cache:
+  worker_dependency_cache:
