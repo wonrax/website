@@ -55,6 +55,13 @@ services:
     depends_on:
       - database
 
+  windmill_worker:
+    extends:
+      file: docker-compose-windmill.yml
+      service: windmill_worker
+    depends_on:
+      - database
+
   windmill_lsp:
     extends:
       file: docker-compose-windmill.yml
