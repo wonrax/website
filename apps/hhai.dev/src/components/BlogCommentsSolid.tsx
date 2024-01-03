@@ -1,7 +1,30 @@
-import { createSignal, createResource, type JSXElement } from "solid-js";
+import {
+  createSignal,
+  createResource,
+  type JSXElement,
+  type Accessor,
+  createRoot,
+} from "solid-js";
 import "./BlogComments.scss";
-import { Context } from "./BlogCommentsContextSolid";
+// import { Context } from "./BlogCommentsContextSolid";
 import { Remarkable } from "remarkable";
+
+type ContextType = {
+  isOpen: Accessor<boolean>;
+  toggle: () => void;
+};
+
+function createContext() {
+  const [context, setContext] = createSignal<ContextType>({
+    isOpen: () => false,
+    toggle: () => {
+      console.log("toggle default");
+    },
+  });
+  return { SheetContext: context, SetSheetContext: setContext };
+}
+
+export const Context = createRoot(createContext);
 
 type Comment = {
   id: number;
@@ -139,3 +162,23 @@ export function Sheet({
 }
 
 export default Sheet;
+
+export function Trigger({
+  children,
+  ...rest
+}: {
+  children: JSXElement;
+  class?: string;
+}) {
+  function toggle() {
+    const { SheetContext, SetSheetContext } = Context;
+    const c = SheetContext();
+    c.toggle();
+  }
+
+  return (
+    <button {...rest} onClick={toggle}>
+      {children}
+    </button>
+  );
+}
