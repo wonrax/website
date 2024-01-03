@@ -59,23 +59,20 @@ function Comment({ comment, depth }: { comment: Comment; depth: number }) {
     // },
   });
   return (
-    <li class={`article comment${depth === 0 ? "" : " not-root-comment"}`}>
-      <div class="comment__header">
-        <div class="comment__author">{comment.author_name}</div>
-        <div class="comment__date">
+    <li class={`comment${depth === 0 ? "" : " not-root-comment"}`}>
+      <div class="comment-header">
+        <div class="comment-author">{comment.author_name}</div>
+        <div class="comment-date">
           {new Date(Date.parse(comment.created_at)).toDateString()}
         </div>
-        <div class="comment__upvote">{comment.upvote} upvotes</div>
+        <div class="comment-upvote">{comment.upvote} upvotes</div>
       </div>
-      <div
-        class="comment__content article-body"
-        innerHTML={md.render(comment.content)}
-      />
-      <div class="comment__action-row">
+      <div class="comment-content" innerHTML={md.render(comment.content)} />
+      <div class="comment-action-row">
         <button>Reply</button>
         <button>Upvote</button>
       </div>
-      <ol class="comment__children">
+      <ol class="comment-children">
         {comment.children?.map((c) => (
           <Comment comment={c} depth={depth + 1} />
         ))}
