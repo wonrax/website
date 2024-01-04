@@ -37,7 +37,15 @@ type Comment = {
   depth: number;
 };
 
-function Comment({ comment, depth }: { comment: Comment; depth: number }) {
+function Comment({
+  comment,
+  depth,
+  slug,
+}: {
+  comment: Comment;
+  depth: number;
+  slug: string;
+}) {
   // TODO read more on the docs to identify security issues
   const md = new Remarkable({
     html: false, // Enable HTML tags in source
@@ -76,17 +84,17 @@ function Comment({ comment, depth }: { comment: Comment; depth: number }) {
         <button onClick={() => setIsReplying(true)}>Reply</button>
         <button>Upvote</button>
       </div>
-      {isReplying() && <CommentEditor parentId={comment.id} />}
+      {isReplying() && <CommentEditor parentId={comment.id} slug={slug} />}
       <ol class="comment-children">
         {comment.children?.map((c) => (
-          <Comment comment={c} depth={depth + 1} />
+          <Comment comment={c} depth={depth + 1} slug={slug} />
         ))}
       </ol>
     </li>
   );
 }
 
-export function Comments({ slug }: { slug: string | undefined }) {
+export function Comments({ slug }: { slug: string }) {
   // TODO do not fetch until the first time the sheet is opened
   // TODO prefetch when user hover over the button
   const [comments] = createResource<Comment[]>(async () => {
@@ -100,12 +108,12 @@ export function Comments({ slug }: { slug: string | undefined }) {
   return (
     <div class="comments-container">
       <h3>Comments</h3>
-      <CommentEditor />
+      <CommentEditor slug={slug} />
       <ol class="comments">
         {comments.state == "ready" ? (
           <>
             {comments().map((c) => (
-              <Comment comment={c} depth={0} />
+              <Comment comment={c} depth={0} slug={slug} />
             ))}
           </>
         ) : (
@@ -177,7 +185,7 @@ export function Trigger({
   );
 }
 
-export function CommentEditor(props: { parentId?: number }) {
+export function CommentEditor(props: { parentId?: number; slug: string }) {
   function handleCommentSubmit(e: Event) {
     e.preventDefault();
     const form = e.target as EventTarget & {
@@ -189,17 +197,13 @@ export function CommentEditor(props: { parentId?: number }) {
 
     const content = target.querySelector("#content") as HTMLDivElement;
 
-    fetch("http://localhost:3000/public/blog/adding-comments/comments", {
+    fetch(`http://localhost:3000/public/blog/${props.slug}/comments`, {
       method: "POST",
       body: JSON.stringify({
-        id: 0,
         author_name: form.name.value,
         content: content.innerText,
         // author_email: form.email.value,
         parent_id: props.parentId,
-        created_at: new Date().toISOString(),
-        upvote: 0,
-        depth: 0,
       }),
       headers: {
         "Content-Type": "application/json",

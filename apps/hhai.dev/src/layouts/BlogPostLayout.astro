@@ -117,7 +117,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
   </main>
   <Sheet client:load>
     <Trigger class="close-button" client:load>X</Trigger>
-    <Comments client:load slug={postSlug} />
+    {postSlug && <Comments client:load slug={postSlug} />}
   </Sheet>
 </BlogRouteLayout>
 

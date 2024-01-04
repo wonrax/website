@@ -51,27 +51,48 @@ struct CommentView {
 
 enum AppError {
     DatabaseError(sqlx::Error),
+    Unhandled(String),
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         let (status_code, error_response) = match self {
+            // TODO log the error
             AppError::DatabaseError(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
+                #[cfg(debug_assertions)]
                 ErrorResponse {
                     code: "DB_ERR".into(),
                     msg: Some(format!("Fetching data error: {}", e.to_string())),
                 },
+                #[cfg(not(debug_assertions))]
+                ErrorResponse {
+                    code: "SVR_ERR".into(),
+                    msg: None,
+                },
+            ),
+            AppError::Unhandled(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ErrorResponse {
+                    code: "UNHNDLD".into(),
+                    msg: Some(e),
+                },
             ),
         };
 
-        (status_code, Json(json!(error_response))).into_response()
+        (status_code, Json(error_response)).into_response()
     }
 }
 
 impl From<sqlx::Error> for AppError {
     fn from(e: sqlx::Error) -> Self {
         AppError::DatabaseError(e)
+    }
+}
+
+impl From<&'static str> for AppError {
+    fn from(e: &'static str) -> Self {
+        AppError::Unhandled(e.into())
     }
 }
 
@@ -325,32 +346,80 @@ async fn submit_comment(
     Path(slug): Path<String>,
     Json(comment): Json<CommentSubmission>,
 ) -> Result<Json<CommentSubmission>, AppError> {
-    let rows = sqlx::query_as::<_, CommentSubmission>(
+    comment.validate()?;
+    // check if the post exists, otherwise create it
+    let exists = sqlx::query_as::<_, (bool,)>(
         "
-        INSERT INTO blog_comments (author_ip, author_name, content, parent_id, post_id)
-        VALUES ('192.169.1.1', $1, $2, $3, (SELECT id FROM blog_posts WHERE slug = $4))
+        SELECT EXISTS (
+            SELECT id FROM blog_posts WHERE category = 'blog' AND slug = $1
+        );
+        ",
+    )
+    .bind(&slug)
+    .fetch_one(&ctx.pool)
+    .await?;
+
+    if exists.0 == false {
+        sqlx::query(
+            "
+            INSERT INTO blog_posts (category, slug)
+            VALUES ('blog', $1)
+            ON CONFLICT (category, slug) DO NOTHING;
+            ",
+        )
+        .bind(&slug)
+        .execute(&ctx.pool)
+        .await?;
+    }
+
+    // check if the parent comment actually belongs to the post
+    if let Some(parent_id) = comment.parent_id {
+        let exists = sqlx::query_as::<_, (bool,)>(
+            "
+            SELECT EXISTS (
+                SELECT id FROM blog_comments WHERE id = $1 AND post_id = (
+                    SELECT id FROM blog_posts WHERE category = 'blog' AND slug = $2
+                )
+            );
+            ",
+        )
+        .bind(parent_id)
+        .bind(&slug)
+        .fetch_one(&ctx.pool)
+        .await?;
+
+        if exists.0 == false {
+            return Err("you're replying to the comment that belongs to another post".into());
+        }
+    }
+
+    let resulting_comment = sqlx::query_as::<_, CommentSubmission>(
+        "
+        INSERT INTO blog_comments (
+            author_ip,
+            author_name,
+            content,
+            parent_id,
+            post_id
+        )
+        VALUES (
+            '192.169.1.1', 
+            $1, 
+            $2, 
+            $3, 
+            (SELECT id FROM blog_posts WHERE category = 'blog' AND slug = $4)
+        )
         RETURNING *;
         ",
     )
     .bind(comment.author_name)
     .bind(comment.content)
     .bind(comment.parent_id)
-    .bind(slug)
+    .bind(&slug)
     .fetch_one(&ctx.pool)
     .await?;
 
-    // let result = CommentView {
-    //     id: rows.id,
-    //     author_name: rows.author_name,
-    //     content: rows.content,
-    //     parent_id: rows.parent_id,
-    //     created_at: rows.created_at,
-    //     children: None,
-    //     upvote: rows.upvote,
-    //     depth: rows.depth as usize,
-    // };
-
-    Ok(Json(rows))
+    Ok(Json(resulting_comment))
 }
 
 #[derive(Deserialize, Serialize, FromRow)]
@@ -358,4 +427,26 @@ struct CommentSubmission {
     author_name: String,
     content: String,
     parent_id: Option<i32>,
+}
+
+impl CommentSubmission {
+    fn validate(&self) -> Result<(), &'static str> {
+        if self.author_name.len() < 1 {
+            return Err("No author name provided");
+        }
+
+        if self.author_name.len() > 50 {
+            return Err("Author name too long");
+        }
+
+        if self.content.len() > 1000 {
+            return Err("Content too long");
+        }
+
+        if self.content.len() < 1 {
+            return Err("No content provided");
+        }
+
+        Ok(())
+    }
 }
