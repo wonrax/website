@@ -278,7 +278,8 @@ body.noscroll {
 .comment-submission {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--bg-additive-medium);
 
   input {
     font-size: 15px;
@@ -294,9 +295,20 @@ body.noscroll {
     }
   }
 
+  .comment-editor {
+    padding: 12px;
+  }
+
+  hr {
+    border: none;
+    border-top: solid 1px var(--bg-additive-medium);
+    margin: 0;
+  }
+
   .author-info {
     display: flex;
     gap: 8px;
+    padding: 12px;
 
     & * {
       flex: 1;
@@ -309,16 +321,16 @@ body.noscroll {
       Inter Variable,
       sans-serif; // TODO move this to global style
     font-size: 15px;
-    padding: 8px 12px;
-    border-radius: 6px;
-    border: 1px solid var(--bg-additive-medium);
+    padding: 8px;
     color: var(--text-body-heavy);
     transition: border-color 0.2s ease-in-out;
     user-select: text;
     cursor: text;
+    line-height: 145%;
+
     &:focus {
       outline: none;
-      border-color: var(--accent-color);
+      // border-color: var(--accent-color);
     }
 
     resize: vertical;
@@ -332,5 +344,6 @@ body.noscroll {
 
   button {
     width: fit-content;
+    margin: 0 12px 12px 12px;
   }
 }

@@ -1,10 +1,11 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use axum::{
+    debug_handler,
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -14,7 +15,9 @@ use sqlx::FromRow;
 use crate::APIContext;
 
 pub fn route() -> Router<APIContext> {
-    Router::<APIContext>::new().route("/:slug/comments", get(get_blog_post_comments))
+    Router::<APIContext>::new()
+        .route("/:slug/comments", get(get_blog_post_comments))
+        .route("/:slug/comments", post(submit_comment))
 }
 
 #[derive(Serialize)]
@@ -314,4 +317,45 @@ mod test {
 
         result
     }
+}
+
+#[debug_handler]
+async fn submit_comment(
+    State(ctx): State<APIContext>,
+    Path(slug): Path<String>,
+    Json(comment): Json<CommentSubmission>,
+) -> Result<Json<CommentSubmission>, AppError> {
+    let rows = sqlx::query_as::<_, CommentSubmission>(
+        "
+        INSERT INTO blog_comments (author_ip, author_name, content, parent_id, post_id)
+        VALUES ('192.169.1.1', $1, $2, $3, (SELECT id FROM blog_posts WHERE slug = $4))
+        RETURNING *;
+        ",
+    )
+    .bind(comment.author_name)
+    .bind(comment.content)
+    .bind(comment.parent_id)
+    .bind(slug)
+    .fetch_one(&ctx.pool)
+    .await?;
+
+    // let result = CommentView {
+    //     id: rows.id,
+    //     author_name: rows.author_name,
+    //     content: rows.content,
+    //     parent_id: rows.parent_id,
+    //     created_at: rows.created_at,
+    //     children: None,
+    //     upvote: rows.upvote,
+    //     depth: rows.depth as usize,
+    // };
+
+    Ok(Json(rows))
+}
+
+#[derive(Deserialize, Serialize, FromRow)]
+struct CommentSubmission {
+    author_name: String,
+    content: String,
+    parent_id: Option<i32>,
 }

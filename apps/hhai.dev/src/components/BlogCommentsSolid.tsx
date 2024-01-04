@@ -58,6 +58,9 @@ function Comment({ comment, depth }: { comment: Comment; depth: number }) {
     //   return "";
     // },
   });
+
+  const [isReplying, setIsReplying] = createSignal(false);
+
   return (
     <li class={`comment${depth === 0 ? "" : " not-root-comment"}`}>
       <div class="comment-header">
@@ -66,12 +69,14 @@ function Comment({ comment, depth }: { comment: Comment; depth: number }) {
           {new Date(Date.parse(comment.created_at)).toDateString()}
         </div>
         <div class="comment-upvote">{comment.upvote} upvotes</div>
+        <div>{comment.id}</div>
       </div>
       <div class="comment-content" innerHTML={md.render(comment.content)} />
       <div class="comment-action-row">
-        <button>Reply</button>
+        <button onClick={() => setIsReplying(true)}>Reply</button>
         <button>Upvote</button>
       </div>
+      {isReplying() && <CommentEditor parentId={comment.id} />}
       <ol class="comment-children">
         {comment.children?.map((c) => (
           <Comment comment={c} depth={depth + 1} />
@@ -112,7 +117,7 @@ export function Comments({ slug }: { slug: string | undefined }) {
 }
 
 export function Sheet({ children }: { children: JSXElement }) {
-  const [isOpen, setIsOpen] = createSignal(false);
+  const [isOpen, setIsOpen] = createSignal(true);
 
   function handleEsc(e: KeyboardEvent) {
     if (e.key === "Escape") {
@@ -172,27 +177,62 @@ export function Trigger({
   );
 }
 
-export function CommentEditor() {
+export function CommentEditor(props: { parentId?: number }) {
+  function handleCommentSubmit(e: Event) {
+    e.preventDefault();
+    const form = e.target as EventTarget & {
+      name: HTMLInputElement;
+      email: HTMLInputElement;
+    };
+
+    const target = e.target as HTMLInputElement;
+
+    const content = target.querySelector("#content") as HTMLDivElement;
+
+    fetch("http://localhost:3000/public/blog/adding-comments/comments", {
+      method: "POST",
+      body: JSON.stringify({
+        id: 0,
+        author_name: form.name.value,
+        content: content.innerText,
+        // author_email: form.email.value,
+        parent_id: props.parentId,
+        created_at: new Date().toISOString(),
+        upvote: 0,
+        depth: 0,
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  }
+
   return (
-    <form class="comment-submission">
-      <div
-        contentEditable
-        class="content"
-        role="textbox"
-        aria-placeholder="Your comment"
-      ></div>
+    <form class="comment-submission" onSubmit={handleCommentSubmit}>
+      <div class="comment-editor">
+        <div
+          contentEditable
+          class="content"
+          id="content"
+          role="textbox"
+          aria-placeholder="Your comment"
+        ></div>
+      </div>
+      <hr />
       <div class="author-info">
         <input
           class="name"
+          id="name"
           autocomplete="false"
           type="text"
           placeholder="Your name"
         />
         <input
           class="email"
+          id="email"
           autocomplete="false"
           type="email"
-          placeholder="(Optional and not displayed) Your email"
+          placeholder="Your email"
         />
       </div>
       <button type="submit">Submit</button>

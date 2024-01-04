@@ -1,4 +1,9 @@
-use axum::{http::Method, response::IntoResponse, routing::get, Json, Router};
+use axum::{
+    http::{header::CONTENT_TYPE, Method},
+    response::IntoResponse,
+    routing::get,
+    Json, Router,
+};
 use dotenv::dotenv;
 use mimalloc::MiMalloc;
 use serde::Serialize;
@@ -42,7 +47,7 @@ async fn main() {
     let cors = CorsLayer::new()
         // allow `GET` and `POST` when accessing the resource
         .allow_methods(vec![Method::GET, Method::POST])
-        // allow requests from any origin
+        .allow_headers([CONTENT_TYPE])
         .allow_origin(AllowOrigin::predicate(|_, request| {
             request
                 .headers
