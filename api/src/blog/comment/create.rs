@@ -11,7 +11,7 @@ use crate::{error::AppError, APIContext};
 use crate::blog::comment::Comment;
 
 #[debug_handler]
-pub async fn submit_comment(
+pub async fn create_comment(
     State(ctx): State<APIContext>,
     Path(slug): Path<String>,
     Json(comment): Json<CommentSubmission>,

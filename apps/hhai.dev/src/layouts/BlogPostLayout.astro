@@ -1,5 +1,6 @@
 ---
-import { Comments, Sheet, Trigger } from "@/components/BlogCommentsSolid";
+import { Comments } from "@/components/BlogComments/BlogCommentsSolid";
+import * as Sheet from "@/components/BlogComments/SheetSolid";
 import OgImage from "@/components/OgImage/OgImage.astro";
 import "@fontsource/inconsolata/500.css";
 import "katex/dist/katex.css";
@@ -47,7 +48,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
           headings.length ? (
             <>
               <TableOfContents headings={headings} />
-              <Trigger client:load>View discussion</Trigger>
+              <Sheet.Trigger client:load>View discussion</Sheet.Trigger>
               <button id="go-to-top">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -115,10 +116,10 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       </div>
     </article>
   </main>
-  <Sheet client:load>
-    <Trigger class="close-button" client:load>X</Trigger>
-    {postSlug && <Comments client:load slug={postSlug} />}
-  </Sheet>
+  <Sheet.Root client:load>
+    <Sheet.Trigger class="close-button" client:load>X</Sheet.Trigger>
+    {postSlug && <Comments client:only="solid-js" slug={postSlug} />}
+  </Sheet.Root>
 </BlogRouteLayout>
 
 <style lang="scss" is:global>
@@ -771,3 +772,4 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
   let scrollbarWidth = window.innerWidth - document.body.clientWidth + "px";
   document.body.style.setProperty("--scrollbar-width", scrollbarWidth);
 </script>
+@/components/BlogComments/BlogCommentsSolid @/components/BlogComments/SheetSolid

@@ -36,15 +36,18 @@ impl<'de> Deserialize<'de> for SortType {
     }
 }
 
-pub async fn get_blog_post_comments(
+pub async fn get_comments(
     State(ctx): State<APIContext>,
     Path(slug): Path<String>,
     q: Query<Queries>,
 ) -> Result<Json<Vec<CommentTree>>, AppError> {
+    let sort = q.sort.as_ref().unwrap_or(&SortType::Best);
+
     let rows;
-    if q.sort.is_some() && *q.sort.as_ref().unwrap() == SortType::New {
-        rows = sqlx::query_as::<_, Comment>(
-            "
+    match sort {
+        SortType::New => {
+            rows = sqlx::query_as::<_, Comment>(
+                "
         WITH RECURSIVE root_comments AS (
             SELECT
                 comments.parent_id,
@@ -79,78 +82,86 @@ pub async fn get_blog_post_comments(
             FROM t
                 JOIN blog_comments as comments ON (comments.parent_id = t.id)
         )
-        SELECT * FROM t
-        ORDER BY root;
+        SELECT * FROM t;
         ",
-        )
-        .bind(slug)
-        .bind(q.page_size as i64)
-        .bind(q.page_offset as i64)
-        .fetch_all(&ctx.pool)
-        .await?;
-    } else {
-        rows = sqlx::query_as::<_, Comment>(
-            "
-        WITH RECURSIVE root_comments AS (
-            SELECT
-                comments.parent_id,
-                comments.id,
-                comments.author_name,
-                comments.content,
-                ARRAY [comments.id],
-                0,
-                comments.created_at,
-                comments.upvote
-            FROM blog_comments as comments
-            JOIN blog_posts as posts ON (posts.id = comments.post_id)
-            WHERE posts.category = 'blog'
-            AND posts.slug = $1
-            AND comments.parent_id IS NULL
-            ORDER BY comments.upvote DESC, comments.created_at
-            LIMIT $2 OFFSET $3
-        ), t(parent_id, id, author_name, content, root, depth, created_at, upvote) AS (
-            (
-                SELECT * FROM root_comments
             )
-            UNION ALL
-            SELECT
-                comments.parent_id,
-                comments.id,
-                comments.author_name,
-                comments.content,
-                array_append(root, comments.id),
-                t.depth + 1,
-                comments.created_at,
-                comments.upvote
-            FROM t
-                JOIN blog_comments as comments ON (comments.parent_id = t.id)
-        )
-        SELECT * FROM t
-        ORDER BY root;
-        ",
-        )
-        .bind(slug)
-        .bind(q.page_size as i64)
-        .bind(q.page_offset as i64)
-        .fetch_all(&ctx.pool)
-        .await?;
+            .bind(slug)
+            .bind(q.page_size as i64)
+            .bind(q.page_offset as i64)
+            .fetch_all(&ctx.pool)
+            .await?;
+        }
+        SortType::Best => {
+            rows = sqlx::query_as::<_, Comment>(
+                "
+            WITH RECURSIVE root_comments AS (
+                SELECT
+                    comments.parent_id,
+                    comments.id,
+                    comments.author_name,
+                    comments.content,
+                    ARRAY [comments.id],
+                    0,
+                    comments.created_at,
+                    comments.upvote
+                FROM blog_comments as comments
+                JOIN blog_posts as posts ON (posts.id = comments.post_id)
+                WHERE posts.category = 'blog'
+                AND posts.slug = $1
+                AND comments.parent_id IS NULL
+                ORDER BY comments.upvote DESC, comments.created_at
+                LIMIT $2 OFFSET $3
+            ), t(parent_id, id, author_name, content, root, depth, created_at, upvote) AS (
+                (
+                    SELECT * FROM root_comments
+                )
+                UNION ALL
+                SELECT
+                    comments.parent_id,
+                    comments.id,
+                    comments.author_name,
+                    comments.content,
+                    array_append(root, comments.id),
+                    t.depth + 1,
+                    comments.created_at,
+                    comments.upvote
+                FROM t
+                    JOIN blog_comments as comments ON (comments.parent_id = t.id)
+            )
+            SELECT * FROM t
+            ORDER BY root;  -- ORDER BY root is important because it will make sure
+                            -- the children are always after their parents. This
+                            -- is only needed for the iterative implementation.
+                            -- TODO remove this line when the current implementation
+                            -- is properly tested.
+            ",
+            )
+            .bind(slug)
+            .bind(q.page_size as i64)
+            .bind(q.page_offset as i64)
+            .fetch_all(&ctx.pool)
+            .await?;
+        }
     }
 
-    println!("rows: {:?}", rows);
-
-    let result = intermediate_tree_sort(rows);
+    let result = intermediate_tree_sort(rows, sort);
 
     Ok(Json(result))
 }
 
-fn intermediate_tree_sort(comments: Vec<Comment>) -> Vec<CommentTree> {
+fn intermediate_tree_sort(comments: Vec<Comment>, sort: &SortType) -> Vec<CommentTree> {
     let mut nested = flat_comments_to_tree(comments);
 
-    // Skip sorting root comments because they are already sorted by either
-    // new or best. If we sort them again, the order will be messed up
-    for comment in nested.iter_mut() {
-        if let Some(children) = comment.borrow_mut().children.as_mut() {
-            sort_tree(children);
+    match sort {
+        SortType::New => {
+            for comment in nested.iter_mut() {
+                if let Some(children) = comment.borrow_mut().children.as_mut() {
+                    sort_tree(children);
+                }
+            }
+        }
+        SortType::Best => {
+            sort_tree(&mut nested);
         }
     }
 
@@ -224,7 +235,8 @@ mod test {
     #[test]
     fn test_correctness_using_two_implementations() {
         let comments = generate_comments(10000, 5);
-        let tree_based_sorted_comments = super::intermediate_tree_sort(comments.clone());
+        let tree_based_sorted_comments =
+            super::intermediate_tree_sort(comments.clone(), &super::SortType::Best);
         let array_based_sorted_comments = iterative_recursive_sort(comments.clone());
 
         assert_eq!(tree_based_sorted_comments, array_based_sorted_comments);

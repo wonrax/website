@@ -1,34 +1,14 @@
 import {
   createSignal,
   createResource,
-  type JSXElement,
-  type Accessor,
-  createRoot,
   createContext,
   useContext,
   type Setter,
+  createEffect,
 } from "solid-js";
 import "./BlogComments.scss";
-// import { Context } from "./BlogCommentsContextSolid";
 import { Remarkable } from "remarkable";
-import { set } from "astro/zod";
-
-type ContextType = {
-  isOpen: Accessor<boolean>;
-  toggle: () => void;
-};
-
-function createCommentSheetContext() {
-  const [context, setContext] = createSignal<ContextType>({
-    isOpen: () => false,
-    toggle: () => {
-      console.log("toggle default");
-    },
-  });
-  return { SheetContext: context, SetSheetContext: setContext };
-}
-
-export const Context = createRoot(createCommentSheetContext);
+import SheetContext from "./SheetContextSolid";
 
 type Comment = {
   id: number;
@@ -49,6 +29,7 @@ function CommentComponent({
   depth: number;
 }) {
   // TODO read more on the docs to identify security issues
+  // TODO use memo to avoid re-rendering if possible
   const md = new Remarkable({
     html: false, // Enable HTML tags in source
     xhtmlOut: false, // Use '/' to close single tags (<br />)
@@ -73,19 +54,12 @@ function CommentComponent({
 
   const [children, setChildren] = createSignal(comment.children);
 
-  // TODO
-  const unshift = (c: Comment) => {
-    setChildren((children) => {
-      return [c, ...(children || [])];
-    });
-  };
-
   return (
     <li class={`comment${depth === 0 ? "" : " not-root-comment"}`}>
       <div class="comment-header">
         <div class="comment-author">{comment.author_name}</div>
         <div class="comment-date">
-          {new Date(Date.parse(comment.created_at)).toDateString()}
+          {new Date(Date.parse(comment.created_at)).toISOString()}
         </div>
         <div class="comment-upvote">{comment.upvote} upvotes</div>
         <div>{comment.id}</div>
@@ -98,7 +72,11 @@ function CommentComponent({
       {isReplying() && (
         <CommentEditor
           parentId={comment.id}
-          unshift={unshift}
+          unshift={(c: Comment) => {
+            setChildren((children) => {
+              return [c, ...(children || [])];
+            });
+          }}
           setReplying={setIsReplying}
         />
       )}
@@ -112,21 +90,38 @@ function CommentComponent({
   );
 }
 
-type CommentContextType = {
+type Context = {
   refetch: () => void;
   slug: string;
   // mutate: Setter<Comment[] | undefined>;
 };
 
-const CommentContext = createContext<CommentContextType>();
+const CommentContext = createContext<Context>();
 
 export function Comments({ slug }: { slug: string }) {
+  // check if query string contains open comments on page load
+  // if so, open the comments
+  // const { SheetContext: sheetCtx } = SheetContext;
+  const params = new URLSearchParams(window.location.search);
+  const openComments = params.get("open_comments");
+  if (openComments) {
+    createEffect((success: boolean) => {
+      if (!success) {
+        if (SheetContext.SheetContext().initialized) {
+          SheetContext.SheetContext().toggle();
+          return true;
+        }
+      }
+      return false;
+    }, false);
+  }
+
   // TODO do not fetch until the first time the sheet is opened
   // TODO prefetch when user hover over the button
   const [comments, { mutate, refetch }] = createResource<Comment[]>(
     async () => {
       const res = await fetch(
-        `http://localhost:3000/public/blog/${slug}/comments?page_offset=0&page_size=2&sort=new`
+        `http://localhost:3000/public/blog/${slug}/comments?page_offset=0&page_size=10&sort=best`
       );
 
       return await res.json();
@@ -159,74 +154,6 @@ export function Comments({ slug }: { slug: string }) {
     </CommentContext.Provider>
   );
 }
-
-export function Sheet({ children }: { children: JSXElement }) {
-  const [isOpen, setIsOpen] = createSignal(true);
-
-  function handleEsc(e: KeyboardEvent) {
-    if (e.key === "Escape") {
-      toggle();
-    }
-  }
-
-  function toggle() {
-    const oldState = isOpen();
-    // TODO change focus to the first focusable element in the sheet for
-    // accessibility
-    if (!oldState) {
-      document.addEventListener("keydown", handleEsc);
-      document.body.classList.add("noscroll");
-    } else {
-      document.removeEventListener("keydown", handleEsc);
-      document.body.classList.remove("noscroll");
-    }
-    setIsOpen(!oldState);
-  }
-
-  const { SheetContext, SetSheetContext } = Context;
-
-  SetSheetContext((context) => {
-    return {
-      isOpen: isOpen,
-      toggle: toggle,
-    };
-  });
-
-  return (
-    <div class={`side-sheet${isOpen() ? " open" : ""}`}>
-      <div class="sheet-overlay" onClick={toggle}></div>
-      <div class="sheet-content">{children}</div>
-    </div>
-  );
-}
-
-export default Sheet;
-
-export function Trigger({
-  children,
-  ...rest
-}: {
-  children: JSXElement;
-  class?: string;
-}) {
-  function toggle() {
-    const { SheetContext, SetSheetContext } = Context;
-    const c = SheetContext();
-    c.toggle();
-  }
-
-  return (
-    <button {...rest} onClick={toggle}>
-      {children}
-    </button>
-  );
-}
-
-type CommentSubmission = {
-  author_name: string;
-  content: string;
-  parent_id?: number;
-};
 
 export function CommentEditor(props: {
   parentId?: number;
