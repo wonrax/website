@@ -4,6 +4,9 @@ import {
   type JSXElement,
   type Accessor,
   createRoot,
+  createContext,
+  useContext,
+  type Setter,
 } from "solid-js";
 import "./BlogComments.scss";
 // import { Context } from "./BlogCommentsContextSolid";
@@ -15,7 +18,7 @@ type ContextType = {
   toggle: () => void;
 };
 
-function createContext() {
+function createCommentSheetContext() {
   const [context, setContext] = createSignal<ContextType>({
     isOpen: () => false,
     toggle: () => {
@@ -25,7 +28,7 @@ function createContext() {
   return { SheetContext: context, SetSheetContext: setContext };
 }
 
-export const Context = createRoot(createContext);
+export const Context = createRoot(createCommentSheetContext);
 
 type Comment = {
   id: number;
@@ -38,14 +41,12 @@ type Comment = {
   depth: number;
 };
 
-function Comment({
+function CommentComponent({
   comment,
   depth,
-  slug,
 }: {
   comment: Comment;
   depth: number;
-  slug: string;
 }) {
   // TODO read more on the docs to identify security issues
   const md = new Remarkable({
@@ -70,6 +71,15 @@ function Comment({
 
   const [isReplying, setIsReplying] = createSignal(false);
 
+  const [children, setChildren] = createSignal(comment.children);
+
+  // TODO
+  const unshift = (c: Comment) => {
+    setChildren((children) => {
+      return [c, ...(children || [])];
+    });
+  };
+
   return (
     <li class={`comment${depth === 0 ? "" : " not-root-comment"}`}>
       <div class="comment-header">
@@ -85,43 +95,68 @@ function Comment({
         <button onClick={() => setIsReplying(true)}>Reply</button>
         <button>Upvote</button>
       </div>
-      {isReplying() && <CommentEditor parentId={comment.id} slug={slug} />}
+      {isReplying() && (
+        <CommentEditor
+          parentId={comment.id}
+          unshift={unshift}
+          setReplying={setIsReplying}
+        />
+      )}
       <ol class="comment-children">
-        {comment.children?.map((c) => (
-          <Comment comment={c} depth={depth + 1} slug={slug} />
-        ))}
+        {children() &&
+          children()!.map((c) => (
+            <CommentComponent comment={c} depth={depth + 1} />
+          ))}
       </ol>
     </li>
   );
 }
 
+type CommentContextType = {
+  refetch: () => void;
+  slug: string;
+  // mutate: Setter<Comment[] | undefined>;
+};
+
+const CommentContext = createContext<CommentContextType>();
+
 export function Comments({ slug }: { slug: string }) {
   // TODO do not fetch until the first time the sheet is opened
   // TODO prefetch when user hover over the button
-  const [comments, { refetch }] = createResource<Comment[]>(async () => {
-    const res = await fetch(
-      `http://localhost:3000/public/blog/${slug}/comments?page_offset=0&page_size=10`
-    );
+  const [comments, { mutate, refetch }] = createResource<Comment[]>(
+    async () => {
+      const res = await fetch(
+        `http://localhost:3000/public/blog/${slug}/comments?page_offset=0&page_size=10`
+      );
 
-    return await res.json();
-  });
+      return await res.json();
+    }
+  );
 
   return (
-    <div class="comments-container">
-      <h3>Comments</h3>
-      <CommentEditor slug={slug} />
-      <ol class="comments">
-        {comments.state == "ready" ? (
-          <>
-            {comments().map((c) => (
-              <Comment comment={c} depth={0} slug={slug} />
-            ))}
-          </>
-        ) : (
-          "Loading..."
-        )}
-      </ol>
-    </div>
+    <CommentContext.Provider value={{ refetch: refetch, slug }}>
+      <div class="comments-container">
+        <h3>Comments</h3>
+        <CommentEditor
+          unshift={(c: Comment) => {
+            mutate((comments) => {
+              return [c, ...(comments || [])];
+            });
+          }}
+        />
+        <ol class="comments">
+          {comments.state == "ready" ? (
+            <>
+              {comments().map((c) => (
+                <CommentComponent comment={c} depth={0} />
+              ))}
+            </>
+          ) : (
+            "Loading..."
+          )}
+        </ol>
+      </div>
+    </CommentContext.Provider>
   );
 }
 
@@ -135,16 +170,17 @@ export function Sheet({ children }: { children: JSXElement }) {
   }
 
   function toggle() {
+    const oldState = isOpen();
     // TODO change focus to the first focusable element in the sheet for
     // accessibility
-    if (!isOpen()) {
+    if (!oldState) {
       document.addEventListener("keydown", handleEsc);
-    }
-    if (isOpen()) {
+      document.body.classList.add("noscroll");
+    } else {
       document.removeEventListener("keydown", handleEsc);
+      document.body.classList.remove("noscroll");
     }
-    setIsOpen(!isOpen());
-    document.body.classList.toggle("noscroll");
+    setIsOpen(!oldState);
   }
 
   const { SheetContext, SetSheetContext } = Context;
@@ -186,16 +222,22 @@ export function Trigger({
   );
 }
 
-export function CommentEditor(props: { parentId?: number; slug: string }) {
+type CommentSubmission = {
+  author_name: string;
+  content: string;
+  parent_id?: number;
+};
+
+export function CommentEditor(props: {
+  parentId?: number;
+  unshift: (c: Comment) => void;
+  setReplying?: Setter<boolean>;
+}) {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<Error>();
-  const [result, setResult] = createSignal<Comment>();
+  const [result, setResult] = createSignal<CommentSubmission>();
 
-  type CommentSubmission = {
-    author_name: string;
-    content: string;
-    parent_id?: number;
-  };
+  const ctx = useContext(CommentContext);
 
   async function handleCommentSubmit(e: Event) {
     e.preventDefault();
@@ -211,7 +253,7 @@ export function CommentEditor(props: { parentId?: number; slug: string }) {
 
     try {
       const resp = await fetch(
-        `http://localhost:3000/public/blog/${props.slug}/comments`,
+        `http://localhost:3000/public/blog/${ctx?.slug}/comments`,
         {
           method: "POST",
           body: JSON.stringify({
@@ -236,6 +278,19 @@ export function CommentEditor(props: { parentId?: number; slug: string }) {
 
       const comment = await resp.json();
       setResult(comment);
+
+      props.unshift({
+        id: 0,
+        author_name: comment.author_name,
+        content: comment.content,
+        parent_id: comment.parent_id,
+        created_at: "2023-01-01",
+        upvote: 0,
+        depth: 0,
+      });
+
+      setLoading(false);
+      props.setReplying?.(false);
     } catch (e) {
       if (e instanceof Error) setError(e);
       else setError(new Error(`Unknown error: ${e}`));
@@ -277,7 +332,9 @@ export function CommentEditor(props: { parentId?: number; slug: string }) {
           {error()!.message}
         </div>
       )}
-      <button type="submit">Submit</button>
+      <button type="submit" disabled={loading()}>
+        Submit
+      </button>
     </form>
   );
 }

@@ -346,5 +346,10 @@ body.noscroll {
   button {
     width: fit-content;
     margin: 0 12px 12px 12px;
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
   }
 }
