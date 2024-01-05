@@ -1,0 +1,33 @@
+---
+layout: "../../layouts/BlogPostLayout.astro"
+title: "Linux server hardening checklist"
+description: 'A checklist to secure my linux server'
+published: '02 April 2023'
+updated: '06 October 2023'
+tags:
+  - linux
+  - server
+isDraft: true
+---
+
+- [ ] Update the system
+- [ ] Use firewall:
+	- If the cloud provider has a firewall, use it, if not, use `ufw`
+	- Allow only the ports that are needed:
+		- Allows port 22 for SSH **for a specific IP range** (e.g. home IP)
+		- Allows port 80 and 443, 443/UDP (QUIC) for HTTP and HTTPS
+		- Drops the rest
+- [ ] SSH configuration:
+	- 	Make sure to use RSA only authentication method and disable password.
+		Remember to `service ssh restart` to reload the config.
+
+		```sh
+		# /etc/ssh/sshd_config
+
+		PasswordAuthentication no
+
+		# https://superuser.com/questions/1022637/ssh-passwordauthentication-no-has-no-effect
+		ChallengeResponseAuthentication no
+
+		PermitRootLogin prohibit-password
+		```
