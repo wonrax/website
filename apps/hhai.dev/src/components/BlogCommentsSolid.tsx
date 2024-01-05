@@ -126,7 +126,7 @@ export function Comments({ slug }: { slug: string }) {
   const [comments, { mutate, refetch }] = createResource<Comment[]>(
     async () => {
       const res = await fetch(
-        `http://localhost:3000/public/blog/${slug}/comments?page_offset=0&page_size=10`
+        `http://localhost:3000/public/blog/${slug}/comments?page_offset=0&page_size=2&sort=new`
       );
 
       return await res.json();

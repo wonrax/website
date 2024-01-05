@@ -59,7 +59,7 @@ pub async fn submit_comment(
         .await?;
 
         if exists.0 == false {
-            return Err("you're replying to the comment that belongs to another post".into());
+            return Err("You're replying to the comment that does not belong to this post".into());
         }
     }
 

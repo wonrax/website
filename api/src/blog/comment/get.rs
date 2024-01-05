@@ -11,18 +11,86 @@ use crate::{error::AppError, APIContext};
 use super::{Comment, CommentTree};
 
 #[derive(Deserialize)]
-pub struct Pagination {
+pub struct Queries {
     page_offset: usize,
     page_size: usize,
+    sort: Option<SortType>,
+}
+
+#[derive(PartialEq)]
+enum SortType {
+    Best,
+    New,
+}
+
+impl<'de> Deserialize<'de> for SortType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        match String::deserialize(deserializer)?.as_str() {
+            "best" => Ok(SortType::Best),
+            "new" => Ok(SortType::New),
+            _ => Err(serde::de::Error::custom("invalid sort type")),
+        }
+    }
 }
 
 pub async fn get_blog_post_comments(
     State(ctx): State<APIContext>,
     Path(slug): Path<String>,
-    pagination: Query<Pagination>,
+    q: Query<Queries>,
 ) -> Result<Json<Vec<CommentTree>>, AppError> {
-    let rows = sqlx::query_as::<_, Comment>(
-        "
+    let rows;
+    if q.sort.is_some() && *q.sort.as_ref().unwrap() == SortType::New {
+        rows = sqlx::query_as::<_, Comment>(
+            "
+        WITH RECURSIVE root_comments AS (
+            SELECT
+                comments.parent_id,
+                comments.id,
+                comments.author_name,
+                comments.content,
+                ARRAY [comments.id],
+                0,
+                comments.created_at,
+                comments.upvote
+            FROM blog_comments as comments
+            JOIN blog_posts as posts ON (posts.id = comments.post_id)
+            WHERE posts.category = 'blog'
+            AND posts.slug = $1
+            AND comments.parent_id IS NULL
+            ORDER BY comments.created_at DESC
+            LIMIT $2 OFFSET $3
+        ), t(parent_id, id, author_name, content, root, depth, created_at, upvote) AS (
+            (
+                SELECT * FROM root_comments
+            )
+            UNION ALL
+            SELECT
+                comments.parent_id,
+                comments.id,
+                comments.author_name,
+                comments.content,
+                array_append(root, comments.id),
+                t.depth + 1,
+                comments.created_at,
+                comments.upvote
+            FROM t
+                JOIN blog_comments as comments ON (comments.parent_id = t.id)
+        )
+        SELECT * FROM t
+        ORDER BY root;
+        ",
+        )
+        .bind(slug)
+        .bind(q.page_size as i64)
+        .bind(q.page_offset as i64)
+        .fetch_all(&ctx.pool)
+        .await?;
+    } else {
+        rows = sqlx::query_as::<_, Comment>(
+            "
         WITH RECURSIVE root_comments AS (
             SELECT
                 comments.parent_id,
@@ -60,12 +128,15 @@ pub async fn get_blog_post_comments(
         SELECT * FROM t
         ORDER BY root;
         ",
-    )
-    .bind(slug)
-    .bind(pagination.page_size as i64)
-    .bind(pagination.page_offset as i64)
-    .fetch_all(&ctx.pool)
-    .await?;
+        )
+        .bind(slug)
+        .bind(q.page_size as i64)
+        .bind(q.page_offset as i64)
+        .fetch_all(&ctx.pool)
+        .await?;
+    }
+
+    println!("rows: {:?}", rows);
 
     let result = intermediate_tree_sort(rows);
 
@@ -74,7 +145,14 @@ pub async fn get_blog_post_comments(
 
 fn intermediate_tree_sort(comments: Vec<Comment>) -> Vec<CommentTree> {
     let mut nested = flat_comments_to_tree(comments);
-    sort_tree(&mut nested);
+
+    // Skip sorting root comments because they are already sorted by either
+    // new or best. If we sort them again, the order will be messed up
+    for comment in nested.iter_mut() {
+        if let Some(children) = comment.borrow_mut().children.as_mut() {
+            sort_tree(children);
+        }
+    }
 
     nested
         .into_iter()
