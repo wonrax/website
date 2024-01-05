@@ -13,6 +13,7 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
 mod blog;
+mod error;
 mod github;
 mod utils;
 
