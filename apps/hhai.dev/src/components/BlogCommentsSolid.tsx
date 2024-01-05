@@ -235,7 +235,6 @@ export function CommentEditor(props: {
 }) {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<Error>();
-  const [result, setResult] = createSignal<CommentSubmission>();
 
   const ctx = useContext(CommentContext);
 
@@ -276,18 +275,9 @@ export function CommentEditor(props: {
         throw new Error("unknown error");
       }
 
-      const comment = await resp.json();
-      setResult(comment);
+      const comment: Comment = await resp.json();
 
-      props.unshift({
-        id: 0,
-        author_name: comment.author_name,
-        content: comment.content,
-        parent_id: comment.parent_id,
-        created_at: "2023-01-01",
-        upvote: 0,
-        depth: 0,
-      });
+      props.unshift(comment);
 
       setLoading(false);
       props.setReplying?.(false);

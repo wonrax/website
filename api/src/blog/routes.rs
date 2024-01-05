@@ -345,7 +345,7 @@ async fn submit_comment(
     State(ctx): State<APIContext>,
     Path(slug): Path<String>,
     Json(comment): Json<CommentSubmission>,
-) -> Result<Json<CommentSubmission>, AppError> {
+) -> Result<Json<Comment>, AppError> {
     comment.validate()?;
     // check if the post exists, otherwise create it
     let exists = sqlx::query_as::<_, (bool,)>(
@@ -393,7 +393,7 @@ async fn submit_comment(
         }
     }
 
-    let resulting_comment = sqlx::query_as::<_, CommentSubmission>(
+    let resulting_comment = sqlx::query_as::<_, Comment>(
         "
         INSERT INTO blog_comments (
             author_ip,
@@ -409,7 +409,7 @@ async fn submit_comment(
             $3, 
             (SELECT id FROM blog_posts WHERE category = 'blog' AND slug = $4)
         )
-        RETURNING *;
+        RETURNING *, -1 as depth;
         ",
     )
     .bind(comment.author_name)
