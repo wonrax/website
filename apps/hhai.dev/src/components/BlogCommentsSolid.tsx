@@ -8,6 +8,7 @@ import {
 import "./BlogComments.scss";
 // import { Context } from "./BlogCommentsContextSolid";
 import { Remarkable } from "remarkable";
+import { set } from "astro/zod";
 
 type ContextType = {
   isOpen: Accessor<boolean>;
@@ -97,7 +98,7 @@ function Comment({
 export function Comments({ slug }: { slug: string }) {
   // TODO do not fetch until the first time the sheet is opened
   // TODO prefetch when user hover over the button
-  const [comments] = createResource<Comment[]>(async () => {
+  const [comments, { refetch }] = createResource<Comment[]>(async () => {
     const res = await fetch(
       `http://localhost:3000/public/blog/${slug}/comments?page_offset=0&page_size=10`
     );
@@ -186,8 +187,19 @@ export function Trigger({
 }
 
 export function CommentEditor(props: { parentId?: number; slug: string }) {
-  function handleCommentSubmit(e: Event) {
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<Error>();
+  const [result, setResult] = createSignal<Comment>();
+
+  type CommentSubmission = {
+    author_name: string;
+    content: string;
+    parent_id?: number;
+  };
+
+  async function handleCommentSubmit(e: Event) {
     e.preventDefault();
+    setLoading(true);
     const form = e.target as EventTarget & {
       name: HTMLInputElement;
       email: HTMLInputElement;
@@ -197,18 +209,39 @@ export function CommentEditor(props: { parentId?: number; slug: string }) {
 
     const content = target.querySelector("#content") as HTMLDivElement;
 
-    fetch(`http://localhost:3000/public/blog/${props.slug}/comments`, {
-      method: "POST",
-      body: JSON.stringify({
-        author_name: form.name.value,
-        content: content.innerText,
-        // author_email: form.email.value,
-        parent_id: props.parentId,
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    try {
+      const resp = await fetch(
+        `http://localhost:3000/public/blog/${props.slug}/comments`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            author_name: form.name.value,
+            content: content.innerText,
+            // author_email: form.email.value,
+            parent_id: props.parentId,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!resp.ok) {
+        const err = await resp.json();
+        if (err.msg) {
+          throw new Error(err.msg);
+        }
+        throw new Error("unknown error");
+      }
+
+      const comment = await resp.json();
+      setResult(comment);
+    } catch (e) {
+      if (e instanceof Error) setError(e);
+      else setError(new Error(`Unknown error: ${e}`));
+      setLoading(false);
+      return;
+    }
   }
 
   return (
@@ -239,6 +272,11 @@ export function CommentEditor(props: { parentId?: number; slug: string }) {
           placeholder="Your email"
         />
       </div>
+      {error() && (
+        <div class="error" style={{ color: "red" }}>
+          {error()!.message}
+        </div>
+      )}
       <button type="submit">Submit</button>
     </form>
   );
