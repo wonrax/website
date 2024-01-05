@@ -24,7 +24,7 @@ model BlogPost {
   id       Int       @id @default(autoincrement())
   category String
   slug     String
-  title    String
+  title    String?
   comments BlogComment[]
 
   @@unique([category, slug], map: "posts_category_slug_unique")
