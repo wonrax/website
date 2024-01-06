@@ -185,7 +185,7 @@ export function CommentEditor(props: {
           body: JSON.stringify({
             author_name: form.name.value,
             content: content.innerText,
-            // author_email: form.email.value,
+            author_email: form.email.value,
             parent_id: props.parentId,
           }),
           headers: {
@@ -229,19 +229,17 @@ export function CommentEditor(props: {
       </div>
       <hr />
       <div class="author-info">
-        <input
-          class="name"
+        <Input
           id="name"
-          autocomplete="false"
           type="text"
           placeholder="Your name"
+          description="Required"
         />
-        <input
-          class="email"
+        <Input
           id="email"
-          autocomplete="false"
           type="email"
           placeholder="Your email"
+          description="Optional, not displayed"
         />
       </div>
       {error() && (
@@ -249,9 +247,38 @@ export function CommentEditor(props: {
           {error()!.message}
         </div>
       )}
-      <button type="submit" disabled={loading()}>
-        Submit
-      </button>
+      {/* // TODO */}
+      <div class="">
+        <p>Markdown supported</p>
+        <div class="action-row">
+          <button type="submit" disabled={loading()}>
+            Cancel
+          </button>
+          <button type="submit" disabled={loading()}>
+            Submit
+          </button>
+        </div>
+      </div>
     </form>
+  );
+}
+
+export function Input(props: {
+  type?: string;
+  placeholder?: string;
+  description?: string;
+  id?: string;
+}) {
+  const { id, description, type = "text", placeholder } = props;
+  return (
+    <div class="input">
+      <input
+        type={type}
+        placeholder={placeholder}
+        id={id}
+        autocomplete="false"
+      />
+      {description && <p class="description">{description}</p>}
+    </div>
   );
 }

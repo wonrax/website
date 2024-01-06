@@ -282,17 +282,34 @@ body.noscroll {
   border: 1px solid var(--bg-additive-medium);
   margin-top: 12px;
 
-  input {
-    font-size: 15px;
-    padding: 8px 12px;
-    border-radius: 6px;
-    border: 1px solid var(--bg-additive-medium);
-    // background-color: var(--bg-additive-light);
-    color: var(--text-body-heavy);
-    transition: border-color 0.2s ease-in-out;
-    &:focus {
-      outline: none;
-      border-color: var(--accent-color);
+  .input {
+    width: 100%;
+
+    input {
+      font-size: 15px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--bg-additive-medium);
+      // background-color: var(--bg-additive-light);
+      color: var(--text-body-heavy);
+      transition: border-color 0.2s ease-in-out;
+      width: 100%;
+      box-sizing: border-box;
+
+      &:focus {
+        outline: none;
+        border-color: var(--accent-color);
+      }
+
+      &::placeholder {
+        color: var(--text-body-light);
+      }
+    }
+
+    .description {
+      font-size: 13px;
+      color: var(--text-body-medium);
+      margin: 6px 8px;
     }
   }
 
@@ -338,18 +355,24 @@ body.noscroll {
 
     &:empty:before {
       content: attr(aria-placeholder);
-      color: var(--text-body-medium);
+      color: var(--text-body-light);
       display: block; /* For Firefox */
     }
   }
 
   button {
     width: fit-content;
-    margin: 0 12px 12px 12px;
 
     &:disabled {
       cursor: not-allowed;
       opacity: 0.5;
     }
+  }
+
+  .action-row {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 12px 12px 12px;
+    gap: 8px;
   }
 }
