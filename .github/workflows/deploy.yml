@@ -15,6 +15,7 @@ jobs:
           username: ${{ secrets.DEPLOY_HOST_USERNAME }}
           key: ${{ secrets.DEPLOY_HOST_KEY }}
           port: ${{ secrets.DEPLOY_HOST_SSH_PORT }}
+          command_timeout: 30m
           # We have to restart the caddy container because the mounted Caddyfile
           # is not updated on git pull. This is a workaround.
           script: |
