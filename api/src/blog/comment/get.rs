@@ -45,45 +45,88 @@ pub async fn get_comments(
 
     let rows;
     match sort {
-        SortType::New => {
+        SortType::Best => {
             rows = sqlx::query_as::<_, Comment>(
                 "
-        WITH RECURSIVE root_comments AS (
-            SELECT
-                comments.parent_id,
-                comments.id,
-                comments.author_name,
-                comments.content,
-                ARRAY [comments.id],
-                0,
-                comments.created_at,
-                comments.upvote
-            FROM blog_comments as comments
-            JOIN blog_posts as posts ON (posts.id = comments.post_id)
-            WHERE posts.category = 'blog'
-            AND posts.slug = $1
-            AND comments.parent_id IS NULL
-            ORDER BY comments.created_at DESC
-            LIMIT $2 OFFSET $3
-        ), t(parent_id, id, author_name, content, root, depth, created_at, upvote) AS (
-            (
-                SELECT * FROM root_comments
-            )
-            UNION ALL
-            SELECT
-                comments.parent_id,
-                comments.id,
-                comments.author_name,
-                comments.content,
-                array_append(root, comments.id),
-                t.depth + 1,
-                comments.created_at,
-                comments.upvote
-            FROM t
-                JOIN blog_comments as comments ON (comments.parent_id = t.id)
-        )
-        SELECT * FROM t;
-        ",
+                ----------------------------------------------------------------
+                -- First we get the root comments by sorting by upvote and
+                -- created_at
+                ----------------------------------------------------------------
+                WITH RECURSIVE root_comments AS (
+                    SELECT
+                        NULL::integer as parent_id,
+                        comments.id,
+                        comments.author_name,
+                        comments.content,
+                        0 depth,
+                        comments.created_at,
+                        SUM(CASE WHEN upvotes.id IS NOT NULL
+                            THEN 1 ELSE 0 END) upvote
+                    FROM blog_comments as comments
+                    LEFT JOIN blog_comment_upvotes upvotes
+                    ON comments.id = upvotes.comment_id
+                    WHERE comments.post_id = (
+                        SELECT id FROM blog_posts
+                        WHERE category = 'blog' AND slug = $1
+                    )
+                    AND comments.parent_id IS NULL
+                    GROUP BY
+                        comments.id,
+                        comments.author_name,
+                        comments.content,
+                        depth,
+                        comments.created_at
+                    ORDER BY upvote DESC, comments.created_at
+                    LIMIT $2 OFFSET $3
+                ----------------------------------------------------------------
+                -- Then we recursively get the children comments of those roots
+                ----------------------------------------------------------------
+                ), t(
+                    parent_id,
+                    id,
+                    author_name,
+                    content,
+                    depth,
+                    created_at,
+                    upvote)
+                AS (
+                    (SELECT * FROM root_comments)
+                    UNION ALL
+                    SELECT
+                        comments.parent_id,
+                        comments.id,
+                        comments.author_name,
+                        comments.content,
+                        t.depth + 1,
+                        comments.created_at,
+                        NULL
+                    FROM t
+                        JOIN blog_comments as comments
+                        ON (comments.parent_id = t.id)
+                )
+                ----------------------------------------------------------------
+                -- Finally we get the upvote count for each comment because
+                -- we can't do it in the recursive query
+                ----------------------------------------------------------------
+                SELECT
+                    t.parent_id,
+                    t.id,
+                    t.author_name,
+                    t.content,
+                    t.depth,
+                    t.created_at,
+                    SUM(CASE WHEN upvotes.id IS NOT NULL THEN 1 ELSE 0 END) upvote
+                FROM t LEFT JOIN blog_comment_upvotes upvotes
+                ON t.id = upvotes.comment_id
+                GROUP BY
+                    t.parent_id,
+                    t.id,
+                    t.author_name,
+                    t.content,
+                    t.depth,
+                    t.created_at,
+                    t.upvote;
+                ",
             )
             .bind(slug)
             .bind(q.page_size as i64)
@@ -91,50 +134,60 @@ pub async fn get_comments(
             .fetch_all(&ctx.pool)
             .await?;
         }
-        SortType::Best => {
+        SortType::New => {
             rows = sqlx::query_as::<_, Comment>(
                 "
-            WITH RECURSIVE root_comments AS (
-                SELECT
-                    comments.parent_id,
-                    comments.id,
-                    comments.author_name,
-                    comments.content,
-                    ARRAY [comments.id],
-                    0,
-                    comments.created_at,
-                    comments.upvote
-                FROM blog_comments as comments
-                JOIN blog_posts as posts ON (posts.id = comments.post_id)
-                WHERE posts.category = 'blog'
-                AND posts.slug = $1
-                AND comments.parent_id IS NULL
-                ORDER BY comments.upvote DESC, comments.created_at
-                LIMIT $2 OFFSET $3
-            ), t(parent_id, id, author_name, content, root, depth, created_at, upvote) AS (
-                (
-                    SELECT * FROM root_comments
+                WITH RECURSIVE root_comments AS (
+                    SELECT
+                        comments.parent_id,
+                        comments.id,
+                        comments.author_name,
+                        comments.content,
+                        0,
+                        comments.created_at,
+                        comments.upvote
+                    FROM blog_comments as comments
+                    JOIN blog_posts as posts ON (posts.id = comments.post_id)
+                    WHERE posts.category = 'blog'
+                    AND posts.slug = $1
+                    AND comments.parent_id IS NULL
+                    ORDER BY comments.created_at DESC
+                    LIMIT $2 OFFSET $3
+                ), t(parent_id, id, author_name, content, depth, created_at, upvote) AS (
+                    (
+                        SELECT * FROM root_comments
+                    )
+                    UNION ALL
+                    SELECT
+                        comments.parent_id,
+                        comments.id,
+                        comments.author_name,
+                        comments.content,
+                        t.depth + 1,
+                        comments.created_at,
+                        comments.upvote
+                    FROM t
+                        JOIN blog_comments as comments ON (comments.parent_id = t.id)
                 )
-                UNION ALL
                 SELECT
-                    comments.parent_id,
-                    comments.id,
-                    comments.author_name,
-                    comments.content,
-                    array_append(root, comments.id),
-                    t.depth + 1,
-                    comments.created_at,
-                    comments.upvote
-                FROM t
-                    JOIN blog_comments as comments ON (comments.parent_id = t.id)
-            )
-            SELECT * FROM t
-            ORDER BY root;  -- ORDER BY root is important because it will make sure
-                            -- the children are always after their parents. This
-                            -- is only needed for the iterative implementation.
-                            -- TODO remove this line when the current implementation
-                            -- is properly tested.
-            ",
+                    t.parent_id,
+                    t.id,
+                    t.author_name,
+                    t.content,
+                    t.depth,
+                    t.created_at,
+                    SUM(CASE WHEN upvotes.id IS NOT NULL THEN 1 ELSE 0 END) upvote
+                FROM t LEFT JOIN blog_comment_upvotes upvotes
+                ON t.id = upvotes.comment_id
+                GROUP BY
+                    t.parent_id,
+                    t.id,
+                    t.author_name,
+                    t.content,
+                    t.depth,
+                    t.created_at,
+                    t.upvote;
+                ",
             )
             .bind(slug)
             .bind(q.page_size as i64)

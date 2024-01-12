@@ -14,7 +14,7 @@ pub struct Comment {
     content: String,
     parent_id: Option<i32>,
     created_at: chrono::NaiveDateTime,
-    upvote: i32,
+    upvote: i64,
     depth: i32,
 }
 
@@ -27,6 +27,6 @@ pub struct CommentTree {
     parent_id: Option<i32>,
     created_at: chrono::NaiveDateTime,
     children: Option<Vec<Rc<RefCell<CommentTree>>>>,
-    upvote: i32,
+    upvote: i64,
     depth: usize,
 }
