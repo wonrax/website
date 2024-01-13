@@ -14,13 +14,16 @@
   },
   "wireit": {
     "dev": {
-      "dependencies": ["./apps/hhai.dev:dev", "./api:dev"]
+      "dependencies": [
+        "./apps/hhai.dev:dev",
+        "./api:dev"
+      ]
     }
   },
   "devDependencies": {
-    "@prisma/client": "^5.7.1",
+    "@prisma/client": "^5.8.0",
     "prettier": "latest",
-    "prisma": "^5.7.1",
+    "prisma": "^5.8.0",
     "ts-node": "^10.9.2",
     "turbo": "^1.11.2",
     "wireit": "^0.14.1"
