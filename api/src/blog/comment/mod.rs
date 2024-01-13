@@ -14,7 +14,7 @@ pub struct Comment {
     content: String,
     parent_id: Option<i32>,
     created_at: chrono::NaiveDateTime,
-    upvote: i64,
+    votes: i64,
     depth: i32,
 }
 
