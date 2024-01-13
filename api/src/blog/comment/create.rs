@@ -79,7 +79,7 @@ pub async fn create_comment(
             $3, 
             (SELECT id FROM blog_posts WHERE category = 'blog' AND slug = $4)
         )
-        RETURNING *, -1 as depth;
+        RETURNING *, upvote::BIGINT as votes, -1 as depth;
         ",
     )
     .bind(comment.author_name)

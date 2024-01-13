@@ -307,8 +307,8 @@ body.noscroll {
     }
 
     .description {
-      font-size: 13px;
-      color: var(--text-body-medium);
+      font-size: 12px;
+      color: var(--text-body-light);
       margin: 6px 8px;
     }
   }
@@ -339,7 +339,7 @@ body.noscroll {
       Inter Variable,
       sans-serif; // TODO move this to global style
     font-size: 15px;
-    padding: 8px;
+    padding: 6px;
     color: var(--text-body-heavy);
     transition: border-color 0.2s ease-in-out;
     user-select: text;
@@ -371,8 +371,34 @@ body.noscroll {
 
   .action-row {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
     padding: 0 12px 12px 12px;
-    gap: 8px;
+
+    .markdown-hint {
+      font-size: 12px;
+      color: var(--text-body-medium);
+      margin: 0 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .button-row {
+      display: flex;
+      justify-content: flex-end;
+      height: 32px;
+      gap: 2px;
+    }
+  }
+
+  .error {
+    color: var(--error-medium);
+    font-size: 14px;
+    margin: 0 12px 12px 12px;
+    // border: solid 1px var(--error-medium);
+    border-radius: 8px;
+    background-color: var(--error-light);
+    padding: 12px;
   }
 }
