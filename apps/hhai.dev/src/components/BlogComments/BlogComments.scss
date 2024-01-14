@@ -290,7 +290,7 @@ body.noscroll {
       padding: 8px 12px;
       border-radius: 6px;
       border: 1px solid var(--bg-additive-medium);
-      // background-color: var(--bg-additive-light);
+      background-color: transparent;
       color: var(--text-body-heavy);
       transition: border-color 0.2s ease-in-out;
       width: 100%;
@@ -381,7 +381,7 @@ body.noscroll {
       margin: 0 8px;
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 8px;
     }
 
     .button-row {

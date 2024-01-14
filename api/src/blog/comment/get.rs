@@ -46,9 +46,9 @@ pub async fn get_comments(
     let rows;
     match sort {
         SortType::Best => {
-            // TODO sort by a seperate metrics called ranking_score which
-            // downweights the downvotes (e.g. 0.9) so that the comments with
-            // equal up and downvotes appear above the comments with no votes.
+            // TODO sort by a separate metrics called ranking_score which
+            // down-weights the down-votes (e.g. 0.9) so that the comments with
+            // equal up and down-votes appear above the comments with no votes.
             rows = sqlx::query_as::<_, Comment>(
                 "
                 ----------------------------------------------------------------
