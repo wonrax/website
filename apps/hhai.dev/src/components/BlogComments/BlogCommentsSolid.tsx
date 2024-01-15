@@ -99,6 +99,8 @@ type Context = {
 const CommentContext = createContext<Context>();
 
 export function Comments({ slug }: { slug: string }) {
+  // TODO remove the open_comments query string when the sheet is closed
+
   // check if query string contains open comments on page load
   // if so, open the comments
   // const { SheetContext: sheetCtx } = SheetContext;
@@ -242,19 +244,44 @@ export function CommentEditor(props: {
           description="Optional, not displayed"
         />
       </div>
-      {error() && (
-        <div class="error" style={{ color: "red" }}>
-          {error()!.message}
+      {error() && <div class="error">{error()!.message}</div>}
+      <div class="action-row">
+        <div class="markdown-hint">
+          {/* TODO check if I have the right to use this logo */}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            height="16"
+            viewBox="0 0 208 128"
+          >
+            <rect
+              width="198"
+              height="118"
+              x="5"
+              y="5"
+              ry="10"
+              stroke="var(--text-body-light)"
+              stroke-width="10"
+              fill="none"
+            />
+            <path
+              fill="var(--text-body-medium)"
+              d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39zm125 0l-30-33h20V30h20v35h20z"
+            />
+          </svg>
+          Markdown supported
         </div>
-      )}
-      {/* // TODO */}
-      <div class="">
-        <p>Markdown supported</p>
-        <div class="action-row">
-          <button type="submit" disabled={loading()}>
+        <div class="button-row">
+          <button
+            onclick={(e) => {
+              e.preventDefault();
+              props.setReplying?.(false);
+            }}
+            type="submit"
+            disabled={loading()}
+          >
             Cancel
           </button>
-          <button type="submit" disabled={loading()}>
+          <button type="submit" class="primary" disabled={loading()}>
             Submit
           </button>
         </div>

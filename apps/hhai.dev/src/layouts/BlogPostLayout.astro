@@ -697,11 +697,10 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
   }
 
   button {
-    background-color: var(--bg-additive-light);
+    background-color: transparent;
     color: var(--text-body-heavy);
-    border-radius: 8px;
+    border-radius: 6px;
     font-size: 14px;
-    font-weight: var(--font-weight-medium);
     cursor: pointer;
     border: none;
     outline: none;
@@ -712,11 +711,20 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     align-items: center;
 
     &:hover {
-      background-color: var(--bg-additive-medium);
+      background-color: var(--bg-additive-light);
     }
 
     &:focus {
       outline: var(--bg-additive-medium) solid 2px;
+    }
+
+    &.primary {
+      background-color: var(--bg-additive-light);
+      font-weight: var(--font-weight-medium);
+
+      &:hover {
+        background-color: var(--bg-additive-medium);
+      }
     }
   }
 

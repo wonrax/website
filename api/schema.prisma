@@ -1,11 +1,10 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-}
-
-// for seed scripts
-generator client {
-  provider = "prisma-client-js"
 }
 
 model Counter {
@@ -21,30 +20,46 @@ model Counter {
 }
 
 model BlogPost {
-  id       Int       @id @default(autoincrement())
+  id       Int     @id @default(autoincrement())
   category String
   slug     String
   title    String?
+
   comments BlogComment[]
 
-  @@unique([category, slug], map: "posts_category_slug_unique")
+  @@unique([category, slug])
   @@map("blog_posts")
 }
 
 model BlogComment {
   id           Int      @id @default(autoincrement())
   author_ip    String
-  author_name  String
+  author_name  String?
   author_email String?
+  identity_id  Int?
   content      String
   post_id      Int
   parent_id    Int?
   created_at   DateTime @default(now())
   upvote       Int      @default(0)
 
-  parent   BlogComment?  @relation("ChildComment", fields: [parent_id], references: [id])
-  comments BlogComment[] @relation("ChildComment")
-  post     BlogPost      @relation(fields: [post_id], references: [id])
+  blog_comment_upvotes BlogCommentVote[]
+  parent               BlogComment?      @relation("ChildComment", fields: [parent_id], references: [id])
+  comments             BlogComment[]     @relation("ChildComment")
+  post                 BlogPost          @relation(fields: [post_id], references: [id])
 
   @@map("blog_comments")
+}
+
+model BlogCommentVote {
+  id           Int      @id @default(autoincrement())
+  comment_id   Int
+  ip           String?
+  indentity_id Int?
+  score        Int      @default(1)
+  created_at   DateTime @default(now()) @db.Timestamp(6)
+
+  blog_comments BlogComment @relation(fields: [comment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("blog_comment_votes")
 }

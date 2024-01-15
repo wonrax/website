@@ -1,12 +1,12 @@
 use axum::{
     debug_handler,
     extract::{Path, State},
-    Json,
+    Extension, Json,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use crate::{error::AppError, APIContext};
+use crate::{blog::routes::ClientIp, error::AppError, APIContext};
 
 use crate::blog::comment::Comment;
 
@@ -14,6 +14,7 @@ use crate::blog::comment::Comment;
 pub async fn create_comment(
     State(ctx): State<APIContext>,
     Path(slug): Path<String>,
+    Extension(ip): Extension<ClientIp>,
     Json(comment): Json<CommentSubmission>,
 ) -> Result<Json<Comment>, AppError> {
     comment.validate()?;
@@ -73,15 +74,16 @@ pub async fn create_comment(
             post_id
         )
         VALUES (
-            '192.169.1.1', 
             $1, 
             $2, 
             $3, 
-            (SELECT id FROM blog_posts WHERE category = 'blog' AND slug = $4)
+            $4, 
+            (SELECT id FROM blog_posts WHERE category = 'blog' AND slug = $5)
         )
-        RETURNING *, -1 as depth;
+        RETURNING *, upvote::BIGINT as votes, -1 as depth;
         ",
     )
+    .bind(ip.ip)
     .bind(comment.author_name)
     .bind(comment.content)
     .bind(comment.parent_id)
