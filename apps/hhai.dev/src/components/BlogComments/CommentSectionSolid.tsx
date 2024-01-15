@@ -7,6 +7,7 @@ import {
   useContext,
 } from "solid-js";
 import CommentContext from "./CommentSectionContextSolid";
+import("./CommentSection.scss");
 
 const CommentComponent = lazy(() => import("./CommentSolid"));
 const CommentEditor = lazy(() => import("./CommentEditorSolid"));
@@ -66,33 +67,36 @@ export function CommentSection() {
       setDoFetch(true);
       CommentComponent.preload();
       CommentEditor.preload();
-      import("./CommentSection.scss");
     }
   });
 
   return (
     <CommentContext.Provider value={{ refetch, slug }}>
-      {comments.state == "ready" && comments() ? (
-        <div class="comments-container">
-          <h3 onclick={() => console.log(useContext(CommentContext))}>
+      <div class="comments-container">
+        <div class="heading">
+          <h3 onclick={() => refetch()} style={{ cursor: "pointer" }}>
             Comments
           </h3>
-          <CommentEditor
-            unshift={(c: Comment) => {
-              mutate((comments) => {
-                return [c, ...(comments || [])];
-              });
-            }}
-          />
-          <ol class="comments">
-            {comments()!.map((c) => (
-              <CommentComponent comment={c} depth={0} />
-            ))}
-          </ol>
+          {comments.state != "ready" && <span class="loader"></span>}
         </div>
-      ) : (
-        "Loading..."
-      )}
+        {(comments.state == "ready" || comments.state == "refreshing") &&
+          comments() && (
+            <>
+              <CommentEditor
+                unshift={(c: Comment) => {
+                  mutate((comments) => {
+                    return [c, ...(comments || [])];
+                  });
+                }}
+              />
+              <ol class="comments">
+                {comments()!.map((c) => (
+                  <CommentComponent comment={c} depth={0} />
+                ))}
+              </ol>
+            </>
+          )}
+      </div>
     </CommentContext.Provider>
   );
 }

@@ -1,16 +1,46 @@
+.loader {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--text-body-heavy);
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotation 0.3s linear infinite;
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
 .comments-container {
   max-width: 1004px;
   // margin: 64px auto;
   // padding: 0 16px;
-  padding: 48px;
+  padding: 16px 32px;
+
+  .heading {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    align-items: center;
+    height: 36px;
+  }
+
   h3 {
     // padding-left: 24px;
     margin-top: 0;
-    margin-bottom: 12px;
     font-weight: var(--font-weight-medium);
+    margin: 0;
     color: var(--text-body-heavy);
   }
 
+  // TODO use container query to make this responsive
   .comments {
     display: flex;
     flex-direction: column;
@@ -37,7 +67,7 @@
         padding-left: 24px;
         padding-top: 16px;
         margin-top: 0;
-        border-left: 1px solid var(--bg-additive-medium);
+        border-left: 1px solid var(--bg-additive-light);
       }
 
       .comment-header {
@@ -186,7 +216,7 @@
 .comment-submission {
   display: flex;
   flex-direction: column;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid var(--bg-additive-medium);
   margin-top: 12px;
   overflow: hidden;
@@ -196,7 +226,7 @@
 
     input {
       font-size: 15px;
-      padding: 10px 12px;
+      padding: 8px 12px;
       border-radius: 6px;
       // border: 1px solid var(--bg-additive-medium);
       border: 1px solid transparent;
