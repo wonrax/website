@@ -57,13 +57,8 @@ export function Comments() {
   // hold fetching until the sheet is opened
   const [doFetch, setDoFetch] = createSignal(false);
 
-  // TODO do not fetch until the first time the sheet is opened
-  // TODO prefetch when user hover over the button
   const [comments, { mutate, refetch }] = createResource(doFetch, async () => {
     console.log("refetching comment");
-    // if (hold) {
-    //   return null;
-    // }
     const res = await fetch(
       `http://localhost:3000/public/blog/${slug}/comments?page_offset=0&page_size=10&sort=best`
     );
@@ -74,8 +69,8 @@ export function Comments() {
   // listen to sheet context
   createEffect(async () => {
     const { SheetContext: sheetCtx } = SheetContext;
-    if (sheetCtx().initialized && sheetCtx().isOpen()) {
-      console.log("sheet is open, fetching comments");
+    if (sheetCtx().initialized && sheetCtx().isTriggerHover()) {
+      console.log("triggered prefetch");
       setDoFetch(true);
       CommentComponent.preload();
       CommentEditor.preload();

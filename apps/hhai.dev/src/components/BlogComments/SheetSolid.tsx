@@ -4,6 +4,7 @@ import "./Sheet.scss";
 
 export function Root({ children }: { children: JSXElement }) {
   const [isOpen, setIsOpen] = createSignal(false);
+  const [isTriggerHover, setTriggerHover] = createSignal(false);
 
   function handleEsc(e: KeyboardEvent) {
     if (e.key === "Escape") {
@@ -30,6 +31,8 @@ export function Root({ children }: { children: JSXElement }) {
   SetSheetContext((context) => {
     return {
       isOpen: isOpen,
+      isTriggerHover: isTriggerHover,
+      setTriggerHover: setTriggerHover,
       toggle: toggle,
       initialized: true,
     };
@@ -57,7 +60,20 @@ export function Trigger({
   }
 
   return (
-    <button {...rest} onClick={toggle}>
+    <button
+      {...rest}
+      onClick={toggle}
+      onMouseOver={() => {
+        const { SheetContext } = Context;
+        const c = SheetContext();
+        c.setTriggerHover(true);
+      }}
+      onMouseLeave={() => {
+        const { SheetContext } = Context;
+        const c = SheetContext();
+        c.setTriggerHover(false);
+      }}
+    >
       {children}
     </button>
   );

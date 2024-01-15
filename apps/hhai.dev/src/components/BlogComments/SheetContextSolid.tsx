@@ -2,6 +2,8 @@ import { createSignal, type Accessor, createRoot } from "solid-js";
 
 type ContextType = {
   isOpen: Accessor<boolean>;
+  isTriggerHover: Accessor<boolean>;
+  setTriggerHover: (s: boolean) => void;
   toggle: () => void;
   initialized: boolean;
 };
@@ -13,6 +15,12 @@ function createCommentSheetContext() {
   const [context, setContext] = createSignal<ContextType>({
     isOpen: () => {
       throw new Error("isOpen called before context was set");
+    },
+    isTriggerHover: () => {
+      throw new Error("isHover called before context was set");
+    },
+    setTriggerHover: () => {
+      throw new Error("setHover called before context was set");
     },
     toggle: () => {
       throw new Error("toggle called before context was set");
