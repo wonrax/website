@@ -13,6 +13,7 @@ export default function CommentEditor(props: {
   parentId?: number;
   unshift: (c: Comment) => void;
   setReplying?: Setter<boolean>;
+  placeholder?: string;
 }) {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<Error>();
@@ -91,7 +92,7 @@ export default function CommentEditor(props: {
           class="content"
           id="content"
           role="textbox"
-          aria-placeholder="Your comment"
+          aria-placeholder={props.placeholder || "Write a comment..."}
         ></div>
       </div>
       <hr />

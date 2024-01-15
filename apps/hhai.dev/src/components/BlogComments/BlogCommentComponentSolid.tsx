@@ -72,12 +72,12 @@ export default function CommentComponent({
           {timeSince(new Date(Date.parse(comment.created_at + "Z")))}
         </div>
         <div class="comment-upvote">{comment.upvote} upvotes</div>
-        <div>{comment.id}</div>
+        {/* <div>{comment.id}</div> */}
       </div>
       <div class="comment-content" innerHTML={md.render(comment.content)} />
       <div class="comment-action-row">
         <button onClick={() => setIsReplying(true)}>Reply</button>
-        <button>Upvote</button>
+        {/* <button>Upvote</button> */}
       </div>
       {isReplying() && (
         <CommentEditor
@@ -88,6 +88,7 @@ export default function CommentComponent({
             });
           }}
           setReplying={setIsReplying}
+          placeholder={`Replying to ${comment.author_name}`}
         />
       )}
       <ol class="comment-children">
