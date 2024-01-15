@@ -107,6 +107,7 @@ pub struct CommentSubmission {
 
 impl CommentSubmission {
     fn validate(&mut self) -> Result<(), &'static str> {
+        self.author_name = self.author_name.trim().to_string();
         if self.author_name.len() < 1 {
             return Err("No author name provided");
         }
@@ -115,6 +116,7 @@ impl CommentSubmission {
             return Err("Author name too long");
         }
 
+        self.content = self.content.trim().to_string();
         if self.content.len() > 1000 {
             return Err("Content too long");
         }

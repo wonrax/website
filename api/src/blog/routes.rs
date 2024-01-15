@@ -14,6 +14,7 @@ use crate::APIContext;
 use super::comment::{create::create_comment, get::get_comments};
 
 pub fn route() -> Router<APIContext> {
+    // TODO rate limit these public endpoints
     Router::<APIContext>::new()
         .route("/:slug/comments", get(get_comments))
         .route("/:slug/comments", post(create_comment))

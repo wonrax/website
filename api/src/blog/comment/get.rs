@@ -214,7 +214,11 @@ pub async fn get_comments(
     Ok(Json(result))
 }
 
-fn intermediate_tree_sort(comments: Vec<Comment>, sort: &SortType) -> Vec<CommentTree> {
+fn intermediate_tree_sort(mut comments: Vec<Comment>, sort: &SortType) -> Vec<CommentTree> {
+    // This is needed so that the conversion from flat comments to nested
+    // comments is O(n) instead of O(n^2)
+    comments.sort_unstable_by_key(|k| (k.id));
+
     let mut nested = flat_comments_to_tree(comments);
 
     match sort {
