@@ -61,7 +61,10 @@ export function Comments() {
   // listen to sheet context
   createEffect(async () => {
     const { SheetContext: sheetCtx } = SheetContext;
-    if (sheetCtx().initialized && sheetCtx().isTriggerHover()) {
+    if (
+      sheetCtx().initialized &&
+      (sheetCtx().isTriggerHover() || sheetCtx().isOpen())
+    ) {
       setDoFetch(true);
       CommentComponent.preload();
       CommentEditor.preload();
