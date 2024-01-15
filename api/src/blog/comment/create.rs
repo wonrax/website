@@ -15,7 +15,7 @@ pub async fn create_comment(
     State(ctx): State<APIContext>,
     Path(slug): Path<String>,
     Extension(ip): Extension<ClientIp>,
-    Json(comment): Json<CommentSubmission>,
+    Json(mut comment): Json<CommentSubmission>,
 ) -> Result<Json<Comment>, AppError> {
     comment.validate()?;
     // check if the post exists, otherwise create it
@@ -69,6 +69,7 @@ pub async fn create_comment(
         INSERT INTO blog_comments (
             author_ip,
             author_name,
+            author_email,
             content,
             parent_id,
             post_id
@@ -78,13 +79,15 @@ pub async fn create_comment(
             $2, 
             $3, 
             $4, 
-            (SELECT id FROM blog_posts WHERE category = 'blog' AND slug = $5)
+            $5,
+            (SELECT id FROM blog_posts WHERE category = 'blog' AND slug = $6)
         )
         RETURNING *, upvote::BIGINT as votes, -1 as depth;
         ",
     )
     .bind(ip.ip)
     .bind(comment.author_name)
+    .bind(comment.author_email)
     .bind(comment.content)
     .bind(comment.parent_id)
     .bind(&slug)
@@ -97,12 +100,13 @@ pub async fn create_comment(
 #[derive(Deserialize, Serialize, FromRow)]
 pub struct CommentSubmission {
     author_name: String,
+    author_email: Option<String>,
     content: String,
     parent_id: Option<i32>,
 }
 
 impl CommentSubmission {
-    fn validate(&self) -> Result<(), &'static str> {
+    fn validate(&mut self) -> Result<(), &'static str> {
         if self.author_name.len() < 1 {
             return Err("No author name provided");
         }
@@ -117,6 +121,22 @@ impl CommentSubmission {
 
         if self.content.len() < 1 {
             return Err("No content provided");
+        }
+
+        if let Some(email) = self.author_email.take() {
+            self.author_email = Some(email.trim().to_lowercase());
+
+            if email.len() > 50 {
+                return Err("Email too long");
+            }
+
+            if email.len() < 1 {
+                return Err("No email provided");
+            }
+
+            if !email.contains('@') {
+                return Err("Invalid email");
+            }
         }
 
         Ok(())
