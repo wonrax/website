@@ -1,7 +1,7 @@
 import { Remarkable } from "remarkable";
 import { createSignal } from "solid-js";
-import { type Comment } from "./BlogCommentsSolid";
-import CommentEditor from "./BlogCommentEditorSolid";
+import CommentEditor from "./CommentEditorSolid";
+import { type Comment } from "./CommentSectionSolid";
 
 // https://gist.github.com/mcraz/11349449
 function timeSince(date: Date) {

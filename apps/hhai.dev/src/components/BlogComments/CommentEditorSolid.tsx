@@ -1,13 +1,6 @@
-import {
-  createSignal,
-  createResource,
-  createContext,
-  useContext,
-  type Setter,
-  createEffect,
-} from "solid-js";
-import { type Comment } from "./BlogCommentsSolid";
-import CommentContext from "./CommentsContext";
+import { createSignal, useContext, type Setter } from "solid-js";
+import CommentContext from "./CommentSectionContextSolid";
+import { type Comment } from "./CommentSectionSolid";
 
 export default function CommentEditor(props: {
   parentId?: number;
@@ -95,7 +88,7 @@ export default function CommentEditor(props: {
           aria-placeholder={props.placeholder || "Write a comment..."}
         ></div>
       </div>
-      <hr />
+      {/* <hr /> */}
       <div class="author-info">
         <Input
           id="name"
@@ -116,7 +109,7 @@ export default function CommentEditor(props: {
           {/* TODO check if I have the right to use this logo */}
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            height="16"
+            height="14"
             viewBox="0 0 208 128"
           >
             <rect
@@ -137,16 +130,19 @@ export default function CommentEditor(props: {
           Markdown supported
         </div>
         <div class="button-row">
-          <button
-            onclick={(e) => {
-              e.preventDefault();
-              props.setReplying?.(false);
-            }}
-            type="submit"
-            disabled={loading()}
-          >
-            Cancel
-          </button>
+          {/* TODO set tab index so that submit goes first */}
+          {props.parentId && (
+            <button
+              onclick={(e) => {
+                e.preventDefault();
+                props.setReplying?.(false);
+              }}
+              type="submit"
+              disabled={loading()}
+            >
+              Cancel
+            </button>
+          )}
           <button type="submit" class="primary" disabled={loading()}>
             Submit
           </button>

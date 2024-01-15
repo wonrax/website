@@ -1,17 +1,15 @@
+import SheetContext from "@/components/Sheet/SheetContextSolid";
 import {
-  createSignal,
-  createResource,
-  createContext,
-  useContext,
-  type Setter,
   createEffect,
+  createResource,
+  createSignal,
   lazy,
+  useContext,
 } from "solid-js";
-import SheetContext from "./SheetContextSolid";
-import CommentContext from "./CommentsContext";
+import CommentContext from "./CommentSectionContextSolid";
 
-const CommentComponent = lazy(() => import("./BlogCommentComponentSolid"));
-const CommentEditor = lazy(() => import("./BlogCommentEditorSolid"));
+const CommentComponent = lazy(() => import("./CommentSolid"));
+const CommentEditor = lazy(() => import("./CommentEditorSolid"));
 
 export type Comment = {
   id: number;
@@ -24,7 +22,7 @@ export type Comment = {
   depth: number;
 };
 
-export function Comments() {
+export function CommentSection() {
   // parse slug from url in format /blog/:slug
   const slug = window.location.pathname.split("/")[2];
 
@@ -52,7 +50,7 @@ export function Comments() {
 
   const [comments, { mutate, refetch }] = createResource(doFetch, async () => {
     const res = await fetch(
-      `http://localhost:3000/public/blog/${slug}/comments?page_offset=0&page_size=10&sort=best`
+      `http://localhost:3000/public/blog/${slug}/comments?page_offset=0&page_size=99&sort=best`
     );
 
     return (await res.json()) as Comment[];
@@ -68,7 +66,7 @@ export function Comments() {
       setDoFetch(true);
       CommentComponent.preload();
       CommentEditor.preload();
-      import("./BlogComments.scss");
+      import("./CommentSection.scss");
     }
   });
 

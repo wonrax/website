@@ -1,6 +1,6 @@
 ---
-import { Comments } from "@/components/BlogComments/BlogCommentsSolid";
-import * as Sheet from "@/components/BlogComments/SheetSolid";
+import { CommentSection } from "@/components/BlogComments/CommentSectionSolid";
+import * as Sheet from "@/components/Sheet/SheetSolid";
 import OgImage from "@/components/OgImage/OgImage.astro";
 import "@fontsource/inconsolata/500.css";
 import "katex/dist/katex.css";
@@ -118,7 +118,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
   </main>
   <Sheet.Root client:load>
     <Sheet.Trigger class="close-button" client:load>X</Sheet.Trigger>
-    <Comments client:only="solid-js" />
+    <CommentSection client:only="solid-js" />
   </Sheet.Root>
 </BlogRouteLayout>
 
@@ -781,3 +781,4 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
   document.body.style.setProperty("--scrollbar-width", scrollbarWidth);
 </script>
 @/components/BlogComments/BlogCommentsSolid @/components/BlogComments/SheetSolid
+@/components/BlogComments/CommentSectionSolid
