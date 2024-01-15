@@ -41,7 +41,6 @@ model BlogComment {
   post_id      Int
   parent_id    Int?
   created_at   DateTime @default(now())
-  upvote       Int      @default(0)
 
   blog_comment_upvotes BlogCommentVote[]
   parent               BlogComment?      @relation("ChildComment", fields: [parent_id], references: [id])

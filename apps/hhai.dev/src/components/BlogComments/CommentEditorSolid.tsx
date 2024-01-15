@@ -1,3 +1,7 @@
+// TODO handle basic form validation client side
+// TODO enable markdown preview through a toggle
+// TODO enable basic markdown editing like bold, italic, link, etc.
+
 import { createSignal, useContext, type Setter } from "solid-js";
 import CommentContext from "./CommentSectionContextSolid";
 import { type Comment } from "./CommentSectionSolid";

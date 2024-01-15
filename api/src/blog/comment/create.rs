@@ -82,7 +82,8 @@ pub async fn create_comment(
             $5,
             (SELECT id FROM blog_posts WHERE category = 'blog' AND slug = $6)
         )
-        RETURNING *, upvote::BIGINT as votes, -1 as depth;
+        -- TODO fix this hack (e.g. default values in comment struct)
+        RETURNING *, 0::int8 as votes, -1 as depth;
         ",
     )
     .bind(ip.ip)
