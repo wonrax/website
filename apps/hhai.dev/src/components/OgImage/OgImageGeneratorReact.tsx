@@ -1,3 +1,5 @@
+/** @jsxImportSource react */
+
 import React from "react";
 
 type Props = {

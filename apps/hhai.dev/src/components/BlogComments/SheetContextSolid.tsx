@@ -6,7 +6,7 @@ type ContextType = {
   initialized: boolean;
 };
 
-// We're using signals to create a context because Astro doesn't support context
+// We're using signals to create context because Astro doesn't support context
 // yet. Related: https://docs.astro.build/en/core-concepts/sharing-state and
 // https://github.com/withastro/roadmap/discussions/742
 function createCommentSheetContext() {
