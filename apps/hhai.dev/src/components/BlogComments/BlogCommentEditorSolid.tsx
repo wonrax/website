@@ -6,8 +6,8 @@ import {
   type Setter,
   createEffect,
 } from "solid-js";
-import { CommentContext } from "./BlogCommentsSolid";
 import { type Comment } from "./BlogCommentsSolid";
+import CommentContext from "./CommentsContext";
 
 export default function CommentEditor(props: {
   parentId?: number;
@@ -16,8 +16,6 @@ export default function CommentEditor(props: {
 }) {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<Error>();
-
-  const ctx = useContext(CommentContext);
 
   async function handleCommentSubmit(e: Event) {
     e.preventDefault();
@@ -30,6 +28,13 @@ export default function CommentEditor(props: {
     const target = e.target as HTMLInputElement;
 
     const content = target.querySelector("#content") as HTMLDivElement;
+
+    const ctx = useContext(CommentContext);
+    console.log(ctx);
+
+    if (!ctx?.slug) {
+      throw new Error("slug not found");
+    }
 
     try {
       const resp = await fetch(

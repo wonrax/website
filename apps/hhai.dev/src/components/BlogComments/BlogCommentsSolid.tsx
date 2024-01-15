@@ -8,6 +8,7 @@ import {
   lazy,
 } from "solid-js";
 import SheetContext from "./SheetContextSolid";
+import CommentContext from "./CommentsContext";
 
 const CommentComponent = lazy(() => import("./BlogCommentComponentSolid"));
 const CommentEditor = lazy(() => import("./BlogCommentEditorSolid"));
@@ -22,14 +23,6 @@ export type Comment = {
   upvote: number;
   depth: number;
 };
-
-type Context = {
-  refetch: () => void;
-  slug: string;
-  // mutate: Setter<Comment[] | undefined>;
-};
-
-export const CommentContext = createContext<Context>();
 
 export function Comments() {
   // parse slug from url in format /blog/:slug
@@ -58,7 +51,6 @@ export function Comments() {
   const [doFetch, setDoFetch] = createSignal(false);
 
   const [comments, { mutate, refetch }] = createResource(doFetch, async () => {
-    console.log("refetching comment");
     const res = await fetch(
       `http://localhost:3000/public/blog/${slug}/comments?page_offset=0&page_size=10&sort=best`
     );
@@ -70,7 +62,6 @@ export function Comments() {
   createEffect(async () => {
     const { SheetContext: sheetCtx } = SheetContext;
     if (sheetCtx().initialized && sheetCtx().isTriggerHover()) {
-      console.log("triggered prefetch");
       setDoFetch(true);
       CommentComponent.preload();
       CommentEditor.preload();
@@ -79,10 +70,12 @@ export function Comments() {
   });
 
   return (
-    <CommentContext.Provider value={{ refetch: refetch, slug }}>
+    <CommentContext.Provider value={{ refetch, slug }}>
       {comments.state == "ready" && comments() ? (
         <div class="comments-container">
-          <h3>Comments</h3>
+          <h3 onclick={() => console.log(useContext(CommentContext))}>
+            Comments
+          </h3>
           <CommentEditor
             unshift={(c: Comment) => {
               mutate((comments) => {

@@ -3,6 +3,34 @@ import { createSignal } from "solid-js";
 import { type Comment } from "./BlogCommentsSolid";
 import CommentEditor from "./BlogCommentEditorSolid";
 
+// https://gist.github.com/mcraz/11349449
+function timeSince(date: Date) {
+  var seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+
+  var interval = Math.floor(seconds / 31536000);
+
+  if (interval > 1) {
+    return interval + " years";
+  }
+  interval = Math.floor(seconds / 2592000);
+  if (interval > 1) {
+    return interval + " months";
+  }
+  interval = Math.floor(seconds / 86400);
+  if (interval > 1) {
+    return interval + " days";
+  }
+  interval = Math.floor(seconds / 3600);
+  if (interval > 1) {
+    return interval + " hours";
+  }
+  interval = Math.floor(seconds / 60);
+  if (interval > 1) {
+    return interval + " minutes";
+  }
+  return Math.floor(seconds) + " seconds";
+}
+
 export default function CommentComponent({
   comment,
   depth,
@@ -41,7 +69,7 @@ export default function CommentComponent({
       <div class="comment-header">
         <div class="comment-author">{comment.author_name}</div>
         <div class="comment-date">
-          {new Date(Date.parse(comment.created_at)).toISOString()}
+          {timeSince(new Date(Date.parse(comment.created_at + "Z")))}
         </div>
         <div class="comment-upvote">{comment.upvote} upvotes</div>
         <div>{comment.id}</div>
