@@ -187,7 +187,7 @@ export function CommentEditor(props: {
           body: JSON.stringify({
             author_name: form.name.value,
             content: content.innerText,
-            author_email: form.email.value,
+            author_email: form.email.value || null,
             parent_id: props.parentId,
           }),
           headers: {
@@ -209,7 +209,16 @@ export function CommentEditor(props: {
       props.unshift(comment);
 
       setLoading(false);
-      props.setReplying?.(false);
+
+      if (props.setReplying) {
+        props.setReplying?.(false);
+      } else {
+        // reset the form
+        form.name.value = "";
+        form.email.value = "";
+        content.innerText = "";
+        setError(undefined);
+      }
     } catch (e) {
       if (e instanceof Error) setError(e);
       else setError(new Error(`Unknown error: ${e}`));
