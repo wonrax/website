@@ -53,7 +53,7 @@ async fn main() {
             request
                 .headers
                 .get("origin")
-                .map(|origin| origin == "http://localhost:4321")
+                .map(|origin| origin.to_str().unwrap().starts_with("http://localhost:"))
                 .unwrap_or(false)
         }));
 

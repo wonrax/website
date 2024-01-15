@@ -1,5 +1,6 @@
 import { createSignal, type Accessor, type JSXElement } from "solid-js";
 import Context from "./SheetContextSolid";
+import "./Sheet.scss";
 
 export function Root({ children }: { children: JSXElement }) {
   const [isOpen, setIsOpen] = createSignal(false);
