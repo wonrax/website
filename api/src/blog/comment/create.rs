@@ -118,8 +118,8 @@ impl CommentSubmission {
         }
 
         self.content = self.content.trim().to_string();
-        if self.content.len() > 1000 {
-            return Err("Content too long");
+        if self.content.len() > 5000 {
+            return Err("Content too long (max 5000 characters)");
         }
 
         if self.content.len() < 1 {

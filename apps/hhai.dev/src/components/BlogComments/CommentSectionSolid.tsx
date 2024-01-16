@@ -35,7 +35,7 @@ export function CommentSection(): JSXElement {
   // const { SheetContext: sheetCtx } = SheetContext;
   const params = new URLSearchParams(window.location.search);
   const openComments = params.get("open_comments");
-  if (openComments !== "") {
+  if (openComments !== null) {
     createEffect((success: boolean) => {
       if (!success) {
         if (SheetContext.SheetContext().initialized) {

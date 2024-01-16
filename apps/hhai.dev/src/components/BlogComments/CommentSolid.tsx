@@ -69,7 +69,7 @@ export default function CommentComponent(props: {
         <div class="comment-date">
           {timeSince(new Date(Date.parse(props.comment.created_at + "Z")))}
         </div>
-        <div class="comment-upvote">{props.comment.upvote} upvotes</div>
+        {/* <div class="comment-upvote">{props.comment.upvote} upvotes</div> */}
         {/* <div>{comment.id}</div> */}
       </div>
       <div
