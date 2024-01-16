@@ -5,7 +5,7 @@ import {
   createResource,
   createSignal,
   lazy,
-  type JSX,
+  type JSXElement,
 } from "solid-js";
 import CommentContext from "./CommentSectionContextSolid";
 import("./CommentSection.scss");
@@ -24,7 +24,7 @@ export interface Comment {
   depth: number;
 }
 
-export function CommentSection(): JSX.Element {
+export function CommentSection(): JSXElement {
   // parse slug from url in format /blog/:slug
   const slug = window.location.pathname.split("/")[2];
 

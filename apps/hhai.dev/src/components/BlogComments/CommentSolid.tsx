@@ -1,5 +1,5 @@
 import { Remarkable } from "remarkable";
-import { createSignal, type JSXElement } from "solid-js";
+import { createSignal, For, type JSXElement } from "solid-js";
 import CommentEditor from "./CommentEditorSolid";
 import { type Comment } from "./CommentSectionSolid";
 
@@ -31,10 +31,7 @@ function timeSince(date: Date): string {
   return Math.floor(seconds) + " seconds";
 }
 
-export default function CommentComponent({
-  comment,
-  depth,
-}: {
+export default function CommentComponent(props: {
   comment: Comment;
   depth: number;
 }): JSXElement {
@@ -62,40 +59,47 @@ export default function CommentComponent({
 
   const [isReplying, setIsReplying] = createSignal(false);
 
-  const [children, setChildren] = createSignal(comment.children);
+  // eslint-disable-next-line solid/reactivity
+  const [children, setChildren] = createSignal(props.comment.children);
 
   return (
-    <li class={`comment${depth === 0 ? "" : " not-root-comment"}`}>
+    <li class={`comment${props.depth === 0 ? "" : " not-root-comment"}`}>
       <div class="comment-header">
-        <div class="comment-author">{comment.author_name}</div>
+        <div class="comment-author">{props.comment.author_name}</div>
         <div class="comment-date">
-          {timeSince(new Date(Date.parse(comment.created_at + "Z")))}
+          {timeSince(new Date(Date.parse(props.comment.created_at + "Z")))}
         </div>
-        <div class="comment-upvote">{comment.upvote} upvotes</div>
+        <div class="comment-upvote">{props.comment.upvote} upvotes</div>
         {/* <div>{comment.id}</div> */}
       </div>
-      <div class="comment-content" innerHTML={md.render(comment.content)} />
+      <div
+        class="comment-content"
+        // See above for safety concerns
+        // eslint-disable-next-line solid/no-innerhtml
+        innerHTML={md.render(props.comment.content)}
+      />
       <div class="comment-action-row">
         <button onClick={() => setIsReplying(true)}>Reply</button>
         {/* <button>Upvote</button> */}
       </div>
       {isReplying() && (
         <CommentEditor
-          parentId={comment.id}
+          parentId={props.comment.id}
           unshift={(c: Comment) => {
             setChildren((children) => {
-              return [c, ...(children || [])];
+              return [c, ...(children ?? [])];
             });
           }}
           setReplying={setIsReplying}
-          placeholder={`Replying to ${comment.author_name}`}
+          placeholder={`Replying to ${props.comment.author_name}`}
         />
       )}
       <ol class="comment-children">
-        {children() &&
-          children()!.map((c) => (
-            <CommentComponent comment={c} depth={depth + 1} />
-          ))}
+        {
+          <For each={children()}>
+            {(c) => <CommentComponent comment={c} depth={props.depth + 1} />}
+          </For>
+        }
       </ol>
     </li>
   );

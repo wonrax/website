@@ -1,18 +1,18 @@
-import { createSignal, type Accessor, type JSXElement } from "solid-js";
+import { createSignal, type JSXElement, splitProps } from "solid-js";
 import Context from "./SheetContextSolid";
 import "./Sheet.scss";
 
-export function Root({ children }: { children: JSXElement }) {
+export function Root(props: { children: JSXElement }): JSXElement {
   const [isOpen, setIsOpen] = createSignal(false);
   const [isTriggerHover, setTriggerHover] = createSignal(false);
 
-  function handleEsc(e: KeyboardEvent) {
+  function handleEsc(e: KeyboardEvent): void {
     if (e.key === "Escape") {
       toggle();
     }
   }
 
-  function toggle() {
+  function toggle(): void {
     const oldState = isOpen();
     // TODO change focus to the first focusable element in the sheet for
     // accessibility
@@ -28,32 +28,31 @@ export function Root({ children }: { children: JSXElement }) {
 
   const { SetSheetContext } = Context;
 
-  SetSheetContext((context) => {
+  SetSheetContext(() => {
     return {
-      isOpen: isOpen,
-      isTriggerHover: isTriggerHover,
-      setTriggerHover: setTriggerHover,
-      toggle: toggle,
+      isOpen,
+      isTriggerHover,
+      setTriggerHover,
+      toggle,
       initialized: true,
     };
   });
 
   return (
     <div class={`side-sheet${isOpen() ? " open" : ""}`}>
-      <div class="sheet-overlay" onClick={toggle}></div>
-      <div class="sheet-content">{children}</div>
+      <div class="sheet-overlay" onClick={toggle} />
+      <div class="sheet-content">{props.children}</div>
     </div>
   );
 }
 
-export function Trigger({
-  children,
-  ...rest
-}: {
+export function Trigger(_props: {
   children: JSXElement;
   class?: string;
-}) {
-  function toggle() {
+}): JSXElement {
+  const [props, rest] = splitProps(_props, ["children"]);
+
+  function toggle(): void {
     const { SheetContext } = Context;
     const c = SheetContext();
     c.toggle();
@@ -74,12 +73,12 @@ export function Trigger({
         c.setTriggerHover(false);
       }}
     >
-      {children}
+      {props.children}
     </button>
   );
 }
 
 export default {
-  Root: Root,
+  Root,
   Trigger,
 };

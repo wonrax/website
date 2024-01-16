@@ -1,17 +1,20 @@
-import { createSignal, type Accessor, createRoot } from "solid-js";
+import { createSignal, type Accessor, createRoot, type Setter } from "solid-js";
 
-type ContextType = {
+interface ContextType {
   isOpen: Accessor<boolean>;
   isTriggerHover: Accessor<boolean>;
   setTriggerHover: (s: boolean) => void;
   toggle: () => void;
   initialized: boolean;
-};
+}
 
 // We're using signals to create context because Astro doesn't support context
 // yet. Related: https://docs.astro.build/en/core-concepts/sharing-state and
 // https://github.com/withastro/roadmap/discussions/742
-function createCommentSheetContext() {
+function createCommentSheetContext(): {
+  SheetContext: Accessor<ContextType>;
+  SetSheetContext: Setter<ContextType>;
+} {
   const [context, setContext] = createSignal<ContextType>({
     isOpen: () => {
       throw new Error("isOpen called before context was set");

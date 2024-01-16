@@ -2,7 +2,12 @@
 // TODO enable markdown preview through a toggle
 // TODO enable basic markdown editing like bold, italic, link, etc.
 
-import { createSignal, useContext, type Setter } from "solid-js";
+import {
+  createSignal,
+  useContext,
+  type Setter,
+  type JSXElement,
+} from "solid-js";
 import CommentContext from "./CommentSectionContextSolid";
 import { type Comment } from "./CommentSectionSolid";
 
@@ -11,17 +16,17 @@ export default function CommentEditor(props: {
   unshift: (c: Comment) => void;
   setReplying?: Setter<boolean>;
   placeholder?: string;
-}) {
+}): JSXElement {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<Error>();
 
   const ctx = useContext(CommentContext);
 
-  if (!ctx?.slug) {
+  if (ctx?.slug === undefined) {
     throw new Error("slug not found");
   }
 
-  async function handleCommentSubmit(e: Event) {
+  async function handleCommentSubmit(e: Event): Promise<void> {
     e.preventDefault();
     setLoading(true);
     const form = e.target as EventTarget & {
@@ -31,7 +36,11 @@ export default function CommentEditor(props: {
 
     const target = e.target as HTMLInputElement;
 
-    const content = target.querySelector("#content") as HTMLDivElement;
+    const content = target.querySelector("#content");
+
+    if (content == null || !(content instanceof HTMLDivElement)) {
+      throw new Error("content not found");
+    }
 
     try {
       const resp = await fetch(
@@ -41,19 +50,19 @@ export default function CommentEditor(props: {
           body: JSON.stringify({
             author_name: form.name.value,
             content: content.innerText,
-            author_email: form.email.value || null,
+            author_email: form.email.value.length > 0 ? form.email.value : null,
             parent_id: props.parentId,
           }),
           headers: {
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       if (!resp.ok) {
         const err = await resp.json();
-        if (err.msg) {
-          throw new Error(err.msg);
+        if (err.msg != null && typeof err.msg === "string") {
+          throw new Error(err.msg as string);
         }
         throw new Error("unknown error");
       }
@@ -64,7 +73,7 @@ export default function CommentEditor(props: {
 
       setLoading(false);
 
-      if (props.setReplying) {
+      if (props.setReplying != null) {
         props.setReplying?.(false);
       } else {
         // reset the form
@@ -75,22 +84,26 @@ export default function CommentEditor(props: {
       }
     } catch (e) {
       if (e instanceof Error) setError(e);
-      else setError(new Error(`Unknown error: ${e}`));
+      else setError(new Error(`Unknown error: ${e as any}`));
       setLoading(false);
-      return;
     }
   }
 
   return (
-    <form class="comment-submission" onSubmit={handleCommentSubmit}>
+    <form
+      class="comment-submission"
+      onSubmit={(e) => {
+        void handleCommentSubmit(e);
+      }}
+    >
       <div class="comment-editor">
         <div
           contentEditable
           class="content"
           id="content"
           role="textbox"
-          aria-placeholder={props.placeholder || "Write a comment..."}
-        ></div>
+          aria-placeholder={props.placeholder ?? "Write a comment..."}
+        />
       </div>
       {/* <hr /> */}
       <div class="author-info">
@@ -107,7 +120,7 @@ export default function CommentEditor(props: {
           description="Optional, not displayed"
         />
       </div>
-      {error() && <div class="error">{error()!.message}</div>}
+      {error() != null && <div class="error">{error()?.message}</div>}
       <div class="action-row">
         <div class="markdown-hint">
           {/* TODO check if I have the right to use this logo */}
@@ -135,9 +148,9 @@ export default function CommentEditor(props: {
         </div>
         <div class="button-row">
           {/* TODO set tab index so that submit goes first */}
-          {props.parentId && (
+          {props.parentId != null && (
             <button
-              onclick={(e) => {
+              onClick={(e) => {
                 e.preventDefault();
                 props.setReplying?.(false);
               }}
@@ -161,7 +174,7 @@ export function Input(props: {
   placeholder?: string;
   description?: string;
   id?: string;
-}) {
+}): JSXElement {
   const { id, description, type = "text", placeholder } = props;
   return (
     <div class="input">
@@ -171,7 +184,7 @@ export function Input(props: {
         id={id}
         autocomplete="false"
       />
-      {description && <p class="description">{description}</p>}
+      {description != null && <p class="description">{description}</p>}
     </div>
   );
 }
