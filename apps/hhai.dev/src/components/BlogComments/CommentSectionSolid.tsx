@@ -1,18 +1,19 @@
 import SheetContext from "@/components/Sheet/SheetContextSolid";
 import {
+  For,
   createEffect,
   createResource,
   createSignal,
   lazy,
-  useContext,
+  type JSX,
 } from "solid-js";
 import CommentContext from "./CommentSectionContextSolid";
 import("./CommentSection.scss");
 
-const CommentComponent = lazy(() => import("./CommentSolid"));
-const CommentEditor = lazy(() => import("./CommentEditorSolid"));
+const CommentComponent = lazy(async () => await import("./CommentSolid"));
+const CommentEditor = lazy(async () => await import("./CommentEditorSolid"));
 
-export type Comment = {
+export interface Comment {
   id: number;
   author_name: string;
   content: string;
@@ -21,9 +22,9 @@ export type Comment = {
   children?: Comment[];
   upvote: number;
   depth: number;
-};
+}
 
-export function CommentSection() {
+export function CommentSection(): JSX.Element {
   // parse slug from url in format /blog/:slug
   const slug = window.location.pathname.split("/")[2];
 
@@ -34,7 +35,7 @@ export function CommentSection() {
   // const { SheetContext: sheetCtx } = SheetContext;
   const params = new URLSearchParams(window.location.search);
   const openComments = params.get("open_comments");
-  if (openComments) {
+  if (openComments !== "") {
     createEffect((success: boolean) => {
       if (!success) {
         if (SheetContext.SheetContext().initialized) {
@@ -51,48 +52,60 @@ export function CommentSection() {
 
   const [comments, { mutate, refetch }] = createResource(doFetch, async () => {
     const res = await fetch(
-      `http://localhost:3000/public/blog/${slug}/comments?page_offset=0&page_size=99&sort=best`
+      `http://localhost:3000/public/blog/${slug}/comments?page_offset=0&page_size=99&sort=best`,
     );
 
     return (await res.json()) as Comment[];
   });
 
   // listen to sheet context
-  createEffect(async () => {
+  createEffect(() => {
     const { SheetContext: sheetCtx } = SheetContext;
     if (
       sheetCtx().initialized &&
       (sheetCtx().isTriggerHover() || sheetCtx().isOpen())
     ) {
       setDoFetch(true);
-      CommentComponent.preload();
-      CommentEditor.preload();
+      void CommentComponent.preload();
+      void CommentEditor.preload();
     }
   });
 
   return (
-    <CommentContext.Provider value={{ refetch, slug }}>
+    <CommentContext.Provider
+      value={{
+        refetch: () => {
+          void refetch();
+        },
+        slug,
+      }}
+    >
       <div class="comments-container">
         <div class="heading">
-          <h3 onclick={() => refetch()} style={{ cursor: "pointer" }}>
+          <h3
+            onClick={() => {
+              void refetch();
+            }}
+            style={{ cursor: "pointer" }}
+          >
             Comments
           </h3>
-          {comments.state != "ready" && <span class="loader"></span>}
+          {comments.state !== "ready" && <span class="loader" />}
         </div>
-        {(comments.state == "ready" || comments.state == "refreshing") &&
-          comments() && (
+        {(comments.state === "ready" || comments.state === "refreshing") &&
+          comments() != null && (
             <>
               <CommentEditor
                 unshift={(c: Comment) => {
                   mutate((comments) => {
-                    return [c, ...(comments || [])];
+                    return [c, ...(comments ?? [])];
                   });
                 }}
               />
               <ol class="comments">
-                {comments()!.map((c) => (
-                  <CommentComponent comment={c} depth={0} />
-                ))}
+                <For each={comments()}>
+                  {(c) => <CommentComponent comment={c} depth={0} />}
+                </For>
               </ol>
             </>
           )}

@@ -1,13 +1,13 @@
 import { Remarkable } from "remarkable";
-import { createSignal } from "solid-js";
+import { createSignal, type JSXElement } from "solid-js";
 import CommentEditor from "./CommentEditorSolid";
 import { type Comment } from "./CommentSectionSolid";
 
 // https://gist.github.com/mcraz/11349449
-function timeSince(date: Date) {
-  var seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+function timeSince(date: Date): string {
+  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
 
-  var interval = Math.floor(seconds / 31536000);
+  let interval = Math.floor(seconds / 31536000);
 
   if (interval > 1) {
     return interval + " years";
@@ -37,7 +37,7 @@ export default function CommentComponent({
 }: {
   comment: Comment;
   depth: number;
-}) {
+}): JSXElement {
   // TODO read more on the docs to identify security issues
   // TODO use memo to avoid re-rendering if possible
   const md = new Remarkable({
