@@ -9,6 +9,8 @@ pub enum AppError {
 #[derive(Serialize)]
 struct ErrorResponse {
     code: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     msg: Option<String>,
 }
 
@@ -21,18 +23,18 @@ impl IntoResponse for AppError {
                 #[cfg(debug_assertions)]
                 ErrorResponse {
                     code: "DB_ERR".into(),
-                    msg: Some(format!("Fetching data error: {}", e.to_string())),
+                    msg: Some(format!("Database error: {}", e.to_string())),
                 },
                 #[cfg(not(debug_assertions))]
                 ErrorResponse {
                     code: "SVR_ERR".into(),
-                    msg: None,
+                    msg: Some("Internal server error".into()),
                 },
             ),
             AppError::Unhandled(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ErrorResponse {
-                    code: "UNHNDLD".into(),
+                    code: "ERR".into(),
                     msg: Some(e),
                 },
             ),
