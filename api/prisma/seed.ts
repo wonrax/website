@@ -1,4 +1,5 @@
-import { PrismaClient, BlogPost, BlogComment } from "@prisma/client";
+import { PrismaClient, type BlogPost, type BlogComment } from "@prisma/client";
+import { faker } from "@faker-js/faker";
 
 const prisma = new PrismaClient();
 
@@ -21,7 +22,7 @@ async function seedPosts() {
     data: {
       category: "blog",
       slug: "test",
-      title: "Test title",
+      title: "Test page",
     },
   });
 
@@ -34,19 +35,18 @@ async function seedComments(
   post: BlogPost,
   parentComment?: BlogComment,
   root: number[] = [],
-  n = 3
+  n = 3,
 ) {
   for (let i = 0; i < n; i++) {
     const newRoot = [...root, i + 1];
     const comment = await prisma.blogComment.create({
       data: {
-        author_ip: "xxx.xxx.xxx.xxx",
-        author_name: "Test Author",
-        author_email: "test@mail.com",
-        content: newRoot.join("."),
+        author_ip: "127.0.0.1",
+        author_name: faker.person.fullName(),
+        author_email: faker.internet.email(),
+        content: faker.lorem.paragraphs({ min: 1, max: 4 }),
         post_id: post.id,
         parent_id: parentComment?.id,
-        upvote: i,
       },
     });
 
