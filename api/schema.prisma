@@ -62,3 +62,54 @@ model BlogCommentVote {
 
   @@map("blog_comment_votes")
 }
+
+model Identity {
+  id         Int      @id @default(autoincrement())
+  traits     Json     @default("{}")
+  created_at DateTime @db.Timestamp(6)
+  updated_at DateTime @db.Timestamp(6)
+
+  identity_credentials IdentityCredential[]
+  sessions             Session[]
+
+  @@map("identities")
+}
+
+model IdentityCredentialType {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique @db.VarChar(64)
+  created_at DateTime @db.Timestamp(6)
+
+  identity_credentials IdentityCredential[]
+
+  @@map("identity_credential_types")
+}
+
+model IdentityCredential {
+  id                 Int      @id @default(autoincrement())
+  credential         Json?
+  credential_type_id Int
+  identity_id        Int
+  created_at         DateTime @db.Timestamp(6)
+  updated_at         DateTime @db.Timestamp(6)
+
+  identities                Identity               @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  identity_credential_types IdentityCredentialType @relation(fields: [credential_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("identity_credentials")
+}
+
+model Session {
+  id          Int      @id @default(autoincrement())
+  token       String   @unique(map: "sessions_token_unique") @db.VarChar(132)
+  active      Boolean
+  issued_at   DateTime @db.Timestamp(6)
+  expires_at  DateTime @db.Timestamp(6)
+  identity_id Int
+  created_at  DateTime @db.Timestamp(6)
+  updated_at  DateTime @db.Timestamp(6)
+
+  identities Identity @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "sessions_identities_id_fk")
+
+  @@map("sessions")
+}

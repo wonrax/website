@@ -13,8 +13,10 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
 mod blog;
+mod crypto;
 mod error;
 mod github;
+mod identity;
 mod utils;
 
 #[global_allocator]
@@ -62,6 +64,7 @@ async fn main() {
         .route("/health", get(heath))
         .nest("/public/blog", blog::routes::route())
         .nest("/public", github::routes::route())
+        .nest("/identity", identity::routes::route())
         .layer(cors)
         .with_state(shared_state);
 
