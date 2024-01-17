@@ -46,6 +46,7 @@ model BlogComment {
   parent               BlogComment?      @relation("ChildComment", fields: [parent_id], references: [id])
   comments             BlogComment[]     @relation("ChildComment")
   post                 BlogPost          @relation(fields: [post_id], references: [id])
+  identity             Identity?         @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("blog_comments")
 }
@@ -71,6 +72,7 @@ model Identity {
 
   identity_credentials IdentityCredential[]
   sessions             Session[]
+  blog_comments        BlogComment[]
 
   @@map("identities")
 }
@@ -101,7 +103,7 @@ model IdentityCredential {
 
 model Session {
   id          Int      @id @default(autoincrement())
-  token       String   @unique(map: "sessions_token_unique") @db.VarChar(132)
+  token       String   @unique @db.VarChar(132)
   active      Boolean
   issued_at   DateTime @db.Timestamp(6)
   expires_at  DateTime @db.Timestamp(6)
@@ -109,7 +111,7 @@ model Session {
   created_at  DateTime @db.Timestamp(6)
   updated_at  DateTime @db.Timestamp(6)
 
-  identities Identity @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "sessions_identities_id_fk")
+  identities Identity @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("sessions")
 }
