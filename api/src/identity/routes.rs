@@ -1,5 +1,5 @@
 use core::panic;
-use std::collections::HashMap;
+use std::{collections::HashMap, time::SystemTime};
 
 use axum::{
     extract::{Query, State},
@@ -8,6 +8,8 @@ use axum::{
     routing::get,
     Router,
 };
+use axum_extra::extract::{cookie::Expiration, CookieJar};
+use chrono::Duration;
 
 use crate::{error::AppError, APIContext};
 
@@ -31,15 +33,14 @@ pub struct WhoamiRespose {
     traits: Traits,
 }
 
+const COOKIE_NAME: &str = "auth_token";
+
 #[axum::debug_handler]
 pub async fn handle_whoami(
     State(ctx): State<APIContext>,
     jar: axum_extra::extract::cookie::CookieJar,
 ) -> Result<axum::Json<WhoamiRespose>, AppError> {
-    let session_token: &str = jar
-        .get("session_token")
-        .ok_or("no cookie in header")?
-        .value();
+    let session_token: &str = jar.get(COOKIE_NAME).ok_or("no cookie in header")?.value();
 
     let identity = sqlx::query_as!(
         Identity,
@@ -253,16 +254,27 @@ pub async fn handle_github_oauth_callback(
     .execute(&ctx.pool)
     .await?;
 
+    let auth_cookie = axum_extra::extract::cookie::Cookie::build((COOKIE_NAME, session.token))
+        .secure(true)
+        .http_only(true)
+        // TODO consider switching from chrono to time for the whole crate
+        .expires(
+            time::OffsetDateTime::now_utc()
+                + (session.expires_at - session.issued_at).to_std().unwrap(),
+        )
+        .path("/");
+
     Ok((
-        [(
-            "Set-Cookie",
-            // TODO get max age from session.expires_at
-            // TODO use axum::extract::Cookie to build this
-            format!(
-                "session_token={}; Secure; HttpOnly; Max-Age=3600; Path=/",
-                session.token
-            ),
-        )],
+        // [(
+        //     "Set-Cookie",
+        //     // TODO get max age from session.expires_at
+        //     // TODO use axum::extract::Cookie to build this
+        //     format!(
+        //         "{}={}; Secure; HttpOnly; Max-Age=3600; Path=/",
+        //         COOKIE_NAME, session.token
+        //     ),
+        // )],
+        CookieJar::new().add(auth_cookie),
         axum::Json(serde_json::json!({
             "github_user": user,
             "full_name": identity.traits.name,

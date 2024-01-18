@@ -103,7 +103,7 @@ model IdentityCredential {
 
 model Session {
   id          Int      @id @default(autoincrement())
-  token       String   @unique @db.VarChar(132)
+  token       String   @unique @db.VarChar(133)
   active      Boolean
   issued_at   DateTime @db.Timestamp(6)
   expires_at  DateTime @db.Timestamp(6)
