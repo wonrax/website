@@ -40,6 +40,11 @@ pub async fn handle_whoami(
     State(ctx): State<APIContext>,
     jar: axum_extra::extract::cookie::CookieJar,
 ) -> Result<axum::Json<WhoamiRespose>, AppError> {
+    // TODO implement and use an additional shorter cookie length and expiry
+    // a.k.a. session token which will be cleared on browser close. This helps
+    // speed up the auth process by comparing a shorter token instead of the
+    // longer one. The longer one will be used to refresh the shorter one thus
+    // has a longer expiry.
     let session_token: &str = jar.get(COOKIE_NAME).ok_or("no cookie in header")?.value();
 
     let identity = sqlx::query_as!(
@@ -160,6 +165,9 @@ pub async fn handle_github_oauth_callback(
     });
 
     // check if the user already exists
+    // TODO this will not scale without a proper index, either create one (not
+    // sure if it's efficient with jsonb) or use a different table for each
+    // identifier
     let mut identity = sqlx::query_as!(
         Identity,
         "

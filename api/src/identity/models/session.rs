@@ -32,7 +32,7 @@ impl Session {
             active: true,
             token,
             issued_at: now,
-            expires_at: now.add(chrono::Duration::hours(1)),
+            expires_at: now.add(chrono::Duration::days(365)),
             identity_id,
             created_at: now,
             updated_at: now,
