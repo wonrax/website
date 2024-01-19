@@ -51,6 +51,7 @@ async fn main() {
         // allow `GET` and `POST` when accessing the resource
         .allow_methods(vec![Method::GET, Method::POST])
         .allow_headers([CONTENT_TYPE])
+        .allow_credentials(true)
         .allow_origin(AllowOrigin::predicate(|_, request| {
             request
                 .headers

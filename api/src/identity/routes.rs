@@ -283,16 +283,21 @@ pub async fn handle_github_oauth_callback(
         //     ),
         // )],
         CookieJar::new().add(auth_cookie),
-        axum::Json(serde_json::json!({
-            "github_user": user,
-            "full_name": identity.traits.name,
-            "email": identity.traits.email,
-        })),
     ))
 }
 
 #[axum::debug_handler]
-pub async fn handle_oidc_github_request() -> impl IntoResponse {
+pub async fn handle_oidc_github_request(
+    Query(queries): Query<HashMap<String, String>>,
+) -> impl IntoResponse {
+    let last_visit = queries.get("last_visit");
+    let redirect_uri = "http://localhost:4321/login/oidc/callback/github".to_string()
+        + match last_visit {
+            Some(last_visit) => "?last_visit=".to_string() + last_visit,
+            None => "".into(),
+        }
+        .as_str();
+
     // TODO move this to shared config
     let github_oauth_client_id: String = std::env::var("GITHUB_OAUTH_CLIENT_ID")
         .expect("GITHUB_OAUTH_CLIENT_ID is not set in .env file");
@@ -301,6 +306,7 @@ pub async fn handle_oidc_github_request() -> impl IntoResponse {
         &[
             ("client_id", github_oauth_client_id.as_str()),
             ("scope", "user:email"),
+            ("redirect_uri", redirect_uri.as_str()),
         ],
     )
     .unwrap()

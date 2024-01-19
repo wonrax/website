@@ -10,6 +10,7 @@ import {
 } from "solid-js";
 import CommentContext from "./CommentSectionContextSolid";
 import { type Comment } from "./CommentSectionSolid";
+import config from "@/config";
 
 export default function CommentEditor(props: {
   parentId?: number;
@@ -19,6 +20,28 @@ export default function CommentEditor(props: {
 }): JSXElement {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<Error>();
+  const [auth, setAuth] = createSignal<{
+    name: string;
+    email: string;
+  }>();
+
+  void fetch(`${config.API_URL}/identity/me`, {
+    credentials: "include",
+  }).then(async (res) => {
+    if (res.ok) {
+      const body: {
+        traits: {
+          email: string;
+          name: string;
+        };
+      } = await res.json();
+
+      setAuth({
+        name: body.traits.name,
+        email: body.traits.email,
+      });
+    }
+  });
 
   const ctx = useContext(CommentContext);
 
@@ -30,8 +53,8 @@ export default function CommentEditor(props: {
     e.preventDefault();
     setLoading(true);
     const form = e.target as EventTarget & {
-      name: HTMLInputElement;
-      email: HTMLInputElement;
+      name?: HTMLInputElement;
+      email?: HTMLInputElement;
     };
 
     const target = e.target as HTMLInputElement;
@@ -44,13 +67,16 @@ export default function CommentEditor(props: {
 
     try {
       const resp = await fetch(
-        `http://localhost:3000/public/blog/${ctx?.slug}/comments`,
+        `${config.API_URL}/public/blog/${ctx?.slug}/comments`,
         {
           method: "POST",
           body: JSON.stringify({
-            author_name: form.name.value,
+            author_name: form.name?.value,
             content: content.innerText,
-            author_email: form.email.value.length > 0 ? form.email.value : null,
+            author_email:
+              form.email?.value != null && form.email.value.length > 0
+                ? form.email.value
+                : null,
             parent_id: props.parentId,
           }),
           headers: {
@@ -77,8 +103,8 @@ export default function CommentEditor(props: {
         props.setReplying?.(false);
       } else {
         // reset the form
-        form.name.value = "";
-        form.email.value = "";
+        if (form.name != null) form.name.value = "";
+        if (form.email != null) form.email.value = "";
         content.innerText = "";
         setError(undefined);
       }
@@ -106,20 +132,46 @@ export default function CommentEditor(props: {
         />
       </div>
       {/* <hr /> */}
-      <div class="author-info">
-        <Input
-          id="name"
-          type="text"
-          placeholder="Your name"
-          description="Required"
-        />
-        <Input
-          id="email"
-          type="email"
-          placeholder="Your email"
-          description="Optional, not displayed"
-        />
-      </div>
+      {auth() == null ? (
+        <>
+          <p
+            style={{
+              "font-size": "13px",
+              color: "var(--text-body-medium)",
+              margin: "0 16px 12px 16px",
+            }}
+          >
+            <a
+              style={{
+                color: "var(--text-body-heavy)",
+                "font-weight": "var(--font-weight-medium)",
+              }}
+              href={`${config.API_URL}/identity/login/oidc/github?last_visit=${window.location.href}`}
+            >
+              Login using GitHub
+            </a>{" "}
+            or type your name below
+          </p>
+          <div class="author-info">
+            <Input
+              id="name"
+              type="text"
+              placeholder="Your name"
+              description="Required"
+            />
+            <Input
+              id="email"
+              type="email"
+              placeholder="Your email"
+              description="Optional, not displayed"
+            />
+          </div>
+        </>
+      ) : (
+        <p class="auth-user">
+          Posting as <span class="author-name">{auth()?.name}</span>
+        </p>
+      )}
       {error() != null && <div class="error">{error()?.message}</div>}
       <div class="action-row">
         <div class="markdown-hint">

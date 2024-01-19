@@ -3,7 +3,7 @@ import OgImage from "@/components/OgImage/OgImage.astro";
 import RootLayout from "../layouts/Layout.astro";
 ---
 
-<RootLayout title="hhai.dev home" description="hhai.dev homepage">
+<RootLayout>
   <title slot="head">hhai.dev home</title>
   <meta slot="head" name="description" content="hhai.dev homepage" />
   <OgImage slot="head" ogImageUrl={Astro.url.pathname + "og-image.png"} />
@@ -50,7 +50,7 @@ import RootLayout from "../layouts/Layout.astro";
           >
             published on the Google Play Store
           </a>{" "}
-           and has over 3,000 monthly active users.{" "}
+          and has over 3,000 monthly active users.{" "}
           <a
             href="https://github.com/wonrax/mybk-mobile"
             target="_blank"

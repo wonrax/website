@@ -8,6 +8,7 @@ import {
   type JSXElement,
 } from "solid-js";
 import CommentContext from "./CommentSectionContextSolid";
+import config from "@/config";
 import("./CommentSection.scss");
 
 const CommentComponent = lazy(async () => await import("./CommentSolid"));
@@ -52,7 +53,7 @@ export function CommentSection(): JSXElement {
 
   const [comments, { mutate, refetch }] = createResource(doFetch, async () => {
     const res = await fetch(
-      `http://localhost:3000/public/blog/${slug}/comments?page_offset=0&page_size=99&sort=best`,
+      `${config.API_URL}/public/blog/${slug}/comments?page_offset=0&page_size=99&sort=best`,
     );
 
     return (await res.json()) as Comment[];
