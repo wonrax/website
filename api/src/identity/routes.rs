@@ -33,7 +33,7 @@ pub struct WhoamiRespose {
     traits: Traits,
 }
 
-const COOKIE_NAME: &str = "auth_token";
+pub const COOKIE_NAME: &str = "auth_token";
 
 #[axum::debug_handler]
 pub async fn handle_whoami(

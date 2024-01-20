@@ -53,7 +53,7 @@ export default function CommentEditor(props: {
     e.preventDefault();
     setLoading(true);
     const form = e.target as EventTarget & {
-      name?: HTMLInputElement;
+      "author-name"?: HTMLInputElement;
       email?: HTMLInputElement;
     };
 
@@ -71,7 +71,11 @@ export default function CommentEditor(props: {
         {
           method: "POST",
           body: JSON.stringify({
-            author_name: form.name?.value,
+            author_name:
+              form["author-name"]?.value != null &&
+              form["author-name"].value.length > 0
+                ? form["author-name"].value
+                : null,
             content: content.innerText,
             author_email:
               form.email?.value != null && form.email.value.length > 0
@@ -82,15 +86,18 @@ export default function CommentEditor(props: {
           headers: {
             "Content-Type": "application/json",
           },
+          credentials: "include",
         },
       );
 
       if (!resp.ok) {
-        const err = await resp.json();
-        if (err.msg != null && typeof err.msg === "string") {
-          throw new Error(err.msg as string);
+        if (resp.headers.get("Content-Type")?.includes("application/json")) {
+          const err = await resp.json();
+          if (err.msg != null && typeof err.msg === "string") {
+            throw new Error(err.msg as string);
+          }
         }
-        throw new Error("unknown error");
+        throw new Error("Unexpected error: " + (await resp.text()));
       }
 
       const comment: Comment = await resp.json();
@@ -103,7 +110,7 @@ export default function CommentEditor(props: {
         props.setReplying?.(false);
       } else {
         // reset the form
-        if (form.name != null) form.name.value = "";
+        if (form["author-name"] != null) form["author-name"].value = "";
         if (form.email != null) form.email.value = "";
         content.innerText = "";
         setError(undefined);
@@ -154,7 +161,7 @@ export default function CommentEditor(props: {
           </p>
           <div class="author-info">
             <Input
-              id="name"
+              id="author-name"
               type="text"
               placeholder="Your name"
               description="Required"

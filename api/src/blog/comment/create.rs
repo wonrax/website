@@ -6,7 +6,12 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use crate::{blog::routes::ClientIp, error::AppError, APIContext};
+use crate::{
+    blog::routes::{AuthUser, ClientIp},
+    error::AppError,
+    identity::models::identity::Traits,
+    APIContext,
+};
 
 use crate::blog::comment::Comment;
 
@@ -15,9 +20,11 @@ pub async fn create_comment(
     State(ctx): State<APIContext>,
     Path(slug): Path<String>,
     Extension(ip): Extension<ClientIp>,
+    Extension(auth_user): Extension<Option<AuthUser>>,
     Json(mut comment): Json<CommentSubmission>,
 ) -> Result<Json<Comment>, AppError> {
-    comment.validate()?;
+    comment.validate(auth_user.is_some())?;
+
     // check if the post exists, otherwise create it
     let exists = sqlx::query_as::<_, (bool,)>(
         "
@@ -64,12 +71,13 @@ pub async fn create_comment(
         }
     }
 
-    let resulting_comment = sqlx::query_as::<_, Comment>(
+    let mut resulting_comment = sqlx::query!(
         "
         INSERT INTO blog_comments (
             author_ip,
             author_name,
             author_email,
+            identity_id,
             content,
             parent_id,
             post_id
@@ -80,41 +88,74 @@ pub async fn create_comment(
             $3, 
             $4, 
             $5,
-            (SELECT id FROM blog_posts WHERE category = 'blog' AND slug = $6)
+            $6,
+            (SELECT id FROM blog_posts WHERE category = 'blog' AND slug = $7)
         )
         -- TODO fix this hack (e.g. default values in comment struct)
         RETURNING *, 0::int8 as votes, -1 as depth;
         ",
+        ip.ip,
+        comment.author_name,
+        comment.author_email,
+        auth_user.map(|u| u.id),
+        comment.content,
+        comment.parent_id,
+        &slug,
     )
-    .bind(ip.ip)
-    .bind(comment.author_name)
-    .bind(comment.author_email)
-    .bind(comment.content)
-    .bind(comment.parent_id)
-    .bind(&slug)
     .fetch_one(&ctx.pool)
     .await?;
 
-    Ok(Json(resulting_comment))
+    if resulting_comment.author_name.is_none() {
+        let identity = sqlx::query!(
+            "
+            SELECT traits FROM identities WHERE id = $1;
+            ",
+            resulting_comment.identity_id
+        )
+        .fetch_optional(&ctx.pool)
+        .await?
+        .map(|i| i.traits);
+
+        if let Some(traits) = identity {
+            let traits: Traits = serde_json::from_value(traits).map_err(|_| "Invalid traits")?;
+            resulting_comment.author_name = Some(traits.name.unwrap_or(traits.email));
+        }
+    }
+
+    Ok(Json(Comment {
+        id: resulting_comment.id,
+        author_name: resulting_comment.author_name.unwrap(),
+        content: resulting_comment.content,
+        parent_id: resulting_comment.parent_id,
+        created_at: resulting_comment.created_at,
+        votes: 0,
+        depth: -1,
+    }))
 }
 
 #[derive(Deserialize, Serialize, FromRow)]
 pub struct CommentSubmission {
-    author_name: String,
+    author_name: Option<String>,
     author_email: Option<String>,
     content: String,
     parent_id: Option<i32>,
 }
 
 impl CommentSubmission {
-    fn validate(&mut self) -> Result<(), &'static str> {
-        self.author_name = self.author_name.trim().to_string();
-        if self.author_name.len() < 1 {
-            return Err("No author name provided");
-        }
+    fn validate(&mut self, is_auth: bool) -> Result<(), &'static str> {
+        if let Some(mut name) = self.author_name.take() {
+            name = name.trim().to_string();
+            if name.len() < 1 {
+                return Err("No author name provided");
+            }
 
-        if self.author_name.len() > 50 {
-            return Err("Author name too long");
+            if name.len() > 50 {
+                return Err("Author name too long");
+            }
+
+            self.author_name = Some(name);
+        } else if !is_auth {
+            return Err("No author name provided");
         }
 
         self.content = self.content.trim().to_string();

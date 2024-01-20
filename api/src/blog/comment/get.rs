@@ -49,7 +49,7 @@ pub async fn get_comments(
             // TODO sort by a separate metrics called ranking_score which
             // down-weights the down-votes (e.g. 0.9) so that the comments with
             // equal up and down-votes appear above the comments with no votes.
-            rows = sqlx::query_as::<_, Comment>(
+            rows = sqlx::query!(
                 "
                 ----------------------------------------------------------------
                 -- First we get the root comments by sorting by upvote and
@@ -60,6 +60,7 @@ pub async fn get_comments(
                         NULL::integer as parent_id,
                         comments.id,
                         comments.author_name,
+                        comments.identity_id,
                         comments.content,
                         0 depth,
                         comments.created_at,
@@ -76,6 +77,7 @@ pub async fn get_comments(
                     GROUP BY
                         comments.id,
                         comments.author_name,
+                        comments.identity_id,
                         comments.content,
                         depth,
                         comments.created_at
@@ -88,6 +90,7 @@ pub async fn get_comments(
                     parent_id,
                     id,
                     author_name,
+                    identity_id,
                     content,
                     depth,
                     created_at
@@ -98,6 +101,7 @@ pub async fn get_comments(
                             parent_id,
                             id,
                             author_name,
+                            identity_id,
                             content,
                             depth,
                             created_at
@@ -108,6 +112,7 @@ pub async fn get_comments(
                         comments.parent_id,
                         comments.id,
                         comments.author_name,
+                        comments.identity_id,
                         comments.content,
                         t.depth + 1,
                         comments.created_at
@@ -122,7 +127,8 @@ pub async fn get_comments(
                 SELECT
                     t.parent_id,
                     t.id,
-                    t.author_name,
+                    COALESCE(t.author_name, i.traits->>'name') as author_name,
+                    t.identity_id,
                     t.content,
                     t.depth,
                     t.created_at,
@@ -130,84 +136,109 @@ pub async fn get_comments(
                         THEN votes.score ELSE 0 END) votes
                 FROM t LEFT JOIN blog_comment_votes votes
                 ON t.id = votes.comment_id
+                LEFT JOIN identities i
+                ON t.identity_id IS NOT NULL AND t.identity_id = i.id
                 GROUP BY
                     t.parent_id,
                     t.id,
-                    t.author_name,
+                    COALESCE(t.author_name, i.traits->>'name'),
+                    t.identity_id,
                     t.content,
                     t.depth,
                     t.created_at;
                 ",
+                slug,
+                q.page_size as i64,
+                q.page_offset as i64,
             )
-            .bind(slug)
-            .bind(q.page_size as i64)
-            .bind(q.page_offset as i64)
             .fetch_all(&ctx.pool)
             .await?;
         }
         SortType::New => {
             // TODO this is not updated to the new schema
-            rows = sqlx::query_as::<_, Comment>(
-                "
-                WITH RECURSIVE root_comments AS (
-                    SELECT
-                        comments.parent_id,
-                        comments.id,
-                        comments.author_name,
-                        comments.content,
-                        0,
-                        comments.created_at,
-                        comments.upvote
-                    FROM blog_comments as comments
-                    JOIN blog_posts as posts ON (posts.id = comments.post_id)
-                    WHERE posts.category = 'blog'
-                    AND posts.slug = $1
-                    AND comments.parent_id IS NULL
-                    ORDER BY comments.created_at DESC
-                    LIMIT $2 OFFSET $3
-                ), t(parent_id, id, author_name, content, depth, created_at, upvote) AS (
-                    (
-                        SELECT * FROM root_comments
-                    )
-                    UNION ALL
-                    SELECT
-                        comments.parent_id,
-                        comments.id,
-                        comments.author_name,
-                        comments.content,
-                        t.depth + 1,
-                        comments.created_at,
-                        comments.upvote
-                    FROM t
-                        JOIN blog_comments as comments ON (comments.parent_id = t.id)
-                )
-                SELECT
-                    t.parent_id,
-                    t.id,
-                    t.author_name,
-                    t.content,
-                    t.depth,
-                    t.created_at,
-                    SUM(CASE WHEN votes.id IS NOT NULL THEN 1 ELSE 0 END) upvote
-                FROM t LEFT JOIN blog_comment_votes votes
-                ON t.id = votes.comment_id
-                GROUP BY
-                    t.parent_id,
-                    t.id,
-                    t.author_name,
-                    t.content,
-                    t.depth,
-                    t.created_at,
-                    t.upvote;
-                ",
-            )
-            .bind(slug)
-            .bind(q.page_size as i64)
-            .bind(q.page_offset as i64)
-            .fetch_all(&ctx.pool)
-            .await?;
+            panic!("not implemented");
+            // rows = sqlx::query_as::<_, Comment>(
+            //     "
+            //     WITH RECURSIVE root_comments AS (
+            //         SELECT
+            //             comments.parent_id,
+            //             comments.id,
+            //             comments.author_name,
+            //             comments.content,
+            //             0,
+            //             comments.created_at,
+            //             comments.upvote
+            //         FROM blog_comments as comments
+            //         JOIN blog_posts as posts ON (posts.id = comments.post_id)
+            //         WHERE posts.category = 'blog'
+            //         AND posts.slug = $1
+            //         AND comments.parent_id IS NULL
+            //         ORDER BY comments.created_at DESC
+            //         LIMIT $2 OFFSET $3
+            //     ), t(parent_id, id, author_name, content, depth, created_at, upvote) AS (
+            //         (
+            //             SELECT * FROM root_comments
+            //         )
+            //         UNION ALL
+            //         SELECT
+            //             comments.parent_id,
+            //             comments.id,
+            //             comments.author_name,
+            //             comments.content,
+            //             t.depth + 1,
+            //             comments.created_at,
+            //             comments.upvote
+            //         FROM t
+            //             JOIN blog_comments as comments ON (comments.parent_id = t.id)
+            //     )
+            //     SELECT
+            //         t.parent_id,
+            //         t.id,
+            //         t.author_name,
+            //         t.content,
+            //         t.depth,
+            //         t.created_at,
+            //         SUM(CASE WHEN votes.id IS NOT NULL THEN 1 ELSE 0 END) upvote
+            //     FROM t LEFT JOIN blog_comment_votes votes
+            //     ON t.id = votes.comment_id
+            //     GROUP BY
+            //         t.parent_id,
+            //         t.id,
+            //         t.author_name,
+            //         t.content,
+            //         t.depth,
+            //         t.created_at,
+            //         t.upvote;
+            //     ",
+            // )
+            // .bind(slug)
+            // .bind(q.page_size as i64)
+            // .bind(q.page_offset as i64)
+            // .fetch_all(&ctx.pool)
+            // .await?;
         }
     }
+
+    let rows = rows
+        .into_iter()
+        .filter(|c| {
+            c.id.is_some()
+                && c.author_name.is_some()
+                && c.content.is_some()
+                && c.created_at.is_some()
+                && c.votes.is_some()
+                && c.depth.is_some()
+        })
+        .map(|c| Comment {
+            id: c.id.unwrap(),
+            author_name: c.author_name.unwrap(),
+            content: c.content.unwrap(),
+            parent_id: c.parent_id,
+            created_at: c.created_at.unwrap(),
+            votes: c.votes.unwrap(),
+            depth: c.depth.unwrap(),
+        })
+        .collect();
 
     let result = intermediate_tree_sort(rows, sort);
 

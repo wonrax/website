@@ -63,7 +63,7 @@ async fn main() {
     // build our application with a route
     let app = Router::new()
         .route("/health", get(heath))
-        .nest("/public/blog", blog::routes::route())
+        .nest("/public/blog", blog::routes::route(shared_state.clone()))
         .nest("/public", github::routes::route())
         .nest("/identity", identity::routes::route())
         .layer(cors)
