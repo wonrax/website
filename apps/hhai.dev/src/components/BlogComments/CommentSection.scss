@@ -250,7 +250,7 @@
     .description {
       font-size: 12px;
       color: var(--text-body-light);
-      margin: 6px 8px;
+      margin: 6px 6px 0 6px;
     }
   }
 
@@ -267,7 +267,7 @@
   .author-info {
     display: flex;
     gap: 6px;
-    padding: 0 8px 6px 8px;
+    padding: 0;
 
     & * {
       flex: 1;
@@ -275,7 +275,7 @@
   }
 
   p.auth-user {
-    padding: 0 16px 8px 16px;
+    padding: 2px 6px;
     font-size: 12px;
     color: var(--text-body-medium);
     margin: 0;

@@ -129,6 +129,49 @@ export default function CommentEditor(props: {
         void handleCommentSubmit(e);
       }}
     >
+      <div style={{ padding: "10px" }}>
+        {auth() == null ? (
+          <>
+            <p
+              style={{
+                "font-size": "13px",
+                color: "var(--text-body-medium)",
+                margin: "0 8px 8px 8px",
+              }}
+            >
+              <a
+                style={{
+                  color: "var(--text-body-heavy)",
+                  "font-weight": "var(--font-weight-medium)",
+                }}
+                href={`${config.API_URL}/identity/login/oidc/github?last_visit=${window.location.href}`}
+              >
+                Login using GitHub
+              </a>{" "}
+              or type your name below
+            </p>
+            <div class="author-info">
+              <Input
+                id="author-name"
+                type="text"
+                placeholder="Your name"
+                description="Required"
+              />
+              <Input
+                id="email"
+                type="email"
+                placeholder="Your email"
+                description="Optional, not displayed"
+              />
+            </div>
+          </>
+        ) : (
+          <p class="auth-user">
+            Posting as <span class="author-name">{auth()?.name}</span>
+          </p>
+        )}
+      </div>
+      <hr />
       <div class="comment-editor">
         <div
           contentEditable
@@ -138,47 +181,6 @@ export default function CommentEditor(props: {
           aria-placeholder={props.placeholder ?? "Write a comment..."}
         />
       </div>
-      {/* <hr /> */}
-      {auth() == null ? (
-        <>
-          <p
-            style={{
-              "font-size": "13px",
-              color: "var(--text-body-medium)",
-              margin: "0 16px 12px 16px",
-            }}
-          >
-            <a
-              style={{
-                color: "var(--text-body-heavy)",
-                "font-weight": "var(--font-weight-medium)",
-              }}
-              href={`${config.API_URL}/identity/login/oidc/github?last_visit=${window.location.href}`}
-            >
-              Login using GitHub
-            </a>{" "}
-            or type your name below
-          </p>
-          <div class="author-info">
-            <Input
-              id="author-name"
-              type="text"
-              placeholder="Your name"
-              description="Required"
-            />
-            <Input
-              id="email"
-              type="email"
-              placeholder="Your email"
-              description="Optional, not displayed"
-            />
-          </div>
-        </>
-      ) : (
-        <p class="auth-user">
-          Posting as <span class="author-name">{auth()?.name}</span>
-        </p>
-      )}
       {error() != null && <div class="error">{error()?.message}</div>}
       <div class="action-row">
         <div class="markdown-hint">
