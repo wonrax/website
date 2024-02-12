@@ -20,11 +20,10 @@ model Counter {
 }
 
 model BlogPost {
-  id       Int     @id @default(autoincrement())
+  id       Int           @id @default(autoincrement())
   category String
   slug     String
   title    String?
-
   comments BlogComment[]
 
   @@unique([category, slug])
@@ -32,72 +31,68 @@ model BlogPost {
 }
 
 model BlogComment {
-  id           Int      @id @default(autoincrement())
-  author_ip    String
-  author_name  String?
-  author_email String?
-  identity_id  Int?
-  content      String
-  post_id      Int
-  parent_id    Int?
-  created_at   DateTime @default(now())
-
+  id                   Int               @id @default(autoincrement())
+  author_ip            String
+  author_name          String?
+  author_email         String?
+  identity_id          Int?
+  content              String
+  post_id              Int
+  parent_id            Int?
+  created_at           DateTime          @default(now())
   blog_comment_upvotes BlogCommentVote[]
+  identity             Identity?         @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   parent               BlogComment?      @relation("ChildComment", fields: [parent_id], references: [id])
   comments             BlogComment[]     @relation("ChildComment")
   post                 BlogPost          @relation(fields: [post_id], references: [id])
-  identity             Identity?         @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("blog_comments")
 }
 
 model BlogCommentVote {
-  id           Int      @id @default(autoincrement())
-  comment_id   Int
-  ip           String?
-  indentity_id Int?
-  score        Int      @default(1)
-  created_at   DateTime @default(now()) @db.Timestamp(6)
-
+  id            Int         @id @default(autoincrement())
+  comment_id    Int
+  ip            String?
+  indentity_id  Int?
+  score         Int         @default(1)
+  created_at    DateTime    @default(now()) @db.Timestamp(6)
   blog_comments BlogComment @relation(fields: [comment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("blog_comment_votes")
 }
 
 model Identity {
-  id         Int      @id @default(autoincrement())
-  traits     Json     @default("{}")
-  created_at DateTime @db.Timestamp(6)
-  updated_at DateTime @db.Timestamp(6)
-
+  id                   Int                  @id @default(autoincrement())
+  traits               Json                 @default("{}")
+  created_at           DateTime             @db.Timestamp(6)
+  updated_at           DateTime             @db.Timestamp(6)
+  blog_comments        BlogComment[]
   identity_credentials IdentityCredential[]
   sessions             Session[]
-  blog_comments        BlogComment[]
 
   @@map("identities")
 }
 
 model IdentityCredentialType {
-  id         Int      @id @default(autoincrement())
-  name       String   @unique @db.VarChar(64)
-  created_at DateTime @db.Timestamp(6)
-
+  id                   Int                  @id @default(autoincrement())
+  name                 String               @unique @db.VarChar(64)
+  created_at           DateTime             @db.Timestamp(6)
   identity_credentials IdentityCredential[]
 
   @@map("identity_credential_types")
 }
 
 model IdentityCredential {
-  id                 Int      @id @default(autoincrement())
-  credential         Json?
-  credential_type_id Int
-  identity_id        Int
-  created_at         DateTime @db.Timestamp(6)
-  updated_at         DateTime @db.Timestamp(6)
-
-  identities                Identity               @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id                        Int                    @id @default(autoincrement())
+  credential                Json?
+  credential_type_id        Int
+  identity_id               Int
+  created_at                DateTime               @db.Timestamp(6)
+  updated_at                DateTime               @db.Timestamp(6)
   identity_credential_types IdentityCredentialType @relation(fields: [credential_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  identities                Identity               @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  @@index([credential], type: Gin)
   @@map("identity_credentials")
 }
 
@@ -110,8 +105,7 @@ model Session {
   identity_id Int
   created_at  DateTime @db.Timestamp(6)
   updated_at  DateTime @db.Timestamp(6)
-
-  identities Identity @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  identities  Identity @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("sessions")
 }

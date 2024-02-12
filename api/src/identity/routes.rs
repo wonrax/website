@@ -10,6 +10,7 @@ use axum::{
 };
 use axum_extra::extract::{cookie::Expiration, CookieJar};
 use chrono::Duration;
+use serde_json::json;
 
 use crate::{error::AppError, APIContext};
 
@@ -174,10 +175,12 @@ pub async fn handle_github_oauth_callback(
         SELECT i.*
         FROM identities i JOIN identity_credentials ic
         ON i.id = ic.identity_id
-        WHERE ic.credential->>'oidc_provider' = 'github'
-        AND (ic.credential->>'user_id')::BIGINT = $1;
+        WHERE ic.credential @> $1
         ",
-        user_id
+        json!({
+            "oidc_provider": "github",
+            "user_id": user_id
+        })
     )
     .fetch_one(&ctx.pool)
     .await
