@@ -56,7 +56,14 @@ async fn main() {
             request
                 .headers
                 .get("origin")
-                .map(|origin| origin.to_str().unwrap().starts_with("http://localhost:"))
+                .map(|origin| {
+                    if let Ok(origin) = origin.to_str() {
+                        origin.starts_with("http://localhost:")
+                            || origin.starts_with("https://hhai.dev")
+                    } else {
+                        false
+                    }
+                })
                 .unwrap_or(false)
         }));
 
