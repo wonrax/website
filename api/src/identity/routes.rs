@@ -1,16 +1,16 @@
 use core::panic;
-use std::{collections::HashMap, time::SystemTime};
+use std::collections::HashMap;
 
 use axum::{
     extract::{Query, State},
-    http::{header, HeaderMap},
+    http::header,
     response::IntoResponse,
-    routing::get,
+    routing::{get, post},
     Router,
 };
-use axum_extra::extract::{cookie::Expiration, CookieJar};
-use chrono::Duration;
+use axum_extra::extract::CookieJar;
 use serde_json::json;
+use time::Duration;
 
 use crate::{error::AppError, APIContext};
 
@@ -24,6 +24,7 @@ pub fn route() -> Router<APIContext> {
     // TODO rate limit these public endpoints
     Router::<APIContext>::new()
         .route("/me", get(handle_whoami))
+        .route("/logout", post(logout))
         .route("/oidc/callback/github", get(handle_github_oauth_callback))
         .route("/login/oidc/github", get(handle_oidc_github_request))
     //
@@ -165,10 +166,6 @@ pub async fn handle_github_oauth_callback(
         email: email.to_owned(),
     });
 
-    // check if the user already exists
-    // TODO this will not scale without a proper index, either create one (not
-    // sure if it's efficient with jsonb) or use a different table for each
-    // identifier
     let mut identity = sqlx::query_as!(
         Identity,
         "
@@ -209,6 +206,7 @@ pub async fn handle_github_oauth_callback(
             "user_id": user_id
         }));
 
+        // TODO have a credential types cache since it's not going to change
         sqlx::query!(
             "INSERT INTO identity_credentials (
             credential,
@@ -316,4 +314,15 @@ pub async fn handle_oidc_github_request(
     .to_string();
 
     (axum::http::StatusCode::FOUND, [(header::LOCATION, url)]).into_response()
+}
+
+#[axum::debug_handler]
+pub async fn logout() -> impl IntoResponse {
+    let auth_cookie = axum_extra::extract::cookie::Cookie::build(COOKIE_NAME)
+        .secure(true)
+        .http_only(true)
+        .max_age(Duration::ZERO)
+        .path("/");
+
+    CookieJar::new().add(auth_cookie)
 }

@@ -36,7 +36,7 @@ async fn client_ip(mut req: Request, next: Next) -> Result<Response, StatusCode>
         .unwrap_or_else(|| {
             req.extensions()
                 .get::<ConnectInfo<SocketAddr>>()
-                .unwrap()
+                .unwrap() // TODO handle error
                 .0
                 .ip()
                 .to_string()

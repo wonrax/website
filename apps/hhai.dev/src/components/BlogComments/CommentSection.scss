@@ -274,7 +274,7 @@
     }
   }
 
-  p.auth-user {
+  .auth-user {
     padding: 2px 6px;
     font-size: 12px;
     color: var(--text-body-medium);
@@ -283,6 +283,12 @@
     .author-name {
       color: var(--text-body-heavy);
       font-weight: var(--font-weight-medium);
+    }
+
+    .logout-button {
+      color: var(--text-body-heavy);
+      font-weight: var(--font-weight-medium);
+      cursor: pointer;
     }
   }
 

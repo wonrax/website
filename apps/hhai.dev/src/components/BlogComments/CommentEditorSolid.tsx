@@ -91,7 +91,10 @@ export default function CommentEditor(props: {
       );
 
       if (!resp.ok) {
-        if (resp.headers.get("Content-Type")?.includes("application/json")) {
+        if (
+          resp.headers.get("Content-Type")?.includes("application/json") ===
+          true
+        ) {
           const err = await resp.json();
           if (err.msg != null && typeof err.msg === "string") {
             throw new Error(err.msg as string);
@@ -136,9 +139,10 @@ export default function CommentEditor(props: {
               style={{
                 "font-size": "13px",
                 color: "var(--text-body-medium)",
-                margin: "0 8px 8px 8px",
+                margin: "8px 8px 16px 8px",
               }}
             >
+              Either{" "}
               <a
                 style={{
                   color: "var(--text-body-heavy)",
@@ -146,7 +150,7 @@ export default function CommentEditor(props: {
                 }}
                 href={`${config.API_URL}/identity/login/oidc/github?last_visit=${window.location.href}`}
               >
-                Login using GitHub
+                login via GitHub
               </a>{" "}
               or type your name below
             </p>
@@ -167,7 +171,22 @@ export default function CommentEditor(props: {
           </>
         ) : (
           <p class="auth-user">
-            Posting as <span class="author-name">{auth()?.name}</span>
+            Posting as <span class="author-name">{auth()?.name}</span>, or{" "}
+            <span
+              class="logout-button"
+              onClick={() => {
+                void fetch(`${config.API_URL}/identity/logout`, {
+                  method: "POST",
+                  credentials: "include",
+                }).then((response) => {
+                  if (response.ok) {
+                    setAuth(undefined);
+                  }
+                });
+              }}
+            >
+              logout
+            </span>
           </p>
         )}
       </div>
