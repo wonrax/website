@@ -1,9 +1,12 @@
 ---
+import { CommentSection } from "@/components/BlogComments/CommentSectionSolid";
+import * as Sheet from "@/components/Sheet/SheetSolid";
 import OgImage from "@/components/OgImage/OgImage.astro";
-import TableOfContents from "../components/TableOfContents.astro";
-import BlogRouteLayout from "./BlogRouteLayout.astro";
 import "@fontsource/inconsolata/500.css";
 import "katex/dist/katex.css";
+import TableOfContents from "../components/TableOfContents.astro";
+import BlogRouteLayout from "./BlogRouteLayout.astro";
+import { MessageSquareText } from "lucide-solid";
 
 export type Frontmatter = {
   title: string;
@@ -47,8 +50,8 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
               <button id="go-to-top">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  width="21"
-                  height="21"
+                  width="20"
+                  height="20"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -90,6 +93,29 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
               post.tags.map((tag) => <span class="post-tag">#{tag}</span>)
           }
         </div>
+        <Sheet.Trigger class="open-discussion" client:load>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="lucide lucide-message-square-text"
+          >
+            <>
+              <path
+                d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+              ></path>
+              <path d="M13 8H7"></path>
+              <path d="M17 12H7"></path>
+            </>
+          </svg>
+          View discussion
+        </Sheet.Trigger>
       </div>
       <div class="article-body">
         {
@@ -111,6 +137,24 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       </div>
     </article>
   </main>
+  <Sheet.Root client:load>
+    <Sheet.Trigger class="close-button" client:load>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="lucide lucide-x"
+        ><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg
+      >
+    </Sheet.Trigger>
+    <CommentSection client:only="solid-js" />
+  </Sheet.Root>
 </BlogRouteLayout>
 
 <style lang="scss" is:global>
@@ -158,6 +202,10 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       top: 24px;
       overflow-y: auto;
       max-height: 90vh;
+      padding: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
 
       @media (min-width: 1280px) {
         width: 240px;
@@ -247,11 +295,11 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
   .article .article-body {
     // padding-left: 16px;
     // padding-right: 16px;
-    padding-bottom: 128px;
     // display: flex;
     // flex-direction: column;
     // align-items: center;
     word-wrap: break-word;
+    // margin-bottom: 64px;
     margin-top: 32px;
 
     & > * {
@@ -687,26 +735,50 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     color: var(--text-body-heavy);
   }
 
-  #go-to-top {
-    background-color: var(--bg-additive-light);
+  button {
+    background-color: transparent;
     color: var(--text-body-heavy);
-    border-radius: 8px;
+    border-radius: 6px;
     font-size: 14px;
-    font-weight: var(--font-weight-medium);
     cursor: pointer;
     border: none;
     outline: none;
-    padding: 4px 10px 4px 8px;
-    margin-top: 24px;
+    padding: 6px 12px;
     font-family: Inter Variable; // TODO move this to global selector
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
+    width: fit-content;
+    background-color: var(--bg-additive-light);
 
-    &:hover {
-      background-color: var(--bg-additive-medium);
+    &:focus {
+      outline: var(--bg-additive-medium) solid 2px;
     }
+
+    &.primary {
+      font-weight: var(--font-weight-medium);
+
+      &:hover {
+        background-color: var(--bg-additive-medium);
+      }
+    }
+
+    &.ghost {
+      background-color: transparent;
+      &:hover {
+        background-color: var(--bg-additive-light);
+      }
+    }
+  }
+
+  #go-to-top {
+    padding: 4px 10px 4px 8px;
+    gap: 6px;
+  }
+
+  button.open-discussion {
+    margin-top: 16px;
   }
 </style>
 
@@ -737,7 +809,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     {
       rootMargin: "0px 0px -70% 0px",
       threshold: 1,
-    }
+    },
   );
 
   // Track all sections that have an `id` applied
@@ -751,4 +823,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       behavior: "smooth",
     });
   });
+
+  let scrollbarWidth = window.innerWidth - document.body.clientWidth + "px";
+  document.body.style.setProperty("--scrollbar-width", scrollbarWidth);
 </script>

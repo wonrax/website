@@ -1,0 +1,27 @@
+<pre>We're logging you in</pre>
+
+<script>
+  import config from "@/config";
+
+  let params = new URL(window.location.href).searchParams;
+
+  var code = params.get("code");
+  if (code != null) {
+    const resp = await fetch(
+      `${config.API_URL}/identity/oidc/callback/github?code=` + code,
+      {
+        credentials: "include",
+      },
+    );
+
+    if (resp.status == 200) {
+      let redirect = params.get("last_visit");
+      if (redirect == null) {
+        redirect = "/";
+      }
+      window.location.href = redirect;
+    } else {
+      console.log(resp);
+    }
+  }
+</script>

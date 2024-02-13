@@ -1,13 +1,24 @@
-import React from "react";
+// Disable solid eslint because this is a React component
+// TODO figure out how to do this by eslint config
+/* eslint-disable solid/no-destructure */
+/* eslint-disable solid/style-prop */
+/** @jsxImportSource react */
 
-type Props = {
+import React, { type ReactElement } from "react";
+
+interface Props {
   title: string;
   description?: string;
   image?: string;
   url?: string;
-};
+}
 
-export default async function OgImage({ title, description }: Props) {
+export default async function OgImage({
+  title,
+  description,
+}: Props): Promise<
+  React.ReactElement<any, string | React.JSXElementConstructor<any>>
+> {
   return (
     <div
       style={{
@@ -33,7 +44,7 @@ export default async function OgImage({ title, description }: Props) {
       >
         {title}
       </h1>
-      {description ? (
+      {description != null ? (
         <p style={{ margin: "16px 0 0 0", color: "#555" }}>{description}</p>
       ) : null}
       <p style={{ margin: "48px 0 0 0", color: "#111", fontWeight: 700 }}>
@@ -43,7 +54,7 @@ export default async function OgImage({ title, description }: Props) {
   );
 }
 
-const Logo = (props: any) => (
+const Logo = (props: any): ReactElement => (
   <svg
     width="128"
     height="128"
