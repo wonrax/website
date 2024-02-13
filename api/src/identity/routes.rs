@@ -292,7 +292,9 @@ pub async fn handle_oidc_github_request(
     Query(queries): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
     let last_visit = queries.get("last_visit");
-    let redirect_uri = "http://localhost:4321/login/oidc/callback/github".to_string()
+    let site_url: String = std::env::var("SITE_URL").unwrap_or("http://localhost:4321".to_string());
+    let redirect_uri = site_url
+        + "/login/oidc/callback/github"
         + match last_visit {
             Some(last_visit) => "?last_visit=".to_string() + last_visit,
             None => "".into(),
