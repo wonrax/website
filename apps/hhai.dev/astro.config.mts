@@ -55,6 +55,7 @@ const codeHighlightOptions = {
 
 // https://astro.build/config
 export default defineConfig({
+  site: "https://hhai.dev",
   markdown: {
     syntaxHighlight: false,
     remarkPlugins: [
