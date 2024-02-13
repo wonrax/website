@@ -15,7 +15,7 @@ model Counter {
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
 
-  @@unique([key, name], map: "counters_key_name_unique")
+  @@unique([key, name], map: "counter_key_name")
   @@map("counters")
 }
 
