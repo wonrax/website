@@ -63,7 +63,7 @@ export default function CommentComponent(props: {
   const [children, setChildren] = createSignal(props.comment.children);
 
   return (
-    <li class={`comment${props.depth === 0 ? "" : " not-root-comment"}`}>
+    <li class="comment">
       <div class="comment-header">
         <div class="comment-author">{props.comment.author_name}</div>
         <div class="comment-date">
@@ -94,13 +94,15 @@ export default function CommentComponent(props: {
           placeholder={`Replying to ${props.comment.author_name}`}
         />
       )}
-      <ol class="comment-children">
-        {
-          <For each={children()}>
-            {(c) => <CommentComponent comment={c} depth={props.depth + 1} />}
-          </For>
-        }
-      </ol>
+      {children() != null && (
+        <ol class="comment-children">
+          {
+            <For each={children()}>
+              {(c) => <CommentComponent comment={c} depth={props.depth + 1} />}
+            </For>
+          }
+        </ol>
+      )}
     </li>
   );
 }

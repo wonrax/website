@@ -44,12 +44,13 @@
   .comments {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 24px;
     // background-color: var(--bg-additive-light);
     border-radius: 12px;
     padding-inline-start: 0;
     padding-inline-end: 0;
     // padding: 24px;
+    margin: 32px 0;
 
     .comment-children {
       padding-inline-start: 0;
@@ -57,18 +58,15 @@
       margin-top: 16px;
       display: flex;
       flex-direction: column;
-      gap: 0;
+      gap: 16px;
     }
 
     .comment {
       list-style: none;
-
-      &.not-root-comment {
-        padding-left: 24px;
-        padding-top: 16px;
-        margin-top: 0;
-        border-left: 1px solid var(--bg-additive-light);
-      }
+      padding-left: 24px;
+      padding-top: 0;
+      margin-top: 0;
+      border-left: 1px solid var(--bg-additive-light);
 
       .comment-header {
         display: flex;
@@ -220,6 +218,8 @@
   border: 1px solid var(--bg-additive-medium);
   margin-top: 12px;
   overflow: hidden;
+  margin-left: -12px;
+  margin-right: -12px;
 
   .input {
     width: 100%;
