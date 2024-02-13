@@ -1,0 +1,66 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                ----------------------------------------------------------------\n                -- First we get the root comments by sorting by upvote and\n                -- created_at\n                ----------------------------------------------------------------\n                WITH RECURSIVE root_comments AS (\n                    SELECT\n                        NULL::integer as parent_id,\n                        comments.id,\n                        comments.author_name,\n                        comments.identity_id,\n                        comments.content,\n                        0 depth,\n                        comments.created_at,\n                        SUM(CASE WHEN votes.score IS NOT NULL\n                            THEN votes.score ELSE 0 END) votes\n                    FROM blog_comments as comments\n                    LEFT JOIN blog_comment_votes votes\n                    ON comments.id = votes.comment_id\n                    WHERE comments.post_id = (\n                        SELECT id FROM blog_posts\n                        WHERE category = 'blog' AND slug = $1\n                    )\n                    AND comments.parent_id IS NULL\n                    GROUP BY\n                        comments.id,\n                        comments.author_name,\n                        comments.identity_id,\n                        comments.content,\n                        depth,\n                        comments.created_at\n                    ORDER BY votes DESC, comments.created_at\n                    LIMIT $2 OFFSET $3\n                ----------------------------------------------------------------\n                -- Then we recursively get the children comments of those roots\n                ----------------------------------------------------------------\n                ), t(\n                    parent_id,\n                    id,\n                    author_name,\n                    identity_id,\n                    content,\n                    depth,\n                    created_at\n                    )\n                AS (\n                    (\n                        SELECT\n                            parent_id,\n                            id,\n                            author_name,\n                            identity_id,\n                            content,\n                            depth,\n                            created_at\n                        FROM root_comments\n                    )\n                    UNION ALL\n                    SELECT\n                        comments.parent_id,\n                        comments.id,\n                        comments.author_name,\n                        comments.identity_id,\n                        comments.content,\n                        t.depth + 1,\n                        comments.created_at\n                    FROM t\n                        JOIN blog_comments as comments\n                        ON (comments.parent_id = t.id)\n                )\n                ----------------------------------------------------------------\n                -- Finally we get the vote count for each comment because\n                -- we can't do it in the recursive query\n                ----------------------------------------------------------------\n                SELECT\n                    t.parent_id,\n                    t.id,\n                    COALESCE(t.author_name, i.traits->>'name') as author_name,\n                    t.identity_id,\n                    t.content,\n                    t.depth,\n                    t.created_at,\n                    SUM(CASE WHEN votes.score IS NOT NULL\n                        THEN votes.score ELSE 0 END) votes\n                FROM t LEFT JOIN blog_comment_votes votes\n                ON t.id = votes.comment_id\n                LEFT JOIN identities i\n                ON t.identity_id IS NOT NULL AND t.identity_id = i.id\n                GROUP BY\n                    t.parent_id,\n                    t.id,\n                    COALESCE(t.author_name, i.traits->>'name'),\n                    t.identity_id,\n                    t.content,\n                    t.depth,\n                    t.created_at;\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "parent_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "author_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "identity_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "content",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "depth",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 7,
+        "name": "votes",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "3dddcd61f45bf09d3680b661fc6188d9a6b2bdbb36741122ce84681bd3c18b0c"
+}
