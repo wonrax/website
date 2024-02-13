@@ -236,6 +236,7 @@ export default function CommentEditor(props: {
               }}
               type="submit"
               disabled={loading()}
+              class="ghost"
             >
               Cancel
             </button>

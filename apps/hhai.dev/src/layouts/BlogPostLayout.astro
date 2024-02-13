@@ -6,6 +6,7 @@ import "@fontsource/inconsolata/500.css";
 import "katex/dist/katex.css";
 import TableOfContents from "../components/TableOfContents.astro";
 import BlogRouteLayout from "./BlogRouteLayout.astro";
+import { MessageSquareText } from "lucide-solid";
 
 export type Frontmatter = {
   title: string;
@@ -46,12 +47,11 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
           headings.length ? (
             <>
               <TableOfContents headings={headings} />
-              <Sheet.Trigger client:load>View discussion</Sheet.Trigger>
               <button id="go-to-top">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  width="21"
-                  height="21"
+                  width="20"
+                  height="20"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -93,6 +93,29 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
               post.tags.map((tag) => <span class="post-tag">#{tag}</span>)
           }
         </div>
+        <Sheet.Trigger class="open-discussion" client:load>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="lucide lucide-message-square-text"
+          >
+            <>
+              <path
+                d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+              ></path>
+              <path d="M13 8H7"></path>
+              <path d="M17 12H7"></path>
+            </>
+          </svg>
+          View discussion
+        </Sheet.Trigger>
       </div>
       <div class="article-body">
         {
@@ -179,6 +202,10 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       top: 24px;
       overflow-y: auto;
       max-height: 90vh;
+      padding: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
 
       @media (min-width: 1280px) {
         width: 240px;
@@ -721,29 +748,37 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     display: flex;
     flex-direction: row;
     align-items: center;
-
-    &:hover {
-      background-color: var(--bg-additive-light);
-    }
+    gap: 8px;
+    width: fit-content;
+    background-color: var(--bg-additive-light);
 
     &:focus {
       outline: var(--bg-additive-medium) solid 2px;
     }
 
     &.primary {
-      background-color: var(--bg-additive-light);
       font-weight: var(--font-weight-medium);
 
       &:hover {
         background-color: var(--bg-additive-medium);
       }
     }
+
+    &.ghost {
+      background-color: transparent;
+      &:hover {
+        background-color: var(--bg-additive-light);
+      }
+    }
   }
 
   #go-to-top {
     padding: 4px 10px 4px 8px;
-    gap: 4px;
-    margin: 12px 0;
+    gap: 6px;
+  }
+
+  button.open-discussion {
+    margin-top: 16px;
   }
 </style>
 
