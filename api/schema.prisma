@@ -84,7 +84,7 @@ model IdentityCredentialType {
 
 model IdentityCredential {
   id                        Int                    @id @default(autoincrement())
-  credential                Json?
+  credential                Json?                  @unique
   credential_type_id        Int
   identity_id               Int
   created_at                DateTime               @db.Timestamp(6)
