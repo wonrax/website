@@ -27,8 +27,3 @@ npm run dev
 - hide the ToC when featuretype=lg element presents
   - Maybe remove the large feature type for regular blog post and create another
     dedicated layout for photography
-
-### infras todo
-
-- **IMPORTANT** update caddy to forward client IP, bc right now it's forwarding
-cloudflare's ip
