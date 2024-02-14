@@ -42,7 +42,7 @@ model BlogComment {
   created_at           DateTime          @default(now())
   blog_comment_upvotes BlogCommentVote[]
   identity             Identity?         @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  parent               BlogComment?      @relation("ChildComment", fields: [parent_id], references: [id])
+  parent               BlogComment?      @relation("ChildComment", fields: [parent_id], references: [id], onDelete: Cascade)
   comments             BlogComment[]     @relation("ChildComment")
   post                 BlogPost          @relation(fields: [post_id], references: [id])
 
