@@ -48,7 +48,10 @@ static.hhai.dev {
 
 api.hhai.dev {
 	handle_path /api/* {
-		reverse_proxy api:3000
+		reverse_proxy api:3000 {
+			# CloudFront proxy is trusted
+			header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+		}
 	}
 
 	encode zstd gzip
@@ -76,6 +79,6 @@ hang.hhai.dev {
 }
 
 windmill.hhai.dev {
-        reverse_proxy /ws/* http://windmill_lsp:3001
-        reverse_proxy /* http://windmill_server:8000
+    reverse_proxy /ws/* http://windmill_lsp:3001
+    reverse_proxy /* http://windmill_server:8000
 }
