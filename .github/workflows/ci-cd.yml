@@ -32,10 +32,10 @@ jobs:
       # Config related changes that do not require a build but trigger a deploy
       deploy: ${{ steps.changes.outputs.deploy }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Check for file changes
-        uses: dorny/paths-filter@v2
+        uses: dorny/paths-filter@v3
         id: changes
         with:
           token: ${{ github.token }}
