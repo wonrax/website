@@ -61,7 +61,7 @@ export default function CommentEditor(props: {
 
     const content = target.querySelector("#content");
 
-    if (content == null || !(content instanceof HTMLDivElement)) {
+    if (content == null || !(content instanceof HTMLTextAreaElement)) {
       throw new Error("content not found");
     }
 
@@ -76,7 +76,7 @@ export default function CommentEditor(props: {
               form["author-name"].value.length > 0
                 ? form["author-name"].value
                 : null,
-            content: content.innerText,
+            content: content.value,
             author_email:
               form.email?.value != null && form.email.value.length > 0
                 ? form.email.value
@@ -115,7 +115,7 @@ export default function CommentEditor(props: {
         // reset the form
         if (form["author-name"] != null) form["author-name"].value = "";
         if (form.email != null) form.email.value = "";
-        content.innerText = "";
+        content.value = "";
         setError(undefined);
       }
     } catch (e) {
@@ -192,12 +192,15 @@ export default function CommentEditor(props: {
       </div>
       <hr />
       <div class="comment-editor">
-        <div
-          contentEditable
+        <textarea
           class="content"
           id="content"
-          role="textbox"
-          aria-placeholder={props.placeholder ?? "Write a comment..."}
+          placeholder={props.placeholder ?? "Write a comment..."}
+          onKeyUp={(e) => {
+            if (e.currentTarget.scrollHeight > e.currentTarget.clientHeight)
+              e.currentTarget.style.height =
+                e.currentTarget.scrollHeight + "px";
+          }}
         />
       </div>
       {error() != null && <div class="error">{error()?.message}</div>}

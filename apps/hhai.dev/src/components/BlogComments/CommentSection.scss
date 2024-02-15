@@ -63,7 +63,7 @@
 
     .comment {
       list-style: none;
-      padding-left: 24px;
+      padding-left: 18px;
       padding-top: 0;
       margin-top: 0;
       border-left: 1px solid var(--bg-additive-light);
@@ -218,8 +218,8 @@
   border: 1px solid var(--bg-additive-medium);
   margin-top: 12px;
   overflow: hidden;
-  margin-left: -12px;
-  margin-right: -12px;
+  margin-left: -8px;
+  margin-right: -8px;
 
   .input {
     width: 100%;
@@ -255,7 +255,7 @@
   }
 
   .comment-editor {
-    padding: 12px;
+    padding: 6px;
   }
 
   hr {
@@ -298,25 +298,13 @@
       Inter Variable,
       sans-serif; // TODO move this to global style
     font-size: 15px;
-    padding: 4px;
+    padding: 10px;
     color: var(--text-body-heavy);
-    transition: border-color 0.2s ease-in-out;
-    user-select: text;
-    cursor: text;
     line-height: 145%;
-
-    &:focus {
-      outline: none;
-      // border-color: var(--accent-color);
-    }
-
+    border: none;
+    width: 100%;
     resize: vertical;
-
-    &:empty:before {
-      content: attr(aria-placeholder);
-      color: var(--text-body-light);
-      display: block; /* For Firefox */
-    }
+    box-sizing: border-box;
   }
 
   button {
