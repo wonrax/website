@@ -9,7 +9,7 @@ jobs:
     name: Run ssh command on host machine
     runs-on: ubuntu-latest
     steps:
-      - uses: appleboy/ssh-action@v1
+      - uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_HOST_USERNAME }}
