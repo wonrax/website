@@ -1,7 +1,3 @@
-god.hhai.dev {
-	reverse_proxy host.docker.internal:9090
-}
-
 # This is ineffective because the host machine is not directly accessible
 # through this domain. Instead, a CloudFront distribution is used to serve
 # the static files at static.hhai.dev.
@@ -71,11 +67,6 @@ share.hhai.dev {
 	header Access-Control-Allow-Origin "*"
 
 	encode zstd gzip
-}
-
-hang.hhai.dev {
-	root * /www/hang.hhai.dev
-	file_server
 }
 
 windmill.hhai.dev {
