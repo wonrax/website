@@ -1,29 +1,3 @@
-# This is ineffective because the host machine is not directly accessible
-# through this domain. Instead, a CloudFront distribution is used to serve
-# the static files at static.hhai.dev.
-# hhai.dev {
-# 	handle_path /api/* {
-# 		reverse_proxy api:3000
-# 	}
-
-# 	handle {
-# 		root * /www/hhai.dev
-# 		try_files {path}.html
-
-# 		file_server {
-#			disable_canonical_uris
-# 			precompressed zstd gzip
-# 		}
-
-# 		route {
-# 			header Cache-Control max-age=300
-# 			header /_astro/* Cache-Control max-age=31536000
-# 		}
-# 	}
-
-# 	encode zstd gzip
-# }
-
 static.hhai.dev {
 	handle_path /hhai.dev/* {
 		root * /www/hhai.dev
@@ -53,14 +27,8 @@ api.hhai.dev {
 	encode zstd gzip
 }
 
-next.hhai.dev {
-	root * /www/next-www
-	try_files {path}.html
-	file_server
-}
-
-share.hhai.dev {
-	root * /www/share.hhai.dev
+files.hhai.dev {
+	root * /www/files.hhai.dev
 	file_server {
 		browse
 	}
@@ -72,11 +40,4 @@ share.hhai.dev {
 windmill.hhai.dev {
 	reverse_proxy /ws/* http://windmill_lsp:3001
 	reverse_proxy /* http://windmill_server:8000
-}
-
-vultr-vps:80 {
-	handle_path /wm/* {
-		reverse_proxy /ws/* http://windmill_lsp:3001
-		reverse_proxy /* http://windmill_server:8000
-	}
 }
