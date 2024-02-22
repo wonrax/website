@@ -26,4 +26,4 @@ jobs:
             docker compose -f docker/docker-compose.prod.yml -p hhai-dev pull
             docker compose -f docker/docker-compose.prod.yml -p hhai-dev --env-file=./.env up --detach --no-build --remove-orphans
             docker compose -f docker/docker-compose.prod.yml -p hhai-dev restart caddy
-            docker system prune --all --volumes --force
+          # docker system prune --all --volumes --force

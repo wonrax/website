@@ -74,7 +74,7 @@ windmill.hhai.dev {
 	reverse_proxy /* http://windmill_server:8000
 }
 
-vultr-vps:80 {
+vultr-vps:80/wm {
 	reverse_proxy /ws/* http://windmill_lsp:3001
 	reverse_proxy /* http://windmill_server:8000
 }
