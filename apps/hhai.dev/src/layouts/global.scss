@@ -24,8 +24,8 @@ code {
 }
 
 :root {
-  --font-weight-normal: 430;
-  --font-weight-medium: 530;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
 
   --scrollbar-width: 0px;
 }
@@ -119,4 +119,10 @@ a,
 a:visited {
   color: var(--text-body-heavy);
   text-decoration: none;
+}
+
+button {
+  font-family:
+    Inter Variable,
+    sans-serif; // TODO move this to global selector
 }

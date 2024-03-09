@@ -225,10 +225,9 @@
     width: 100%;
 
     input {
-      font-size: 15px;
+      font-size: 14px;
       padding: 8px 12px;
       border-radius: 6px;
-      // border: 1px solid var(--bg-additive-medium);
       border: 1px solid transparent;
       background-color: var(--bg-additive-lighter);
       color: var(--text-body-heavy);
@@ -244,6 +243,7 @@
 
       &::placeholder {
         color: var(--text-body-light);
+        font-weight: normal;
       }
     }
 
@@ -289,6 +289,7 @@
       color: var(--text-body-heavy);
       font-weight: var(--font-weight-medium);
       cursor: pointer;
+      text-decoration: underline;
     }
   }
 
@@ -325,7 +326,7 @@
     border-top: 1px solid var(--bg-additive-medium);
 
     .markdown-hint {
-      font-size: 12px;
+      font-size: 13px;
       color: var(--text-body-medium);
       margin: 0 8px;
       display: flex;

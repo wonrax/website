@@ -139,7 +139,7 @@ export default function CommentEditor(props: {
               style={{
                 "font-size": "13px",
                 color: "var(--text-body-medium)",
-                margin: "8px 8px 16px 8px",
+                margin: "2px 8px 10px 8px",
               }}
             >
               Either{" "}
@@ -147,6 +147,7 @@ export default function CommentEditor(props: {
                 style={{
                   color: "var(--text-body-heavy)",
                   "font-weight": "var(--font-weight-medium)",
+                  "text-decoration": "underline",
                 }}
                 href={`${config.API_URL}/identity/login/oidc/github?last_visit=${window.location.href}`}
               >

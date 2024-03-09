@@ -54,7 +54,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="1.5"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   class="lucide lucide-chevron-up"
@@ -100,7 +100,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            stroke-width="2"
+            stroke-width="1.5"
             stroke-linecap="round"
             stroke-linejoin="round"
             class="lucide lucide-message-square-text"
@@ -113,7 +113,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
               <path d="M17 12H7"></path>
             </>
           </svg>
-          View discussion
+          View discussions
         </Sheet.Trigger>
       </div>
       <div class="article-body">
@@ -743,7 +743,6 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     border: none;
     outline: none;
     padding: 6px 12px;
-    font-family: Inter Variable; // TODO move this to global selector
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -774,10 +773,15 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
   #go-to-top {
     padding: 4px 10px 4px 8px;
     gap: 6px;
+    font-size: 14px;
   }
 
   button.open-discussion {
     margin-top: 16px;
+
+    svg {
+      margin-top: 2px;
+    }
   }
 </style>
 
