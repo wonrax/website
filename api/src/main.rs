@@ -30,9 +30,22 @@ mod utils;
 static GLOBAL: MiMalloc = MiMalloc;
 
 #[derive(Clone)]
+enum EnvironmentType {
+    Dev,
+    Staging,
+    Production,
+}
+
+#[derive(Clone)]
+struct ServerConfig {
+    environment: EnvironmentType,
+}
+
+#[derive(Clone)]
 pub struct APIContext {
     pool: Pool<Postgres>,
     counters_ttl_cache: Arc<retainer::Cache<String, bool>>,
+    config: ServerConfig,
 }
 
 #[tokio::main]
@@ -49,16 +62,36 @@ async fn main() {
         .await
         .expect("couldn't connect to db");
 
+    let config = ServerConfig {
+        environment: match std::env::var("ENVIRONMENT") {
+            Ok(env) => match env.as_str() {
+                "dev" => EnvironmentType::Dev,
+                "staging" => EnvironmentType::Staging,
+                "production" => EnvironmentType::Production,
+                _ => EnvironmentType::Dev,
+            },
+            Err(_) => EnvironmentType::Dev,
+        },
+    };
+
+    let (json, pretty) = match config.environment {
+        EnvironmentType::Dev => (None, Some(tracing_subscriber::fmt::layer().pretty())),
+        _ => (
+            Some(tracing_subscriber::fmt::layer().json().flatten_event(true)),
+            None,
+        ),
+    };
+
     tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
-        .with(tracing_subscriber::fmt::layer().pretty())
+        .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or("info".into()))
+        .with(json)
+        .with(pretty)
         .init();
 
     let shared_state = APIContext {
         pool,
         counters_ttl_cache: Arc::from(retainer::Cache::new()),
+        config,
     };
 
     let cors = CorsLayer::new()
