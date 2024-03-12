@@ -53,7 +53,7 @@ export function CommentSection(): JSXElement {
 
   const [comments, { mutate, refetch }] = createResource(doFetch, async () => {
     const res = await fetch(
-      `${config.API_URL}/public/blog/${slug}/comments?page_offset=0&page_size=99&sort=best`,
+      `${config.API_URL}/blog/${slug}/comments?page_offset=0&page_size=99&sort=best`,
     );
 
     return (await res.json()) as Comment[];

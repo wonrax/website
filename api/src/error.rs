@@ -1,8 +1,9 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Debug};
 
 use axum::{http::StatusCode, response::IntoResponse, Json};
 use serde::Serialize;
 use serde_json::Value;
+use tracing::debug;
 
 #[derive(Debug)]
 pub enum ServerError {
@@ -25,7 +26,17 @@ impl Serialize for ServerError {
     }
 }
 
-#[derive(Serialize)]
+pub trait ApiError: std::fmt::Debug {
+    fn error(&self) -> ErrorResponse;
+    fn status_code(&self) -> StatusCode;
+    fn into_response(&self) -> axum::response::Response {
+        let error = self.error();
+        let status_code = self.status_code();
+        (status_code, Json(error)).into_response()
+    }
+}
+
+#[derive(Serialize, Debug)]
 pub enum AppError {
     ServerError {
         error: ServerError,
@@ -34,64 +45,61 @@ pub enum AppError {
         #[cfg(debug_assertions)]
         backtrace: Option<backtrace::Backtrace>,
     },
-    Unhandled(String),
+
+    #[serde(skip_serializing)]
+    ApiError(Box<dyn ApiError>),
 }
 
 #[derive(Serialize)]
-struct ErrorResponse {
+pub struct ErrorResponse {
     code: String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     msg: Option<String>,
 
     #[cfg(debug_assertions)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     debug_info: Option<HashMap<&'static str, Value>>,
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
-        let (status_code, error_response) = match self {
+        match self {
+            AppError::ApiError(e) => {
+                debug!(api_error = ?e, "api error");
+                e.into_response()
+            }
             AppError::ServerError {
                 error,
                 #[cfg(debug_assertions)]
                 backtrace,
-            } => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                #[cfg(debug_assertions)]
-                {
-                    let frames_info = filter_backtrace(backtrace.as_ref().unwrap());
-                    ErrorResponse {
-                        code: "DATABASE_ERR".into(),
-                        msg: Some("Database error".into()),
-                        debug_info: Some(HashMap::from([
-                            ("backtrace", serde_json::to_value(&frames_info).unwrap()),
-                            ("error", serde_json::to_value(&error).unwrap()),
-                        ])),
-                    }
-                },
-                #[cfg(not(debug_assertions))]
-                ErrorResponse {
-                    code: "SERVER_ERR".into(),
-                    msg: Some("Internal server error".into()),
-                },
-            ),
-            AppError::Unhandled(e) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                #[cfg(debug_assertions)]
-                ErrorResponse {
-                    code: "ERR".into(),
-                    msg: Some(e),
-                    debug_info: None,
-                },
-                #[cfg(not(debug_assertions))]
-                ErrorResponse {
-                    code: "ERR".into(),
-                    msg: Some(e),
-                },
-            ),
-        };
-
-        (status_code, Json(error_response)).into_response()
+            } => {
+                tracing::error!(error = ?error, "server error");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    #[cfg(debug_assertions)]
+                    Json(
+                        {
+                            let frames_info = filter_backtrace(backtrace.as_ref().unwrap());
+                            ErrorResponse {
+                                code: "DATABASE_ERR".into(),
+                                msg: Some("Database error".into()),
+                                debug_info: Some(HashMap::from([
+                                    ("backtrace", serde_json::to_value(&frames_info).unwrap()),
+                                    ("error", serde_json::to_value(&error).unwrap()),
+                                ])),
+                            }
+                        },
+                        #[cfg(not(debug_assertions))]
+                        ErrorResponse {
+                            code: "SERVER_ERR".into(),
+                            msg: Some("Internal server error".into()),
+                        },
+                    ),
+                )
+                    .into_response()
+            }
+        }
     }
 }
 
@@ -108,7 +116,25 @@ impl From<sqlx::Error> for AppError {
 
 impl From<&'static str> for AppError {
     fn from(e: &'static str) -> Self {
-        AppError::Unhandled(e.into())
+        #[derive(Debug)]
+        struct ApiErrorImpl(&'static str);
+
+        impl ApiError for ApiErrorImpl {
+            fn error(&self) -> ErrorResponse {
+                ErrorResponse {
+                    code: "TODO".into(),
+                    msg: Some(self.0.into()),
+                    #[cfg(debug_assertions)]
+                    debug_info: None,
+                }
+            }
+
+            fn status_code(&self) -> StatusCode {
+                StatusCode::BAD_REQUEST
+            }
+        }
+
+        AppError::ApiError(Box::new(ApiErrorImpl(e)))
     }
 }
 

@@ -16,7 +16,7 @@ use tower_http::{
     cors::{AllowOrigin, CorsLayer},
     trace::TraceLayer,
 };
-use tracing::{debug, error, info_span, Span};
+use tracing::{debug, error, info, info_span, Span};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod blog;
@@ -84,7 +84,7 @@ async fn main() {
     // build our application with a route
     let app = Router::new()
         .route("/health", get(heath))
-        .nest("/public/blog", blog::routes::route(shared_state.clone()))
+        .nest("/blog", blog::routes::route(shared_state.clone()))
         .nest("/public", github::routes::route())
         .nest("/identity", identity::routes::route())
         .layer(cors)
@@ -128,7 +128,7 @@ async fn main() {
         );
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    println!("listening on {}", "0.0.0.0:3000");
+    info!("listening on 0.0.0.0:3000");
     axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
