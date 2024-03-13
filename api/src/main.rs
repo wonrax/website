@@ -10,7 +10,7 @@ use mimalloc::MiMalloc;
 use serde::Serialize;
 use serde_json::json;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, process::exit, sync::Arc, time::Duration};
 use tower_http::{
     classify::ServerErrorsFailureClass,
     cors::{AllowOrigin, CorsLayer},
@@ -52,16 +52,6 @@ pub struct APIContext {
 async fn main() {
     dotenv().ok();
 
-    let postgres_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
-
-    let pool = PgPoolOptions::new()
-        .max_connections(10)
-        .idle_timeout(Duration::from_secs(120))
-        .acquire_timeout(Duration::from_secs(10))
-        .connect(&postgres_url)
-        .await
-        .expect("couldn't connect to db");
-
     let config = ServerConfig {
         environment: match std::env::var("ENVIRONMENT") {
             Ok(env) => match env.as_str() {
@@ -87,6 +77,19 @@ async fn main() {
         .with(json)
         .with(pretty)
         .init();
+
+    let postgres_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
+
+    let pool = PgPoolOptions::new()
+        .max_connections(10)
+        .idle_timeout(Duration::from_secs(120))
+        .acquire_timeout(Duration::from_secs(10))
+        .connect(&postgres_url)
+        .await
+        .unwrap_or_else(|e| {
+            tracing::error!(error = %e, "Failed to connect to database, exiting...");
+            exit(1)
+        });
 
     let shared_state = APIContext {
         pool,
