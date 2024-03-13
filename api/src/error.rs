@@ -8,6 +8,18 @@ use tracing::debug;
 #[derive(Debug)]
 pub enum ServerError {
     DatabaseError(sqlx::Error),
+    HttpClientError(reqwest::Error),
+    Unknown(String),
+}
+
+impl std::fmt::Display for ServerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::DatabaseError(e) => write!(f, "Database error: {}", e),
+            Self::HttpClientError(e) => write!(f, "HTTP client error: {}", e),
+            Self::Unknown(e) => write!(f, "Unknown error: {}", e),
+        }
+    }
 }
 
 impl Serialize for ServerError {
@@ -22,11 +34,21 @@ impl Serialize for ServerError {
                 map.serialize_entry("message", &e.to_string())?;
                 map.end()
             }
+            Self::HttpClientError(e) => {
+                let mut map = serializer.serialize_map(Some(1))?;
+                map.serialize_entry("message", &e.to_string())?;
+                map.end()
+            }
+            Self::Unknown(e) => {
+                let mut map = serializer.serialize_map(Some(1))?;
+                map.serialize_entry("message", e)?;
+                map.end()
+            }
         }
     }
 }
 
-pub trait ApiError: std::fmt::Debug {
+pub trait ApiError: std::fmt::Debug + Send + Sync {
     fn error(&self) -> ErrorResponse;
     fn status_code(&self) -> StatusCode;
     fn into_response(&self) -> axum::response::Response {
@@ -36,18 +58,24 @@ pub trait ApiError: std::fmt::Debug {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Debug)]
 pub enum AppError {
     ServerError {
         error: ServerError,
-
-        #[serde(skip_serializing)]
-        #[cfg(debug_assertions)]
-        backtrace: Option<backtrace::Backtrace>,
+        backtrace: Backtrace,
     },
-
-    #[serde(skip_serializing)]
     ApiError(Box<dyn ApiError>),
+}
+
+impl std::error::Error for AppError {}
+
+impl std::fmt::Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AppError::ServerError { error, .. } => write!(f, "Server error: {}", error),
+            AppError::ApiError(e) => write!(f, "API error: {:?}", e),
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -57,7 +85,6 @@ pub struct ErrorResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     msg: Option<String>,
 
-    #[cfg(debug_assertions)]
     #[serde(skip_serializing_if = "Option::is_none")]
     debug_info: Option<HashMap<&'static str, Value>>,
 }
@@ -74,26 +101,30 @@ impl IntoResponse for AppError {
                 #[cfg(debug_assertions)]
                 backtrace,
             } => {
-                tracing::error!(error = ?error, "server error");
+                tracing::error!(
+                    error = %error,
+                    backtrace = %backtrace,
+                    "server error"
+                );
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     #[cfg(debug_assertions)]
                     Json(
                         {
-                            let frames_info = filter_backtrace(backtrace.as_ref().unwrap());
                             ErrorResponse {
-                                code: "DATABASE_ERR".into(),
-                                msg: Some("Database error".into()),
+                                code: "INTERNAL_SERVER_ERROR".into(),
+                                msg: Some("Internal server error".into()),
                                 debug_info: Some(HashMap::from([
-                                    ("backtrace", serde_json::to_value(&frames_info).unwrap()),
+                                    ("backtrace", serde_json::to_value(&backtrace).unwrap()),
                                     ("error", serde_json::to_value(&error).unwrap()),
                                 ])),
                             }
                         },
                         #[cfg(not(debug_assertions))]
                         ErrorResponse {
-                            code: "SERVER_ERR".into(),
+                            code: "INTERNAL_SERVER_ERROR".into(),
                             msg: Some("Internal server error".into()),
+                            debug_info: None,
                         },
                     ),
                 )
@@ -107,9 +138,7 @@ impl From<sqlx::Error> for AppError {
     fn from(e: sqlx::Error) -> Self {
         AppError::ServerError {
             error: ServerError::DatabaseError(e),
-
-            #[cfg(debug_assertions)]
-            backtrace: Some(backtrace::Backtrace::new()),
+            backtrace: create_backtrace(),
         }
     }
 }
@@ -124,7 +153,6 @@ impl From<&'static str> for AppError {
                 ErrorResponse {
                     code: "TODO".into(),
                     msg: Some(self.0.into()),
-                    #[cfg(debug_assertions)]
                     debug_info: None,
                 }
             }
@@ -134,7 +162,19 @@ impl From<&'static str> for AppError {
             }
         }
 
-        AppError::ApiError(Box::new(ApiErrorImpl(e)))
+        AppError::ServerError {
+            error: ServerError::Unknown(e.into()),
+            backtrace: create_backtrace(),
+        }
+    }
+}
+
+impl From<reqwest::Error> for AppError {
+    fn from(value: reqwest::Error) -> Self {
+        AppError::ServerError {
+            error: ServerError::HttpClientError(value),
+            backtrace: create_backtrace(),
+        }
     }
 }
 
@@ -144,26 +184,57 @@ struct FrameInfo {
     loc: String,
 }
 
-fn filter_backtrace(backtrace: &backtrace::Backtrace) -> Vec<FrameInfo> {
-    const MODULE_PREFIX: &str = concat!(env!("CARGO_PKG_NAME"), "::");
-    let mut frames_info: Vec<FrameInfo> = Vec::new();
+impl std::fmt::Display for FrameInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}\n\tat {}", self.name, self.loc)
+    }
+}
 
-    for frame in backtrace.frames() {
-        for symbol in frame.symbols() {
-            if let (Some(name), Some(filename), Some(lineno)) = (
-                symbol.name().map(|n| n.to_string()),
-                symbol.filename().map(|f| f.to_owned()),
-                symbol.lineno(),
-            ) {
-                if name.contains(MODULE_PREFIX) {
-                    frames_info.push(FrameInfo {
-                        name,
-                        loc: format!("{}:{}", filename.to_str().unwrap(), lineno),
-                    });
+#[derive(Debug, Serialize)]
+struct Backtrace(Vec<FrameInfo>);
+
+impl std::fmt::Display for Backtrace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for frame in self.0.iter() {
+            write!(f, "{}\n", frame)?;
+        }
+        Ok(())
+    }
+}
+
+fn create_backtrace() -> Backtrace {
+    let backtrace = backtrace::Backtrace::new();
+    Backtrace(filter_backtrace(Some(&backtrace)))
+}
+
+fn filter_backtrace(backtrace: Option<&backtrace::Backtrace>) -> Vec<FrameInfo> {
+    match backtrace {
+        Some(backtrace) => {
+            const MODULE_PREFIX: &str = concat!(env!("CARGO_PKG_NAME"), "::");
+            let mut frames_info: Vec<FrameInfo> = Vec::new();
+
+            for frame in backtrace.frames() {
+                for symbol in frame.symbols() {
+                    if let (Some(name), Some(filename), Some(lineno)) = (
+                        symbol.name().map(|n| n.to_string()),
+                        symbol.filename().map(|f| f.to_owned()),
+                        symbol.lineno(),
+                    ) {
+                        if name.contains(MODULE_PREFIX) {
+                            frames_info.push(FrameInfo {
+                                name,
+                                loc: format!("{}:{}", filename.to_str().unwrap(), lineno),
+                            });
+                        }
+                    }
                 }
             }
-        }
-    }
 
-    return frames_info;
+            // Pop the two first frames, which are the `filter_backtrace` and `create_backtrace` functions
+            frames_info.drain(0..2);
+
+            frames_info
+        }
+        None => Vec::new(),
+    }
 }

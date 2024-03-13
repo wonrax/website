@@ -67,7 +67,15 @@ async fn main() {
     let (json, pretty) = match config.environment {
         EnvironmentType::Dev => (None, Some(tracing_subscriber::fmt::layer().pretty())),
         _ => (
-            Some(tracing_subscriber::fmt::layer().json().flatten_event(true)),
+            Some(
+                tracing_subscriber::fmt::layer()
+                    .json()
+                    .flatten_event(true)
+                    .with_current_span(false)
+                    .with_file(true)
+                    .with_line_number(true)
+                    .with_span_list(true),
+            ),
             None,
         ),
     };
