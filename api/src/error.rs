@@ -96,11 +96,7 @@ impl IntoResponse for AppError {
                 debug!(api_error = ?e, "api error");
                 e.into_response()
             }
-            AppError::ServerError {
-                error,
-                #[cfg(debug_assertions)]
-                backtrace,
-            } => {
+            AppError::ServerError { error, backtrace } => {
                 tracing::error!(
                     error = %error,
                     backtrace = %backtrace,
@@ -230,7 +226,8 @@ fn filter_backtrace(backtrace: Option<&backtrace::Backtrace>) -> Vec<FrameInfo> 
                 }
             }
 
-            // Pop the two first frames, which are the `filter_backtrace` and `create_backtrace` functions
+            // Pop the two first frames, which are the `filter_backtrace` and
+            // `create_backtrace` functions
             frames_info.drain(0..2);
 
             frames_info
