@@ -217,7 +217,9 @@ fn filter_backtrace(backtrace: Option<&backtrace::Backtrace>) -> Vec<FrameInfo> 
 
             // Pop the two first frames, which are the `filter_backtrace` and
             // `create_backtrace` functions
-            frames_info.drain(0..2);
+            if frames_info.len() >= 2 {
+                frames_info.drain(0..2);
+            }
 
             frames_info
         }
