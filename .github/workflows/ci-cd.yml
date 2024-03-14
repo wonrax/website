@@ -3,6 +3,9 @@ name: hhai.dev container CI/CD
 # GitHub container registry and deploy
 # on host machine.
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
 on:
   push:
     branches: [ "main" ]
