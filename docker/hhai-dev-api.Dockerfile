@@ -8,9 +8,8 @@ ENV RUSTFLAGS=-g
 
 RUN cargo build --release -p api
 
-FROM debian:bookworm-slim
+FROM gcr.io/distroless/cc
 
 COPY --from=build-step /src/target/release/api /bin/api
-RUN apt-get update && apt-get install libssl3
 
 CMD ["/bin/api"]
