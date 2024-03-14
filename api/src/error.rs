@@ -28,27 +28,13 @@ impl Serialize for ServerError {
         S: serde::ser::Serializer,
     {
         use serde::ser::SerializeMap;
-        match self {
-            ServerError::DatabaseError(e) => {
-                let mut map = serializer.serialize_map(Some(1))?;
-                map.serialize_entry("message", &e.to_string())?;
-                map.end()
-            }
-            Self::HttpClientError(e) => {
-                let mut map = serializer.serialize_map(Some(1))?;
-                map.serialize_entry("message", &e.to_string())?;
-                map.end()
-            }
-            Self::Unknown(e) => {
-                let mut map = serializer.serialize_map(Some(1))?;
-                map.serialize_entry("message", e)?;
-                map.end()
-            }
-        }
+        let mut map = serializer.serialize_map(Some(1))?;
+        map.serialize_entry("message", &self.to_string())?;
+        map.end()
     }
 }
 
-pub trait ApiError: std::fmt::Debug + Send + Sync {
+pub trait ApiError: std::fmt::Display {
     fn error(&self) -> ErrorResponse;
     fn status_code(&self) -> StatusCode;
     fn into_response(&self) -> axum::response::Response {
@@ -58,7 +44,6 @@ pub trait ApiError: std::fmt::Debug + Send + Sync {
     }
 }
 
-#[derive(Debug)]
 pub enum AppError {
     ServerError {
         error: ServerError,
@@ -67,13 +52,11 @@ pub enum AppError {
     ApiError(Box<dyn ApiError>),
 }
 
-impl std::error::Error for AppError {}
-
 impl std::fmt::Display for AppError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AppError::ServerError { error, .. } => write!(f, "Server error: {}", error),
-            AppError::ApiError(e) => write!(f, "API error: {:?}", e),
+            AppError::ApiError(e) => write!(f, "API error: {}", e),
         }
     }
 }
@@ -93,7 +76,7 @@ impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         match self {
             AppError::ApiError(e) => {
-                debug!(api_error = ?e, "api error");
+                debug!(api_error = %e, "api error");
                 e.into_response()
             }
             AppError::ServerError { error, backtrace } => {
@@ -143,6 +126,12 @@ impl From<&'static str> for AppError {
     fn from(e: &'static str) -> Self {
         #[derive(Debug)]
         struct ApiErrorImpl(&'static str);
+
+        impl std::fmt::Display for ApiErrorImpl {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.0)
+            }
+        }
 
         impl ApiError for ApiErrorImpl {
             fn error(&self) -> ErrorResponse {
