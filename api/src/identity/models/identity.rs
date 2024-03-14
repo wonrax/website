@@ -1,9 +1,4 @@
-use std::collections::HashMap;
-
 use serde_json::Value as JsonValue;
-use sqlx::Encode;
-
-use super::credential::{CredentialType, IdentityCredential};
 
 pub enum IdentityState {
     Active,

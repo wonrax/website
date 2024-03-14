@@ -13,7 +13,7 @@ use serde_json::json;
 use time::Duration;
 
 use crate::{
-    error::{ApiError, AppError},
+    error::{ApiError, ApiErrorImpl, AppError, InternalServerError},
     APIContext,
 };
 
@@ -111,7 +111,9 @@ pub async fn handle_github_oauth_callback(
     State(ctx): State<APIContext>,
     Query(queries): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, AppError> {
-    let code = queries.get("code").ok_or("no code in query")?;
+    let code = queries
+        .get("code")
+        .ok_or(ApiErrorImpl("No `code` in query parameters"))?;
 
     // TODO move this to shared config
     let github_oauth_client_id: String = std::env::var("GITHUB_OAUTH_CLIENT_ID")
@@ -135,7 +137,7 @@ pub async fn handle_github_oauth_callback(
     let access_token = code_verify["access_token"].as_str();
 
     if access_token.is_none() {
-        return Err("no access token".into());
+        return Err(InternalServerError("GitHub returned unexpected response", None).into());
     }
 
     let user_info: serde_json::Value = reqwest::Client::new()
@@ -147,11 +149,9 @@ pub async fn handle_github_oauth_callback(
             "Bearer ".to_string() + access_token.unwrap(),
         )
         .send()
-        .await
-        .map_err(|_| "network err")?
+        .await?
         .json()
-        .await
-        .map_err(|_| "login successfully, but user info from github json parse err")?;
+        .await?;
 
     // TODO use a struct to deserialize into instead of this
     let user = user_info["login"]
