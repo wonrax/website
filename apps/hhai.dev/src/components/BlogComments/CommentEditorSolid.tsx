@@ -66,29 +66,26 @@ export default function CommentEditor(props: {
     }
 
     try {
-      const resp = await fetch(
-        `${config.API_URL}/public/blog/${ctx?.slug}/comments`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            author_name:
-              form["author-name"]?.value != null &&
-              form["author-name"].value.length > 0
-                ? form["author-name"].value
-                : null,
-            content: content.value,
-            author_email:
-              form.email?.value != null && form.email.value.length > 0
-                ? form.email.value
-                : null,
-            parent_id: props.parentId,
-          }),
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
+      const resp = await fetch(`${config.API_URL}/blog/${ctx?.slug}/comments`, {
+        method: "POST",
+        body: JSON.stringify({
+          author_name:
+            form["author-name"]?.value != null &&
+            form["author-name"].value.length > 0
+              ? form["author-name"].value
+              : null,
+          content: content.value,
+          author_email:
+            form.email?.value != null && form.email.value.length > 0
+              ? form.email.value
+              : null,
+          parent_id: props.parentId,
+        }),
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        credentials: "include",
+      });
 
       if (!resp.ok) {
         if (

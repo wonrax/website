@@ -93,11 +93,9 @@ pub async fn handle_github_oauth_callback(
             "code": code
         }))
         .send()
-        .await
-        .map_err(|_| "server network err")?
+        .await?
         .json()
-        .await
-        .map_err(|_| "json parse reponse from github err")?;
+        .await?;
 
     let access_token = code_verify["access_token"].as_str();
 
