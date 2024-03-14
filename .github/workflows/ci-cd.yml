@@ -56,9 +56,9 @@ jobs:
               - "docker/hhai-dev-migrator.Dockerfile"
             deploy:
               - "docker/Caddyfile"
-              - "docker/docker-compose.prod.yml"
-              - "docker/docker-compose.yml"
-              - "docker/docker-compose-windmill.yml"
+              - "docker/docker-compose*.yml"
+              - "docker/*.Dockerfile"
+              - "docker/vector/vector.toml"
 
   build-and-push-www:
     name: hhai.dev www - Build and push Docker image
