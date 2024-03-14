@@ -152,6 +152,16 @@ impl From<&'static str> for AppError {
     }
 }
 
+impl From<String> for AppError {
+    fn from(e: String) -> Self {
+        AppError::ServerError {
+            error: ServerError::Unknown(e),
+            msg: None,
+            backtrace: create_backtrace(),
+        }
+    }
+}
+
 pub struct ApiErrorImpl(pub &'static str);
 
 impl std::fmt::Display for ApiErrorImpl {

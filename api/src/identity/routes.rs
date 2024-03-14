@@ -137,7 +137,7 @@ pub async fn handle_github_oauth_callback(
     let access_token = code_verify["access_token"].as_str();
 
     if access_token.is_none() {
-        return Err(InternalServerError("GitHub returned unexpected response", None).into());
+        Err(AuthenticationError::Unauthorized)?
     }
 
     let user_info: serde_json::Value = reqwest::Client::new()
@@ -153,16 +153,12 @@ pub async fn handle_github_oauth_callback(
         .json()
         .await?;
 
+    const MISSING_EXPECTED_FIELD: &str = "GitHub returned unexpected response";
+
     // TODO use a struct to deserialize into instead of this
-    let user = user_info["login"]
-        .as_str()
-        .ok_or("github returned unexpected response")?;
-    let user_id = user_info["id"]
-        .as_i64()
-        .ok_or("github returned unexpected response")?;
-    let full_name = user_info["name"]
-        .as_str()
-        .ok_or("github returned unexpected response")?;
+    let user = user_info["login"].as_str().ok_or(MISSING_EXPECTED_FIELD)?;
+    let user_id = user_info["id"].as_i64().ok_or(MISSING_EXPECTED_FIELD)?;
+    let full_name = user_info["name"].as_str().ok_or(MISSING_EXPECTED_FIELD)?;
 
     let emails: serde_json::Value = reqwest::Client::new()
         .get("https://api.github.com/user/emails")
@@ -173,13 +169,10 @@ pub async fn handle_github_oauth_callback(
             "Bearer ".to_string() + access_token.unwrap(),
         )
         .send()
-        .await
-        .map_err(|_| "network err")?
+        .await?
         .json()
-        .await
-        .map_err(|_| "emails json parse err")?;
+        .await?;
 
-    // filter the email that is primary, verified:
     let email = emails
         .as_array()
         .ok_or("emails is not an array")?
@@ -323,7 +316,7 @@ pub async fn handle_github_oauth_callback(
 #[axum::debug_handler]
 pub async fn handle_oidc_github_request(
     Query(queries): Query<HashMap<String, String>>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, AppError> {
     let last_visit = queries.get("last_visit");
     let site_url: String = std::env::var("SITE_URL").unwrap_or("http://localhost:4321".to_string());
     let redirect_uri = site_url
@@ -345,10 +338,10 @@ pub async fn handle_oidc_github_request(
             ("redirect_uri", redirect_uri.as_str()),
         ],
     )
-    .unwrap()
+    .map_err(|e| format!("Failed to parse url: {}", e))?
     .to_string();
 
-    (axum::http::StatusCode::FOUND, [(header::LOCATION, url)]).into_response()
+    Ok((axum::http::StatusCode::FOUND, [(header::LOCATION, url)]).into_response())
 }
 
 #[axum::debug_handler]
