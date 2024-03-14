@@ -87,17 +87,15 @@ impl IntoResponse for AppError {
                 );
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    #[cfg(debug_assertions)]
                     Json(
-                        {
-                            ErrorResponse {
-                                code: "INTERNAL_SERVER_ERROR".into(),
-                                msg: Some("Internal server error".into()),
-                                debug_info: Some(HashMap::from([
-                                    ("backtrace", serde_json::to_value(&backtrace).unwrap()),
-                                    ("error", serde_json::to_value(&error).unwrap()),
-                                ])),
-                            }
+                        #[cfg(debug_assertions)]
+                        ErrorResponse {
+                            code: "INTERNAL_SERVER_ERROR".into(),
+                            msg: Some("Internal server error".into()),
+                            debug_info: Some(HashMap::from([
+                                ("backtrace", serde_json::to_value(&backtrace).unwrap()),
+                                ("error", serde_json::to_value(&error).unwrap()),
+                            ])),
                         },
                         #[cfg(not(debug_assertions))]
                         ErrorResponse {
