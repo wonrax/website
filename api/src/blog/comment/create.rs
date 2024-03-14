@@ -23,7 +23,9 @@ pub async fn create_comment(
     Extension(auth_user): Extension<Option<AuthUser>>,
     Json(mut comment): Json<CommentSubmission>,
 ) -> Result<Json<Comment>, AppError> {
-    comment.validate(auth_user.is_some())?;
+    comment
+        .validate(auth_user.is_some())
+        .map_err(|e| (e, axum::http::StatusCode::BAD_REQUEST))?;
 
     // check if the post exists, otherwise create it
     let exists = sqlx::query_as::<_, (bool,)>(
