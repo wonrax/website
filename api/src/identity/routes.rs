@@ -12,7 +12,10 @@ use axum_extra::extract::CookieJar;
 use serde_json::json;
 use time::Duration;
 
-use crate::{error::AppError, APIContext};
+use crate::{
+    error::{ApiError, AppError},
+    APIContext,
+};
 
 use super::models::{
     credential::IdentityCredential,
@@ -37,6 +40,30 @@ pub struct WhoamiRespose {
 
 pub const COOKIE_NAME: &str = "auth_token";
 
+#[derive(thiserror::Error, Debug)]
+enum AuthenticationError {
+    #[error("No cookie `{COOKIE_NAME}` found in headers")]
+    NoCookie,
+
+    #[error("Unauthorized")]
+    Unauthorized,
+}
+
+impl ApiError for AuthenticationError {
+    fn status_code(&self) -> axum::http::StatusCode {
+        match self {
+            AuthenticationError::NoCookie => axum::http::StatusCode::BAD_REQUEST,
+            AuthenticationError::Unauthorized => axum::http::StatusCode::UNAUTHORIZED,
+        }
+    }
+}
+
+impl From<AuthenticationError> for AppError {
+    fn from(e: AuthenticationError) -> Self {
+        AppError::ApiError(Box::new(e))
+    }
+}
+
 #[axum::debug_handler]
 pub async fn handle_whoami(
     State(ctx): State<APIContext>,
@@ -47,7 +74,10 @@ pub async fn handle_whoami(
     // speed up the auth process by comparing a shorter token instead of the
     // longer one. The longer one will be used to refresh the shorter one thus
     // has a longer expiry.
-    let session_token: &str = jar.get(COOKIE_NAME).ok_or("no cookie in header")?.value();
+    let session_token: &str = jar
+        .get(COOKIE_NAME)
+        .ok_or(AuthenticationError::NoCookie)?
+        .value();
 
     let identity = sqlx::query_as!(
         Identity,
@@ -64,7 +94,12 @@ pub async fn handle_whoami(
     )
     .fetch_one(&ctx.pool)
     .await
-    .map_err(|_| "invalid session token")?;
+    .map_err(|e| -> AppError {
+        match e {
+            sqlx::Error::RowNotFound => AuthenticationError::Unauthorized.into(),
+            _ => e.into(),
+        }
+    })?;
 
     Ok(axum::Json(WhoamiRespose {
         traits: identity.traits,

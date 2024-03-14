@@ -35,8 +35,14 @@ impl Serialize for ServerError {
 }
 
 pub trait ApiError: std::fmt::Display {
-    fn error(&self) -> ErrorResponse;
-    fn status_code(&self) -> StatusCode;
+    fn status_code(&self) -> StatusCode {
+        StatusCode::BAD_REQUEST
+    }
+
+    fn error(&self) -> ErrorResponse {
+        ErrorResponse::new(&self.to_string())
+    }
+
     fn into_response(&self) -> axum::response::Response {
         let error = self.error();
         let status_code = self.status_code();
@@ -63,13 +69,23 @@ impl std::fmt::Display for AppError {
 
 #[derive(Serialize)]
 pub struct ErrorResponse {
-    code: String,
-
     #[serde(skip_serializing_if = "Option::is_none")]
-    msg: Option<String>,
+    code: Option<String>,
+
+    msg: String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     debug_info: Option<HashMap<&'static str, Value>>,
+}
+
+impl ErrorResponse {
+    pub fn new(msg: &str) -> Self {
+        Self {
+            code: None,
+            msg: msg.into(),
+            debug_info: None,
+        }
+    }
 }
 
 impl IntoResponse for AppError {
@@ -90,8 +106,8 @@ impl IntoResponse for AppError {
                     Json(
                         #[cfg(debug_assertions)]
                         ErrorResponse {
-                            code: "INTERNAL_SERVER_ERROR".into(),
-                            msg: Some("Internal server error".into()),
+                            code: Some("INTERNAL_SERVER_ERROR".into()),
+                            msg: "Internal server error".into(),
                             debug_info: Some(HashMap::from([
                                 ("backtrace", serde_json::to_value(&backtrace).unwrap()),
                                 ("error", serde_json::to_value(&error).unwrap()),
@@ -99,8 +115,8 @@ impl IntoResponse for AppError {
                         },
                         #[cfg(not(debug_assertions))]
                         ErrorResponse {
-                            code: "INTERNAL_SERVER_ERROR".into(),
-                            msg: Some("Internal server error".into()),
+                            code: Some("INTERNAL_SERVER_ERROR".into()),
+                            msg: "Internal server error".into(),
                             debug_info: None,
                         },
                     ),
@@ -131,19 +147,7 @@ impl From<&'static str> for AppError {
             }
         }
 
-        impl ApiError for ApiErrorImpl {
-            fn error(&self) -> ErrorResponse {
-                ErrorResponse {
-                    code: "TODO".into(),
-                    msg: Some(self.0.into()),
-                    debug_info: None,
-                }
-            }
-
-            fn status_code(&self) -> StatusCode {
-                StatusCode::BAD_REQUEST
-            }
-        }
+        impl ApiError for ApiErrorImpl {}
 
         AppError::ServerError {
             error: ServerError::Unknown(e.into()),

@@ -165,7 +165,7 @@ async fn main() {
                         error!(
                             time = ?_latency,
                             error = ?_error,
-                            "response_failure",
+                            "request failed",
                         );
                     },
                 ),

@@ -25,6 +25,7 @@ time = "0.3.31"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
 backtrace = "0.3.69"
+thiserror = "1.0.58"
 
 [dev-dependencies]
 criterion = "0.5.1"
@@ -32,3 +33,7 @@ criterion = "0.5.1"
 [[bench]]
 name = "blog_comments"
 harness = false
+
+[profile.release]
+# Enable debug info for better tracing (e.g. for backtraces)
+debug = true
