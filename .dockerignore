@@ -40,3 +40,5 @@ target/
 
 # docker mount
 docker/.mount/
+# prevent cache invalidation on dockerfile changes
+docker/
