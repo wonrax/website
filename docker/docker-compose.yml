@@ -13,7 +13,7 @@ services:
       - 5432:5432
 
   vector:
-    image: timberio/vector:0.31.0-distroless-libc
+    image: timberio/vector:0.36.1-distroless-libc
     container_name: hhai-dev-vector
     restart: unless-stopped
     env_file:

@@ -25,6 +25,8 @@ encoding.codec = "json"
     password = "${GRAFANA_LOKI_PASSWORD}"
 
 [sinks.new_relic]
-type = "new_relic_logs"
+type = "new_relic"
 inputs = ["hhai_dev_api"]
+account_id = "4240358"
 license_key = "${NEW_RELIC_LICENSE_KEY}"
+api = "logs"
