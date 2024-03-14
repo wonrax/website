@@ -30,4 +30,4 @@ inputs = ["hhai_dev_api"]
 account_id = "${NEW_RELIC_ACCOUNT_ID}"
 license_key = "${NEW_RELIC_LICENSE_KEY}"
 api = "logs"
-healthcheck.enabled = false
+region = "eu"
