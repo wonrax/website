@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use axum::{
     extract::{Query, State},
-    http::header,
+    http::{header, StatusCode},
     response::IntoResponse,
     routing::{get, post},
     Router,
@@ -13,7 +13,7 @@ use serde_json::json;
 use time::Duration;
 
 use crate::{
-    error::{ApiError, ApiErrorImpl, AppError, InternalServerError},
+    error::{ApiRequestError, ApiStringError, AppError},
     APIContext,
 };
 
@@ -49,18 +49,12 @@ enum AuthenticationError {
     Unauthorized,
 }
 
-impl ApiError for AuthenticationError {
+impl ApiRequestError for AuthenticationError {
     fn status_code(&self) -> axum::http::StatusCode {
         match self {
             AuthenticationError::NoCookie => axum::http::StatusCode::BAD_REQUEST,
             AuthenticationError::Unauthorized => axum::http::StatusCode::UNAUTHORIZED,
         }
-    }
-}
-
-impl From<AuthenticationError> for AppError {
-    fn from(e: AuthenticationError) -> Self {
-        AppError::ApiError(Box::new(e))
     }
 }
 
@@ -113,7 +107,7 @@ pub async fn handle_github_oauth_callback(
 ) -> Result<impl IntoResponse, AppError> {
     let code = queries
         .get("code")
-        .ok_or(ApiErrorImpl("No `code` in query parameters"))?;
+        .ok_or(("No `code` in query parameters", StatusCode::BAD_REQUEST))?;
 
     // TODO move this to shared config
     let github_oauth_client_id: String = std::env::var("GITHUB_OAUTH_CLIENT_ID")
