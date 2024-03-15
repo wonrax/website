@@ -360,7 +360,23 @@ fn create_backtrace() -> Backtrace {
 fn filter_backtrace(backtrace: Option<&backtrace::Backtrace>) -> Vec<BacktraceFrame> {
     match backtrace {
         Some(backtrace) => {
-            const MODULE_PREFIX: &str = concat!(env!("CARGO_PKG_NAME"), "::");
+            const EXCLUDES: [&str; 14] = [
+                "tokio",
+                "hyper",
+                "axum",
+                "tower",
+                "tracing",
+                "std::panic",
+                "std::thread",
+                "std::panicking",
+                "std::sys",
+                "std::sys_common",
+                "core::ops",
+                "core::pin",
+                "futures_util",
+                "F as futures",
+            ];
+
             let mut frames_info: Vec<BacktraceFrame> = Vec::new();
 
             for frame in backtrace.frames() {
@@ -370,7 +386,7 @@ fn filter_backtrace(backtrace: Option<&backtrace::Backtrace>) -> Vec<BacktraceFr
                         symbol.filename().map(|f| f.to_owned()),
                         symbol.lineno(),
                     ) {
-                        if name.contains(MODULE_PREFIX) {
+                        if EXCLUDES.iter().all(|ex| !name.contains(ex)) {
                             frames_info.push(BacktraceFrame {
                                 name,
                                 loc: format!("{}:{}", filename.to_str().unwrap(), lineno),
