@@ -6,10 +6,14 @@ use axum::{
     middleware::Next,
     response::Response,
     routing::{get, post},
-    Extension, RequestExt, Router,
+    Router,
 };
 
-use crate::{error, identity::routes::COOKIE_NAME, APIContext};
+use crate::{
+    error::{self, SqlxErrorExt},
+    identity::routes::COOKIE_NAME,
+    APIContext,
+};
 
 use super::comment::{create::create_comment, get::get_comments};
 
@@ -68,13 +72,15 @@ async fn auth_user(
                 ",
             token
         )
-        .fetch_one(&ctx.pool)
+        .fetch_optional(&ctx.pool)
         .await?;
 
-        req.extensions_mut()
-            .insert(Some(AuthUser { id: identity.id }));
+        if let Some(identity) = identity {
+            req.extensions_mut()
+                .insert(Some(AuthUser { id: identity.id }));
 
-        return Ok(next.run(req).await);
+            return Ok(next.run(req).await);
+        }
     }
 
     req.extensions_mut().insert(Option::<AuthUser>::None);
