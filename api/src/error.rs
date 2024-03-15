@@ -104,11 +104,88 @@ pub trait ApiRequestError: std::fmt::Display {
 
 impl From<(&'static str, StatusCode)> for AppError {
     fn from((message, status_code): (&'static str, StatusCode)) -> Self {
-        ApiStringError::new(message)
-            .with_status_code(status_code)
-            .into()
+        AppError::ApiError(Box::new(
+            ErrorResponseBuilder::new(message).with_status_code(status_code),
+        ))
     }
 }
+
+impl From<(ErrorCode, &'static str, StatusCode)> for AppError {
+    fn from(value: (ErrorCode, &'static str, StatusCode)) -> Self {
+        AppError::ApiError(Box::new(
+            ErrorResponseBuilder::new(value.1)
+                .with_code(value.0 .0)
+                .with_status_code(value.2),
+        ))
+    }
+}
+
+struct ErrorResponseBuilder {
+    code: Option<String>,
+    msg: String,
+    reason: Option<String>,
+    debug_info: Option<HashMap<&'static str, Value>>,
+    status_code: Option<StatusCode>,
+}
+
+impl ErrorResponseBuilder {
+    fn new(msg: &str) -> Self {
+        Self {
+            code: None,
+            msg: msg.into(),
+            reason: None,
+            debug_info: None,
+            status_code: None,
+        }
+    }
+
+    fn with_code(mut self, code: &str) -> Self {
+        self.code = Some(code.into());
+        self
+    }
+
+    fn with_reason(mut self, reason: &str) -> Self {
+        self.reason = Some(reason.into());
+        self
+    }
+
+    fn with_debug_info(mut self, debug_info: HashMap<&'static str, Value>) -> Self {
+        self.debug_info = Some(debug_info);
+        self
+    }
+
+    fn with_status_code(mut self, status_code: StatusCode) -> Self {
+        self.status_code = Some(status_code);
+        self
+    }
+
+    fn build(&self) -> ErrorResponse {
+        ErrorResponse {
+            code: self.code.to_owned(),
+            msg: self.msg.to_owned(),
+            reason: self.reason.to_owned(),
+            debug_info: self.debug_info.to_owned(),
+        }
+    }
+}
+
+impl std::fmt::Display for ErrorResponseBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.build())
+    }
+}
+
+impl ApiRequestError for ErrorResponseBuilder {
+    fn status_code(&self) -> StatusCode {
+        self.status_code.unwrap_or(StatusCode::BAD_REQUEST)
+    }
+
+    fn error(&self) -> ErrorResponse {
+        self.build()
+    }
+}
+
+pub struct ErrorCode(&'static str);
 
 impl<T> From<T> for AppError
 where
@@ -116,33 +193,6 @@ where
 {
     fn from(value: T) -> Self {
         AppError::ApiError(Box::new(value))
-    }
-}
-
-/// An API error that has a static string message as the underlying error. This
-/// is useful when you want to return a quick and simple error message.
-pub struct ApiStringError(&'static str, Option<StatusCode>);
-
-impl ApiStringError {
-    pub fn new(msg: &'static str) -> Self {
-        Self(msg, None)
-    }
-
-    pub fn with_status_code(mut self, status_code: StatusCode) -> Self {
-        self.1 = Some(status_code);
-        self
-    }
-}
-
-impl std::fmt::Display for ApiStringError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl ApiRequestError for ApiStringError {
-    fn status_code(&self) -> StatusCode {
-        self.1.unwrap_or(StatusCode::BAD_REQUEST)
     }
 }
 
@@ -168,6 +218,18 @@ impl ErrorResponse {
             reason: None,
             debug_info: None,
         }
+    }
+}
+
+impl std::fmt::Display for ErrorResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}: {} ({})",
+            self.code.as_deref().unwrap_or("UNKNOWN"),
+            self.msg,
+            self.reason.as_deref().unwrap_or("No reason")
+        )
     }
 }
 

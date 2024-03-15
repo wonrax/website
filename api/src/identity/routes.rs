@@ -13,7 +13,7 @@ use serde_json::json;
 use time::Duration;
 
 use crate::{
-    error::{ApiRequestError, ApiStringError, AppError},
+    error::{ApiRequestError, AppError},
     APIContext,
 };
 
