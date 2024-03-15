@@ -10,7 +10,7 @@ use axum::{
 };
 
 use crate::{
-    error::{self, SqlxErrorExt},
+    error::{self},
     identity::routes::COOKIE_NAME,
     APIContext,
 };
