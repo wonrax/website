@@ -9,7 +9,7 @@ use axum::{
     Extension, RequestExt, Router,
 };
 
-use crate::{identity::routes::COOKIE_NAME, APIContext};
+use crate::{error, identity::routes::COOKIE_NAME, APIContext};
 
 use super::comment::{create::create_comment, get::get_comments};
 
@@ -52,13 +52,12 @@ async fn auth_user(
     jar: axum_extra::extract::cookie::CookieJar,
     mut req: Request,
     next: Next,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, error::Error> {
     let session_token = jar.get(COOKIE_NAME).map(|c| c.value());
 
-    match session_token {
-        Some(token) => {
-            let identity = sqlx::query!(
-                "
+    if let Some(token) = session_token {
+        let identity = sqlx::query!(
+            "
                 SELECT i.id
                 FROM sessions s JOIN identities i
                 ON s.identity_id = i.id
@@ -67,30 +66,18 @@ async fn auth_user(
                 AND s.expires_at > CURRENT_TIMESTAMP
                 AND s.issued_at <= CURRENT_TIMESTAMP;
                 ",
-                token
-            )
-            .fetch_one(&ctx.pool)
-            .await
-            .ok();
+            token
+        )
+        .fetch_one(&ctx.pool)
+        .await?;
 
-            match identity {
-                Some(identity) => {
-                    req.extensions_mut()
-                        .insert(Some(AuthUser { id: identity.id }));
-                }
-                None => {
-                    // return unauthorized
-                    return Ok(Response::builder()
-                        .status(StatusCode::UNAUTHORIZED)
-                        .body("unauthorized".into())
-                        .unwrap());
-                }
-            }
-        }
-        None => {
-            req.extensions_mut().insert(Option::<AuthUser>::None);
-        }
+        req.extensions_mut()
+            .insert(Some(AuthUser { id: identity.id }));
+
+        return Ok(next.run(req).await);
     }
+
+    req.extensions_mut().insert(Option::<AuthUser>::None);
 
     Ok(next.run(req).await)
 }
