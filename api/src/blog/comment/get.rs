@@ -6,7 +6,7 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::{error::AppError, APIContext};
+use crate::{error::Error, APIContext};
 
 use super::{Comment, CommentTree};
 
@@ -40,7 +40,7 @@ pub async fn get_comments(
     State(ctx): State<APIContext>,
     Path(slug): Path<String>,
     q: Query<Queries>,
-) -> Result<Json<Vec<CommentTree>>, AppError> {
+) -> Result<Json<Vec<CommentTree>>, Error> {
     let sort = q.sort.as_ref().unwrap_or(&SortType::Best);
 
     let rows;

@@ -8,7 +8,7 @@ use sqlx::FromRow;
 
 use crate::{
     blog::routes::{AuthUser, ClientIp},
-    error::AppError,
+    error::Error,
     identity::models::identity::Traits,
     APIContext,
 };
@@ -22,7 +22,7 @@ pub async fn create_comment(
     Extension(ip): Extension<ClientIp>,
     Extension(auth_user): Extension<Option<AuthUser>>,
     Json(mut comment): Json<CommentSubmission>,
-) -> Result<Json<Comment>, AppError> {
+) -> Result<Json<Comment>, Error> {
     comment
         .validate(auth_user.is_some())
         .map_err(|e| (e, axum::http::StatusCode::BAD_REQUEST))?;

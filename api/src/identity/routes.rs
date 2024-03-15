@@ -13,7 +13,7 @@ use serde_json::json;
 use time::Duration;
 
 use crate::{
-    error::{ApiRequestError, AppError},
+    error::{ApiRequestError, Error},
     APIContext,
 };
 
@@ -62,7 +62,7 @@ impl ApiRequestError for AuthenticationError {
 pub async fn handle_whoami(
     State(ctx): State<APIContext>,
     jar: axum_extra::extract::cookie::CookieJar,
-) -> Result<axum::Json<WhoamiRespose>, AppError> {
+) -> Result<axum::Json<WhoamiRespose>, Error> {
     // TODO implement and use an additional shorter cookie length and expiry
     // a.k.a. session token which will be cleared on browser close. This helps
     // speed up the auth process by comparing a shorter token instead of the
@@ -88,7 +88,7 @@ pub async fn handle_whoami(
     )
     .fetch_one(&ctx.pool)
     .await
-    .map_err(|e| -> AppError {
+    .map_err(|e| -> Error {
         match e {
             sqlx::Error::RowNotFound => AuthenticationError::Unauthorized.into(),
             _ => e.into(),
@@ -104,7 +104,7 @@ pub async fn handle_whoami(
 pub async fn handle_github_oauth_callback(
     State(ctx): State<APIContext>,
     Query(queries): Query<HashMap<String, String>>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<impl IntoResponse, Error> {
     let code = queries
         .get("code")
         .ok_or(("No `code` in query parameters", StatusCode::BAD_REQUEST))?;
@@ -175,11 +175,19 @@ pub async fn handle_github_oauth_callback(
             email["primary"].as_bool().unwrap_or(false)
                 && email["verified"].as_bool().unwrap_or(false)
         })
-        .ok_or("no valid email found for this github account")?
+        .ok_or((
+            "No valid email found for this github account",
+            StatusCode::BAD_GATEWAY,
+        ))?
         .get("email")
-        .ok_or("valid email found, but couldn't extract it")?
+        .ok_or(
+            "valid email found, but couldn't extract it because the field `email` does not exist",
+        )?
         .as_str()
-        .ok_or("valid email found, but couldn't extract it")?;
+        .ok_or(format!(
+            "valid email found, but couldn't extract it because the field `email` is not a string: {}",
+            emails
+        ))?;
 
     let i = Identity::new_with_traits(Traits {
         name: Some(full_name.to_owned()),
@@ -293,24 +301,13 @@ pub async fn handle_github_oauth_callback(
         )
         .path("/");
 
-    Ok((
-        // [(
-        //     "Set-Cookie",
-        //     // TODO get max age from session.expires_at
-        //     // TODO use axum::extract::Cookie to build this
-        //     format!(
-        //         "{}={}; Secure; HttpOnly; Max-Age=3600; Path=/",
-        //         COOKIE_NAME, session.token
-        //     ),
-        // )],
-        CookieJar::new().add(auth_cookie),
-    ))
+    Ok(CookieJar::new().add(auth_cookie))
 }
 
 #[axum::debug_handler]
 pub async fn handle_oidc_github_request(
     Query(queries): Query<HashMap<String, String>>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<impl IntoResponse, Error> {
     let last_visit = queries.get("last_visit");
     let site_url: String = std::env::var("SITE_URL").unwrap_or("http://localhost:4321".to_string());
     let redirect_uri = site_url
