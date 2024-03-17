@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT i.*\n        FROM sessions s JOIN identities i\n        ON s.identity_id = i.id\n        WHERE s.token = $1\n        AND s.active = true\n        AND s.expires_at > CURRENT_TIMESTAMP\n        AND s.issued_at <= CURRENT_TIMESTAMP;\n        ",
+  "query": "\n            SELECT i.*\n            FROM sessions s JOIN identities i\n            ON s.identity_id = i.id\n            WHERE s.token = $1\n            AND s.active = true\n            AND s.expires_at > CURRENT_TIMESTAMP\n            AND s.issued_at <= CURRENT_TIMESTAMP;\n            ",
   "describe": {
     "columns": [
       {
@@ -36,5 +36,5 @@
       false
     ]
   },
-  "hash": "bba7157b1373e28f4d1e0473357c0adffda75b19a80905f1b6d8809833b9ef1e"
+  "hash": "8d38722f677b22506a012771910d4e28173c925558ca07469ae8a6b037a6556e"
 }
