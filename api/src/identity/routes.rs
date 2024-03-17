@@ -1,12 +1,12 @@
 use core::panic;
-use std::collections::HashMap;
+use std::{collections::HashMap, convert::Infallible};
 
 use axum::{
     extract::{Query, State},
-    http::{header, StatusCode},
+    http::{header, request::Parts, StatusCode},
     response::IntoResponse,
     routing::{get, post},
-    Router,
+    Json, Router,
 };
 use axum_extra::extract::CookieJar;
 use serde_json::json;
@@ -27,10 +27,10 @@ pub fn route() -> Router<APIContext> {
     // TODO rate limit these public endpoints
     Router::<APIContext>::new()
         .route("/me", get(handle_whoami))
+        .route("/is_auth", get(is_auth))
         .route("/logout", post(logout))
         .route("/oidc/callback/github", get(handle_github_oauth_callback))
         .route("/login/oidc/github", get(handle_oidc_github_request))
-    //
 }
 
 #[derive(serde::Serialize)]
@@ -58,45 +58,67 @@ impl ApiRequestError for AuthenticationError {
     }
 }
 
-#[axum::debug_handler]
-pub async fn handle_whoami(
-    State(ctx): State<APIContext>,
-    jar: axum_extra::extract::cookie::CookieJar,
-) -> Result<axum::Json<WhoamiRespose>, Error> {
-    // TODO implement and use an additional shorter cookie length and expiry
-    // a.k.a. session token which will be cleared on browser close. This helps
-    // speed up the auth process by comparing a shorter token instead of the
-    // longer one. The longer one will be used to refresh the shorter one thus
-    // has a longer expiry.
-    let session_token: &str = jar
-        .get(COOKIE_NAME)
-        .ok_or(AuthenticationError::NoCookie)?
-        .value();
+struct AuthUser(Result<Identity, AuthenticationError>);
 
-    let identity = sqlx::query_as!(
-        Identity,
-        "
-        SELECT i.*
-        FROM sessions s JOIN identities i
-        ON s.identity_id = i.id
-        WHERE s.token = $1
-        AND s.active = true
-        AND s.expires_at > CURRENT_TIMESTAMP
-        AND s.issued_at <= CURRENT_TIMESTAMP;
-        ",
-        session_token
-    )
-    .fetch_one(&ctx.pool)
-    .await
-    .map_err(|e| -> Error {
-        match e {
-            sqlx::Error::RowNotFound => AuthenticationError::Unauthorized.into(),
-            _ => e.into(),
-        }
-    })?;
+#[axum::async_trait]
+impl axum::extract::FromRequestParts<APIContext> for AuthUser {
+    type Rejection = Error;
 
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &APIContext,
+    ) -> Result<Self, Self::Rejection> {
+        let jar = axum_extra::extract::cookie::CookieJar::from_headers(&parts.headers);
+
+        // TODO implement and use an additional shorter cookie length and expiry
+        // a.k.a. session token which will be cleared on browser close. This helps
+        // speed up the auth process by comparing a shorter token instead of the
+        // longer one. The longer one will be used to refresh the shorter one thus
+        // has a longer expiry.
+        let session_token: &str = if let Some(t) = jar.get(COOKIE_NAME) {
+            t.value()
+        } else {
+            return Ok(AuthUser(Err(AuthenticationError::NoCookie)));
+        };
+
+        let identity = sqlx::query_as!(
+            Identity,
+            "
+            SELECT i.*
+            FROM sessions s JOIN identities i
+            ON s.identity_id = i.id
+            WHERE s.token = $1
+            AND s.active = true
+            AND s.expires_at > CURRENT_TIMESTAMP
+            AND s.issued_at <= CURRENT_TIMESTAMP;
+            ",
+            session_token
+        )
+        .fetch_optional(&state.pool)
+        .await?;
+
+        Ok(AuthUser(identity.ok_or(AuthenticationError::Unauthorized)))
+    }
+}
+
+#[derive(serde::Serialize)]
+struct IsAuth {
+    is_auth: bool,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    traits: Option<Traits>,
+}
+
+async fn is_auth(AuthUser(identity): AuthUser) -> impl IntoResponse {
+    Json(IsAuth {
+        is_auth: identity.is_ok(),
+        traits: identity.ok().map(|i| i.traits),
+    })
+}
+
+async fn handle_whoami(AuthUser(identity): AuthUser) -> Result<axum::Json<WhoamiRespose>, Error> {
     Ok(axum::Json(WhoamiRespose {
-        traits: identity.traits,
+        traits: identity?.traits,
     }))
 }
 

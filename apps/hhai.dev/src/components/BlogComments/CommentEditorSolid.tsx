@@ -25,22 +25,26 @@ export default function CommentEditor(props: {
     email: string;
   }>();
 
-  void fetch(`${config.API_URL}/identity/me`, {
+  void fetch(`${config.API_URL}/identity/is_auth`, {
     credentials: "include",
   }).then(async (res) => {
     if (res.ok) {
       const body: {
-        traits: {
+        is_auth: boolean;
+        traits?: {
           email: string;
           name: string;
         };
       } = await res.json();
+
+      if (!body.is_auth || body.traits == null) return;
 
       setAuth({
         name: body.traits.name,
         email: body.traits.email,
       });
     }
+    // TODO handle error
   });
 
   const ctx = useContext(CommentContext);
