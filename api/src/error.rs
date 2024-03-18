@@ -120,6 +120,19 @@ impl From<(&'static str, StatusCode)> for Error {
     }
 }
 
+impl From<(String, StatusCode)> for Error {
+    fn from((message, status_code): (String, StatusCode)) -> Self {
+        Error {
+            error: Inner::ApiError(Box::new(
+                ErrorResponseBuilder::new(message).with_status_code(status_code),
+            )),
+            reason: None,
+            backtrace: Some(create_backtrace()),
+            context: None,
+        }
+    }
+}
+
 impl From<(ErrorCode, &'static str, StatusCode)> for Error {
     fn from(value: (ErrorCode, &'static str, StatusCode)) -> Self {
         Error {
@@ -145,7 +158,7 @@ struct ErrorResponseBuilder {
 }
 
 impl ErrorResponseBuilder {
-    fn new(msg: &str) -> Self {
+    fn new(msg: impl Into<String>) -> Self {
         Self {
             code: None,
             msg: msg.into(),

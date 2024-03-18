@@ -1,6 +1,6 @@
 use axum::{
     debug_handler,
-    extract::{Path, State},
+    extract::{MatchedPath, Path, State},
     Extension, Json,
 };
 use serde::{Deserialize, Serialize};
@@ -21,7 +21,7 @@ pub async fn create_comment(
     Path(slug): Path<String>,
     Extension(ip): Extension<ClientIp>,
     Extension(auth_user): Extension<Option<AuthUser>>,
-    Json(mut comment): Json<CommentSubmission>,
+    crate::json::Json(mut comment): crate::json::Json<CommentSubmission>,
 ) -> Result<Json<Comment>, Error> {
     comment
         .validate(auth_user.is_some())

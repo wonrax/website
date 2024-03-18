@@ -24,6 +24,7 @@ mod crypto;
 mod error;
 mod github;
 mod identity;
+mod json;
 mod utils;
 
 #[global_allocator]
