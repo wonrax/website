@@ -42,26 +42,26 @@ import Layout from "@/layouts/Layout.astro";
       `;
   }
 
-  if (code != null) {
-    const resp = await fetch(
-      `${config.API_URL}/identity/oidc/callback/github?code=` + code,
-      {
-        credentials: "include",
-      },
-    );
+  if (code == null) {
+    try {
+      const resp = await fetch(
+        `${config.API_URL}/identity/oidc/callback/github?code=` + code,
+        {
+          credentials: "include",
+        },
+      );
 
-    if (resp.status == 200) {
-      if (redirect == null) {
-        redirect = "/";
-      }
-      window.location.replace(redirect);
-    } else {
-      switch (resp.status) {
-        case 500:
-          unexpectedError();
-          break;
-        default:
-          try {
+      if (resp.status == 200) {
+        if (redirect == null) {
+          redirect = "/";
+        }
+        window.location.replace(redirect);
+      } else {
+        switch (resp.status) {
+          case 500:
+            unexpectedError();
+            break;
+          default:
             const error = ApiError.parse(await resp.json());
             const content = document.getElementById("content");
             if (content != null)
@@ -72,10 +72,10 @@ import Layout from "@/layouts/Layout.astro";
                 <a href='${loginUrl}'>Login via GitHub</a>
                 <a href='/'>Return home</a>
               `;
-          } catch {
-            unexpectedError();
-          }
+        }
       }
+    } catch {
+      unexpectedError();
     }
   } else {
     unexpectedError();
