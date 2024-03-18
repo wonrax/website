@@ -11,6 +11,7 @@ import {
 import CommentContext from "./CommentSectionContextSolid";
 import { type Comment } from "./CommentSectionSolid";
 import config from "@/config";
+import "./CommentEditor.scss";
 
 export default function CommentEditor(props: {
   parentId?: number;
