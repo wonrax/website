@@ -42,7 +42,7 @@ import Layout from "@/layouts/Layout.astro";
       `;
   }
 
-  if (code == null) {
+  if (code != null) {
     try {
       const resp = await fetch(
         `${config.API_URL}/identity/oidc/callback/github?code=` + code,
@@ -74,7 +74,8 @@ import Layout from "@/layouts/Layout.astro";
               `;
         }
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       unexpectedError();
     }
   } else {

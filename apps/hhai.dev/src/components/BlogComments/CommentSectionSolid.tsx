@@ -6,10 +6,12 @@ import {
   createSignal,
   lazy,
   type JSXElement,
+  Suspense,
 } from "solid-js";
 import CommentContext from "./CommentSectionContextSolid";
 import config from "@/config";
 import { ApiError } from "@/rpc";
+import { checkAuthUser } from "@/state";
 import("./CommentSection.scss");
 
 const CommentComponent = lazy(async () => await import("./CommentSolid"));
@@ -50,31 +52,36 @@ export function CommentSection(): JSXElement {
   }
 
   // hold fetching until the sheet is opened
-  const [doFetch, setDoFetch] = createSignal(false);
+  const [pleaseFetch, setPleaseFetch] = createSignal(false);
 
-  const [comments, { mutate, refetch }] = createResource(doFetch, async () => {
-    const res = await fetch(
-      `${config.API_URL}/blog/${slug}/comments?page_offset=0&page_size=99&sort=best`,
-    );
+  const [comments, { mutate, refetch }] = createResource(
+    pleaseFetch,
+    async () => {
+      const res = await fetch(
+        `${config.API_URL}/blog/${slug}/comments?page_offset=0&page_size=99&sort=best`,
+      );
 
-    if (res.status !== 200) {
-      const error = ApiError.parse(await res.json());
-      throw new Error(error.msg);
-    }
+      if (res.status !== 200) {
+        const error = ApiError.parse(await res.json());
+        throw new Error(error.msg);
+      }
 
-    return (await res.json()) as Comment[];
-  });
+      return (await res.json()) as Comment[];
+    },
+  );
 
-  // listen to sheet context
+  // listen to sheet context to preload components and check auth user ahead of time
   createEffect(() => {
     const { SheetContext: sheetCtx } = SheetContext;
     if (
       sheetCtx().initialized &&
-      (sheetCtx().isTriggerHover() || sheetCtx().isOpen())
+      (sheetCtx().isSheetTriggerButtonHovered() || sheetCtx().isOpen()) &&
+      !pleaseFetch()
     ) {
-      setDoFetch(true);
+      setPleaseFetch(true);
       void CommentComponent.preload();
       void CommentEditor.preload();
+      void checkAuthUser();
     }
   });
 
@@ -97,26 +104,28 @@ export function CommentSection(): JSXElement {
           >
             Comments
           </h3>
+        </div>
+        <Suspense fallback={<span class="loader" />}>
           {(comments.state === "pending" ||
             comments.state === "refreshing") && <span class="loader" />}
-        </div>
-        {(comments.state === "ready" || comments.state === "refreshing") &&
-          comments() != null && (
-            <>
-              <CommentEditor
-                unshift={(c: Comment) => {
-                  mutate((comments) => {
-                    return [c, ...(comments ?? [])];
-                  });
-                }}
-              />
-              <ol class="comments">
-                <For each={comments()}>
-                  {(c) => <CommentComponent comment={c} depth={0} />}
-                </For>
-              </ol>
-            </>
-          )}
+          {(comments.state === "ready" || comments.state === "refreshing") &&
+            comments() != null && (
+              <>
+                <CommentEditor
+                  unshift={(c: Comment) => {
+                    mutate((comments) => {
+                      return [c, ...(comments ?? [])];
+                    });
+                  }}
+                />
+                <ol class="comments">
+                  <For each={comments()}>
+                    {(c) => <CommentComponent comment={c} depth={0} />}
+                  </For>
+                </ol>
+              </>
+            )}
+        </Suspense>
         {comments.state === "errored" && (
           <p
             style={{ color: "red" }}

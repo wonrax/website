@@ -1,0 +1,47 @@
+import { createStore } from "solid-js/store";
+import config from "./config";
+import { ApiError } from "./rpc";
+
+interface AuthUser {
+  name: string;
+  email: string;
+}
+
+export const [AppState, SetAppState] = createStore<{
+  authUser?: AuthUser | null;
+}>();
+
+export async function checkAuthUser(): Promise<AuthUser | undefined> {
+  const res = await fetch(`${config.API_URL}/identity/is_auth`, {
+    credentials: "include",
+  });
+  if (res.ok) {
+    const body: {
+      is_auth: boolean;
+      traits?: {
+        email: string;
+        name: string;
+      };
+    } = await res.json();
+
+    if (!body.is_auth || body.traits == null) {
+      SetAppState("authUser", null);
+      return undefined;
+    }
+
+    SetAppState("authUser", {
+      name: body.traits.name,
+      email: body.traits.email,
+    });
+
+    return {
+      name: body.traits.name,
+      email: body.traits.email,
+    };
+  } else {
+    const error = ApiError.parse(await res.json());
+    throw Error("Couldn't check for authentication status: " + error.msg, {
+      cause: error.reason,
+    });
+  }
+}

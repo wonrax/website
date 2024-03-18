@@ -12,6 +12,7 @@ import CommentContext from "./CommentSectionContextSolid";
 import { type Comment } from "./CommentSectionSolid";
 import config from "@/config";
 import "./CommentEditor.scss";
+import { AppState, checkAuthUser } from "@/state";
 
 export default function CommentEditor(props: {
   parentId?: number;
@@ -24,29 +25,19 @@ export default function CommentEditor(props: {
   const [auth, setAuth] = createSignal<{
     name: string;
     email: string;
-  }>();
+  } | null>();
 
-  void fetch(`${config.API_URL}/identity/is_auth`, {
-    credentials: "include",
-  }).then(async (res) => {
-    if (res.ok) {
-      const body: {
-        is_auth: boolean;
-        traits?: {
-          email: string;
-          name: string;
-        };
-      } = await res.json();
-
-      if (!body.is_auth || body.traits == null) return;
-
-      setAuth({
-        name: body.traits.name,
-        email: body.traits.email,
+  if (AppState.authUser !== undefined) {
+    setAuth(AppState.authUser);
+  } else {
+    checkAuthUser()
+      .then((authUser) => {
+        setAuth(authUser);
+      })
+      .catch((reason: Error) => {
+        setError(reason);
       });
-    }
-    // TODO handle error
-  });
+  }
 
   const ctx = useContext(CommentContext);
 

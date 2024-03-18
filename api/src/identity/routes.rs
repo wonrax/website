@@ -109,11 +109,11 @@ struct IsAuth {
     traits: Option<Traits>,
 }
 
-async fn is_auth(AuthUser(identity): AuthUser) -> impl IntoResponse {
-    Json(IsAuth {
+async fn is_auth(AuthUser(identity): AuthUser) -> Result<axum::Json<IsAuth>, Error> {
+    Ok(Json(IsAuth {
         is_auth: identity.is_ok(),
         traits: identity.ok().map(|i| i.traits),
-    })
+    }))
 }
 
 async fn handle_whoami(AuthUser(identity): AuthUser) -> Result<axum::Json<WhoamiRespose>, Error> {
