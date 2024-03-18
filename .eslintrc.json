@@ -9,7 +9,7 @@
     ],
     "extends": [
         "eslint:recommended",
-        "standard-with-typescript",
+        "love",
         "plugin:astro/recommended",
         "plugin:solid/typescript",
         "plugin:prettier/recommended"
