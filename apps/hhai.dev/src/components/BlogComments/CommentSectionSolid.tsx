@@ -9,6 +9,7 @@ import {
 } from "solid-js";
 import CommentContext from "./CommentSectionContextSolid";
 import config from "@/config";
+import { ApiError } from "@/rpc";
 import("./CommentSection.scss");
 
 const CommentComponent = lazy(async () => await import("./CommentSolid"));
@@ -56,6 +57,11 @@ export function CommentSection(): JSXElement {
       `${config.API_URL}/blog/${slug}/comments?page_offset=0&page_size=99&sort=best`,
     );
 
+    if (res.status !== 200) {
+      const error = ApiError.parse(await res.json());
+      throw new Error(error.msg);
+    }
+
     return (await res.json()) as Comment[];
   });
 
@@ -91,7 +97,8 @@ export function CommentSection(): JSXElement {
           >
             Comments
           </h3>
-          {comments.state !== "ready" && <span class="loader" />}
+          {(comments.state === "pending" ||
+            comments.state === "refreshing") && <span class="loader" />}
         </div>
         {(comments.state === "ready" || comments.state === "refreshing") &&
           comments() != null && (
@@ -110,6 +117,11 @@ export function CommentSection(): JSXElement {
               </ol>
             </>
           )}
+        {comments.state === "errored" && (
+          <p
+            style={{ color: "red" }}
+          >{`Error fetching comments: ${(comments.error as Error).message}`}</p>
+        )}
       </div>
     </CommentContext.Provider>
   );
