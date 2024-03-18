@@ -1,11 +1,47 @@
-<pre>We're logging you in</pre>
+---
+import Layout from "@/layouts/Layout.astro";
+---
+
+<Layout>
+  <title slot="head">Login via GitHub</title>
+  <div style={{ padding: "24px" }}>
+    <div id="content">
+      <p>We're logging you in...</p>
+    </div>
+  </div>
+</Layout>
+
+<style is:global>
+  a {
+    text-decoration: underline;
+    font-size: 15px;
+    display: block;
+    margin-bottom: 8px;
+    font-weight: var(--font-weight-medium);
+  }
+</style>
 
 <script>
   import config from "@/config";
+  import { ApiError } from "@/rpc";
 
   let params = new URL(window.location.href).searchParams;
 
   var code = params.get("code");
+
+  let redirect = params.get("last_visit");
+  const loginUrl = `${config.API_URL}/identity/login/oidc/github${redirect != null ? `?last_visit=${redirect}` : ""}`;
+
+  function unexpectedError() {
+    const content = document.getElementById("content");
+    if (content != null)
+      content.innerHTML = `
+        <p>Something has gone wrong from our side. Please try again.</p>
+        <a href='${loginUrl}'>Login via GitHub</a>
+        <a href='/'>Return home</a>
+      `;
+  }
+
   if (code != null) {
     const resp = await fetch(
       `${config.API_URL}/identity/oidc/callback/github?code=` + code,
@@ -15,13 +51,33 @@
     );
 
     if (resp.status == 200) {
-      let redirect = params.get("last_visit");
       if (redirect == null) {
         redirect = "/";
       }
-      window.location.href = redirect;
+      window.location.replace(redirect);
     } else {
-      console.log(resp);
+      switch (resp.status) {
+        case 500:
+          unexpectedError();
+          break;
+        default:
+          try {
+            const error = ApiError.parse(await resp.json());
+            const content = document.getElementById("content");
+            if (content != null)
+              content.innerHTML = `
+                <p>Couldn't log you in due to an error:</p>
+                <p style="color: red;">${error.msg}</p>
+                ${error.reason != null ? "<p>Reason: ${error.reason}</p>" : ""}
+                <a href='${loginUrl}'>Login via GitHub</a>
+                <a href='/'>Return home</a>
+              `;
+          } catch {
+            unexpectedError();
+          }
+      }
     }
+  } else {
+    unexpectedError();
   }
 </script>
