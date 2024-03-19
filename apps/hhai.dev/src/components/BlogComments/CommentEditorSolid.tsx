@@ -12,7 +12,7 @@ import CommentContext from "./CommentSectionContextSolid";
 import { type Comment } from "./CommentSectionSolid";
 import config from "@/config";
 import "./CommentEditor.scss";
-import { AppState, checkAuthUser } from "@/state";
+import { AppState, SetAppState, checkAuthUser } from "@/state";
 
 export default function CommentEditor(props: {
   parentId?: number;
@@ -22,21 +22,9 @@ export default function CommentEditor(props: {
 }): JSXElement {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<Error>();
-  const [auth, setAuth] = createSignal<{
-    name: string;
-    email: string;
-  } | null>();
 
-  if (AppState.authUser !== undefined) {
-    setAuth(AppState.authUser);
-  } else {
-    checkAuthUser()
-      .then((authUser) => {
-        setAuth(authUser);
-      })
-      .catch((reason: Error) => {
-        setError(reason);
-      });
+  if (AppState.authUser === undefined) {
+    void checkAuthUser();
   }
 
   const ctx = useContext(CommentContext);
@@ -126,7 +114,7 @@ export default function CommentEditor(props: {
       }}
     >
       <div style={{ padding: "10px" }}>
-        {auth() == null ? (
+        {AppState.authUser == null ? (
           <>
             <p
               style={{
@@ -166,7 +154,8 @@ export default function CommentEditor(props: {
           </>
         ) : (
           <p class="auth-user">
-            Posting as <span class="author-name">{auth()?.name}</span>, or{" "}
+            Posting as{" "}
+            <span class="author-name">{AppState.authUser?.name}</span>, or{" "}
             <span
               class="logout-button"
               onClick={() => {
@@ -175,7 +164,7 @@ export default function CommentEditor(props: {
                   credentials: "include",
                 }).then((response) => {
                   if (response.ok) {
-                    setAuth(undefined);
+                    SetAppState({ authUser: null });
                   }
                 });
               }}
