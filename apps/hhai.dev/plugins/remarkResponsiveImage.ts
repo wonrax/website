@@ -57,12 +57,26 @@ export default function remarkResponsiveImage() {
             type: "mdxJsxAttribute",
             value: node.url,
           },
-          { name: "alt", type: "mdxJsxAttribute", value: node.alt || "" },
+          {
+            name: "alt",
+            type: "mdxJsxAttribute",
+            value: node.alt ?? "",
+          },
         ],
-        children: [],
+        children: [
+          {
+            type: "paragraph",
+            children: [
+              {
+                value: "test",
+                type: "text",
+              },
+            ],
+          },
+        ],
       };
 
-      if (node.title) {
+      if (node.title != null) {
         // indicates that the title holds extra attributes seperated by semicolon
         if (node.title.startsWith("#")) {
           for (const attr of node.title.slice(1).split(";")) {
@@ -70,7 +84,7 @@ export default function remarkResponsiveImage() {
             componentElement.attributes.push({
               type: "mdxJsxAttribute",
               name: key,
-              value: value,
+              value,
             });
           }
         }

@@ -7,6 +7,7 @@ type Props = {
   width?: number | string;
   height?: number | string;
   featuretype?: string;
+  children?: any;
 };
 
 const { src, width, height, alt, featuretype } = Astro.props;
@@ -46,3 +47,4 @@ switch (featuretype) {
   quality={90}
   deviceSizes={[400, 800, 1104, 2048, 3840, 5760]}
 />
+<slot />
