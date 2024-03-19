@@ -1,4 +1,4 @@
-import SheetContext from "@/components/Sheet/SheetContextSolid";
+import SheetContext from "@/components/Sheet/SheetContext";
 import {
   For,
   createEffect,
@@ -8,14 +8,14 @@ import {
   type JSXElement,
   Suspense,
 } from "solid-js";
-import CommentContext from "./CommentSectionContextSolid";
+import CommentContext from "./CommentSectionContext";
 import config from "@/config";
 import { ApiError } from "@/rpc";
 import { checkAuthUser } from "@/state";
 import("./CommentSection.scss");
 
 const CommentComponent = lazy(async () => await import("./CommentSolid"));
-const CommentEditor = lazy(async () => await import("./CommentEditorSolid"));
+const CommentEditor = lazy(async () => await import("./CommentEditor"));
 
 export interface Comment {
   id: number;

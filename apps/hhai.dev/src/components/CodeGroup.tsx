@@ -1,70 +1,87 @@
-// Disable solid eslint because this is a React component
-// TODO figure out how to do this by eslint config
-/* eslint-disable solid/no-destructure */
-/* eslint-disable solid/no-react-specific-props */
-/* eslint-disable solid/prefer-for */
-/** @jsxImportSource react */
+import {
+  For,
+  createEffect,
+  type JSXElement,
+  createSignal,
+  Show,
+} from "solid-js";
 
-import React, { type ReactElement } from "react";
-import parse from "html-react-parser";
-
-// Inspired by
-// https://github.com/delbaoliveira/website/blob/main/ui/Code.tsx
-export default function CodeGroup({
-  children,
-}: {
-  children: any;
-}): ReactElement {
-  // TODO read more on the docs to identify security issues
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-  const content = parse(children.props.value.toString());
-
+export default function CodeGroup(props: { children: any }): JSXElement {
+  const [hydrated, setHydrated] = createSignal(false);
   const titles: string[] = [];
-  const [slide, setSlide] = React.useState(0);
+  const [currentSlide, setCurrentSlide] = createSignal<number>(0);
 
-  const slides = React.Children.map(content, (child, index) => {
-    if (
-      !React.isValidElement(child) ||
-      child.props?.["data-rehype-pretty-code-figure"] == null
-    ) {
-      return null;
+  createEffect(() => {
+    if (props.children instanceof HTMLElement) {
+      const newChildren: Element[] = [];
+      for (const child of props.children.children) {
+        if (child.tagName === "figure") {
+          if (
+            child.attributes.getNamedItem("data-rehype-pretty-code-figure") ==
+            null
+          )
+            throw new Error(
+              `CodeGroupSolid: figure element must have \
+              data-rehype-pretty-code-figure attribute`,
+            );
+        }
+
+        if (
+          child.children.length > 0 ||
+          child.children[0].classList.contains("code-block-title")
+        ) {
+          const title = child.children[0].textContent?.split("/");
+          if (title != null) titles.push(title[title.length - 1]);
+
+          // remove the title element
+          child.removeChild(child.children[0]);
+        }
+
+        newChildren.push(child);
+      }
+
+      setHydrated(true);
     }
-
-    if (
-      child.props.children?.[0]?.props?.["className"] === "code-block-title"
-    ) {
-      let title = child.props.children[0].props.children.split("/");
-      titles.push(title[title.length - 1]);
-
-      // remove the title element
-      child.props.children.shift();
-    }
-
-    return (
-      <div
-        key={index}
-        style={index === slide ? { display: "block" } : { display: "none" }}
-      >
-        {child.props.children}
-      </div>
-    );
   });
+
   return (
-    <figure data-rehype-pretty-code-figure className="code-group">
-      <div className="code-group-tabs">
-        {titles.map((title, index) => (
-          <div
-            onClick={() => {
-              setSlide(index);
-            }}
-            className={"code-block-title" + (index === slide ? " active" : "")}
-            key={index}
-          >
-            {title}
+    <>
+      <Show when={!hydrated()}>{props.children}</Show>
+      <Show when={hydrated()}>
+        <figure data-rehype-pretty-code-figure class="code-group">
+          <div class="code-group-tabs">
+            <For each={titles}>
+              {(title, index) => (
+                <div
+                  onClick={() => {
+                    setCurrentSlide(index);
+                  }}
+                  class={
+                    "code-block-title" +
+                    (currentSlide() === index() ? " active" : "")
+                  }
+                >
+                  {title}
+                </div>
+              )}
+            </For>
           </div>
-        ))}
-      </div>
-      {slides}
-    </figure>
+          {/* {...props.children.children} */}
+          <For each={props.children.children}>
+            {(child, index) => (
+              <div
+                style={
+                  currentSlide() === index()
+                    ? { display: "block" }
+                    : { display: "none" }
+                }
+              >
+                <For each={child.children}>{(child) => child}</For>
+              </div>
+            )}
+          </For>
+        </figure>
+      </Show>
+    </>
   );
 }

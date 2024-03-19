@@ -1,5 +1,5 @@
 import { createSignal, type JSXElement, splitProps } from "solid-js";
-import Context from "./SheetContextSolid";
+import Context from "./SheetContext";
 import "./Sheet.scss";
 
 export function Root(props: { children: JSXElement }): JSXElement {

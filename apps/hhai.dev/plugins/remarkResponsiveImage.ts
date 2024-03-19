@@ -21,7 +21,7 @@ export default function remarkResponsiveImage() {
 
       // find the title attribute
       const titleAttr = node.attributes.find(
-        (attr) => attr.type === "mdxJsxAttribute" && attr.name == "title"
+        (attr) => attr.type === "mdxJsxAttribute" && attr.name == "title",
       ) as MdxJsxAttribute | undefined;
 
       if (titleAttr && titleAttr.value && typeof titleAttr.value === "string") {
@@ -82,8 +82,9 @@ export default function remarkResponsiveImage() {
 
     tree.children.unshift(
       jsToTreeNode(
-        `import __CustomImage__ from "@/components/BlogResponsiveImage.astro";`
-      )
+        `import __CustomImage__ from "@/components/BlogResponsiveImage.astro";`,
+      ),
+      jsToTreeNode(`import CodeGroup from "@/components/CodeGroup.tsx";`),
     );
   };
 }
@@ -93,7 +94,7 @@ export function jsToTreeNode(
   acornOpts: AcornOpts = {
     ecmaVersion: "latest",
     sourceType: "module",
-  }
+  },
 ): MdxjsEsm {
   return {
     type: "mdxjsEsm",

@@ -13,7 +13,7 @@ import { remarkDirectiveHtml } from "./plugins/remarkDirective";
 import remarkResponsiveImage from "./plugins/remarkResponsiveImage";
 import solid from "@astrojs/solid-js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const DIR_NAME = dirname(fileURLToPath(import.meta.url));
 
 const codeHighlightOptions = {
   // Use one of Shiki's packaged themes
@@ -33,7 +33,7 @@ const codeHighlightOptions = {
     if (node.children.length === 0) {
       node.children = [{ type: "text", value: " " }];
     }
-    if (!node.properties.className) {
+    if (node.properties.className == null) {
       node.properties.className = ["code-block-line"];
     }
 
@@ -85,11 +85,7 @@ export default defineConfig({
       rehypeBlogPost,
     ],
   },
-  integrations: [
-    mdx(),
-    react({ include: "**/*React.tsx" }),
-    solid({ include: "**/*Solid.tsx" }),
-  ],
+  integrations: [mdx(), solid({ exclude: "**/*/*React.tsx" }), react()],
   image: {
     service: sharpImageService(),
     domains: ["share.hhai.dev", "res.cloudinary.com"],
@@ -97,7 +93,7 @@ export default defineConfig({
   vite: {
     resolve: {
       alias: {
-        "@": path.resolve(__dirname, "./src"),
+        "@": path.resolve(DIR_NAME, "./src"),
       },
     },
     optimizeDeps: { exclude: ["@resvg/resvg-js"] },

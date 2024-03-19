@@ -1,6 +1,6 @@
 ---
-import { CommentSection } from "@/components/BlogComments/CommentSectionSolid";
-import * as Sheet from "@/components/Sheet/SheetSolid";
+import { CommentSection } from "@/components/BlogComments/CommentSection";
+import * as Sheet from "@/components/Sheet/Sheet";
 import OgImage from "@/components/OgImage/OgImage.astro";
 import "@fontsource/inconsolata/500.css";
 import "katex/dist/katex.css";
@@ -830,3 +830,4 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
   let scrollbarWidth = window.innerWidth - document.body.clientWidth + "px";
   document.body.style.setProperty("--scrollbar-width", scrollbarWidth);
 </script>
+@/components/BlogComments/CommentSection

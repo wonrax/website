@@ -8,8 +8,8 @@ import {
   type Setter,
   type JSXElement,
 } from "solid-js";
-import CommentContext from "./CommentSectionContextSolid";
-import { type Comment } from "./CommentSectionSolid";
+import CommentContext from "./CommentSectionContext";
+import { type Comment } from "./CommentSection";
 import config from "@/config";
 import "./CommentEditor.scss";
 import { AppState, SetAppState, checkAuthUser } from "@/state";
