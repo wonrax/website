@@ -5,14 +5,15 @@
   border: 1px solid var(--bg-additive-medium);
   margin-top: 12px;
   overflow: hidden;
-  margin-left: -8px;
-  margin-right: -8px;
+  margin-left: -4px;
+  margin-right: -4px;
+  container-type: inline-size;
 
   .input {
     width: 100%;
 
     input {
-      font-size: 14px;
+      font-size: 16px;
       padding: 8px 12px;
       border-radius: 6px;
       border: 1px solid transparent;
@@ -35,7 +36,7 @@
     }
 
     .description {
-      font-size: 12px;
+      font-size: 14px;
       color: var(--text-body-light);
       margin: 6px 6px 0 6px;
     }
@@ -55,6 +56,11 @@
     display: flex;
     gap: 6px;
     padding: 0;
+
+    @container (max-width: 480px) {
+      flex-direction: column;
+      gap: 12px;
+    }
 
     & * {
       flex: 1;
@@ -85,7 +91,7 @@
     font-family:
       Inter Variable,
       sans-serif; // TODO move this to global style
-    font-size: 15px;
+    font-size: 16px;
     padding: 10px;
     color: var(--text-body-heavy);
     line-height: 145%;

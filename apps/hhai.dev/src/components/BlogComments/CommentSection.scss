@@ -23,7 +23,7 @@
   max-width: 1004px;
   // margin: 64px auto;
   // padding: 0 16px;
-  padding: 16px 32px;
+  padding: 16px 24px;
 
   .heading {
     display: flex;
@@ -90,7 +90,7 @@
       }
 
       .comment-content {
-        --font-size: 15px;
+        --font-size: 16px;
 
         color: var(--text-body-heavy);
         font-size: var(--font-size);

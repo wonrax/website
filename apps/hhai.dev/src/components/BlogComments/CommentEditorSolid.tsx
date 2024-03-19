@@ -130,7 +130,7 @@ export default function CommentEditor(props: {
           <>
             <p
               style={{
-                "font-size": "13px",
+                "font-size": "14px",
                 color: "var(--text-body-medium)",
                 margin: "2px 8px 10px 8px",
               }}

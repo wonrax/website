@@ -38,12 +38,12 @@
     overflow-y: auto;
     width: 0;
     // max-width: calc(220px + (100vw - 1004px) / 2);
-    max-width: 500px;
+    max-width: 700px;
     animation: sheet-slide-in 0.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
     z-index: 10;
     position: fixed;
 
-    @media (max-width: 1600px) {
+    @media (max-width: 1280px) {
       max-width: 600px;
     }
 

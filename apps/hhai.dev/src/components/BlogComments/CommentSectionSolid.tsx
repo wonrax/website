@@ -108,22 +108,20 @@ export function CommentSection(): JSXElement {
         <Suspense fallback={<span class="loader" />}>
           {(comments.state === "pending" ||
             comments.state === "refreshing") && <span class="loader" />}
+          <CommentEditor
+            unshift={(c: Comment) => {
+              mutate((comments) => {
+                return [c, ...(comments ?? [])];
+              });
+            }}
+          />
           {(comments.state === "ready" || comments.state === "refreshing") &&
             comments() != null && (
-              <>
-                <CommentEditor
-                  unshift={(c: Comment) => {
-                    mutate((comments) => {
-                      return [c, ...(comments ?? [])];
-                    });
-                  }}
-                />
-                <ol class="comments">
-                  <For each={comments()}>
-                    {(c) => <CommentComponent comment={c} depth={0} />}
-                  </For>
-                </ol>
-              </>
+              <ol class="comments">
+                <For each={comments()}>
+                  {(c) => <CommentComponent comment={c} depth={0} />}
+                </For>
+              </ol>
             )}
         </Suspense>
         {comments.state === "errored" && (

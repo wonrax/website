@@ -4,6 +4,12 @@ html {
     Inter fallback;
   background-color: var(--bg-color);
   color: var(--text-body-heavy);
+
+  // attempt to fix safari unexpectedly large font size
+  // https://stackoverflow.com/questions/3226001/some-font-sizes-rendered-larger-on-safari-iphone
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 // Font fallbacks config to avoid CLS
@@ -107,12 +113,6 @@ code {
 body {
   margin: 0;
   font-size: 16px;
-
-  // attempt to fix safari unexpected large font size
-  // https://stackoverflow.com/questions/3226001/some-font-sizes-rendered-larger-on-safari-iphone
-  @media screen and (max-device-width: 480px) {
-    -webkit-text-size-adjust: 100%;
-  }
 }
 
 a,
