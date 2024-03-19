@@ -27,5 +27,7 @@ npm run dev
 - hide the ToC when featuretype=lg element presents
   - Maybe remove the large feature type for regular blog post and create another
     dedicated layout for photography
+- investigate why the lazy loaded CommentEditor is prematurely loaded in the
+  blog post layout
 
 - custom json deserialize error in axum handlers

@@ -14,7 +14,7 @@ import { ApiError } from "@/rpc";
 import { checkAuthUser } from "@/state";
 import("./CommentSection.scss");
 
-const CommentComponent = lazy(async () => await import("./CommentSolid"));
+const CommentComponent = lazy(async () => await import("./Comment"));
 const CommentEditor = lazy(async () => await import("./CommentEditor"));
 
 export interface Comment {
