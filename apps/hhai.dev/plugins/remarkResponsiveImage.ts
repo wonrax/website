@@ -64,15 +64,8 @@ export default function remarkResponsiveImage() {
           },
         ],
         children: [
-          {
-            type: "paragraph",
-            children: [
-              {
-                value: "test",
-                type: "text",
-              },
-            ],
-          },
+          // append the rest of parent's children into this node
+          ...parent.children.slice(index! + 1),
         ],
       };
 
