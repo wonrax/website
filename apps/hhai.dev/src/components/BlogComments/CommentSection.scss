@@ -23,7 +23,11 @@
   max-width: 1004px;
   // margin: 64px auto;
   // padding: 0 16px;
-  padding: 16px 24px;
+  padding: 16px 24px 64px 24px;
+
+  @container (max-width: 480px) {
+    padding: 16px 18px 64px 18px;
+  }
 
   .heading {
     display: flex;

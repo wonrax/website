@@ -132,7 +132,8 @@ export default function CommentEditor(props: {
               style={{
                 "font-size": "14px",
                 color: "var(--text-body-medium)",
-                margin: "2px 8px 10px 8px",
+                margin: "2px 8px 12px 8px",
+                "line-height": "140%",
               }}
             >
               Either{" "}
