@@ -1,4 +1,5 @@
 import type { Options as AcornOpts } from "acorn";
+import type { Program } from "estree";
 import { parse } from "acorn";
 import type { Image } from "mdast";
 import type {
@@ -15,26 +16,26 @@ import { visit } from "unist-util-visit";
 export default function remarkResponsiveImage() {
   return (tree: any) => {
     visit(tree, "mdxJsxFlowElement", (node: MdxJsxFlowElement) => {
-      if (node.name != "astro-image" && node.name != "img") {
+      if (node.name !== "astro-image" && node.name !== "img") {
         return;
       }
 
       // find the title attribute
       const titleAttr = node.attributes.find(
-        (attr) => attr.type === "mdxJsxAttribute" && attr.name == "title",
+        (attr) => attr.type === "mdxJsxAttribute" && attr.name === "title",
       ) as MdxJsxAttribute | undefined;
 
-      if (titleAttr && titleAttr.value && typeof titleAttr.value === "string") {
+      if (titleAttr?.value != null && typeof titleAttr.value === "string") {
         // indicates that the title holds extra attributes seperated by semicolon
         if (titleAttr.value.startsWith("#")) {
-          let title = undefined;
+          let title;
           for (const attr of titleAttr.value.slice(1).split(";")) {
             const [key, value] = attr.split("=");
-            if (key == "title") title = value;
+            if (key === "title") title = value;
             node.attributes.push({
               type: "mdxJsxAttribute",
               name: key,
-              value: value,
+              value,
             });
           }
           titleAttr.value = title;
@@ -65,7 +66,7 @@ export default function remarkResponsiveImage() {
         ],
         children: [
           // append the rest of parent's children into this node
-          ...parent.children.slice(index! + 1),
+          index == null ? [] : parent.children.slice(index + 1),
         ],
       };
 
@@ -84,7 +85,8 @@ export default function remarkResponsiveImage() {
       }
 
       // Replace the image node with the new component
-      parent.children[index!] = componentElement;
+      if (index != null) parent.children[index] = componentElement;
+      else console.warn("index is null");
     });
 
     tree.children.unshift(
@@ -108,8 +110,7 @@ export function jsToTreeNode(
     value: "",
     data: {
       estree: {
-        body: [],
-        ...parse(jsString, acornOpts),
+        ...(parse(jsString, acornOpts) as Program), // Cast the parsed result as Program
         type: "Program",
         sourceType: "module",
       },
