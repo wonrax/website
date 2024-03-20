@@ -51,7 +51,7 @@ jobs:
             api:
               - "api/src/**"
               - "api/Cargo.toml"
-              - "api/Cargo.lock"
+              - "Cargo.lock"
               - "docker/hhai-dev-api.Dockerfile"
             migrate:
               - "api/migrations/**"
