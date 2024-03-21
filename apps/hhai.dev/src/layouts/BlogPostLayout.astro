@@ -6,7 +6,7 @@ import "@fontsource/inconsolata/500.css";
 import "katex/dist/katex.css";
 import TableOfContents from "../components/TableOfContents.astro";
 import BlogRouteLayout from "./BlogRouteLayout.astro";
-import { ArrowUp, MessagesSquare, X, XCircle } from "lucide-solid";
+import { ArrowUp, MessagesSquare, X } from "lucide-solid";
 
 export type Frontmatter = {
   title: string;
@@ -33,7 +33,7 @@ type Props = {
 const post = Astro.props.frontmatter;
 const headings = Astro.props.headings;
 
-const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
+const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "/og-image.png";
 ---
 
 <BlogRouteLayout>

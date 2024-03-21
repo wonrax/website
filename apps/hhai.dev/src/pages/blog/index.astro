@@ -9,7 +9,7 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
 <BlogRouteLayout>
   <title slot="head">Blog</title>
   <meta slot="head" name="description" content="hhai.dev blog index" />
-  <OgImage slot="head" ogImageUrl={Astro.url.pathname + "og-image.png"} />
+  <OgImage slot="head" ogImageUrl={Astro.url.pathname + "/og-image.png"} />
   <main class="blog-main">
     <p style={{ color: "var(--text-body-light)" }}>Newest first</p>
     <ul class="article-list">
@@ -18,7 +18,7 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
           .filter(
             (post) =>
               process.env.NODE_ENV != "production" ||
-              (!post.frontmatter.isDraft && !post.frontmatter.hidden)
+              (!post.frontmatter.isDraft && !post.frontmatter.hidden),
           )
           .map((post) => (
             <li
@@ -54,7 +54,7 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
                         year: "numeric",
                         month: "long",
                         day: "numeric",
-                      }
+                      },
                     )}
                   </p>
                 </div>
