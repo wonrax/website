@@ -6,6 +6,7 @@ import type {
   MdxJsxFlowElement,
   MdxjsEsm,
   MdxJsxAttribute,
+  MdxJsxAttributeValueExpression,
 } from "mdast-util-mdx";
 import { visit } from "unist-util-visit";
 
@@ -15,6 +16,10 @@ import { visit } from "unist-util-visit";
 // to the image component via the title attribute.
 export default function remarkResponsiveImage() {
   return (tree: any) => {
+    // TODO the logic to handle local images is not updated with remote images
+    // e.g. appending the rest of parent's children into this node
+    // please fix by code sharing and refactoring, otherwise using local images
+    // won't work as expected
     visit(tree, "mdxJsxFlowElement", (node: MdxJsxFlowElement) => {
       if (node.name !== "astro-image" && node.name !== "img") {
         return;
@@ -28,7 +33,7 @@ export default function remarkResponsiveImage() {
       if (titleAttr?.value != null && typeof titleAttr.value === "string") {
         // indicates that the title holds extra attributes seperated by semicolon
         if (titleAttr.value.startsWith("#")) {
-          let title;
+          let title: string | MdxJsxAttributeValueExpression | null | undefined;
           for (const attr of titleAttr.value.slice(1).split(";")) {
             const [key, value] = attr.split("=");
             if (key === "title") title = value;
@@ -61,7 +66,7 @@ export default function remarkResponsiveImage() {
           {
             name: "alt",
             type: "mdxJsxAttribute",
-            value: node.alt ?? "",
+            value: node.alt ?? "", // TODO if the alt is null, find the nearest text node and use it as alt
           },
         ],
         children: [
@@ -85,7 +90,8 @@ export default function remarkResponsiveImage() {
       }
 
       // Replace the image node with the new component
-      // and delete the rest of parent's children
+      // and ignore the rest of parent's children since they're already appended
+      // to the new component
       if (index != null) parent.children = [componentElement];
       else console.warn("index is null");
     });
