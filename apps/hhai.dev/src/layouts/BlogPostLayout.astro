@@ -6,7 +6,7 @@ import "@fontsource/inconsolata/500.css";
 import "katex/dist/katex.css";
 import TableOfContents from "../components/TableOfContents.astro";
 import BlogRouteLayout from "./BlogRouteLayout.astro";
-import { ArrowUp, MessagesSquare } from "lucide-solid";
+import { ArrowUp, MessagesSquare, X, XCircle } from "lucide-solid";
 
 export type Frontmatter = {
   title: string;
@@ -80,7 +80,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
           }
         </div>
         <Sheet.Trigger class="open-discussion" client:load>
-          <MessagesSquare size={16} />
+          <MessagesSquare size={16} strokeWidth={1.5} />
           View discussions
         </Sheet.Trigger>
       </div>
@@ -105,20 +105,12 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     </article>
   </main>
   <Sheet.Root client:load>
-    <Sheet.Trigger class="close-button" client:load>
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        class="lucide lucide-x"
-        ><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg
-      >
+    <Sheet.Trigger
+      class="close-button"
+      aria-label="Close comment section"
+      client:load
+    >
+      <X strokeWidth={1.5} />
     </Sheet.Trigger>
     <CommentSection client:only="solid-js" />
   </Sheet.Root>

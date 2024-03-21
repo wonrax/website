@@ -76,7 +76,7 @@ export default function CommentComponent(props: {
               color: "var(--text-body-heavy)",
             }}
           >
-            <User size={16} stroke-width={2} />
+            <User size={16} stroke-width={1.5} />
           </div>
           {props.comment.author_name}
           <div class="comment-date">
