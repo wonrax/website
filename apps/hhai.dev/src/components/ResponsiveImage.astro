@@ -104,10 +104,10 @@ if (getImageType() !== "svg") {
 
 const original = await getImage({
   src,
-  format,
+  format: "png",
   width: maxWidth,
   height: Math.round(maxWidth * aspectRatio),
-  quality,
+  quality: 100,
 } as ImageTransform);
 ---
 
