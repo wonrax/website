@@ -66,7 +66,7 @@ export default function remarkResponsiveImage() {
         ],
         children: [
           // append the rest of parent's children into this node
-          index == null ? [] : parent.children.slice(index + 1),
+          ...(index == null ? [] : parent.children.slice(index + 1)),
         ],
       };
 
@@ -85,7 +85,8 @@ export default function remarkResponsiveImage() {
       }
 
       // Replace the image node with the new component
-      if (index != null) parent.children[index] = componentElement;
+      // and delete the rest of parent's children
+      if (index != null) parent.children = [componentElement];
       else console.warn("index is null");
     });
 
