@@ -6,6 +6,7 @@ import "@fontsource/inconsolata/500.css";
 import "katex/dist/katex.css";
 import TableOfContents from "../components/TableOfContents.astro";
 import BlogRouteLayout from "./BlogRouteLayout.astro";
+import { ArrowUp, MessagesSquare } from "lucide-solid";
 
 export type Frontmatter = {
   title: string;
@@ -46,22 +47,8 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
           headings.length ? (
             <>
               <TableOfContents headings={headings} />
-              <button id="go-to-top">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="lucide lucide-chevron-up"
-                >
-                  <path d="m18 15-6-6-6 6" />
-                </svg>
-                Go to top
+              <button id="go-to-top" aria-label="Go to top of the page">
+                <ArrowUp size={16} />
               </button>
             </>
           ) : null
@@ -93,26 +80,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
           }
         </div>
         <Sheet.Trigger class="open-discussion" client:load>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="lucide lucide-message-square-text"
-          >
-            <>
-              <path
-                d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-              ></path>
-              <path d="M13 8H7"></path>
-              <path d="M17 12H7"></path>
-            </>
-          </svg>
+          <MessagesSquare size={16} />
           View discussions
         </Sheet.Trigger>
       </div>
@@ -749,7 +717,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     width: fit-content;
     background-color: var(--bg-additive-light);
 
@@ -771,12 +739,6 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
         background-color: var(--bg-additive-light);
       }
     }
-  }
-
-  #go-to-top {
-    padding: 4px 10px 4px 8px;
-    gap: 6px;
-    font-size: 14px;
   }
 
   button.open-discussion {

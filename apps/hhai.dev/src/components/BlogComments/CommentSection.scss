@@ -79,6 +79,11 @@
         align-items: baseline;
 
         .comment-author {
+          display: flex;
+          flex-direction: row;
+          gap: 8px;
+          margin-left: -6px;
+          align-items: center;
           font-weight: var(--font-weight-medium);
           font-size: 15px;
         }
