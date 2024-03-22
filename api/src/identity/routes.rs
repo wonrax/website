@@ -1,9 +1,9 @@
 use core::panic;
-use std::{collections::HashMap, convert::Infallible};
+use std::collections::HashMap;
 
 use axum::{
     extract::{Query, State},
-    http::{header, request::Parts, StatusCode},
+    http::{header, StatusCode},
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
@@ -17,10 +17,13 @@ use crate::{
     APIContext,
 };
 
-use super::models::{
-    credential::IdentityCredential,
-    identity::{Identity, Traits},
-    session::Session,
+use super::{
+    models::{
+        credential::IdentityCredential,
+        identity::{Identity, Traits},
+        session::Session,
+    },
+    AuthenticationError, MaybeAuthUser, COOKIE_NAME,
 };
 
 pub fn route() -> Router<APIContext> {
@@ -38,66 +41,12 @@ pub struct WhoamiRespose {
     traits: Traits,
 }
 
-pub const COOKIE_NAME: &str = "auth_token";
-
-#[derive(thiserror::Error, Debug)]
-enum AuthenticationError {
-    #[error("No cookie `{COOKIE_NAME}` found in headers")]
-    NoCookie,
-
-    #[error("Unauthorized")]
-    Unauthorized,
-}
-
 impl ApiRequestError for AuthenticationError {
     fn status_code(&self) -> axum::http::StatusCode {
         match self {
             AuthenticationError::NoCookie => axum::http::StatusCode::BAD_REQUEST,
             AuthenticationError::Unauthorized => axum::http::StatusCode::UNAUTHORIZED,
         }
-    }
-}
-
-struct AuthUser(Result<Identity, AuthenticationError>);
-
-#[axum::async_trait]
-impl axum::extract::FromRequestParts<APIContext> for AuthUser {
-    type Rejection = Error;
-
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &APIContext,
-    ) -> Result<Self, Self::Rejection> {
-        let jar = axum_extra::extract::cookie::CookieJar::from_headers(&parts.headers);
-
-        // TODO implement and use an additional shorter cookie length and expiry
-        // a.k.a. session token which will be cleared on browser close. This helps
-        // speed up the auth process by comparing a shorter token instead of the
-        // longer one. The longer one will be used to refresh the shorter one thus
-        // has a longer expiry.
-        let session_token: &str = if let Some(t) = jar.get(COOKIE_NAME) {
-            t.value()
-        } else {
-            return Ok(AuthUser(Err(AuthenticationError::NoCookie)));
-        };
-
-        let identity = sqlx::query_as!(
-            Identity,
-            "
-            SELECT i.*
-            FROM sessions s JOIN identities i
-            ON s.identity_id = i.id
-            WHERE s.token = $1
-            AND s.active = true
-            AND s.expires_at > CURRENT_TIMESTAMP
-            AND s.issued_at <= CURRENT_TIMESTAMP;
-            ",
-            session_token
-        )
-        .fetch_optional(&state.pool)
-        .await?;
-
-        Ok(AuthUser(identity.ok_or(AuthenticationError::Unauthorized)))
     }
 }
 
@@ -109,14 +58,16 @@ struct IsAuth {
     traits: Option<Traits>,
 }
 
-async fn is_auth(AuthUser(identity): AuthUser) -> Result<axum::Json<IsAuth>, Error> {
+async fn is_auth(MaybeAuthUser(identity): MaybeAuthUser) -> Result<axum::Json<IsAuth>, Error> {
     Ok(Json(IsAuth {
         is_auth: identity.is_ok(),
         traits: identity.ok().map(|i| i.traits),
     }))
 }
 
-async fn handle_whoami(AuthUser(identity): AuthUser) -> Result<axum::Json<WhoamiRespose>, Error> {
+async fn handle_whoami(
+    MaybeAuthUser(identity): MaybeAuthUser,
+) -> Result<axum::Json<WhoamiRespose>, Error> {
     Ok(axum::Json(WhoamiRespose {
         traits: identity?.traits,
     }))
@@ -213,7 +164,7 @@ pub async fn handle_github_oauth_callback(
 
     let i = Identity::new_with_traits(Traits {
         name: Some(full_name.to_owned()),
-        email: email.to_owned(),
+        email: Some(email.to_owned()),
     });
 
     let mut identity = sqlx::query_as!(

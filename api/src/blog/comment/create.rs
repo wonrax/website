@@ -1,15 +1,15 @@
 use axum::{
     debug_handler,
-    extract::{MatchedPath, Path, State},
-    Extension, Json,
+    extract::{Path, State},
+    Json,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 use crate::{
-    blog::routes::{AuthUser, ClientIp},
+    blog::routes::ClientIp,
     error::Error,
-    identity::models::identity::Traits,
+    identity::{self, models::identity::Traits, MaybeAuthUser},
     APIContext,
 };
 
@@ -19,12 +19,18 @@ use crate::blog::comment::Comment;
 pub async fn create_comment(
     State(ctx): State<APIContext>,
     Path(slug): Path<String>,
-    Extension(ip): Extension<ClientIp>,
-    Extension(auth_user): Extension<Option<AuthUser>>,
+    ip: ClientIp,
+    MaybeAuthUser(auth_user): MaybeAuthUser,
     crate::json::Json(mut comment): crate::json::Json<CommentSubmission>,
 ) -> Result<Json<Comment>, Error> {
+    if let Err(ref e) = auth_user {
+        if matches!(e, identity::AuthenticationError::Unauthorized) {
+            return Err(identity::AuthenticationError::Unauthorized.into());
+        }
+    }
+
     comment
-        .validate(auth_user.is_some())
+        .validate(auth_user.is_ok())
         .map_err(|e| (e, axum::http::StatusCode::BAD_REQUEST))?;
 
     // check if the post exists, otherwise create it
@@ -99,7 +105,7 @@ pub async fn create_comment(
         ip.ip,
         comment.author_name,
         comment.author_email,
-        auth_user.map(|u| u.id),
+        auth_user.ok().map(|u| u.id),
         comment.content,
         comment.parent_id,
         &slug,
@@ -120,7 +126,13 @@ pub async fn create_comment(
 
         if let Some(traits) = identity {
             let traits: Traits = serde_json::from_value(traits).map_err(|_| "Invalid traits")?;
-            resulting_comment.author_name = Some(traits.name.unwrap_or(traits.email));
+            resulting_comment.author_name = Some(traits.name.unwrap_or_else(|| {
+                tracing::error!(
+                    "No name in traits found for identity ID `{}`",
+                    resulting_comment.identity_id.unwrap(),
+                );
+                "No name".into()
+            }));
         }
     }
 

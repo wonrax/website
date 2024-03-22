@@ -50,14 +50,19 @@ impl Identity {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Traits {
-    pub email: String,
+    pub email: Option<String>,
     pub name: Option<String>,
 }
 
 impl Traits {
-    /// Defines rules for determining which fields are identifiers.
+    /// Defines rules for determining which fields are identifiers. Returns a
+    /// list of references to the fields that are considered identifiers.
     pub fn get_identifiers(&self) -> Vec<&String> {
-        vec![&self.email]
+        let mut ids = vec![];
+        if let Some(email) = &self.email {
+            ids.push(email);
+        }
+        ids
     }
 }
 
