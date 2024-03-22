@@ -29,4 +29,10 @@ pub struct CommentTree {
     children: Option<Vec<Rc<RefCell<CommentTree>>>>,
     upvote: i64,
     depth: usize,
+
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    is_comment_owner: bool,
+
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    is_blog_author: bool,
 }

@@ -26,6 +26,8 @@ export interface Comment {
   children?: Comment[];
   upvote: number;
   depth: number;
+  is_blog_author?: boolean;
+  is_comment_owner?: boolean;
 }
 
 export function CommentSection(): JSXElement {
@@ -59,6 +61,9 @@ export function CommentSection(): JSXElement {
     async () => {
       const res = await fetch(
         `${config.API_URL}/blog/${slug}/comments?page_offset=0&page_size=99&sort=best`,
+        {
+          credentials: "include",
+        },
       );
 
       if (res.status !== 200) {

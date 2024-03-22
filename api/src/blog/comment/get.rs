@@ -6,7 +6,7 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::{error::Error, APIContext};
+use crate::{error::Error, identity::MaybeAuthUser, APIContext};
 
 use super::{Comment, CommentTree};
 
@@ -40,6 +40,7 @@ pub async fn get_comments(
     State(ctx): State<APIContext>,
     Path(slug): Path<String>,
     q: Query<Queries>,
+    MaybeAuthUser(auth_user): MaybeAuthUser,
 ) -> Result<Json<Vec<CommentTree>>, Error> {
     let sort = q.sort.as_ref().unwrap_or(&SortType::Best);
 
@@ -219,7 +220,7 @@ pub async fn get_comments(
         }
     }
 
-    let rows = rows
+    let final_comments = rows
         .into_iter()
         .filter(|c| {
             c.id.is_some()
@@ -229,23 +230,29 @@ pub async fn get_comments(
                 && c.votes.is_some()
                 && c.depth.is_some()
         })
-        .map(|c| Comment {
+        .map(|c| CommentTree {
             id: c.id.unwrap(),
             author_name: c.author_name.unwrap(),
             content: c.content.unwrap(),
             parent_id: c.parent_id,
             created_at: c.created_at.unwrap(),
-            votes: c.votes.unwrap(),
-            depth: c.depth.unwrap(),
+            children: None,
+            upvote: c.votes.unwrap(),
+            depth: c.depth.unwrap() as usize,
+            is_comment_owner: match c.identity_id {
+                Some(id) => Some(id) == auth_user.as_ref().ok().map(|u| u.id),
+                None => false,
+            },
+            is_blog_author: c.identity_id == Some(1), // TODO this is hardcoded
         })
         .collect();
 
-    let result = intermediate_tree_sort(rows, sort);
+    let result = intermediate_tree_sort(final_comments, sort);
 
     Ok(Json(result))
 }
 
-fn intermediate_tree_sort(mut comments: Vec<Comment>, sort: &SortType) -> Vec<CommentTree> {
+fn intermediate_tree_sort(mut comments: Vec<CommentTree>, sort: &SortType) -> Vec<CommentTree> {
     // This is needed so that the conversion from flat comments to nested
     // comments is O(n) instead of O(n^2)
     comments.sort_unstable_by_key(|k| (k.id));
@@ -271,21 +278,12 @@ fn intermediate_tree_sort(mut comments: Vec<Comment>, sort: &SortType) -> Vec<Co
         .collect()
 }
 
-fn flat_comments_to_tree(comments: Vec<Comment>) -> Vec<Rc<RefCell<CommentTree>>> {
+fn flat_comments_to_tree(comments: Vec<CommentTree>) -> Vec<Rc<RefCell<CommentTree>>> {
     let mut tree = HashMap::<i32, Rc<RefCell<CommentTree>>>::with_capacity(comments.len());
     let mut final_comments: Vec<Rc<RefCell<CommentTree>>> = vec![];
 
     for comment in comments {
-        let c = Rc::new(RefCell::new(CommentTree {
-            id: comment.id,
-            author_name: comment.author_name,
-            content: comment.content,
-            parent_id: comment.parent_id,
-            created_at: comment.created_at,
-            children: None,
-            upvote: comment.votes,
-            depth: comment.depth as usize,
-        }));
+        let c = Rc::new(RefCell::new(comment));
 
         tree.insert(c.borrow().id, c.clone());
 
@@ -303,7 +301,7 @@ fn flat_comments_to_tree(comments: Vec<Comment>) -> Vec<Rc<RefCell<CommentTree>>
             }
         };
 
-        if comment.parent_id.is_none() {
+        if c.borrow().parent_id.is_none() {
             final_comments.push(c.clone());
         }
     }

@@ -2,7 +2,7 @@ import { Remarkable } from "remarkable";
 import { createSignal, For, type JSXElement } from "solid-js";
 import CommentEditor from "./CommentEditor";
 import { type Comment } from "./CommentSection";
-import { CircleUserRound, PersonStanding, User } from "lucide-solid";
+import { User } from "lucide-solid";
 
 // https://gist.github.com/mcraz/11349449
 function timeSince(date: Date): string {
@@ -82,6 +82,22 @@ export default function CommentComponent(props: {
           <div class="comment-date">
             {timeSince(new Date(Date.parse(props.comment.created_at + "Z")))}
           </div>
+          {(props.comment.is_blog_author ?? false) && (
+            <p
+              // TODO use a class instead of inline styles
+              style={{
+                "font-size": "0.8em",
+                color: "var(--info-heavy)",
+                "background-color": "var(--info-light)",
+                padding: "2px 4px",
+                "border-radius": "4px",
+                border: "1px solid var(--info-medium)",
+                margin: "0",
+              }}
+            >
+              Author
+            </p>
+          )}
         </div>
         {/* <div class="comment-upvote">{props.comment.upvote} upvotes</div> */}
         {/* <div>{comment.id}</div> */}

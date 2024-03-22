@@ -16,6 +16,7 @@ impl IdentityState {
     }
 }
 
+#[derive(Debug)]
 pub struct Identity {
     pub id: i32,
     pub traits: Traits,
@@ -48,7 +49,7 @@ impl Identity {
     // }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Traits {
     pub email: Option<String>,
     pub name: Option<String>,
