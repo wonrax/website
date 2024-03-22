@@ -1,5 +1,5 @@
 import { Remarkable } from "remarkable";
-import { createSignal, For, type JSXElement } from "solid-js";
+import { createSignal, For, Show, type JSXElement } from "solid-js";
 import CommentEditor from "./CommentEditor";
 import { type Comment } from "./CommentSection";
 import { User } from "lucide-solid";
@@ -59,6 +59,7 @@ export default function CommentComponent(props: {
   });
 
   const [isReplying, setIsReplying] = createSignal(false);
+  const [isEditing, setIsEditing] = createSignal(false);
 
   // eslint-disable-next-line solid/reactivity
   const [children, setChildren] = createSignal(props.comment.children);
@@ -102,16 +103,35 @@ export default function CommentComponent(props: {
         {/* <div class="comment-upvote">{props.comment.upvote} upvotes</div> */}
         {/* <div>{comment.id}</div> */}
       </div>
-      <div
-        class="comment-content"
-        // See above for safety concerns
-        // eslint-disable-next-line solid/no-innerhtml
-        innerHTML={md.render(props.comment.content)}
-      />
-      <div class="comment-action-row">
-        <button onClick={() => setIsReplying(true)}>Reply</button>
-        {/* <button>Upvote</button> */}
-      </div>
+      <Show when={!isEditing()}>
+        <div
+          class="comment-content"
+          // See above for safety concerns
+          // eslint-disable-next-line solid/no-innerhtml
+          innerHTML={md.render(props.comment.content)}
+        />
+      </Show>
+      <Show when={isEditing()}>
+        <CommentEditor
+          parentId={props.comment.id}
+          unshift={(c: Comment) => {
+            setChildren((children) => {
+              return [c, ...(children ?? [])];
+            });
+          }}
+          setReplying={setIsEditing}
+          placeholder={`Replying to ${props.comment.author_name}`}
+        />
+      </Show>
+      <Show when={!isEditing()}>
+        <div class="comment-action-row">
+          <button onClick={() => setIsReplying(true)}>Reply</button>
+          {props.comment.is_comment_owner && (
+            <button onClick={() => setIsEditing(true)}>Edit</button>
+          )}
+          {/* <button>Upvote</button> */}
+        </div>
+      </Show>
       {isReplying() && (
         <CommentEditor
           parentId={props.comment.id}

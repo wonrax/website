@@ -1,5 +1,6 @@
 pub mod create;
 pub mod get;
+pub mod patch;
 
 use std::{cell::RefCell, rc::Rc};
 
