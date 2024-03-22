@@ -303,7 +303,7 @@ impl IntoResponse for Error {
                         #[cfg(debug_assertions)]
                         ErrorResponse {
                             code: Some("INTERNAL_SERVER_ERROR".into()),
-                            msg: "Internal server error".into(),
+                            msg: "Something has gone wrong from our side. We'll try to fix this as soon as possible. Please try again.".into(),
                             reason: self.reason,
                             context: self.context,
                             debug_info: Some(HashMap::from([
@@ -317,7 +317,7 @@ impl IntoResponse for Error {
                         #[cfg(not(debug_assertions))]
                         ErrorResponse {
                             code: Some("INTERNAL_SERVER_ERROR".into()),
-                            msg: "Internal server error".into(),
+                            msg: "Something has gone wrong from our side. We'll try to fix this as soon as possible. Please try again.".into(),
                             reason: self.reason,
                             context: self.context,
                             debug_info: None,
