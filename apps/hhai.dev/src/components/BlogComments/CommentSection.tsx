@@ -15,7 +15,9 @@ import { checkAuthUser } from "@/state";
 import("./CommentSection.scss");
 
 const CommentComponent = lazy(async () => await import("./Comment"));
-const CommentEditor = lazy(async () => await import("./CommentEditor"));
+const CommentSubmission = lazy(async () => ({
+  default: (await import("./CommentEditor")).CommentSubmission,
+}));
 
 export interface Comment {
   id: number;
@@ -85,7 +87,7 @@ export function CommentSection(): JSXElement {
     ) {
       setPleaseFetch(true);
       void CommentComponent.preload();
-      void CommentEditor.preload();
+      void CommentSubmission.preload();
       void checkAuthUser();
     }
   });
@@ -117,7 +119,7 @@ export function CommentSection(): JSXElement {
             <span class="loader" />
           ) : (
             <>
-              <CommentEditor
+              <CommentSubmission
                 unshift={(c: Comment) => {
                   mutate((comments) => {
                     return [c, ...(comments ?? [])];
@@ -127,7 +129,19 @@ export function CommentSection(): JSXElement {
               {comments.state === "ready" && comments() != null && (
                 <ol class="comments">
                   <For each={comments()}>
-                    {(c) => <CommentComponent comment={c} depth={0} />}
+                    {(c) => (
+                      <CommentComponent
+                        comment={c}
+                        depth={0}
+                        onDelete={() => {
+                          mutate((comments) => {
+                            return comments?.filter((comment) => {
+                              return comment.id !== c.id;
+                            });
+                          });
+                        }}
+                      />
+                    )}
                   </For>
                 </ol>
               )}

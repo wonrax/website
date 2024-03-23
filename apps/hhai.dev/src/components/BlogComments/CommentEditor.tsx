@@ -14,11 +14,161 @@ import config from "@/config";
 import "./CommentEditor.scss";
 import { AppState, SetAppState, checkAuthUser } from "@/state";
 
-export default function CommentEditor(props: {
+type FormEvent = Event & {
+  target: EventTarget & {
+    "author-name"?: HTMLInputElement;
+    email?: HTMLInputElement;
+    content?: HTMLTextAreaElement;
+  };
+};
+
+export function CommentSubmission(props: {
   parentId?: number;
   unshift: (c: Comment) => void;
   setReplying?: Setter<boolean>;
   placeholder?: string;
+}): JSXElement {
+  const ctx = useContext(CommentContext);
+
+  if (ctx?.slug === undefined) {
+    throw new Error("slug not found");
+  }
+
+  async function handleCommentSubmit(e: FormEvent): Promise<void> {
+    e.preventDefault();
+
+    const form = e.target;
+    if (form.content?.value == null) {
+      throw new Error("content is required");
+    }
+
+    const resp = await fetch(`${config.API_URL}/blog/${ctx?.slug}/comments`, {
+      method: "POST",
+      body: JSON.stringify({
+        author_name: form["author-name"]?.value,
+        content: form.content.value,
+        author_email:
+          form.email?.value != null && form.email.value === ""
+            ? null
+            : form.email?.value,
+        parent_id: props.parentId,
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+    });
+
+    if (!resp.ok) {
+      if (
+        resp.headers.get("Content-Type")?.includes("application/json") === true
+      ) {
+        const err = await resp.json();
+        if (err.msg != null && typeof err.msg === "string")
+          throw new Error(err.msg as string);
+      }
+      throw new Error("Unexpected error: " + (await resp.text()));
+    }
+
+    const comment: Comment = await resp.json();
+    comment.is_comment_owner = true;
+
+    props.unshift(comment);
+
+    if (props.setReplying != null) {
+      props.setReplying?.(false);
+    } else {
+      // reset the form
+      if (form["author-name"] != null) form["author-name"].value = "";
+      if (form.email != null) form.email.value = "";
+      form.content.value = "";
+    }
+  }
+
+  return (
+    <CommentEditorBase
+      cancellable={props.parentId != null}
+      onSubmit={handleCommentSubmit}
+      onCancel={() => {
+        if (props.setReplying != null) {
+          props.setReplying(false);
+        }
+      }}
+      placeholder={props.placeholder}
+    />
+  );
+}
+
+export function CommentEditing(props: {
+  commentId: number;
+  content: string;
+  setEditing?: (value: boolean, newContent: string | null) => void;
+}): JSXElement {
+  const ctx = useContext(CommentContext);
+
+  if (ctx?.slug === undefined) {
+    throw new Error("slug not found");
+  }
+
+  async function handleCommentSubmit(e: FormEvent): Promise<void> {
+    e.preventDefault();
+
+    const form = e.target;
+    if (form.content?.value == null) {
+      throw new Error("content is required");
+    }
+
+    const resp = await fetch(
+      `${config.API_URL}/blog/${ctx?.slug}/comments/${props.commentId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          content: form.content.value,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      },
+    );
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      if (err.msg != null && typeof err.msg === "string")
+        throw new Error(err.msg as string);
+
+      throw new Error("Unexpected error: " + (await resp.text()));
+    }
+
+    const comment: Comment = await resp.json();
+
+    if (props.setEditing != null) props.setEditing(false, comment.content);
+  }
+
+  return (
+    <CommentEditorBase
+      cancellable={true}
+      onSubmit={handleCommentSubmit}
+      onCancel={() => {
+        if (props.setEditing != null) {
+          props.setEditing(false, null);
+        }
+      }}
+      content={props.content}
+      showAuthInfo={false}
+      buttonCta="Save"
+    />
+  );
+}
+
+export function CommentEditorBase(props: {
+  cancellable: boolean;
+  onSubmit: (e: FormEvent) => Promise<void>;
+  onCancel: () => void;
+  placeholder?: string;
+  content?: string;
+  showAuthInfo?: boolean;
+  buttonCta?: string;
 }): JSXElement {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<Error>();
@@ -27,83 +177,15 @@ export default function CommentEditor(props: {
     void checkAuthUser();
   }
 
-  const ctx = useContext(CommentContext);
-
-  if (ctx?.slug === undefined) {
-    throw new Error("slug not found");
-  }
-
-  async function handleCommentSubmit(e: Event): Promise<void> {
-    e.preventDefault();
-    setLoading(true);
-    const form = e.target as EventTarget & {
-      "author-name"?: HTMLInputElement;
-      email?: HTMLInputElement;
-    };
-
-    const target = e.target as HTMLInputElement;
-
-    const content = target.querySelector("#content");
-
-    if (content == null || !(content instanceof HTMLTextAreaElement)) {
-      throw new Error("content not found");
-    }
-
+  async function handleCommentSubmit(e: FormEvent): Promise<void> {
     try {
-      const resp = await fetch(`${config.API_URL}/blog/${ctx?.slug}/comments`, {
-        method: "POST",
-        body: JSON.stringify({
-          author_name:
-            form["author-name"]?.value != null &&
-            form["author-name"].value.length > 0
-              ? form["author-name"].value
-              : null,
-          content: content.value,
-          author_email:
-            form.email?.value != null && form.email.value.length > 0
-              ? form.email.value
-              : null,
-          parent_id: props.parentId,
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-      });
-
-      if (!resp.ok) {
-        if (
-          resp.headers.get("Content-Type")?.includes("application/json") ===
-          true
-        ) {
-          const err = await resp.json();
-          if (err.msg != null && typeof err.msg === "string") {
-            throw new Error(err.msg as string);
-          }
-        }
-        throw new Error("Unexpected error: " + (await resp.text()));
-      }
-
-      const comment: Comment = await resp.json();
-
-      props.unshift(comment);
-
-      setLoading(false);
-
-      if (props.setReplying != null) {
-        props.setReplying?.(false);
-      } else {
-        // reset the form
-        if (form["author-name"] != null) form["author-name"].value = "";
-        if (form.email != null) form.email.value = "";
-        content.value = "";
-        setError(undefined);
-      }
+      setLoading(true);
+      await props.onSubmit(e);
     } catch (e) {
-      if (e instanceof Error) setError(e);
-      else setError(new Error(`Unknown error: ${e as any}`));
-      setLoading(false);
+      setError(e as Error);
     }
+
+    setLoading(false);
   }
 
   return (
@@ -114,65 +196,66 @@ export default function CommentEditor(props: {
       }}
     >
       <div style={{ padding: "10px" }}>
-        {AppState.authUser == null ? (
-          <>
-            <p
-              style={{
-                "font-size": "14px",
-                color: "var(--text-body-medium)",
-                margin: "2px 8px 12px 8px",
-                "line-height": "140%",
-              }}
-            >
-              Either{" "}
-              <a
+        {(props.showAuthInfo ?? true) &&
+          (AppState.authUser == null ? (
+            <>
+              <p
                 style={{
-                  color: "var(--text-body-heavy)",
-                  "font-weight": "var(--font-weight-medium)",
-                  "text-decoration": "underline",
+                  "font-size": "14px",
+                  color: "var(--text-body-medium)",
+                  margin: "2px 8px 12px 8px",
+                  "line-height": "140%",
                 }}
-                href={`${config.API_URL}/identity/login/oidc/github?last_visit=${window.location.href}`}
               >
-                login via GitHub
-              </a>{" "}
-              or type your name below
+                Either{" "}
+                <a
+                  style={{
+                    color: "var(--text-body-heavy)",
+                    "font-weight": "var(--font-weight-medium)",
+                    "text-decoration": "underline",
+                  }}
+                  href={`${config.API_URL}/identity/login/oidc/github?last_visit=${window.location.href}`}
+                >
+                  login via GitHub
+                </a>{" "}
+                or type your name below
+              </p>
+              <div class="author-info">
+                <Input
+                  id="author-name"
+                  type="text"
+                  placeholder="Your name"
+                  description="Required"
+                />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Your email"
+                  description="Optional, not displayed"
+                />
+              </div>
+            </>
+          ) : (
+            <p class="auth-user">
+              Posting as{" "}
+              <span class="author-name">{AppState.authUser?.name}</span>, or{" "}
+              <span
+                class="logout-button"
+                onClick={() => {
+                  void fetch(`${config.API_URL}/identity/logout`, {
+                    method: "POST",
+                    credentials: "include",
+                  }).then((response) => {
+                    if (response.ok) {
+                      SetAppState({ authUser: null });
+                    }
+                  });
+                }}
+              >
+                logout
+              </span>
             </p>
-            <div class="author-info">
-              <Input
-                id="author-name"
-                type="text"
-                placeholder="Your name"
-                description="Required"
-              />
-              <Input
-                id="email"
-                type="email"
-                placeholder="Your email"
-                description="Optional, not displayed"
-              />
-            </div>
-          </>
-        ) : (
-          <p class="auth-user">
-            Posting as{" "}
-            <span class="author-name">{AppState.authUser?.name}</span>, or{" "}
-            <span
-              class="logout-button"
-              onClick={() => {
-                void fetch(`${config.API_URL}/identity/logout`, {
-                  method: "POST",
-                  credentials: "include",
-                }).then((response) => {
-                  if (response.ok) {
-                    SetAppState({ authUser: null });
-                  }
-                });
-              }}
-            >
-              logout
-            </span>
-          </p>
-        )}
+          ))}
       </div>
       <hr />
       <div class="comment-editor">
@@ -185,6 +268,7 @@ export default function CommentEditor(props: {
               e.currentTarget.style.height =
                 e.currentTarget.scrollHeight + "px";
           }}
+          value={props.content ?? ""}
         />
       </div>
       {error() != null && <div class="error">{error()?.message}</div>}
@@ -215,11 +299,11 @@ export default function CommentEditor(props: {
         </div>
         <div class="button-row">
           {/* TODO set tab index so that submit goes first */}
-          {props.parentId != null && (
+          {props.cancellable && (
             <button
               onClick={(e) => {
                 e.preventDefault();
-                props.setReplying?.(false);
+                props.onCancel();
               }}
               type="submit"
               disabled={loading()}
@@ -229,7 +313,7 @@ export default function CommentEditor(props: {
             </button>
           )}
           <button type="submit" class="primary" disabled={loading()}>
-            Submit
+            {props.buttonCta ?? "Submit"}
           </button>
         </div>
       </div>
