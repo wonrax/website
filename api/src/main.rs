@@ -108,7 +108,7 @@ async fn main() {
 
     let cors = CorsLayer::new()
         // allow `GET` and `POST` when accessing the resource
-        .allow_methods(vec![Method::GET, Method::POST])
+        .allow_methods(vec![Method::GET, Method::POST, Method::PATCH])
         .allow_headers([CONTENT_TYPE])
         .allow_credentials(true)
         .allow_origin(AllowOrigin::predicate(|_, request| {
@@ -173,7 +173,7 @@ async fn main() {
         );
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    info!("listening on 0.0.0.0:3000");
+    info!("listening on http://0.0.0.0:3000");
     axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),

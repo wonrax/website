@@ -1,6 +1,6 @@
 import { Remarkable } from "remarkable";
 import { createSignal, For, Show, type JSXElement } from "solid-js";
-import CommentEditor from "./CommentEditor";
+import { CommentSubmission, CommentEditing } from "./CommentEditor";
 import { type Comment } from "./CommentSection";
 import { User } from "lucide-solid";
 
@@ -58,6 +58,8 @@ export default function CommentComponent(props: {
     // },
   });
 
+  const [content, setContent] = createSignal(props.comment.content);
+
   const [isReplying, setIsReplying] = createSignal(false);
   const [isEditing, setIsEditing] = createSignal(false);
 
@@ -108,32 +110,32 @@ export default function CommentComponent(props: {
           class="comment-content"
           // See above for safety concerns
           // eslint-disable-next-line solid/no-innerhtml
-          innerHTML={md.render(props.comment.content)}
+          innerHTML={md.render(content())}
         />
       </Show>
       <Show when={isEditing()}>
-        <CommentEditor
-          parentId={props.comment.id}
-          unshift={(c: Comment) => {
-            setChildren((children) => {
-              return [c, ...(children ?? [])];
-            });
+        <CommentEditing
+          commentId={props.comment.id}
+          setEditing={(value, newContent) => {
+            setIsEditing(value);
+            if (newContent != null) {
+              setContent(newContent);
+            }
           }}
-          setReplying={setIsEditing}
-          placeholder={`Replying to ${props.comment.author_name}`}
+          content={content()}
         />
       </Show>
       <Show when={!isEditing()}>
         <div class="comment-action-row">
           <button onClick={() => setIsReplying(true)}>Reply</button>
-          {props.comment.is_comment_owner && (
+          {(props.comment.is_comment_owner ?? false) && (
             <button onClick={() => setIsEditing(true)}>Edit</button>
           )}
           {/* <button>Upvote</button> */}
         </div>
       </Show>
       {isReplying() && (
-        <CommentEditor
+        <CommentSubmission
           parentId={props.comment.id}
           unshift={(c: Comment) => {
             setChildren((children) => {
