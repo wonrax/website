@@ -125,7 +125,7 @@ export default function CommentComponent(props: {
           content={content()}
         />
       </Show>
-      <Show when={!isEditing()}>
+      <Show when={!isEditing() && !isReplying()}>
         <div class="comment-action-row">
           <button onClick={() => setIsReplying(true)}>Reply</button>
           {(props.comment.is_comment_owner ?? false) && (

@@ -47,7 +47,10 @@ export function CommentSubmission(props: {
       body: JSON.stringify({
         author_name: form["author-name"]?.value,
         content: form.content.value,
-        author_email: form.email?.value,
+        author_email:
+          form.email?.value != null && form.email.value === ""
+            ? null
+            : form.email?.value,
         parent_id: props.parentId,
       }),
       headers: {
@@ -68,6 +71,7 @@ export function CommentSubmission(props: {
     }
 
     const comment: Comment = await resp.json();
+    comment.is_comment_owner = true;
 
     props.unshift(comment);
 
