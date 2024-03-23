@@ -156,6 +156,7 @@ export function CommentEditing(props: {
       }}
       content={props.content}
       showAuthInfo={false}
+      buttonCta="Save"
     />
   );
 }
@@ -167,6 +168,7 @@ export function CommentEditorBase(props: {
   placeholder?: string;
   content?: string;
   showAuthInfo?: boolean;
+  buttonCta?: string;
 }): JSXElement {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<Error>();
@@ -311,7 +313,7 @@ export function CommentEditorBase(props: {
             </button>
           )}
           <button type="submit" class="primary" disabled={loading()}>
-            Submit
+            {props.buttonCta ?? "Submit"}
           </button>
         </div>
       </div>
