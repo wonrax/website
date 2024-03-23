@@ -129,7 +129,19 @@ export function CommentSection(): JSXElement {
               {comments.state === "ready" && comments() != null && (
                 <ol class="comments">
                   <For each={comments()}>
-                    {(c) => <CommentComponent comment={c} depth={0} />}
+                    {(c) => (
+                      <CommentComponent
+                        comment={c}
+                        depth={0}
+                        onDelete={() => {
+                          mutate((comments) => {
+                            return comments?.filter((comment) => {
+                              return comment.id !== c.id;
+                            });
+                          });
+                        }}
+                      />
+                    )}
                   </For>
                 </ol>
               )}

@@ -3,6 +3,7 @@ import { createSignal, For, Show, type JSXElement } from "solid-js";
 import { CommentSubmission, CommentEditing } from "./CommentEditor";
 import { type Comment } from "./CommentSection";
 import { User } from "lucide-solid";
+import config from "@/config";
 
 // https://gist.github.com/mcraz/11349449
 function timeSince(date: Date): string {
@@ -35,6 +36,7 @@ function timeSince(date: Date): string {
 export default function CommentComponent(props: {
   comment: Comment;
   depth: number;
+  onDelete: () => void;
 }): JSXElement {
   // TODO read more on the docs to identify security issues
   // TODO use memo to avoid re-rendering if possible
@@ -129,7 +131,41 @@ export default function CommentComponent(props: {
         <div class="comment-action-row">
           <button onClick={() => setIsReplying(true)}>Reply</button>
           {(props.comment.is_comment_owner ?? false) && (
-            <button onClick={() => setIsEditing(true)}>Edit</button>
+            <>
+              <button onClick={() => setIsEditing(true)}>Edit</button>
+              <button
+                onClick={() => {
+                  if (
+                    confirm("Are you sure you want to delete this comment?")
+                  ) {
+                    // TODO handle error
+                    fetch(
+                      `${config.API_URL}/blog/${"TODO"}/comments/${props.comment.id}`,
+                      {
+                        method: "DELETE",
+                        credentials: "include",
+                      },
+                    )
+                      .then(async (res) => {
+                        if (res.status !== 200) {
+                          const body: {
+                            msg: string;
+                          } = await res.json();
+
+                          alert("Failed to delete comment: " + body.msg);
+                        } else {
+                          props.onDelete();
+                        }
+                      })
+                      .catch((e) => {
+                        alert("Failed to delete comment: " + e);
+                      });
+                  }
+                }}
+              >
+                Delete
+              </button>
+            </>
           )}
           {/* <button>Upvote</button> */}
         </div>
@@ -150,7 +186,17 @@ export default function CommentComponent(props: {
         <ol class="comment-children">
           {
             <For each={children()}>
-              {(c) => <CommentComponent comment={c} depth={props.depth + 1} />}
+              {(c) => (
+                <CommentComponent
+                  comment={c}
+                  depth={props.depth + 1}
+                  onDelete={() => {
+                    setChildren((children) => {
+                      return children?.filter((child) => child.id !== c.id);
+                    });
+                  }}
+                />
+              )}
             </For>
           }
         </ol>

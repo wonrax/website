@@ -3,13 +3,15 @@ use std::net::SocketAddr;
 use axum::{
     extract::ConnectInfo,
     http::request::Parts,
-    routing::{get, patch, post},
+    routing::{delete, get, patch, post},
     Router,
 };
 
 use crate::{error::Error, APIContext};
 
-use super::comment::{create::create_comment, get::get_comments, patch::patch_comment};
+use super::comment::{
+    create::create_comment, delete::delete_comment, get::get_comments, patch::patch_comment,
+};
 
 pub fn route() -> Router<APIContext> {
     // TODO rate limit these public endpoints
@@ -17,6 +19,7 @@ pub fn route() -> Router<APIContext> {
         .route("/:slug/comments", get(get_comments))
         .route("/:slug/comments", post(create_comment))
         .route("/:slug/comments/:id", patch(patch_comment))
+        .route("/:slug/comments/:id", delete(delete_comment))
 }
 
 #[derive(Clone)]
