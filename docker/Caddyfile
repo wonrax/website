@@ -19,8 +19,13 @@ static.hhai.dev {
 api.hhai.dev {
 	handle_path /api/* {
 		reverse_proxy api:3000 {
-			# CloudFront proxy is trusted
+			# Forward the host header from proxy servers (i.e. CloudFront)
 			header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+
+			# Add the client's IP address (i.e. CloudFront IP) in order to be
+			# able to decide whether to trust the X-Forwarded-For header in the
+			# application
+			header_up X-Forwarded-For {http.request.remote.host}
 		}
 	}
 

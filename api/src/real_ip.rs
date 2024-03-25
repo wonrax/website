@@ -50,8 +50,6 @@ pub fn is_cloudfront_ip(ip: &IpAddr) -> bool {
         .any(|trusted_proxy| trusted_proxy.contains(*ip))
 }
 
-/// Get the originating client IP address from the headers, which is the left-most
-/// non-private IP address in the X-Forwarded-For header.
 pub fn get_client_ip(headers: &HeaderMap) -> Option<IpAddr> {
     headers
         .get_all("x-forwarded-for")
@@ -72,6 +70,27 @@ impl axum::extract::FromRequestParts<APIContext> for ClientIp {
         parts: &mut Parts,
         _state: &APIContext,
     ) -> Result<Self, Self::Rejection> {
+        let mut x_forwarded_for_ips = parts
+            .headers
+            .get_all("x-forwarded-for")
+            .iter()
+            .filter_map(|header| header.to_str().ok())
+            .flat_map(|header| header.split(','))
+            .filter_map(|ip| ip.trim().parse::<IpAddr>().ok())
+            .filter(|ip| match ip {
+                IpAddr::V4(ip) => !ip.is_private() && !ip.is_loopback(),
+                IpAddr::V6(_) => true,
+            });
+
+        // Get the originating client IP address from the headers, which is the
+        // left-most non-private IP address in the X-Forwarded-For header.
+        let client_ip = x_forwarded_for_ips.next();
+
+        // Get the CloudFront IP address from the headers, which is the right-most
+        // IP address that was appended by the Caddy reverse proxy
+        let supposedly_cloudfront_ip = x_forwarded_for_ips.next_back();
+
+        // Fallback IP in case the client IP is not found in the headers
         let socket_ip: IpAddr = parts
             .extensions
             .get::<ConnectInfo<SocketAddr>>()
@@ -79,56 +98,30 @@ impl axum::extract::FromRequestParts<APIContext> for ClientIp {
             .0
             .ip();
 
-        let client_ip = get_client_ip(&parts.headers);
-
-        let client_ip = if is_cloudfront_ip(&socket_ip) {
-            client_ip.unwrap_or_else(|| {
+        let client_ip = match (client_ip, supposedly_cloudfront_ip) {
+            (Some(client_ip), Some(cf_ip)) if is_cloudfront_ip(&cf_ip) => {
+                tracing::info!(
+                    ?client_ip,
+                    ?cf_ip,
+                    "Request from CloudFront, using client IP"
+                );
+                client_ip
+            }
+            (Some(client_ip), cf_ip) => {
+                tracing::warn!(
+                    ?client_ip,
+                    ?cf_ip,
+                    "Request from non-CloudFront proxy, using client IP"
+                );
+                client_ip
+            }
+            (None, _) => {
                 tracing::warn!(
                     ?socket_ip,
-                    "Request from CloudFront, but failed to get client IP from headers, using socket IP"
+                    "No client IP found in X-Forwarded-For headers, using socket IP"
                 );
                 socket_ip
-            })
-        } else {
-            let untrusted_client_ip = client_ip.unwrap_or(socket_ip);
-            #[cfg(not(debug_assertions))]
-            tracing::warn!(
-                ?socket_ip,
-                ?untrusted_client_ip,
-                x_forwarded_for_ips = ?parts
-                    .headers
-                    .get_all("x-forwarded-for")
-                    .iter()
-                    .filter_map(|header| header.to_str().ok())
-                    .flat_map(|header| header.split(','))
-                    .collect::<Vec<&str>>(),
-                headers = ?parts.headers,
-                "Request from non-CloudFront proxy, using untrusted client IP"
-            );
-
-            // match socket_ip {
-            //     IpAddr::V4(ip) => {
-            //         // Do not warn if the connecting socket is private IP (e.g. 127.0.0.1)
-            //         if !ip.is_private() && !ip.is_loopback() {
-            //             tracing::warn!(
-            //                 ?socket_ip,
-            //                 ?untrusted_client_ip,
-            //                 "Request from non-CloudFront proxy"
-            //             );
-            //         }
-            //     }
-            //     IpAddr::V6(_) => {
-            //         // TODO wanted to check, but is_unique_local() is not stable
-            //         // https://doc.rust-lang.org/nightly/std/net/struct.Ipv6Addr.html#method.is_unique_local
-            //         tracing::warn!(
-            //             ?socket_ip,
-            //             ?untrusted_client_ip,
-            //             "Request from non-CloudFront proxy"
-            //         );
-            //     }
-            // };
-
-            untrusted_client_ip
+            }
         };
 
         Ok(ClientIp(client_ip))
