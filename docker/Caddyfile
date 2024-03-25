@@ -21,7 +21,7 @@ api.hhai.dev {
 		reverse_proxy api:3000 {
 			# Trust all incoming X-Forwarded-For headers since we verify the
 			# proxy in application layer anyway
-			trusted_proxies 0.0.0.0/32
+			trusted_proxies 0.0.0.0/0
 		}
 	}
 
