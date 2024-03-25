@@ -1,10 +1,7 @@
 // Borrow a lot of code from crates.io
 // https://github.com/rust-lang/crates.io/blob/986d296f910c2ed821be907b1e32a120c03338cb/src/real_ip.rs
 
-use axum::{
-    extract::ConnectInfo,
-    http::{request::Parts, HeaderMap},
-};
+use axum::{extract::ConnectInfo, http::request::Parts};
 use ipnetwork::IpNetwork;
 use std::{
     net::{IpAddr, SocketAddr},
@@ -48,16 +45,6 @@ pub fn is_cloudfront_ip(ip: &IpAddr) -> bool {
         .unwrap_or_else(|| get_cloudfront_prefixes())
         .iter()
         .any(|trusted_proxy| trusted_proxy.contains(*ip))
-}
-
-pub fn get_client_ip(headers: &HeaderMap) -> Option<IpAddr> {
-    headers
-        .get_all("x-forwarded-for")
-        .iter()
-        .filter_map(|header| header.to_str().ok())
-        .flat_map(|header| header.split(','))
-        .filter_map(|ip| ip.trim().parse().ok())
-        .next()
 }
 
 pub struct ClientIp(pub IpAddr);
