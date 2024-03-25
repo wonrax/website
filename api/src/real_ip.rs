@@ -82,6 +82,27 @@ impl axum::extract::FromRequestParts<APIContext> for ClientIp {
                 IpAddr::V6(_) => true,
             });
 
+        tracing::info!(
+            headers = ?parts.headers,
+        );
+
+        tracing::info!(
+            x_forwarded_for_ips = ?parts
+                .headers
+                .get_all("x-forwarded-for")
+                .iter()
+                .filter_map(|header| header.to_str().ok())
+                .flat_map(|header| header.split(','))
+                .filter_map(|ip| ip.trim().parse::<IpAddr>().ok())
+                .filter(|ip| match ip {
+                    IpAddr::V4(ip) => !ip.is_private() && !ip.is_loopback(),
+                    IpAddr::V6(_) => true,
+                })
+                .map(|ip| ip.to_string())
+                .collect::<Vec<String>>(),
+            "X-Forwarded-For IPs"
+        );
+
         // Get the originating client IP address from the headers, which is the
         // left-most non-private IP address in the X-Forwarded-For header.
         let client_ip = x_forwarded_for_ips.next();
