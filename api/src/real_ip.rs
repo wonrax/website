@@ -82,27 +82,6 @@ impl axum::extract::FromRequestParts<APIContext> for ClientIp {
                 IpAddr::V6(_) => true,
             });
 
-        tracing::info!(
-            headers = ?parts.headers.get_all("x-forwarded-for").iter().collect::<Vec<_>>(),
-        );
-
-        tracing::info!(
-            x_forwarded_for_ips = ?parts
-                .headers
-                .get_all("x-forwarded-for")
-                .iter()
-                .filter_map(|header| header.to_str().ok())
-                .flat_map(|header| header.split(','))
-                .filter_map(|ip| ip.trim().parse::<IpAddr>().ok())
-                .filter(|ip| match ip {
-                    IpAddr::V4(ip) => !ip.is_private() && !ip.is_loopback(),
-                    IpAddr::V6(_) => true,
-                })
-                .map(|ip| ip.to_string())
-                .collect::<Vec<String>>(),
-            "X-Forwarded-For IPs"
-        );
-
         // Get the originating client IP address from the headers, which is the
         // left-most non-private IP address in the X-Forwarded-For header.
         let client_ip = x_forwarded_for_ips.next();
@@ -111,40 +90,30 @@ impl axum::extract::FromRequestParts<APIContext> for ClientIp {
         // IP address that was appended by the Caddy reverse proxy
         let supposedly_cloudfront_ip = x_forwarded_for_ips.next_back();
 
-        // Fallback IP in case the client IP is not found in the headers
-        let socket_ip: IpAddr = parts
-            .extensions
-            .get::<ConnectInfo<SocketAddr>>()
-            .ok_or("couldn't get connecting socket IP")?
-            .0
-            .ip();
-
-        let client_ip = match (client_ip, supposedly_cloudfront_ip) {
-            (Some(client_ip), Some(cf_ip)) if is_cloudfront_ip(&cf_ip) => {
-                tracing::info!(
-                    ?client_ip,
-                    ?cf_ip,
-                    "Request from CloudFront, using client IP"
-                );
-                client_ip
-            }
+        Ok(ClientIp(match (client_ip, supposedly_cloudfront_ip) {
+            (Some(client_ip), Some(cf_ip)) if is_cloudfront_ip(&cf_ip) => client_ip,
             (Some(client_ip), cf_ip) => {
                 tracing::warn!(
                     ?client_ip,
                     ?cf_ip,
-                    "Request from non-CloudFront proxy, using client IP"
+                    "Request from non-CloudFront proxy, using the untrusted client IP"
                 );
                 client_ip
             }
             (None, _) => {
+                let socket_ip: IpAddr = parts
+                    .extensions
+                    .get::<ConnectInfo<SocketAddr>>()
+                    .ok_or("couldn't get connecting socket IP")?
+                    .0
+                    .ip();
+
                 tracing::warn!(
                     ?socket_ip,
                     "No client IP found in X-Forwarded-For headers, using socket IP"
                 );
                 socket_ip
             }
-        };
-
-        Ok(ClientIp(client_ip))
+        }))
     }
 }
