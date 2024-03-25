@@ -102,6 +102,7 @@ impl axum::extract::FromRequestParts<APIContext> for ClientIp {
                     .filter_map(|header| header.to_str().ok())
                     .flat_map(|header| header.split(','))
                     .collect::<Vec<&str>>(),
+                headers = ?parts.headers,
                 "Request from non-CloudFront proxy, using untrusted client IP"
             );
 
