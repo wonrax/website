@@ -91,27 +91,41 @@ impl axum::extract::FromRequestParts<APIContext> for ClientIp {
             })
         } else {
             let untrusted_client_ip = client_ip.unwrap_or(socket_ip);
-            match socket_ip {
-                IpAddr::V4(ip) => {
-                    // Do not warn if the connecting socket is private IP (e.g. 127.0.0.1)
-                    if !ip.is_private() && !ip.is_loopback() {
-                        tracing::warn!(
-                            ?socket_ip,
-                            ?untrusted_client_ip,
-                            "Request from non-CloudFront proxy"
-                        );
-                    }
-                }
-                IpAddr::V6(_) => {
-                    // TODO wanted to check, but is_unique_local() is not stable
-                    // https://doc.rust-lang.org/nightly/std/net/struct.Ipv6Addr.html#method.is_unique_local
-                    tracing::warn!(
-                        ?socket_ip,
-                        ?untrusted_client_ip,
-                        "Request from non-CloudFront proxy"
-                    );
-                }
-            };
+            #[cfg(not(debug_assertions))]
+            tracing::warn!(
+                ?socket_ip,
+                ?untrusted_client_ip,
+                x_forwarded_for_ips = ?parts
+                    .headers
+                    .get_all("x-forwarded-for")
+                    .iter()
+                    .filter_map(|header| header.to_str().ok())
+                    .flat_map(|header| header.split(','))
+                    .collect::<Vec<&str>>(),
+                "Request from non-CloudFront proxy, using untrusted client IP"
+            );
+
+            // match socket_ip {
+            //     IpAddr::V4(ip) => {
+            //         // Do not warn if the connecting socket is private IP (e.g. 127.0.0.1)
+            //         if !ip.is_private() && !ip.is_loopback() {
+            //             tracing::warn!(
+            //                 ?socket_ip,
+            //                 ?untrusted_client_ip,
+            //                 "Request from non-CloudFront proxy"
+            //             );
+            //         }
+            //     }
+            //     IpAddr::V6(_) => {
+            //         // TODO wanted to check, but is_unique_local() is not stable
+            //         // https://doc.rust-lang.org/nightly/std/net/struct.Ipv6Addr.html#method.is_unique_local
+            //         tracing::warn!(
+            //             ?socket_ip,
+            //             ?untrusted_client_ip,
+            //             "Request from non-CloudFront proxy"
+            //         );
+            //     }
+            // };
 
             untrusted_client_ip
         };
