@@ -83,7 +83,7 @@ impl axum::extract::FromRequestParts<APIContext> for ClientIp {
             });
 
         tracing::info!(
-            headers = ?parts.headers,
+            headers = ?parts.headers.get_all("x-forwarded-for").iter().collect::<Vec<_>>(),
         );
 
         tracing::info!(
