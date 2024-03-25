@@ -1,13 +1,9 @@
-use std::net::SocketAddr;
-
 use axum::{
-    extract::ConnectInfo,
-    http::request::Parts,
     routing::{delete, get, patch, post},
     Router,
 };
 
-use crate::{error::Error, APIContext};
+use crate::APIContext;
 
 use super::comment::{
     create::create_comment, delete::delete_comment, get::get_comments, patch::patch_comment,
@@ -20,36 +16,4 @@ pub fn route() -> Router<APIContext> {
         .route("/:slug/comments", post(create_comment))
         .route("/:slug/comments/:id", patch(patch_comment))
         .route("/:slug/comments/:id", delete(delete_comment))
-}
-
-#[derive(Clone)]
-pub struct ClientIp {
-    pub ip: String, // TODO use IpAddr for correctness
-}
-
-#[axum::async_trait]
-impl axum::extract::FromRequestParts<APIContext> for ClientIp {
-    type Rejection = Error;
-
-    async fn from_request_parts(
-        parts: &mut Parts,
-        _state: &APIContext,
-    ) -> Result<Self, Self::Rejection> {
-        let ip = parts
-            .headers
-            .get("x-forwarded-for")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.split(',').next().map(|v| v.to_string()))
-            .unwrap_or(
-                parts
-                    .extensions
-                    .get::<ConnectInfo<SocketAddr>>()
-                    .ok_or("missing ConnectInfo")?
-                    .0
-                    .ip()
-                    .to_string(),
-            );
-
-        Ok(ClientIp { ip })
-    }
 }

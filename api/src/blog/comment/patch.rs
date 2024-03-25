@@ -8,17 +8,14 @@ use serde::Deserialize;
 use sqlx::FromRow;
 
 use crate::{
-    blog::{comment::Comment, routes::ClientIp},
-    error::Error,
-    identity::AuthUser,
-    APIContext,
+    blog::comment::Comment, error::Error, identity::AuthUser, real_ip::ClientIp, APIContext,
 };
 
 #[debug_handler]
 pub async fn patch_comment(
     State(ctx): State<APIContext>,
     Path((_slug, id)): Path<(String, i32)>,
-    ip: ClientIp,
+    ClientIp(ip): ClientIp,
     AuthUser(auth_user): AuthUser,
     crate::json::Json(mut comment): crate::json::Json<CommentPatch>,
 ) -> Result<Json<Comment>, Error> {
@@ -62,7 +59,7 @@ pub async fn patch_comment(
         WHERE id = $3
         RETURNING *;
         ",
-        ip.ip,
+        ip.to_string(),
         comment.content,
         id
     )

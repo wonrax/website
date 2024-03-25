@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 use crate::{
-    blog::routes::ClientIp,
     error::Error,
     identity::{self, models::identity::Traits, MaybeAuthUser},
+    real_ip::ClientIp,
     APIContext,
 };
 
@@ -19,7 +19,7 @@ use crate::blog::comment::Comment;
 pub async fn create_comment(
     State(ctx): State<APIContext>,
     Path(slug): Path<String>,
-    ip: ClientIp,
+    ClientIp(ip): ClientIp,
     MaybeAuthUser(auth_user): MaybeAuthUser,
     crate::json::Json(mut comment): crate::json::Json<CommentSubmission>,
 ) -> Result<Json<Comment>, Error> {
@@ -102,7 +102,7 @@ pub async fn create_comment(
         -- TODO fix this hack (e.g. default values in comment struct)
         RETURNING *, 0::int8 as votes, -1 as depth;
         ",
-        ip.ip,
+        ip.to_string(),
         comment.author_name,
         comment.author_email,
         auth_user.ok().map(|u| u.id),

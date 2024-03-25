@@ -76,6 +76,7 @@ checksum = "8901269c6307e8d93993578286ac0edf7f195079ffff5ebdeea6a59ffb7e36bc"
 name = "api"
 version = "0.1.0"
 dependencies = [
+ "aws-ip-ranges",
  "axum",
  "axum-extra",
  "backtrace",
@@ -84,6 +85,7 @@ dependencies = [
  "criterion",
  "dotenv",
  "futures-util",
+ "ipnetwork",
  "mimalloc",
  "rand",
  "reqwest",
@@ -144,6 +146,16 @@ name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
+
+[[package]]
+name = "aws-ip-ranges"
+version = "0.154.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3a35e1604291489e298cd740783f0dd275fb106e1bcfda6bda5ac6290658fcb"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "axum"
@@ -1095,6 +1107,15 @@ name = "ipnet"
 version = "2.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f518f335dce6725a761382244631d86cf0ccb2863413590b31338feb467f9c3"
+
+[[package]]
+name = "ipnetwork"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf466541e9d546596ee94f9f69590f89473455f88372423e0008fc1a7daf100e"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "is-terminal"

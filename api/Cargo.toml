@@ -26,6 +26,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 backtrace = "0.3"
 thiserror = "1.0"
+aws-ip-ranges = "0.154.0"
+ipnetwork = "0.20.0"
 
 [dev-dependencies]
 criterion = "0.5"
