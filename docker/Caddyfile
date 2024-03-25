@@ -19,9 +19,9 @@ static.hhai.dev {
 api.hhai.dev {
 	handle_path /api/* {
 		reverse_proxy api:3000 {
-			# Forward the host header from proxy servers (i.e. CloudFront)
-			# otherwise Caddy will drop those by default
-			header_up +X-Forwarded-For {http.request.header.X-Forwarded-For}
+			# Trust all incoming X-Forwarded-For headers since we verify the
+			# proxy in application layer anyway
+			trusted_proxies 0.0.0.0/32
 		}
 	}
 
