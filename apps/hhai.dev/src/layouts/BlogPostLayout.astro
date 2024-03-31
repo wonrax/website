@@ -32,14 +32,11 @@ type Props = {
 
 const post = Astro.props.frontmatter;
 const headings = Astro.props.headings;
-
-const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "/og-image.png";
 ---
 
 <BlogRouteLayout>
   <title slot="head">{post.title}</title>
   <meta slot="head" name="description" content={post.description} />
-  <OgImage slot="head" ogImageUrl={ogImageUrl} />
   <main class="blog-post-main">
     <div class="right-sidebar">
       <div class="right-sidebar-content">
