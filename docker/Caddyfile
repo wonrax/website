@@ -1,33 +1,3 @@
-god.hhai.dev {
-	reverse_proxy host.docker.internal:9090
-}
-
-# This is ineffective because the host machine is not directly accessible
-# through this domain. Instead, a CloudFront distribution is used to serve
-# the static files at static.hhai.dev.
-# hhai.dev {
-# 	handle_path /api/* {
-# 		reverse_proxy api:3000
-# 	}
-
-# 	handle {
-# 		root * /www/hhai.dev
-# 		try_files {path}.html
-
-# 		file_server {
-#			disable_canonical_uris
-# 			precompressed zstd gzip
-# 		}
-
-# 		route {
-# 			header Cache-Control max-age=300
-# 			header /_astro/* Cache-Control max-age=31536000
-# 		}
-# 	}
-
-# 	encode zstd gzip
-# }
-
 static.hhai.dev {
 	handle_path /hhai.dev/* {
 		root * /www/hhai.dev
@@ -48,20 +18,18 @@ static.hhai.dev {
 
 api.hhai.dev {
 	handle_path /api/* {
-		reverse_proxy api:3000
+		reverse_proxy api:3000 {
+			# Trust all incoming X-Forwarded-For headers since we verify the
+			# proxy in application layer anyway
+			trusted_proxies 0.0.0.0/0
+		}
 	}
 
 	encode zstd gzip
 }
 
-next.hhai.dev {
-	root * /www/next-www
-	try_files {path}.html
-	file_server
-}
-
-share.hhai.dev {
-	root * /www/share.hhai.dev
+files.hhai.dev {
+	root * /www/files.hhai.dev
 	file_server {
 		browse
 	}
@@ -70,12 +38,7 @@ share.hhai.dev {
 	encode zstd gzip
 }
 
-hang.hhai.dev {
-	root * /www/hang.hhai.dev
-	file_server
-}
-
 windmill.hhai.dev {
-        reverse_proxy /ws/* http://windmill_lsp:3001
-        reverse_proxy /* http://windmill_server:8000
+	reverse_proxy /ws/* http://windmill_lsp:3001
+	reverse_proxy /* http://windmill_server:8000
 }

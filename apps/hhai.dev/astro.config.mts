@@ -1,18 +1,19 @@
 import mdx from "@astrojs/mdx";
 import react from "@astrojs/react";
+import remarkCalloutDirectives from "@microflash/remark-callout-directives";
 import { defineConfig, sharpImageService } from "astro/config";
 import path, { dirname } from "path";
+import rehypeKatex from "rehype-katex";
 import rehypePrettyCode from "rehype-pretty-code";
+import remarkDirective from "remark-directive";
+import remarkMath from "remark-math";
 import { fileURLToPath } from "url";
 import rehypeBlogPost from "./plugins/rehypeBlogPost";
-import remarkResponsiveImage from "./plugins/remarkResponsiveImage";
-import remarkCalloutDirectives from "@microflash/remark-callout-directives";
-import remarkDirective from "remark-directive";
 import { remarkDirectiveHtml } from "./plugins/remarkDirective";
-import rehypeKatex from "rehype-katex";
-import remarkMath from "remark-math";
+import remarkResponsiveImage from "./plugins/remarkResponsiveImage";
+import solid from "@astrojs/solid-js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const DIR_NAME = dirname(fileURLToPath(import.meta.url));
 
 const codeHighlightOptions = {
   // Use one of Shiki's packaged themes
@@ -32,7 +33,7 @@ const codeHighlightOptions = {
     if (node.children.length === 0) {
       node.children = [{ type: "text", value: " " }];
     }
-    if (!node.properties.className) {
+    if (node.properties.className == null) {
       node.properties.className = ["code-block-line"];
     }
 
@@ -54,6 +55,7 @@ const codeHighlightOptions = {
 
 // https://astro.build/config
 export default defineConfig({
+  site: "https://hhai.dev",
   markdown: {
     syntaxHighlight: false,
     remarkPlugins: [
@@ -83,7 +85,7 @@ export default defineConfig({
       rehypeBlogPost,
     ],
   },
-  integrations: [mdx(), react()],
+  integrations: [mdx(), solid({ exclude: "**/*/*React.tsx" }), react()],
   image: {
     service: sharpImageService(),
     domains: ["share.hhai.dev", "res.cloudinary.com"],
@@ -91,7 +93,7 @@ export default defineConfig({
   vite: {
     resolve: {
       alias: {
-        "@": path.resolve(__dirname, "./src"),
+        "@": path.resolve(DIR_NAME, "./src"),
       },
     },
     optimizeDeps: { exclude: ["@resvg/resvg-js"] },

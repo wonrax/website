@@ -1,25 +1,33 @@
 import satori from "satori";
-import OgImage from "./OgImageGenerator";
+import OgImage from "./OgImageGeneratorReact";
 import { Resvg } from "@resvg/resvg-js";
 
-type Props = {
+interface Props {
   title: string;
   description?: string;
-};
+}
 
 const interNormal = await (
   await fetch(
-    "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-400-normal.woff"
+    "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-400-normal.woff",
   )
 ).arrayBuffer();
 
 const interBold = await (
   await fetch(
-    "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-700-normal.woff"
+    "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-700-normal.woff",
   )
 ).arrayBuffer();
 
-export default async function getOgImageResponse(props: Props) {
+const interMedium = await (
+  await fetch(
+    "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-500-normal.woff",
+  )
+).arrayBuffer();
+
+export default async function getOgImageResponse(
+  props: Props,
+): Promise<Response> {
   // TODO make a cache out of this for efficient build and bandwith
   const svg = await satori(
     await OgImage({
@@ -42,8 +50,14 @@ export default async function getOgImageResponse(props: Props) {
           weight: 700,
           style: "normal",
         },
+        {
+          name: "Inter",
+          data: interMedium,
+          weight: 500,
+          style: "normal",
+        },
       ],
-    }
+    },
   );
 
   const resvg = new Resvg(svg);

@@ -19,8 +19,6 @@ services:
     environment:
       - DATABASE_URL=${WINDMILL_DATABASE_URL}
       - MODE=server
-    depends_on:
-      - database
 
   ## This worker is specialized for "native" jobs. Native jobs run in-process and thus are much more lightweight than other jobs
   windmill_worker_native:
@@ -39,8 +37,6 @@ services:
       - MODE=worker
       - WORKER_GROUP=native
       # - WORKER_TAGS=nativets,deno,go,python3,postgresql,flow,bash,dependency
-    depends_on:
-      - database
 
   windmill_worker:
     image: ghcr.io/windmill-labs/windmill:main
@@ -56,8 +52,6 @@ services:
       - DATABASE_URL=${WINDMILL_DATABASE_URL}
       - MODE=worker
       - WORKER_GROUP=default
-    depends_on:
-      - database
     # to mount the worker folder to debug, KEEP_JOB_DIR=true and mount /tmp/windmill
     volumes:
       # mount the docker socket to allow to run docker containers from within the workers

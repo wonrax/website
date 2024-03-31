@@ -1,15 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-model counters {
-  id        Int      @id @default(autoincrement())
-  key       String
-  name      String
-  count     BigInt
+model Counter {
+  id         Int      @id @default(autoincrement())
+  key        String
+  name       String
+  count      BigInt
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
 
   @@unique([key, name], map: "counter_key_name")
+  @@map("counters")
+}
+
+model BlogPost {
+  id       Int           @id @default(autoincrement())
+  category String
+  slug     String
+  title    String?
+  comments BlogComment[]
+
+  @@unique([category, slug])
+  @@map("blog_posts")
+}
+
+model BlogComment {
+  id                   Int               @id @default(autoincrement())
+  author_ip            String
+  author_name          String?
+  author_email         String?
+  identity_id          Int?
+  content              String
+  post_id              Int
+  parent_id            Int?
+  created_at           DateTime          @default(now())
+  blog_comment_upvotes BlogCommentVote[]
+  identity             Identity?         @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  parent               BlogComment?      @relation("ChildComment", fields: [parent_id], references: [id], onDelete: Cascade)
+  comments             BlogComment[]     @relation("ChildComment")
+  post                 BlogPost          @relation(fields: [post_id], references: [id])
+
+  @@map("blog_comments")
+}
+
+model BlogCommentVote {
+  id            Int         @id @default(autoincrement())
+  comment_id    Int
+  ip            String?
+  indentity_id  Int?
+  score         Int         @default(1)
+  created_at    DateTime    @default(now()) @db.Timestamp(6)
+  blog_comments BlogComment @relation(fields: [comment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("blog_comment_votes")
+}
+
+model Identity {
+  id                   Int                  @id @default(autoincrement())
+  traits               Json                 @default("{}")
+  created_at           DateTime             @db.Timestamp(6)
+  updated_at           DateTime             @db.Timestamp(6)
+  blog_comments        BlogComment[]
+  identity_credentials IdentityCredential[]
+  sessions             Session[]
+
+  @@map("identities")
+}
+
+model IdentityCredentialType {
+  id                   Int                  @id @default(autoincrement())
+  name                 String               @unique @db.VarChar(64)
+  created_at           DateTime             @db.Timestamp(6)
+  identity_credentials IdentityCredential[]
+
+  @@map("identity_credential_types")
+}
+
+model IdentityCredential {
+  id                        Int                    @id @default(autoincrement())
+  credential                Json?                  @unique
+  credential_type_id        Int
+  identity_id               Int
+  created_at                DateTime               @db.Timestamp(6)
+  updated_at                DateTime               @db.Timestamp(6)
+  identity_credential_types IdentityCredentialType @relation(fields: [credential_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  identities                Identity               @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([credential], type: Gin)
+  @@map("identity_credentials")
+}
+
+model Session {
+  id          Int      @id @default(autoincrement())
+  token       String   @unique @db.VarChar(133)
+  active      Boolean
+  issued_at   DateTime @db.Timestamp(6)
+  expires_at  DateTime @db.Timestamp(6)
+  identity_id Int
+  created_at  DateTime @db.Timestamp(6)
+  updated_at  DateTime @db.Timestamp(6)
+  identities  Identity @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("sessions")
 }

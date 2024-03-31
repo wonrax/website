@@ -1,9 +1,12 @@
 ---
+import { CommentSection } from "@/components/BlogComments/CommentSection";
+import * as Sheet from "@/components/Sheet/Sheet";
 import OgImage from "@/components/OgImage/OgImage.astro";
-import TableOfContents from "../components/TableOfContents.astro";
-import BlogRouteLayout from "./BlogRouteLayout.astro";
 import "@fontsource/inconsolata/500.css";
 import "katex/dist/katex.css";
+import TableOfContents from "../components/TableOfContents.astro";
+import BlogRouteLayout from "./BlogRouteLayout.astro";
+import { ArrowUp, MessagesSquare, X } from "lucide-solid";
 
 export type Frontmatter = {
   title: string;
@@ -29,14 +32,11 @@ type Props = {
 
 const post = Astro.props.frontmatter;
 const headings = Astro.props.headings;
-
-const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
 ---
 
 <BlogRouteLayout>
   <title slot="head">{post.title}</title>
   <meta slot="head" name="description" content={post.description} />
-  <OgImage slot="head" ogImageUrl={ogImageUrl} />
   <main class="blog-post-main">
     <div class="right-sidebar">
       <div class="right-sidebar-content">
@@ -44,22 +44,8 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
           headings.length ? (
             <>
               <TableOfContents headings={headings} />
-              <button id="go-to-top">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="21"
-                  height="21"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="lucide lucide-chevron-up"
-                >
-                  <path d="m18 15-6-6-6 6" />
-                </svg>
-                Go to top
+              <button id="go-to-top" aria-label="Go to top of the page">
+                <ArrowUp size={16} />
               </button>
             </>
           ) : null
@@ -90,6 +76,10 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
               post.tags.map((tag) => <span class="post-tag">#{tag}</span>)
           }
         </div>
+        <Sheet.Trigger class="open-discussion" client:load>
+          <MessagesSquare size={16} strokeWidth={1.5} />
+          View discussions
+        </Sheet.Trigger>
       </div>
       <div class="article-body">
         {
@@ -111,11 +101,21 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       </div>
     </article>
   </main>
+  <Sheet.Root client:load>
+    <Sheet.Trigger
+      class="close-button"
+      aria-label="Close comment section"
+      client:load
+    >
+      <X strokeWidth={1.5} />
+    </Sheet.Trigger>
+    <CommentSection client:only="solid-js" />
+  </Sheet.Root>
 </BlogRouteLayout>
 
 <style lang="scss" is:global>
   :root {
-    --bg-aside: var(--bg-additive-light);
+    --bg-aside: var(--bg-additive-lighter);
     --bg-code-block: var(--white-2);
     --bg-code-inline: var(--bg-additive-light);
     --bg-code-block-elevated-active: var(--white-1);
@@ -158,6 +158,10 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       top: 24px;
       overflow-y: auto;
       max-height: 90vh;
+      padding: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
 
       @media (min-width: 1280px) {
         width: 240px;
@@ -247,11 +251,11 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
   .article .article-body {
     // padding-left: 16px;
     // padding-right: 16px;
-    padding-bottom: 128px;
     // display: flex;
     // flex-direction: column;
     // align-items: center;
     word-wrap: break-word;
+    // margin-bottom: 64px;
     margin-top: 32px;
 
     & > * {
@@ -296,9 +300,12 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       font-weight: var(--font-weight-medium);
       color: var(--text-body-medium);
       font-size: 14px;
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
 
       code {
-        font-size: 14px;
+        font-size: 15px;
       }
     }
 
@@ -454,7 +461,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
 
         p {
           font-size: 15px;
-          color: var(--text-body-light);
+          color: var(--text-body-medium);
           margin-top: 16px;
           margin-bottom: 0;
 
@@ -687,25 +694,47 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     color: var(--text-body-heavy);
   }
 
-  #go-to-top {
-    background-color: var(--bg-additive-light);
+  button {
+    background-color: transparent;
     color: var(--text-body-heavy);
-    border-radius: 8px;
+    border-radius: 6px;
     font-size: 14px;
-    font-weight: var(--font-weight-medium);
     cursor: pointer;
     border: none;
     outline: none;
-    padding: 4px 10px 4px 8px;
-    margin-top: 24px;
-    font-family: Inter Variable; // TODO move this to global selector
+    padding: 6px 12px;
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    width: fit-content;
+    background-color: var(--bg-additive-light);
 
-    &:hover {
-      background-color: var(--bg-additive-medium);
+    &:focus {
+      outline: var(--bg-additive-medium) solid 2px;
+    }
+
+    &.primary {
+      font-weight: var(--font-weight-medium);
+
+      &:hover {
+        background-color: var(--bg-additive-medium);
+      }
+    }
+
+    &.ghost {
+      background-color: transparent;
+      &:hover {
+        background-color: var(--bg-additive-light);
+      }
+    }
+  }
+
+  button.open-discussion {
+    margin-top: 16px;
+
+    svg {
+      margin-top: 2px;
     }
   }
 </style>
@@ -737,7 +766,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
     {
       rootMargin: "0px 0px -70% 0px",
       threshold: 1,
-    }
+    },
   );
 
   // Track all sections that have an `id` applied
@@ -751,4 +780,7 @@ const ogImageUrl = post.ogImageUrl || Astro.url.pathname + "og-image.png";
       behavior: "smooth",
     });
   });
+
+  let scrollbarWidth = window.innerWidth - document.body.clientWidth + "px";
+  document.body.style.setProperty("--scrollbar-width", scrollbarWidth);
 </script>

@@ -1,28 +1,36 @@
 ---
+import OgImage from "@/components/OgImage/OgImage.astro";
 import "./global.scss";
 import "@fontsource-variable/inter";
+import path from "path";
+
+const ogImageUrl =
+  Astro.url.protocol +
+  "//" +
+  Astro.url.host +
+  path.posix.join(Astro.url.pathname, "og-image.png");
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width" />
     <meta name="generator" content={Astro.generator} />
     <slot name="head" />
     <link rel="alternate icon" type="image/png" href="/favicon.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <OgImage ogImageUrl={ogImageUrl} />
   </head>
   <body>
     <slot />
+    <script>
+      if (process.env.NODE_ENV === "production") {
+        const { posthog } = await import("posthog-js");
+        posthog.init("phc_DNnzWNmnjFtV0dwGSFedEhviKhj9dpXAjHw0OyspGvO", {
+          api_host: "https://app.posthog.com",
+        });
+      }
+    </script>
   </body>
 </html>
-
-<script>
-  if (process.env.NODE_ENV === "production") {
-    const { posthog } = await import("posthog-js");
-    posthog.init("phc_DNnzWNmnjFtV0dwGSFedEhviKhj9dpXAjHw0OyspGvO", {
-      api_host: "https://app.posthog.com",
-    });
-  }
-</script>

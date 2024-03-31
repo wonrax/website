@@ -19,6 +19,7 @@ type Props = {
   deviceSizes?: number[];
 } & Omit<ImageTransform, "src"> &
   Omit<astroHTML.JSX.ImgHTMLAttributes, "src" | "width" | "height">;
+import { ArrowDown } from "lucide-solid";
 
 const {
   src,
@@ -61,7 +62,7 @@ if (typeof src === "string") {
 
 if (!originalWidth || !originalHeight) {
   throw new Error(
-    "couldn't figure out image size, please provide width and height if it's a remote image"
+    "couldn't figure out image size, please provide width and height if it's a remote image",
   );
 }
 
@@ -103,10 +104,10 @@ if (getImageType() !== "svg") {
 
 const original = await getImage({
   src,
-  format,
+  format: "png",
   width: maxWidth,
   height: Math.round(maxWidth * aspectRatio),
-  quality,
+  quality: 100,
 } as ImageTransform);
 ---
 
@@ -121,3 +122,29 @@ const original = await getImage({
   height={originalHeight}
   {...rest}
 />
+<div class="image-caption">
+  <div>
+    <slot />
+  </div>
+  <a
+    class="rounded-button"
+    href={original.src}
+    aria-label={`Download image, ${alt}`}
+  >
+    <ArrowDown size={16} strokeWidth={2.5} />
+  </a>
+</div>
+
+<style lang="scss">
+  /* // TODO move to global styles */
+  a.rounded-button {
+    display: inline-block;
+    padding: 6px;
+    border-radius: 50%;
+    background-color: var(--bg-additive-light);
+    color: var(--color-white);
+    text-decoration: none;
+    margin-top: -4px;
+    line-height: 0;
+  }
+</style>

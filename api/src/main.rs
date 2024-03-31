@@ -1,25 +1,92 @@
 use axum::{
-    extract::{ConnectInfo, State},
-    http::{header, HeaderMap},
+    extract::MatchedPath,
+    http::{header::CONTENT_TYPE, Method, Request},
     response::{IntoResponse, Response},
     routing::get,
-    Router,
+    Json, Router,
 };
 use dotenv::dotenv;
+use mimalloc::MiMalloc;
+use serde::Serialize;
+use serde_json::json;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, process::exit, sync::Arc, time::Duration};
+use tower_http::{
+    classify::ServerErrorsFailureClass,
+    cors::{AllowOrigin, CorsLayer},
+    trace::TraceLayer,
+};
+use tracing::{debug, error, info, info_span, Span};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+mod blog;
+mod crypto;
+mod error;
+mod github;
+mod identity;
+mod json;
+mod real_ip;
+mod utils;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[derive(Clone)]
-struct APIContext {
-    pool: Pool<Postgres>,
-    counters_ttl_cache: Arc<retainer::Cache<String, bool>>,
+enum EnvironmentType {
+    Dev,
+    Staging,
+    Production,
 }
 
-const GITHUB_VIEWS_HTML_TEMPLATE: &str = include_str!("github.html");
+#[derive(Clone)]
+struct ServerConfig {
+    environment: EnvironmentType,
+}
+
+#[derive(Clone)]
+pub struct APIContext {
+    pool: Pool<Postgres>,
+    counters_ttl_cache: Arc<retainer::Cache<String, bool>>,
+    config: ServerConfig,
+}
 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
+
+    let config = ServerConfig {
+        environment: match std::env::var("ENVIRONMENT") {
+            Ok(env) => match env.as_str() {
+                "dev" => EnvironmentType::Dev,
+                "staging" => EnvironmentType::Staging,
+                "production" => EnvironmentType::Production,
+                _ => EnvironmentType::Dev,
+            },
+            Err(_) => EnvironmentType::Dev,
+        },
+    };
+
+    let (json, pretty) = match config.environment {
+        EnvironmentType::Dev => (None, Some(tracing_subscriber::fmt::layer().pretty())),
+        _ => (
+            Some(
+                tracing_subscriber::fmt::layer()
+                    .json()
+                    .flatten_event(true)
+                    .with_current_span(false)
+                    .with_file(true)
+                    .with_line_number(true)
+                    .with_span_list(true),
+            ),
+            None,
+        ),
+    };
+
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or("info".into()))
+        .with(json)
+        .with(pretty)
+        .init();
 
     let postgres_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
 
@@ -29,133 +96,109 @@ async fn main() {
         .acquire_timeout(Duration::from_secs(10))
         .connect(&postgres_url)
         .await
-        .expect("couldn't connect to db");
+        .unwrap_or_else(|e| {
+            tracing::error!(error = %e, "Failed to connect to database, exiting...");
+            exit(1)
+        });
 
     let shared_state = APIContext {
         pool,
         counters_ttl_cache: Arc::from(retainer::Cache::new()),
+        config,
     };
+
+    let cors = CorsLayer::new()
+        // allow `GET` and `POST` when accessing the resource
+        .allow_methods(vec![
+            Method::GET,
+            Method::POST,
+            Method::PATCH,
+            Method::DELETE,
+        ])
+        .allow_headers([CONTENT_TYPE])
+        .allow_credentials(true)
+        .allow_origin(AllowOrigin::predicate(|_, request| {
+            request
+                .headers
+                .get("origin")
+                .map(|origin| {
+                    if let Ok(origin) = origin.to_str() {
+                        origin.starts_with("http://localhost:")
+                            || origin.starts_with("https://hhai.dev")
+                    } else {
+                        false
+                    }
+                })
+                .unwrap_or(false)
+        }));
 
     // build our application with a route
     let app = Router::new()
-        .route("/public/github-profile-views", get(handler))
-        .with_state(shared_state);
+        .route("/health", get(heath))
+        .nest("/blog", blog::routes::route())
+        .nest("/public", github::routes::route())
+        .nest("/identity", identity::routes::route())
+        .layer(cors)
+        .with_state(shared_state)
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(|request: &Request<_>| {
+                    // Log the matched route's path (with placeholders not filled in).
+                    // Use request.uri() or OriginalUri if you want the real path.
+                    let matched_path = request
+                        .extensions()
+                        .get::<MatchedPath>()
+                        .map(MatchedPath::as_str);
 
-    // run it
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    println!("listening on {}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service_with_connect_info::<SocketAddr>())
-        .await
-        .unwrap();
+                    info_span!(
+                        "http_request",
+                        method = ?request.method(),
+                        matched_path,
+                    )
+                })
+                .on_response(|_response: &Response, _latency: Duration, _span: &Span| {
+                    if !_response.status().is_server_error() {
+                        debug!(
+                            time = ?_latency,
+                            status = ?_response.status(),
+                            "response",
+                        );
+                    }
+                })
+                .on_failure(
+                    |_error: ServerErrorsFailureClass, _latency: Duration, _span: &Span| {
+                        // TODO when encouter an error, add it to the span so
+                        // we can log it here
+                        error!(
+                            time = ?_latency,
+                            error = ?_error,
+                            "request failed",
+                        );
+                    },
+                ),
+        );
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    info!("listening on http://0.0.0.0:3000");
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }
 
-async fn handler<'a>(
-    State(ctx): State<APIContext>,
-    headers: HeaderMap,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
-) -> Response {
-    let mut _ip: String = "".into();
-    // Trusted proxy from cloudflare so we can use x-forwarded-for
-    if headers.contains_key("x-forwarded-for") {
-        _ip = headers["x-forwarded-for"]
-            .to_str()
-            .unwrap_or_default()
-            .into();
-    } else {
-        _ip = addr.ip().to_string();
-    }
-
-    let cache = ctx.counters_ttl_cache;
-
-    let mut row: Result<(i64,), sqlx::Error>;
-
-    if cache.get(&_ip).await.is_none() {
-        cache
-            .insert(_ip.clone(), true, Duration::from_secs(1))
-            .await;
-        row = sqlx::query_as(
-            "
-            UPDATE counters SET count = count + 1
-            WHERE key = 'github-profile-views' AND name = 'wonrax'
-            RETURNING count;
-        ",
-        )
-        .fetch_one(&ctx.pool)
-        .await;
-    } else {
-        row = sqlx::query_as(
-            "
-            SELECT count FROM counters
-            WHERE key = 'github-profile-views' AND name = 'wonrax';
-        ",
-        )
-        .fetch_one(&ctx.pool)
-        .await;
-    }
-
-    if let Err(_) = row {
-        let _ = sqlx::query(
-            "
-            INSERT INTO counters (key, name, count)
-            VALUES ('github-profile-views', 'wonrax', 1);
-        ",
-        )
-        .execute(&ctx.pool)
-        .await;
-
-        row = Ok((1,))
-    }
-
-    match row {
-        Ok(row) => {
-            let readable_views = readable_uint(row.0.to_string());
-            let int_length = readable_views.len();
-            let width = 16 + (int_length * 6);
-            let total_width = width + 81;
-            let x_offset = 81 + (width / 2);
-
-            let res = render_template(
-                GITHUB_VIEWS_HTML_TEMPLATE,
-                &[
-                    ("{{views}}", &readable_views),
-                    ("{{views-width}}", &width.to_string()),
-                    ("{{total-width}}", &total_width.to_string()),
-                    ("{{views-offset-x}}", &x_offset.to_string()),
-                ],
-            );
-
-            let mut headers = HeaderMap::new();
-            headers.insert(header::CONTENT_TYPE, "image/svg+xml".parse().unwrap());
-            headers.insert(
-                header::CACHE_CONTROL,
-                "max-age=0, no-cache, no-store, must-revalidate"
-                    .parse()
-                    .unwrap(),
-            );
-            (headers, res).into_response()
-        }
-        Err(e) => e.to_string().into_response(),
-    }
+#[derive(Serialize)]
+struct Health {
+    status: i32,
+    msg: String,
+    detail: Option<String>,
 }
 
-fn render_template(template: &str, data: &[(&str, &str)]) -> String {
-    let mut result = String::from(template);
-
-    for (placeholder, value) in data {
-        result = result.replace(placeholder, value);
-    }
-
-    result
-}
-
-fn readable_uint(int_str: String) -> String {
-    let mut s = String::new();
-    for (i ,char) in int_str.chars().rev().enumerate() {
-        if i % 3 == 0 && i != 0 {
-            s.insert(0, ',');
-        }
-        s.insert(0, char);
-    }
-    return s
+async fn heath() -> impl IntoResponse {
+    Json(json!({
+        "status": 200,
+        "msg": "OK",
+        "detail": None::<String>,
+    }))
 }

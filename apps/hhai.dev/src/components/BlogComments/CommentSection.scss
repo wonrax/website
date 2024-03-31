@@ -1,0 +1,222 @@
+.loader {
+  margin-top: 12px;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--text-body-heavy);
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotation 0.3s linear infinite;
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.comments-container {
+  max-width: 1004px;
+  // margin: 64px auto;
+  // padding: 0 16px;
+  padding: 16px 24px 64px 24px;
+
+  @container (max-width: 480px) {
+    padding: 16px 18px 50vh 18px;
+  }
+
+  .heading {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    align-items: center;
+    height: 36px;
+  }
+
+  h3 {
+    // padding-left: 24px;
+    margin-top: 0;
+    font-weight: var(--font-weight-medium);
+    margin: 0;
+    color: var(--text-body-heavy);
+  }
+
+  // TODO use container query to make this responsive
+  .comments {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    // background-color: var(--bg-additive-light);
+    border-radius: 12px;
+    padding-inline-start: 0;
+    padding-inline-end: 0;
+    // padding: 24px;
+    margin: 32px 0;
+
+    .comment-children {
+      padding-inline-start: 0;
+      padding-inline-end: 0;
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .comment {
+      list-style: none;
+      padding-left: 18px;
+      padding-top: 0;
+      margin-top: 0;
+      border-left: 1px solid var(--bg-additive-light);
+
+      .comment-header {
+        display: flex;
+        gap: 12px;
+        align-items: baseline;
+
+        .comment-author {
+          display: flex;
+          flex-direction: row;
+          gap: 8px;
+          margin-left: -8px;
+          align-items: center;
+          font-weight: var(--font-weight-medium);
+          font-size: 15px;
+        }
+
+        .comment-date {
+          font-size: 0.8rem;
+          color: var(--text-body-medium);
+        }
+
+        .comment-upvote {
+          font-size: 0.8rem;
+        }
+      }
+
+      .comment-content {
+        --font-size: 16px;
+
+        color: var(--text-body-heavy);
+        font-size: var(--font-size);
+        line-height: 145%;
+
+        strong {
+          font-weight: var(--font-weight-medium);
+        }
+
+        a {
+          color: var(--text-body-heavy);
+          text-decoration: underline;
+
+          &:visited {
+            color: var(--text-body-medium);
+          }
+        }
+
+        pre {
+          background-color: var(--bg-additive-light);
+          padding: 8px 12px;
+          border-radius: 8px;
+        }
+
+        code {
+          font-size: var(--font-size);
+          background-color: transparent;
+          padding: 0;
+        }
+
+        :not(pre) > code {
+          background-color: var(--bg-additive-light);
+          padding: 2px 4px;
+          border-radius: 4px;
+        }
+
+        hr {
+          border: none;
+          border-top: solid 1px var(--bg-additive-light);
+        }
+
+        pre,
+        code {
+          max-width: 100%;
+          overflow-x: auto;
+        }
+
+        p {
+          margin: 12px 0;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+          font-size: var(--font-size);
+          font-weight: var(--font-weight-medium);
+          color: var(--text-body-medium);
+          margin: 12px 0;
+        }
+
+        ul li {
+          list-style-type: disc;
+        }
+
+        blockquote {
+          color: var(--text-body-medium);
+          font-style: italic;
+          margin-inline-start: 20px;
+          margin-inline-end: 20px;
+        }
+
+        table {
+          font-size: var(--font-size);
+          border-collapse: collapse;
+          border-spacing: 0;
+
+          tbody {
+            color: var(--text-body-medium);
+          }
+
+          td {
+            white-space: break-spaces;
+            overflow-wrap: break-word;
+            padding: 4px 8px;
+            border-top: 1px solid var(--bg-additive-medium);
+            font-weight: var(--font-weight-normal);
+          }
+
+          th {
+            padding: 4px 8px;
+            font-weight: var(--font-weight-normal);
+            color: var(--text-body-heavy);
+          }
+        }
+      }
+
+      .comment-action-row {
+        display: flex;
+        margin-left: -8px;
+
+        button {
+          font-size: 14px;
+          padding: 4px 8px;
+          color: var(--text-body-light);
+          background-color: transparent;
+          line-height: 1em;
+          border: none;
+          cursor: pointer;
+          margin: 0;
+          &:hover {
+            color: var(--text-body-heavy);
+          }
+        }
+      }
+    }
+  }
+}

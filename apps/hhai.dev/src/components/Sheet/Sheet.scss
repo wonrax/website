@@ -1,0 +1,94 @@
+.side-sheet {
+  .sheet-overlay {
+    display: none;
+    opacity: 0;
+    position: fixed;
+    right: 0;
+    top: 0;
+    background-color: rgba($color: black, $alpha: 0.3);
+    height: 100vh;
+    width: 100vw;
+    z-index: 1;
+    animation: overlay-fade-in 0.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+
+    @media (prefers-color-scheme: dark) {
+      background-color: rgba($color: black, $alpha: 0.7);
+    }
+
+    // TODO implement reduced motion
+
+    @keyframes overlay-fade-in {
+      0% {
+        opacity: 0;
+      }
+      100% {
+        opacity: 1;
+      }
+    }
+  }
+
+  .sheet-content {
+    display: none;
+    z-index: 10;
+    right: 0;
+    top: 0;
+    background-color: var(--bg-color);
+    box-shadow: 0 0 36px 0 rgba($color: black, $alpha: 0.15);
+    height: 100vh;
+    overflow-y: auto;
+    width: 0;
+    // max-width: calc(220px + (100vw - 1004px) / 2);
+    max-width: 700px;
+    animation: sheet-slide-in 0.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    z-index: 10;
+    position: fixed;
+    container-type: inline-size;
+
+    @media (max-width: 1280px) {
+      max-width: 600px;
+    }
+
+    @keyframes sheet-slide-in {
+      0% {
+        transform: translateX(100%);
+      }
+      100% {
+        transform: translateX(0);
+      }
+    }
+  }
+
+  &.open {
+    .sheet-content {
+      display: block;
+      width: 100%;
+    }
+
+    .sheet-overlay {
+      display: block;
+      opacity: 1;
+    }
+  }
+
+  .close-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 12px;
+    cursor: pointer;
+    background-color: transparent;
+    border: none;
+    color: var(--text-body-light);
+    font-size: 24px;
+    line-height: 1em;
+    &:hover {
+      color: var(--text-body-heavy);
+      background-color: var(--bg-additive-light);
+    }
+  }
+}
+
+body.noscroll {
+  overflow: hidden;
+  padding-right: var(--scrollbar-width);
+}

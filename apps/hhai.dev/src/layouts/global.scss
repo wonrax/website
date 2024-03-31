@@ -4,6 +4,12 @@ html {
     Inter fallback;
   background-color: var(--bg-color);
   color: var(--text-body-heavy);
+
+  // attempt to fix safari unexpectedly large font size
+  // https://stackoverflow.com/questions/3226001/some-font-sizes-rendered-larger-on-safari-iphone
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 // Font fallbacks config to avoid CLS
@@ -24,8 +30,10 @@ code {
 }
 
 :root {
-  --font-weight-normal: 450;
-  --font-weight-medium: 530;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+
+  --scrollbar-width: 0px;
 }
 
 :root {
@@ -47,6 +55,7 @@ code {
   --grey-4: #717171;
   --grey-5: #606060;
 
+  --bg-additive-lighter: rgba(0, 0, 0, 0.03);
   --bg-additive-light: rgba(0, 0, 0, 0.05);
   --bg-additive-medium: rgba(0, 0, 0, 0.1);
 
@@ -57,6 +66,10 @@ code {
   --info-light: #fbf7ff;
   --info-medium: #7b5fbb;
   --info-heavy: #220e5a;
+
+  --error-light: #ffecec;
+  --error-medium: #b64545;
+  --error-heavy: #7f0f0f;
 
   --text-body-heavy: var(--black-1);
   --text-body-medium: var(--grey-4);
@@ -70,6 +83,7 @@ code {
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --bg-additive-lighter: rgba(255, 255, 255, 0.03);
     --bg-additive-light: rgba(255, 255, 255, 0.05);
     --bg-additive-medium: rgba(255, 255, 255, 0.1);
 
@@ -80,6 +94,10 @@ code {
     --info-light: #6636f613;
     --info-medium: #937dc7;
     --info-heavy: #e4c8ff;
+
+    --error-light: #ff00001c;
+    --error-medium: #d45151;
+    --error-heavy: #7f0f0f;
 
     --text-body-heavy: var(--white-4);
     --text-body-medium: var(--grey-2);
@@ -95,16 +113,16 @@ code {
 body {
   margin: 0;
   font-size: 16px;
-
-  // attempt to fix safari unexpected large font size
-  // https://stackoverflow.com/questions/3226001/some-font-sizes-rendered-larger-on-safari-iphone
-  @media screen and (max-device-width: 480px) {
-    -webkit-text-size-adjust: 100%;
-  }
 }
 
 a,
 a:visited {
   color: var(--text-body-heavy);
   text-decoration: none;
+}
+
+button {
+  font-family:
+    Inter Variable,
+    sans-serif; // TODO move this to global selector
 }

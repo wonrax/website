@@ -1,0 +1,14 @@
+{
+  "name": "hhai.dev-api",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "wireit"
+  },
+  "wireit": {
+    "dev": {
+      "command": "cargo watch -x 'run --color=always'",
+      "service": true
+    }
+  }
+}

@@ -7,7 +7,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug hhai.dev www",
+            "name": "Debug www",
             "request": "launch",
             "runtimeExecutable": "turbo",
             "runtimeArgs": [
@@ -20,7 +20,7 @@
             "outputCapture": "std"
         },
         {
-            "name": "Debug hhai.dev API",
+            "name": "Debug API",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceRoot}/target/debug/api",

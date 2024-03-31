@@ -1,12 +1,10 @@
 ---
-import OgImage from "@/components/OgImage/OgImage.astro";
 import RootLayout from "../layouts/Layout.astro";
 ---
 
-<RootLayout title="hhai.dev home" description="hhai.dev homepage">
+<RootLayout>
   <title slot="head">hhai.dev home</title>
   <meta slot="head" name="description" content="hhai.dev homepage" />
-  <OgImage slot="head" ogImageUrl={Astro.url.pathname + "og-image.png"} />
   <main class="home-main">
     <div class="profile-summary">
       <h3>Ha Huy Long Hai</h3>
@@ -34,7 +32,7 @@ import RootLayout from "../layouts/Layout.astro";
             href="https://huggingface.co/wonrax/phobert-base-vietnamese-sentiment"
             target="_blank"
             class="link">Published on Hugging Face</a
-          >, it has garnered 200,000+ downloads.
+          >, it has garnered 370,000+ downloads.
         </p>
       </div>
       <div class="project-entry">
@@ -50,7 +48,7 @@ import RootLayout from "../layouts/Layout.astro";
           >
             published on the Google Play Store
           </a>{" "}
-           and has over 3,000 monthly active users.{" "}
+          and has over 3,000 monthly active users.{" "}
           <a
             href="https://github.com/wonrax/mybk-mobile"
             target="_blank"

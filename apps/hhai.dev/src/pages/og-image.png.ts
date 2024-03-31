@@ -2,7 +2,7 @@ import generate from "@/components/OgImage/generate";
 import type { APIRoute } from "astro";
 
 export const GET: APIRoute = async () => {
-  return generate({
-    title: "Homepage",
+  return await generate({
+    title: "Ha Huy Long Hai",
   });
 };

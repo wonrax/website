@@ -9,12 +9,13 @@ jobs:
     name: Run ssh command on host machine
     runs-on: ubuntu-latest
     steps:
-      - uses: appleboy/ssh-action@v1.0.0
+      - uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_HOST_USERNAME }}
           key: ${{ secrets.DEPLOY_HOST_KEY }}
           port: ${{ secrets.DEPLOY_HOST_SSH_PORT }}
+          command_timeout: 30m
           # We have to restart the caddy container because the mounted Caddyfile
           # is not updated on git pull. This is a workaround.
           script: |

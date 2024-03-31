@@ -13,7 +13,7 @@ services:
       - 5432:5432
 
   vector:
-    image: timberio/vector:0.31.0-distroless-libc
+    image: timberio/vector:0.36.1-distroless-libc
     container_name: hhai-dev-vector
     restart: unless-stopped
     env_file:
@@ -21,6 +21,7 @@ services:
     volumes:
       - ./vector/vector.toml:/etc/vector/vector.toml:ro
       - /var/run/docker.sock:/var/run/docker.sock
+    command: --config /etc/vector/vector.toml
 
   caddy:
     image: caddy:2

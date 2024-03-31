@@ -23,3 +23,11 @@ encoding.codec = "json"
     strategy = "basic"
     user = "${GRAFANA_LOKI_USER}"
     password = "${GRAFANA_LOKI_PASSWORD}"
+
+[sinks.new_relic]
+type = "new_relic"
+inputs = ["hhai_dev_api"]
+account_id = "${NEW_RELIC_ACCOUNT_ID}"
+license_key = "${NEW_RELIC_LICENSE_KEY}"
+api = "logs"
+region = "eu"
