@@ -1,27 +1,3 @@
-hhai.dev {
-	root * /www/hhai.dev
-	try_files {path}.html
-	file_server {
-		disable_canonical_uris
-		precompressed zstd gzip
-	}
-
-	route {
-		header Cache-Control max-age=300
-		header /_astro/* Cache-Control max-age=31536000
-	}
-
-	handle_path /api/* {
-		reverse_proxy api:3000 {
-			# Trust all incoming X-Forwarded-For headers since we verify the
-			# proxy in application layer anyway
-			trusted_proxies 0.0.0.0/0
-		}
-	}
-
-	encode zstd gzip
-}
-
 static.hhai.dev {
 	handle_path /hhai.dev/* {
 		root * /www/hhai.dev
