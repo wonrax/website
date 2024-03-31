@@ -19,6 +19,12 @@ const interBold = await (
   )
 ).arrayBuffer();
 
+const interMedium = await (
+  await fetch(
+    "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-500-normal.woff",
+  )
+).arrayBuffer();
+
 export default async function getOgImageResponse(
   props: Props,
 ): Promise<Response> {
@@ -42,6 +48,12 @@ export default async function getOgImageResponse(
           name: "Inter",
           data: interBold,
           weight: 700,
+          style: "normal",
+        },
+        {
+          name: "Inter",
+          data: interMedium,
+          weight: 500,
           style: "normal",
         },
       ],

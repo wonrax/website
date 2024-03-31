@@ -4,7 +4,11 @@ import "./global.scss";
 import "@fontsource-variable/inter";
 import path from "path";
 
-const ogImageUrl = path.posix.join(Astro.url.pathname, "og-image.png");
+const ogImageUrl =
+  Astro.url.protocol +
+  "//" +
+  Astro.url.host +
+  path.posix.join(Astro.url.pathname, "og-image.png");
 ---
 
 <!doctype html>
