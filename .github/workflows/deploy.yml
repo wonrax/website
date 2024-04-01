@@ -8,6 +8,7 @@ jobs:
   deploy:
     name: Run ssh command on host machine
     runs-on: ubuntu-latest
+    environment: deploy
     steps:
       - name: Tailscale
         uses: tailscale/github-action@v2
