@@ -16,7 +16,6 @@ jobs:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:hhai-dev-ci
-          version: 1.52.0
 
       - name: Run ssh deploy command
         run: |
