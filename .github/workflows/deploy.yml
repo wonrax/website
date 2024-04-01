@@ -18,14 +18,9 @@ jobs:
           tags: tag:hhai-dev-ci
           version: 1.52.0
 
-      - uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: vultr-vps
-          username: github-actions
-          command_timeout: 30m
-          # We have to restart the caddy container because the mounted Caddyfile
-          # is not updated on git pull. This is a workaround.
-          script: |
+      - name: Run ssh deploy command
+        run: |
+          ssh github-actions@vultr-vps "
             cd ~/hhai.dev
             git fetch origin main
             git reset --hard origin/main
@@ -34,3 +29,4 @@ jobs:
             docker compose -f docker/docker-compose.prod.yml -p hhai-dev --env-file=./.env up --detach --no-build --remove-orphans
             docker compose -f docker/docker-compose.prod.yml -p hhai-dev restart caddy
             docker system prune --all --volumes --force
+          "
