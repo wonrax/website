@@ -20,7 +20,7 @@ jobs:
 
       - name: Run ssh deploy command
         run: |
-          ssh github-actions@vultr-vps "
+          ssh -o StrictHostKeyChecking=no github-actions@vultr-vps "
             cd ~/hhai.dev
             git fetch origin main
             git reset --hard origin/main
