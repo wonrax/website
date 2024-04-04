@@ -63,6 +63,16 @@ jobs:
               - "docker/*.Dockerfile"
               - "docker/vector/vector.toml"
 
+  test-backend:
+    name: Test hhai.dev api
+    needs: files-changed
+    if: ${{ needs.files-changed.outputs.backend == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --workspace --all-features
+
   build-and-push-www:
     name: hhai.dev www - Build and push Docker image
     needs: files-changed
@@ -76,7 +86,7 @@ jobs:
 
   build-and-push-backend:
     name: hhai.dev api - Build and push Docker image
-    needs: files-changed
+    needs: [files-changed, test-backend]
     if: ${{ needs.files-changed.outputs.backend == 'true' }}
     uses: ./.github/workflows/container-ci.yml
     with:
