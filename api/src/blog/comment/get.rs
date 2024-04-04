@@ -4,11 +4,12 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
+use chrono::NaiveDateTime;
 use serde::Deserialize;
 
 use crate::{error::Error, identity::MaybeAuthUser, APIContext};
 
-use super::{Comment, CommentTree};
+use super::CommentTree;
 
 #[derive(Deserialize)]
 pub struct Queries {
@@ -44,13 +45,25 @@ pub async fn get_comments(
 ) -> Result<Json<Vec<CommentTree>>, Error> {
     let sort = q.sort.as_ref().unwrap_or(&SortType::Best);
 
+    struct Query {
+        id: Option<i32>,
+        identity_id: Option<i32>,
+        author_name: Option<String>,
+        content: Option<String>,
+        parent_id: Option<i32>,
+        created_at: Option<NaiveDateTime>,
+        votes: Option<i64>,
+        depth: Option<i32>,
+    }
+
     let rows;
     match sort {
         SortType::Best => {
             // TODO sort by a separate metrics called ranking_score which
             // down-weights the down-votes (e.g. 0.9) so that the comments with
             // equal up and down-votes appear above the comments with no votes.
-            rows = sqlx::query!(
+            let q = sqlx::query_as!(
+                Query,
                 "
                 ----------------------------------------------------------------
                 -- First we get the root comments by sorting by upvote and
@@ -153,70 +166,122 @@ pub async fn get_comments(
                 q.page_offset as i64,
             )
             .fetch_all(&ctx.pool)
-            .await?;
+            .await;
+
+            match q {
+                Err(e) => return Err(e.into()),
+                Ok(_rows) => {
+                    rows = _rows;
+                }
+            };
         }
         SortType::New => {
-            // TODO this is not updated to the new schema
-            panic!("not implemented");
-            // rows = sqlx::query_as::<_, Comment>(
-            //     "
-            //     WITH RECURSIVE root_comments AS (
-            //         SELECT
-            //             comments.parent_id,
-            //             comments.id,
-            //             comments.author_name,
-            //             comments.content,
-            //             0,
-            //             comments.created_at,
-            //             comments.upvote
-            //         FROM blog_comments as comments
-            //         JOIN blog_posts as posts ON (posts.id = comments.post_id)
-            //         WHERE posts.category = 'blog'
-            //         AND posts.slug = $1
-            //         AND comments.parent_id IS NULL
-            //         ORDER BY comments.created_at DESC
-            //         LIMIT $2 OFFSET $3
-            //     ), t(parent_id, id, author_name, content, depth, created_at, upvote) AS (
-            //         (
-            //             SELECT * FROM root_comments
-            //         )
-            //         UNION ALL
-            //         SELECT
-            //             comments.parent_id,
-            //             comments.id,
-            //             comments.author_name,
-            //             comments.content,
-            //             t.depth + 1,
-            //             comments.created_at,
-            //             comments.upvote
-            //         FROM t
-            //             JOIN blog_comments as comments ON (comments.parent_id = t.id)
-            //     )
-            //     SELECT
-            //         t.parent_id,
-            //         t.id,
-            //         t.author_name,
-            //         t.content,
-            //         t.depth,
-            //         t.created_at,
-            //         SUM(CASE WHEN votes.id IS NOT NULL THEN 1 ELSE 0 END) upvote
-            //     FROM t LEFT JOIN blog_comment_votes votes
-            //     ON t.id = votes.comment_id
-            //     GROUP BY
-            //         t.parent_id,
-            //         t.id,
-            //         t.author_name,
-            //         t.content,
-            //         t.depth,
-            //         t.created_at,
-            //         t.upvote;
-            //     ",
-            // )
-            // .bind(slug)
-            // .bind(q.page_size as i64)
-            // .bind(q.page_offset as i64)
-            // .fetch_all(&ctx.pool)
-            // .await?;
+            let q = sqlx::query_as!(
+                Query,
+                "
+                WITH RECURSIVE root_comments AS (
+                    SELECT
+                        NULL::integer as parent_id,
+                        comments.id,
+                        comments.author_name,
+                        comments.identity_id,
+                        comments.content,
+                        0 depth,
+                        comments.created_at,
+                        SUM(CASE WHEN votes.score IS NOT NULL
+                            THEN votes.score ELSE 0 END) votes
+                    FROM blog_comments as comments
+                    LEFT JOIN blog_comment_votes votes
+                    ON comments.id = votes.comment_id
+                    WHERE comments.post_id = (
+                        SELECT id FROM blog_posts
+                        WHERE category = 'blog' AND slug = $1
+                    )
+                    AND comments.parent_id IS NULL
+                    GROUP BY
+                        comments.id,
+                        comments.author_name,
+                        comments.identity_id,
+                        comments.content,
+                        depth,
+                        comments.created_at
+                    ORDER BY comments.created_at DESC
+                    LIMIT $2 OFFSET $3
+                ----------------------------------------------------------------
+                -- Then we recursively get the children comments of those roots
+                ----------------------------------------------------------------
+                ), t(
+                    parent_id,
+                    id,
+                    author_name,
+                    identity_id,
+                    content,
+                    depth,
+                    created_at
+                    )
+                AS (
+                    (
+                        SELECT
+                            parent_id,
+                            id,
+                            author_name,
+                            identity_id,
+                            content,
+                            depth,
+                            created_at
+                        FROM root_comments
+                    )
+                    UNION ALL
+                    SELECT
+                        comments.parent_id,
+                        comments.id,
+                        comments.author_name,
+                        comments.identity_id,
+                        comments.content,
+                        t.depth + 1,
+                        comments.created_at
+                    FROM t
+                        JOIN blog_comments as comments
+                        ON (comments.parent_id = t.id)
+                )
+                ----------------------------------------------------------------
+                -- Finally we get the vote count for each comment because
+                -- we can't do it in the recursive query
+                ----------------------------------------------------------------
+                SELECT
+                    t.parent_id,
+                    t.id,
+                    COALESCE(t.author_name, i.traits->>'name') as author_name,
+                    t.identity_id,
+                    t.content,
+                    t.depth,
+                    t.created_at,
+                    SUM(CASE WHEN votes.score IS NOT NULL
+                        THEN votes.score ELSE 0 END) votes
+                FROM t LEFT JOIN blog_comment_votes votes
+                ON t.id = votes.comment_id
+                LEFT JOIN identities i
+                ON t.identity_id IS NOT NULL AND t.identity_id = i.id
+                GROUP BY
+                    t.parent_id,
+                    t.id,
+                    COALESCE(t.author_name, i.traits->>'name'),
+                    t.identity_id,
+                    t.content,
+                    t.depth,
+                    t.created_at;
+                ",
+                slug,
+                q.page_size as i64,
+                q.page_offset as i64,
+            )
+            .fetch_all(&ctx.pool)
+            .await;
+
+            match q {
+                Err(e) => return Err(e.into()),
+                Ok(_rows) => rows = _rows,
+            }
         }
     }
 
@@ -260,15 +325,9 @@ fn intermediate_tree_sort(mut comments: Vec<CommentTree>, sort: &SortType) -> Ve
     let mut nested = flat_comments_to_tree(comments);
 
     match sort {
-        SortType::New => {
-            for comment in nested.iter_mut() {
-                if let Some(children) = comment.borrow_mut().children.as_mut() {
-                    sort_tree(children);
-                }
-            }
-        }
+        SortType::New => sort_new(&mut nested),
         SortType::Best => {
-            sort_tree(&mut nested);
+            sort_best(&mut nested);
         }
     }
 
@@ -309,14 +368,31 @@ fn flat_comments_to_tree(comments: Vec<CommentTree>) -> Vec<Rc<RefCell<CommentTr
     final_comments
 }
 
-fn sort_tree(comments: &mut Vec<Rc<RefCell<CommentTree>>>) {
+fn sort_best(comments: &mut Vec<Rc<RefCell<CommentTree>>>) {
     // sort the top level comments
     comments.sort_unstable_by_key(|k| (-k.borrow().upvote, k.borrow().created_at));
 
     // sort the children recursively
     for comment in comments {
         if let Some(children) = comment.borrow_mut().children.as_mut() {
-            sort_tree(children);
+            sort_best(children);
+        }
+    }
+}
+
+fn sort_new(comments: &mut Vec<Rc<RefCell<CommentTree>>>) {
+    // sort the top level comments
+    comments.sort_by(|a, b| {
+        b.borrow()
+            .created_at
+            .partial_cmp(&a.borrow().created_at)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    // sort the children recursively
+    for comment in comments {
+        if let Some(children) = comment.borrow_mut().children.as_mut() {
+            sort_best(children);
         }
     }
 }
