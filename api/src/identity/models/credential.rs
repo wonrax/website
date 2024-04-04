@@ -29,14 +29,6 @@ pub enum CredentialType {
     Oidc,
 }
 
-impl CredentialType {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            CredentialType::Oidc => "oidc",
-        }
-    }
-}
-
 impl<'de> serde::Deserialize<'de> for CredentialType {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
