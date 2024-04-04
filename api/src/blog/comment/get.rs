@@ -399,121 +399,117 @@ fn sort_new(comments: &mut Vec<Rc<RefCell<CommentTree>>>) {
 
 #[cfg(test)]
 mod test {
-    use std::{cell::RefCell, collections::HashMap, rc::Rc};
+    use super::*;
+    use chrono::NaiveDate;
 
-    use rand::Rng;
+    // Helper function to create a mock CommentTree
+    fn create_mock_comment(
+        id: i32,
+        parent_id: Option<i32>,
+        upvote: i64,
+        days_ago: i64,
+    ) -> Rc<RefCell<CommentTree>> {
+        Rc::new(RefCell::new(CommentTree {
+            id,
+            author_name: format!("Author {}", id),
+            content: format!("Content for comment {}", id),
+            parent_id,
+            created_at: NaiveDate::from_ymd_opt(2023, 1, 1)
+                .unwrap()
+                .and_hms_opt(0, 0, 0)
+                .unwrap()
+                - chrono::Duration::try_days(days_ago).unwrap(),
+            children: None,
+            upvote,
+            depth: 0,
+            is_comment_owner: false,
+            is_blog_author: false,
+        }))
+    }
 
-    use super::{Comment, CommentTree};
-
-    // TODO this test is outputing false positive
     #[test]
-    fn test_correctness_using_two_implementations() {
-        let comments = generate_comments(10000, 5);
-        let tree_based_sorted_comments =
-            super::intermediate_tree_sort(comments.clone(), &super::SortType::Best);
-        let array_based_sorted_comments = iterative_recursive_sort(comments.clone());
-
-        assert_eq!(tree_based_sorted_comments, array_based_sorted_comments);
+    fn test_flat_comments_to_tree_with_no_comments() {
+        let comments = vec![];
+        let result = flat_comments_to_tree(comments);
+        assert!(result.is_empty(), "Expected no comments in the tree");
     }
 
-    // Generate comments randomly
-    fn generate_comments(n: usize, max_depth: usize) -> Vec<Comment> {
-        let mut comments = vec![];
-        for i in 0..n {
-            let depth = rand::thread_rng().gen_range(0..max_depth + 1);
-            let comment = Comment {
-                id: i as i32,
-                author_name: "author".to_string(),
-                content: "content".to_string(),
-                parent_id: None,
-                created_at: chrono::offset::Local::now().naive_local(),
-                votes: 0,
-                depth: depth as i32,
-            };
-            comments.push(comment);
-        }
-        comments
+    #[test]
+    fn test_flat_comments_to_tree_with_nested_comments() {
+        let comment1 = create_mock_comment(1, None, 10, 5);
+        let comment2 = create_mock_comment(2, Some(1), 5, 4); // Child of comment1
+        let comments = vec![comment1.clone(), comment2];
+
+        let result = flat_comments_to_tree(
+            comments
+                .into_iter()
+                .map(|c| c.borrow().to_owned().clone())
+                .collect(),
+        );
+        assert_eq!(result.len(), 1, "Expected one root comment");
+
+        let first_child = result[0].borrow();
+        let root_children = &first_child.children.as_ref().unwrap();
+        assert_eq!(
+            root_children.len(),
+            1,
+            "Expected one child for the root comment"
+        );
     }
 
-    fn depth_first_search(
-        comment: &Rc<RefCell<CommentTree>>,
-        mut result: &mut Vec<Rc<RefCell<CommentTree>>>,
-    ) {
-        result.push(comment.clone());
-        if let Some(children) = comment.borrow().children.as_ref() {
-            for child in children {
-                depth_first_search(child, &mut result);
-            }
-        }
+    #[test]
+    fn test_sort_best() {
+        let comment1 = create_mock_comment(1, None, 5, 5);
+        let comment2 = create_mock_comment(2, None, 10, 4); // Higher votes
+        let mut comments = vec![comment1, comment2];
+
+        sort_best(&mut comments);
+
+        assert_eq!(
+            comments[0].borrow().id,
+            2,
+            "Comment with higher votes should come first"
+        );
     }
 
-    // This implementation is not used in production but still kept for testing
-    // purposes
-    fn iterative_recursive_sort(comments: Vec<Comment>) -> Vec<CommentTree> {
-        use std::borrow::BorrowMut;
-        sort_vec(comments.into_iter().map(Rc::new).collect())
-            .into_iter()
-            .map(|mut comment| CommentTree {
-                id: comment.id,
-                author_name: comment.borrow_mut().author_name.to_owned(),
-                content: comment.borrow_mut().content.to_owned(),
-                parent_id: comment.parent_id,
-                created_at: comment.created_at,
-                children: None,
-                upvote: comment.votes,
-                depth: comment.depth as usize,
-            })
-            .collect()
+    #[test]
+    fn test_sort_new() {
+        let comment1 = create_mock_comment(1, None, 5, 5); // Older
+        let comment2 = create_mock_comment(2, None, 5, 4); // Newer
+        let mut comments = vec![comment1, comment2];
+
+        sort_new(&mut comments);
+
+        assert_eq!(
+            comments[0].borrow().id,
+            2,
+            "Newer comment should come first"
+        );
     }
 
-    fn sort_vec(comments: Vec<Rc<Comment>>) -> Vec<Rc<Comment>> {
-        if comments.len() == 0 {
-            return vec![];
-        }
+    #[test]
+    fn test_intermediate_tree_sort_with_sort_new() {
+        let comment1 = create_mock_comment(1, None, 5, 5).borrow().clone(); // Older
+        let comment2 = create_mock_comment(2, None, 5, 4).borrow().clone(); // Newer
+        let comments = vec![comment1, comment2];
 
-        let mut result = Vec::with_capacity(comments.len());
+        let sorted_comments = intermediate_tree_sort(comments, &SortType::New);
+        assert_eq!(
+            sorted_comments[0].id, 2,
+            "Newer comment should come first in SortType::New"
+        );
+    }
 
-        // Map root comment id to its children
-        let mut top_level_comments_children: HashMap<i32, Vec<Rc<Comment>>> = HashMap::new();
+    #[test]
+    fn test_intermediate_tree_sort_with_sort_best() {
+        let comment1 = create_mock_comment(1, None, 5, 5).borrow().clone();
+        let comment2 = create_mock_comment(2, None, 10, 4).borrow().clone(); // Higher votes
+        let comments = vec![comment1, comment2];
 
-        // Because the comments are already sorted by id and depth, the first
-        // comment's depth is the most shallow depth
-        let root_depth = comments[0].depth;
-        let mut current_root_comment_id = comments[0].id;
-
-        for comment in comments {
-            if comment.depth > root_depth {
-                top_level_comments_children
-                    .get_mut(&current_root_comment_id)
-                    .unwrap()
-                    .push(comment.clone());
-            } else {
-                // Indicating we have reached a new root comment
-                current_root_comment_id = comment.id;
-                result.push(comment.clone());
-                top_level_comments_children.insert(comment.id, vec![]);
-            }
-        }
-
-        // By now, result only contains the root comments
-        result.sort_unstable_by_key(|k| (-k.votes, k.created_at));
-
-        // Sort the children recursively
-        let mut curr = 0;
-        for top_level_comment in result.clone() {
-            let children = top_level_comments_children
-                .remove(&top_level_comment.id)
-                .unwrap();
-            let children_length = children.len();
-
-            let sorted_children = sort_vec(children);
-
-            // emplace the children back into the result array
-            result.splice(curr + 1..curr + 1, sorted_children.into_iter());
-
-            curr += children_length + 1;
-        }
-
-        result
+        let sorted_comments = intermediate_tree_sort(comments, &SortType::Best);
+        assert_eq!(
+            sorted_comments[0].id, 2,
+            "Comment with higher votes should come first in SortType::Best"
+        );
     }
 }
