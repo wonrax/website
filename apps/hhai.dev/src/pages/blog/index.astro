@@ -5,9 +5,9 @@ import type { Frontmatter } from "@/layouts/BlogPostLayout.astro";
 const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
 ---
 
-<BlogRouteLayout>
-  <title slot="head">Blog</title>
-  <meta slot="head" name="description" content="hhai.dev blog index" />
+<BlogRouteLayout
+  seoProps={{ title: "Blog", description: "hhai.dev blog index" }}
+>
   <main class="blog-main">
     <p style={{ color: "var(--text-body-light)" }}>Newest first</p>
     <ul class="article-list">

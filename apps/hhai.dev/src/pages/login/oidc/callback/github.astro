@@ -2,8 +2,12 @@
 import Layout from "@/layouts/Layout.astro";
 ---
 
-<Layout>
-  <title slot="head">Login via GitHub</title>
+<Layout
+  seoProps={{
+    title: "Login via GitHub",
+    description: "Login using your GitHub account",
+  }}
+>
   <div style={{ padding: "24px" }}>
     <div id="content">
       <p>We're logging you in...</p>

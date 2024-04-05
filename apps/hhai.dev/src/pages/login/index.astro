@@ -4,9 +4,12 @@ import GitHub from "@/components/Logo/GitHubSolid";
 import config from "@/config";
 ---
 
-<RootLayout>
-  <title slot="head">Login to hhai.dev</title>
-  <meta slot="head" name="description" content="Login page to hhai.dev" />
+<RootLayout
+  seoProps={{
+    title: "Login to hhai.dev",
+    description: "Login page to hhai.dev",
+  }}
+>
   <main>
     <h1>Login to hhai.dev</h1>
     <a href={`${config.API_URL}/identity/login/oidc/github`}>
