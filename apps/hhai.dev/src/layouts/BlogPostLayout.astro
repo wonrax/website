@@ -36,6 +36,8 @@ const headings = Astro.props.headings;
 
 <BlogRouteLayout>
   <title slot="head">{post.title}</title>
+  <meta slot="head" property="og:title" content={post.title} />
+  <meta slot="head" name="twitter:title" content={post.title} />
   <meta slot="head" name="description" content={post.description} />
   <main class="blog-post-main">
     <div class="right-sidebar">
