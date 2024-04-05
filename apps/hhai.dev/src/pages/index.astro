@@ -2,9 +2,9 @@
 import RootLayout from "../layouts/Layout.astro";
 ---
 
-<RootLayout>
-  <title slot="head">hhai.dev home</title>
-  <meta slot="head" name="description" content="hhai.dev homepage" />
+<RootLayout
+  seoProps={{ title: "hhai.dev home", description: "hhai.dev homepage" }}
+>
   <main class="home-main">
     <div class="profile-summary">
       <h3>Ha Huy Long Hai</h3>

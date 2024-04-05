@@ -1,8 +1,11 @@
 ---
 import Layout from "./Layout.astro";
+import { type Props as RootLayoutProps } from "./Layout.astro";
+
+export type Props = RootLayoutProps;
 ---
 
-<Layout>
+<Layout seoProps={Astro.props.seoProps}>
   <slot name="head" slot="head" />
   <div class="blog-container">
     <nav class="nav-bar">

@@ -1,7 +1,6 @@
 ---
 import { CommentSection } from "@/components/BlogComments/CommentSection";
 import * as Sheet from "@/components/Sheet/Sheet";
-import OgImage from "@/components/OgImage/OgImage.astro";
 import "@fontsource/inconsolata/500.css";
 import "katex/dist/katex.css";
 import TableOfContents from "../components/TableOfContents.astro";
@@ -34,11 +33,9 @@ const post = Astro.props.frontmatter;
 const headings = Astro.props.headings;
 ---
 
-<BlogRouteLayout>
-  <title slot="head">{post.title}</title>
-  <meta slot="head" property="og:title" content={post.title} />
-  <meta slot="head" name="twitter:title" content={post.title} />
-  <meta slot="head" name="description" content={post.description} />
+<BlogRouteLayout
+  seoProps={{ title: post.title, description: post.description }}
+>
   <main class="blog-post-main">
     <div class="right-sidebar">
       <div class="right-sidebar-content">

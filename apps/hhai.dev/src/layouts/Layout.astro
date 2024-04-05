@@ -1,14 +1,25 @@
 ---
-import OgImage from "@/components/OgImage/OgImage.astro";
 import "./global.scss";
 import "@fontsource-variable/inter";
 import path from "path";
+import { SEO, type Props as SeoProps } from "astro-seo";
+
+export type Props = {
+  seoProps: SeoProps & {
+    title: string;
+    description: string;
+  };
+};
+
+const seoProps = Astro.props.seoProps;
 
 const ogImageUrl =
   Astro.url.protocol +
   "//" +
   Astro.url.host +
   path.posix.join(Astro.url.pathname, "og-image.png");
+
+const title = seoProps.title;
 ---
 
 <!doctype html>
@@ -17,11 +28,36 @@ const ogImageUrl =
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
     <meta name="generator" content={Astro.generator} />
-    <meta name="twitter:site" content="@wnrax" />
-    <slot name="head" />
     <link rel="alternate icon" type="image/png" href="/favicon.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <OgImage ogImageUrl={ogImageUrl} />
+    <SEO
+      title={title}
+      titleDefault={title}
+      description={seoProps?.description}
+      openGraph={{
+        basic: {
+          image: ogImageUrl,
+          title: title,
+          type: "website",
+          ...seoProps?.openGraph?.basic,
+        },
+        article: {
+          authors: ["Ha Huy Long Hai"],
+          ...seoProps?.openGraph?.article,
+        },
+      }}
+      twitter={{
+        card: "summary_large_image",
+        creator: "@wnrax",
+        description: seoProps?.description,
+        image: ogImageUrl,
+        imageAlt: "Banner image for: " + title,
+        site: "@wnrax",
+        title: title,
+        ...seoProps?.twitter,
+      }}
+    />
+    <slot name="head" />
   </head>
   <body>
     <slot />
