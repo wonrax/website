@@ -131,6 +131,8 @@ jobs:
   invalidate-cdn-cache:
     name: Invalidate CloudFront cache
     needs: [build-and-push-www, deploy]
+    if: ${{ needs.build-and-push-www.result == 'success' &&
+            needs.deploy.result == 'success' }}
     runs-on: ubuntu-latest
     environment: deploy
     steps:
