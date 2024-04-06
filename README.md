@@ -29,3 +29,4 @@ npm run dev
     dedicated layout for photography
 
 - custom json deserialize error in axum handlers
+- Share logout logic to handle side effects like posthog.reset()
