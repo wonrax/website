@@ -17,15 +17,15 @@
     }
   },
   "dependencies": {
-    "@astrojs/mdx": "^2.2.0",
-    "@astrojs/react": "^3.1.0",
+    "@astrojs/mdx": "^2.2.4",
+    "@astrojs/react": "^3.1.1",
     "@astrojs/solid-js": "^4.0.1",
     "@fontsource-variable/inter": "^5.0.17",
     "@fontsource/inconsolata": "^5.0.17",
     "@microflash/remark-callout-directives": "^4.1.0",
     "@resvg/resvg-js": "^2.6.0",
     "@types/hast": "^3.0.4",
-    "astro": "^4.5.5",
+    "astro": "^4.5.16",
     "astro-seo": "^0.8.3",
     "lucide-solid": "^0.359.0",
     "posthog-js": "^1.118.1",
