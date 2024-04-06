@@ -32,7 +32,10 @@ impl Session {
             active: true,
             token,
             issued_at: now,
-            expires_at: now.add(chrono::Duration::days(365)),
+            expires_at: now.add(chrono::Duration::try_days(365).unwrap_or_else(|| {
+                tracing::error!("Could not convert 365 to days, using default");
+                chrono::Duration::default()
+            })),
             identity_id,
             created_at: now,
             updated_at: now,
