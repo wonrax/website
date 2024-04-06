@@ -10,6 +10,8 @@ html {
   -webkit-text-size-adjust: 100%;
   -ms-text-size-adjust: 100%;
   text-size-adjust: 100%;
+
+  scrollbar-gutter: stable;
 }
 
 // Font fallbacks config to avoid CLS
@@ -32,8 +34,6 @@ code {
 :root {
   --font-weight-normal: 400;
   --font-weight-medium: 500;
-
-  --scrollbar-width: 0px;
 }
 
 :root {

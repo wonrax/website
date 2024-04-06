@@ -1,11 +1,12 @@
 ---
 import RootLayout from "../layouts/Layout.astro";
+import "@/layouts/layout.scss";
 ---
 
 <RootLayout
   seoProps={{ title: "hhai.dev home", description: "hhai.dev homepage" }}
 >
-  <main class="home-main">
+  <main class="home-main centered-layout">
     <div class="profile-summary">
       <h3>Ha Huy Long Hai</h3>
       <h4 class="job-title">Software Engineer</h4>
@@ -66,9 +67,9 @@ import RootLayout from "../layouts/Layout.astro";
   .home-main {
     display: flex;
     flex-direction: row;
-    gap: 32px;
     justify-content: center;
-    padding: 32px 16px;
+    gap: 32px;
+    padding: 48px 0;
 
     p {
       margin: 16px 0;
@@ -104,11 +105,12 @@ import RootLayout from "../layouts/Layout.astro";
     h4 {
       font-weight: var(--font-weight-medium);
       margin: 8px 0;
+      margin-top: 0;
       color: var(--text-body-heavy);
     }
 
     .projects-section {
-      max-width: 500px;
+      flex-grow: 1;
 
       h3 {
         margin-bottom: 24px;
@@ -131,6 +133,7 @@ import RootLayout from "../layouts/Layout.astro";
     @media (max-width: 768px) {
       flex-direction: column;
       align-items: center;
+      padding: 32px 24px;
 
       .profile-summary {
         max-width: 100%;

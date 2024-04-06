@@ -144,12 +144,12 @@ const headings = Astro.props.headings;
   }
 
   .right-sidebar {
-    display: none;
+    display: block;
+    order: 2;
+    align-self: stretch;
 
-    @media (min-width: 1280px) {
-      display: block;
-      order: 2;
-      align-self: stretch;
+    @media (max-width: 1280px) {
+      display: none;
     }
 
     .right-sidebar-content {
@@ -171,9 +171,10 @@ const headings = Astro.props.headings;
   .article {
     font-size: 16px;
     width: 100%;
+    max-width: 800px;
 
-    @media (min-width: 1280px) {
-      max-width: 800px;
+    @media (max-width: 1280px) {
+      max-width: 100%;
     }
 
     .post-tag {
@@ -779,7 +780,4 @@ const headings = Astro.props.headings;
       behavior: "smooth",
     });
   });
-
-  let scrollbarWidth = window.innerWidth - document.body.clientWidth + "px";
-  document.body.style.setProperty("--scrollbar-width", scrollbarWidth);
 </script>

@@ -1,6 +1,7 @@
 ---
 import BlogRouteLayout from "@/layouts/BlogRouteLayout.astro";
 import type { Frontmatter } from "@/layouts/BlogPostLayout.astro";
+import "@/layouts/layout.scss";
 
 const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
 ---
@@ -8,7 +9,7 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
 <BlogRouteLayout
   seoProps={{ title: "Blog", description: "hhai.dev blog index" }}
 >
-  <main class="blog-main">
+  <main class="blog-main centered-layout">
     <p style={{ color: "var(--text-body-light)" }}>Newest first</p>
     <ul class="article-list">
       {
@@ -67,12 +68,6 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
 
 <style lang="scss" is:global>
   .blog-main {
-    margin: 0 auto;
-    max-width: 100%;
-    width: 700px;
-    padding: 0 32px;
-    box-sizing: border-box;
-
     .article-list {
       list-style-type: decimal;
       margin-top: 32px;
@@ -119,13 +114,6 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
           line-height: 1.45em;
         }
       }
-    }
-    @media (min-width: 1280px) {
-      width: 1004px;
-    }
-
-    @media (min-width: 800px) {
-      padding: 0;
     }
   }
 </style>
