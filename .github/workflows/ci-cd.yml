@@ -24,7 +24,7 @@ on:
 jobs:
 
   files-changed:
-    name: Detect what files changed to decide what to build
+    name: Detect which files' changed
     runs-on: ubuntu-latest
     timeout-minutes: 3
     # Map a step output to a job output
@@ -64,7 +64,7 @@ jobs:
               - "docker/vector/vector.toml"
 
   test-backend:
-    name: Test hhai.dev api
+    name: Test backend API
     needs: files-changed
     if: ${{ needs.files-changed.outputs.backend == 'true' }}
     runs-on: ubuntu-latest
@@ -74,7 +74,7 @@ jobs:
       - run: cargo test --workspace --all-features
 
   build-and-push-www:
-    name: hhai.dev www - Build and push Docker image
+    name: Build www
     needs: files-changed
     if: ${{ needs.files-changed.outputs.www == 'true' }}
     uses: ./.github/workflows/container-ci.yml
@@ -85,7 +85,7 @@ jobs:
     secrets: inherit
 
   build-and-push-backend:
-    name: hhai.dev api - Build and push Docker image
+    name: Build API
     needs: [files-changed, test-backend]
     if: ${{ needs.files-changed.outputs.backend == 'true' }}
     uses: ./.github/workflows/container-ci.yml
@@ -96,7 +96,7 @@ jobs:
     secrets: inherit
 
   build-and-push-migrate:
-    name: hhai.dev migrate - Build and push Docker image
+    name: Build database migrator
     needs: files-changed
     if: ${{ needs.files-changed.outputs.migrate == 'true' }}
     uses: ./.github/workflows/container-ci.yml
@@ -129,7 +129,7 @@ jobs:
     secrets: inherit
 
   invalidate-cdn-cache:
-    name: Invalidate CloudFront
+    name: Invalidate CloudFront cache
     needs: [build-and-push-www, deploy]
     runs-on: ubuntu-latest
     environment: deploy
