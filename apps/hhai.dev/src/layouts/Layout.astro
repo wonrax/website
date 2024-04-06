@@ -68,22 +68,25 @@ const title = seoProps.title;
           import("@/state"),
         ]);
 
-        const auth = checkAuthUser();
-
         posthog.init("phc_DNnzWNmnjFtV0dwGSFedEhviKhj9dpXAjHw0OyspGvO", {
           api_host: "https://app.posthog.com",
+          loaded: async (posthog) => {
+            if (sessionStorage.getItem("posthog_identified") === "true") {
+              return;
+            }
+            try {
+              const authInfo = await checkAuthUser();
+              if (authInfo != null)
+                posthog.identify(authInfo.id.toString(), {
+                  email: authInfo.email,
+                  name: authInfo.name,
+                });
+              sessionStorage.setItem("posthog_identified", "true");
+            } catch (e) {
+              console.error("Could not identify user", e);
+            }
+          },
         });
-
-        try {
-          const authInfo = await auth;
-          if (authInfo != null)
-            posthog.identify(authInfo.id.toString(), {
-              email: authInfo.email,
-              name: authInfo.name,
-            });
-        } catch (e) {
-          console.log("Could not identify user", e);
-        }
       }
     </script>
   </body>
