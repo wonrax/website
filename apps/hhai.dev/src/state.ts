@@ -3,6 +3,7 @@ import config from "./config";
 import { ApiError } from "./rpc";
 
 interface AuthUser {
+  id: number;
   name: string;
   email: string;
 }
@@ -18,23 +19,26 @@ export async function checkAuthUser(): Promise<AuthUser | undefined> {
   if (res.ok) {
     const body: {
       is_auth: boolean;
+      id?: number;
       traits?: {
         email: string;
         name: string;
       };
     } = await res.json();
 
-    if (!body.is_auth || body.traits == null) {
+    if (!body.is_auth || body.traits == null || body.id == null) {
       SetAppState("authUser", null);
       return undefined;
     }
 
     SetAppState("authUser", {
+      id: body.id,
       name: body.traits.name,
       email: body.traits.email,
     });
 
     return {
+      id: body.id,
       name: body.traits.name,
       email: body.traits.email,
     };

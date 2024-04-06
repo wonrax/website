@@ -55,12 +55,16 @@ struct IsAuth {
     is_auth: bool,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<i32>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     traits: Option<Traits>,
 }
 
 async fn is_auth(MaybeAuthUser(identity): MaybeAuthUser) -> Result<axum::Json<IsAuth>, Error> {
     Ok(Json(IsAuth {
         is_auth: identity.is_ok(),
+        id: identity.as_ref().ok().map(|i| i.id),
         traits: identity.ok().map(|i| i.traits),
     }))
 }

@@ -63,10 +63,27 @@ const title = seoProps.title;
     <slot />
     <script>
       if (process.env.NODE_ENV === "production") {
-        const { posthog } = await import("posthog-js");
+        const [{ posthog }, { checkAuthUser }] = await Promise.all([
+          import("posthog-js"),
+          import("@/state"),
+        ]);
+
+        const auth = checkAuthUser();
+
         posthog.init("phc_DNnzWNmnjFtV0dwGSFedEhviKhj9dpXAjHw0OyspGvO", {
           api_host: "https://app.posthog.com",
         });
+
+        try {
+          const authInfo = await auth;
+          if (authInfo != null)
+            posthog.identify(authInfo.id.toString(), {
+              email: authInfo.email,
+              name: authInfo.name,
+            });
+        } catch (e) {
+          console.log("Could not identify user", e);
+        }
       }
     </script>
   </body>
