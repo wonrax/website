@@ -34,12 +34,12 @@ impl ApiRequestError for SpotifyConnectError {}
 pub async fn handle_spotify_connect_request(
     Query(queries): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, Error> {
-    let last_visit = queries.get("last_visit");
+    let return_to = queries.get("return_to");
     let site_url: String = std::env::var("SITE_URL").unwrap_or("http://localhost:4321".to_string());
     let redirect_uri = site_url
-        + "/login/oauth/callback/spotify"
-        + match last_visit {
-            Some(last_visit) => "?last_visit=".to_string() + last_visit,
+        + "/link/spotify"
+        + match return_to {
+            Some(return_to) => "?return_to=".to_string() + return_to,
             None => "".into(),
         }
         .as_str();
@@ -86,12 +86,12 @@ pub async fn handle_spotify_callback(
     let spotify_oauth_client_secret: String = std::env::var("SPOTIFY_OAUTH_CLIENT_SECRET")
         .expect("SPOTIFY_OAUTH_CLIENT_SECRET is not set in .env file");
 
-    let last_visit = queries.get("last_visit");
+    let return_to = queries.get("return_to");
     let site_url: String = std::env::var("SITE_URL").unwrap_or("http://localhost:4321".to_string());
     let redirect_uri = site_url
-        + "/login/oauth/callback/spotify"
-        + match last_visit {
-            Some(last_visit) => "?last_visit=".to_string() + last_visit,
+        + "/link/spotify"
+        + match return_to {
+            Some(return_to) => "?return_to=".to_string() + return_to,
             None => "".into(),
         }
         .as_str();

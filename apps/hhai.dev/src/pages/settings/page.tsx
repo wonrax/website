@@ -11,7 +11,10 @@ export default function AccountInfo(): JSXElement {
   return (
     <>
       <a href="/">Homepage</a>
-      <Show when={AppState.authUser == null}>Loading user...</Show>
+      <Show when={AppState.authUser == null}>
+        <p>Loading user...</p>
+      </Show>
+
       <Show when={AppState.authUser != null}>
         <div>
           <h3>{AppState.authUser?.name}</h3>

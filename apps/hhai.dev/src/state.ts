@@ -13,7 +13,7 @@ export const [AppState, SetAppState] = createStore<{
 }>();
 
 export async function checkAuthUser(): Promise<AuthUser | undefined> {
-  const res = await fetch(`${config.API_URL}/identity/is_auth`, {
+  const res = await fetch(`${config.API_URL}/is_auth`, {
     credentials: "include",
   });
   if (res.ok) {

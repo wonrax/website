@@ -137,7 +137,7 @@ async fn main() {
         .route("/health", get(heath))
         .nest("/blog", blog::routes::route())
         .nest("/public", github::routes::route())
-        .nest("/identity", identity::routes::route())
+        .nest("/", identity::routes::route())
         .layer(cors)
         .with_state(shared_state)
         .layer(

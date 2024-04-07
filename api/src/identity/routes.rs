@@ -33,10 +33,10 @@ pub fn route() -> Router<APIContext> {
         .route("/me", get(handle_whoami))
         .route("/is_auth", get(is_auth))
         .route("/logout", post(logout))
-        .route("/oauth/callback/github", get(handle_github_oauth_callback))
-        .route("/login/oauth/github", get(handle_oauth_github_request))
-        .route("/oauth/callback/spotify", get(handle_spotify_callback))
+        .route("/login/github", get(handle_oauth_github_request))
+        .route("/login/github/callback", get(handle_github_oauth_callback))
         .route("/link/spotify", get(handle_spotify_connect_request))
+        .route("/link/spotify/callback", get(handle_spotify_callback))
 }
 
 #[derive(serde::Serialize)]
@@ -289,12 +289,12 @@ pub async fn handle_github_oauth_callback(
 pub async fn handle_oauth_github_request(
     Query(queries): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, Error> {
-    let last_visit = queries.get("last_visit");
+    let return_to = queries.get("return_to");
     let site_url: String = std::env::var("SITE_URL").unwrap_or("http://localhost:4321".to_string());
     let redirect_uri = site_url
-        + "/login/oauth/callback/github"
-        + match last_visit {
-            Some(last_visit) => "?last_visit=".to_string() + last_visit,
+        + "/login/github"
+        + match return_to {
+            Some(return_to) => "?return_to=".to_string() + return_to,
             None => "".into(),
         }
         .as_str();
