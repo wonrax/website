@@ -26,6 +26,7 @@ mod github;
 mod identity;
 mod json;
 mod real_ip;
+mod schema;
 mod utils;
 
 #[global_allocator]
