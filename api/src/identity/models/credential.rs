@@ -29,6 +29,14 @@ pub enum CredentialType {
     OAuth,
 }
 
+impl From<CredentialType> for &'static str {
+    fn from(value: CredentialType) -> Self {
+        match value {
+            CredentialType::OAuth => "oauth",
+        }
+    }
+}
+
 impl<'de> serde::Deserialize<'de> for CredentialType {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

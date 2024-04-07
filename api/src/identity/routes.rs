@@ -222,13 +222,14 @@ pub async fn handle_github_oauth_callback(
         )
         VALUES (
             $1,
-            (SELECT id FROM identity_credential_types WHERE name = 'oauth'),
-            $2,
+            (SELECT id FROM identity_credential_types WHERE name = $2),
             $3,
-            $4
+            $4,
+            $5
         );
         ",
             &credential.credential,
+            Into::<&str>::into(credential.credential_type),
             i.id,
             credential.created_at,
             credential.updated_at,
