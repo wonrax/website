@@ -6,14 +6,14 @@ const prisma = new PrismaClient();
 async function main() {
   const credentialType = await prisma.identityCredentialType.upsert({
     create: {
-      name: "oidc",
+      name: "oauth",
       created_at: new Date(),
     },
     where: {
-      name: "oidc",
+      name: "oauth",
     },
     update: {
-      name: "oidc",
+      name: "oauth",
     },
   });
 
@@ -37,6 +37,7 @@ async function main() {
               updated_at: date,
               credential: {
                 oidc_provider: "github",
+                provider: "github",
                 user_id: faker.number.int(),
               },
               identity_id: identity.id,

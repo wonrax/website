@@ -214,7 +214,7 @@ export function CommentEditorBase(props: {
                     "font-weight": "var(--font-weight-medium)",
                     "text-decoration": "underline",
                   }}
-                  href={`${config.API_URL}/identity/login/oidc/github?last_visit=${window.location.href}`}
+                  href={`${config.API_URL}/identity/login/oauth/github?last_visit=${window.location.href}`}
                 >
                   login via GitHub
                 </a>{" "}

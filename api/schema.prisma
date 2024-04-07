@@ -67,7 +67,6 @@ model Identity {
   created_at           DateTime             @db.Timestamp(6)
   updated_at           DateTime             @db.Timestamp(6)
   blog_comments        BlogComment[]
-  connected_apps       ConnectedApp[]
   identity_credentials IdentityCredential[]
   sessions             Session[]
 
@@ -109,16 +108,4 @@ model Session {
   identities  Identity @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("sessions")
-}
-
-model ConnectedApp {
-  id          Int      @id @default(autoincrement())
-  app_id      String
-  identity_id Int
-  credentials Json?
-  identities  Identity @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  created_at  DateTime @db.Timestamp(6)
-  updated_at  DateTime @db.Timestamp(6)
-
-  @@map("connected_apps")
 }
