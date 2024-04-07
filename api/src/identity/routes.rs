@@ -23,6 +23,7 @@ use super::{
         identity::{Identity, Traits},
         session::Session,
     },
+    spotify::{handle_spotify_callback, handle_spotify_connect_request},
     AuthenticationError, MaybeAuthUser, COOKIE_NAME,
 };
 
@@ -34,6 +35,8 @@ pub fn route() -> Router<APIContext> {
         .route("/logout", post(logout))
         .route("/oauth/callback/github", get(handle_github_oauth_callback))
         .route("/login/oauth/github", get(handle_oauth_github_request))
+        .route("/oauth/callback/spotify", get(handle_spotify_callback))
+        .route("/login/oauth/spotify", get(handle_spotify_connect_request))
 }
 
 #[derive(serde::Serialize)]

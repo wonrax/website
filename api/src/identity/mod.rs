@@ -4,6 +4,8 @@ use crate::{error::Error, APIContext};
 
 use self::models::identity::Identity;
 
+mod spotify;
+
 pub mod models;
 pub mod routes;
 

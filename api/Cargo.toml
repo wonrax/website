@@ -28,6 +28,7 @@ backtrace = "0.3"
 thiserror = "1.0"
 aws-ip-ranges = "0.154.0"
 ipnetwork = "0.20.0"
+rspotify = "0.13.1"
 
 [dev-dependencies]
 criterion = "0.5"
