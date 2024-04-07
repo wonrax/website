@@ -178,12 +178,7 @@ pub async fn handle_github_oauth_callback(
         FROM identities i JOIN identity_credentials ic
         ON i.id = ic.identity_id
         WHERE ic.credential @> $1
-        OR ic.credential @> $2
         ",
-        json!({
-            "oidc_provider": "github",
-            "user_id": user_id
-        }),
         json!({
             "provider": "github",
             "user_id": user_id
