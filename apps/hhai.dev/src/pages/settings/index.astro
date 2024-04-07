@@ -1,0 +1,19 @@
+---
+import RootLayout from "../../layouts/Layout.astro";
+import "@/layouts/layout.scss";
+import AccountInfo from "./page";
+---
+
+<RootLayout
+  seoProps={{ title: "Account Settings", description: "Account Settings page" }}
+>
+  <main class="main centered-layout">
+    <AccountInfo client:only="solid-js" />
+  </main>
+</RootLayout>
+
+<style lang="scss">
+  .main {
+    padding: 48px 0;
+  }
+</style>

@@ -36,7 +36,7 @@ pub fn route() -> Router<APIContext> {
         .route("/oauth/callback/github", get(handle_github_oauth_callback))
         .route("/login/oauth/github", get(handle_oauth_github_request))
         .route("/oauth/callback/spotify", get(handle_spotify_callback))
-        .route("/login/oauth/spotify", get(handle_spotify_connect_request))
+        .route("/link/spotify", get(handle_spotify_connect_request))
 }
 
 #[derive(serde::Serialize)]
