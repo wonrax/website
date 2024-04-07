@@ -32,8 +32,8 @@ pub fn route() -> Router<APIContext> {
         .route("/me", get(handle_whoami))
         .route("/is_auth", get(is_auth))
         .route("/logout", post(logout))
-        .route("/oidc/callback/github", get(handle_github_oauth_callback))
-        .route("/login/oidc/github", get(handle_oidc_github_request))
+        .route("/oauth/callback/github", get(handle_github_oauth_callback))
+        .route("/login/oauth/github", get(handle_oauth_github_request))
 }
 
 #[derive(serde::Serialize)]
@@ -178,9 +178,14 @@ pub async fn handle_github_oauth_callback(
         FROM identities i JOIN identity_credentials ic
         ON i.id = ic.identity_id
         WHERE ic.credential @> $1
+        OR ic.credential @> $2
         ",
         json!({
             "oidc_provider": "github",
+            "user_id": user_id
+        }),
+        json!({
+            "provider": "github",
             "user_id": user_id
         })
     )
@@ -206,9 +211,9 @@ pub async fn handle_github_oauth_callback(
         .fetch_one(&mut *tx)
         .await?;
 
-        let credential = IdentityCredential::new_oidc_credential(serde_json::json!({
-            "oidc_provider": "github",
-            "user_id": user_id
+        let credential = IdentityCredential::new_oauth_credential(serde_json::json!({
+            "user_id": user_id,
+            "provider": "github",
         }));
 
         // TODO have a credential types cache since it's not going to change
@@ -222,7 +227,7 @@ pub async fn handle_github_oauth_callback(
         )
         VALUES (
             $1,
-            (SELECT id FROM identity_credential_types WHERE name = 'oidc'),
+            (SELECT id FROM identity_credential_types WHERE name = 'oauth'),
             $2,
             $3,
             $4
@@ -282,13 +287,13 @@ pub async fn handle_github_oauth_callback(
 }
 
 #[axum::debug_handler]
-pub async fn handle_oidc_github_request(
+pub async fn handle_oauth_github_request(
     Query(queries): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, Error> {
     let last_visit = queries.get("last_visit");
     let site_url: String = std::env::var("SITE_URL").unwrap_or("http://localhost:4321".to_string());
     let redirect_uri = site_url
-        + "/login/oidc/callback/github"
+        + "/login/oauth/callback/github"
         + match last_visit {
             Some(last_visit) => "?last_visit=".to_string() + last_visit,
             None => "".into(),

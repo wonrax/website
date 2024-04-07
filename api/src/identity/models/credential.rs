@@ -11,13 +11,13 @@ pub struct IdentityCredential {
 }
 
 impl IdentityCredential {
-    pub fn new_oidc_credential(oidc_credential: serde_json::Value) -> Self {
+    pub fn new_oauth_credential(oauth_credential: serde_json::Value) -> Self {
         let now = chrono::Utc::now().naive_utc();
 
         IdentityCredential {
             id: 0,
-            credential: oidc_credential,
-            credential_type: CredentialType::Oidc,
+            credential: oauth_credential,
+            credential_type: CredentialType::OAuth,
             created_at: now,
             updated_at: now,
         }
@@ -26,7 +26,7 @@ impl IdentityCredential {
 
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub enum CredentialType {
-    Oidc,
+    OAuth,
 }
 
 impl<'de> serde::Deserialize<'de> for CredentialType {
@@ -36,7 +36,7 @@ impl<'de> serde::Deserialize<'de> for CredentialType {
     {
         let s = String::deserialize(deserializer)?;
         match s.as_str() {
-            "oidc" => Ok(CredentialType::Oidc),
+            "oauth" => Ok(CredentialType::OAuth),
             _ => Err(serde::de::Error::custom("invalid credential type")),
         }
     }
