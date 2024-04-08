@@ -12,8 +12,90 @@ import AccountInfo from "./page";
   </main>
 </RootLayout>
 
-<style lang="scss">
+<style lang="scss" is:global>
   .main {
     padding: 48px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+
+    @media (max-width: 800px) {
+      padding: 32px 16px;
+    }
+  }
+
+  .account {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    p {
+      color: var(--text-body-medium);
+      font-size: 14px;
+      margin: 0;
+    }
+    h3 {
+      margin: 0;
+    }
+  }
+
+  .connections {
+    display: flex;
+    flex-direction: column;
+
+    h3 {
+      margin: 0 0 16px 0;
+    }
+  }
+
+  button {
+    font-size: 14px;
+    background-color: var(--bg-color);
+    border: 1px solid var(--bg-additive-medium);
+    padding: 8px 12px;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.05);
+
+    &:hover {
+      background-color: var(--bg-additive-light);
+    }
+  }
+
+  .connection {
+    padding: 16px 12px;
+    border-bottom: solid 1px var(--bg-additive-light);
+    margin: 0 -12px;
+    display: flex;
+    flex-direction: row;
+    gap: 16px;
+    align-items: center;
+
+    & > :nth-child(1) {
+    }
+
+    & > :nth-child(2) {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5em;
+      flex-grow: 1;
+    }
+
+    &:nth-child(2) {
+      border-top: solid 1px var(--bg-additive-light);
+    }
+
+    h4 {
+      font-size: 14px;
+      font-weight: var(--font-weight-medium);
+      margin: 0;
+    }
+
+    p {
+      color: var(--text-body-medium);
+      font-size: 14px;
+      margin: 0;
+      display: flex;
+      gap: 6px;
+    }
   }
 </style>

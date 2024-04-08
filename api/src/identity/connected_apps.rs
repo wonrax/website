@@ -1,13 +1,13 @@
 use axum::{extract::State, response::IntoResponse, Json};
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
-use diesel_async::{AsyncConnection, AsyncPgConnection, RunQueryDsl};
+use diesel_async::RunQueryDsl;
 use serde::Serialize;
 
-#[derive(Queryable, Selectable, Serialize)]
+#[derive(Queryable, Selectable)]
 #[diesel(table_name = crate::schema::identity_credentials)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
-pub struct IdentityCredentials {
+struct IdentityCredentials {
     id: i32,
     credential: Option<serde_json::Value>,
     credential_type_id: i32,
@@ -19,18 +19,32 @@ pub struct IdentityCredentials {
 #[derive(Queryable, Selectable)]
 #[diesel(table_name = crate::schema::identity_credential_types)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
-pub struct IdentityCredentialTypes {
+struct IdentityCredentialTypes {
     id: i32,
     name: String,
+    created_at: chrono::NaiveDateTime,
 }
 
 use crate::{error::Error, APIContext};
 
-use super::AuthUser;
+use super::{routes::GitHubCredentials, spotify::SpotifyCredentials, AuthUser};
 
+#[derive(Serialize)]
+struct ConnectedApps {
+    spotify: Option<Spotify>,
+    github: Option<GitHub>,
+}
+
+#[derive(Serialize)]
 struct Spotify {
     display_name: String,
-    added_on: DateTime<chrono::offset::Utc>,
+    added_on: DateTime<Utc>,
+}
+
+#[derive(Serialize)]
+struct GitHub {
+    user_id: i64,
+    added_on: DateTime<Utc>,
 }
 
 pub async fn get_connected_apps(
@@ -43,35 +57,75 @@ pub async fn get_connected_apps(
         .await
         .map_err(|_| "could not get diesel pool conn")?;
 
-    let _credential_type_id: i32 = {
-        use crate::schema::identity_credential_types::dsl::*;
-        identity_credential_types
-            .select(id)
-            .filter(name.eq("oauth"))
-            .first(conn)
-            .await
-            .map_err(|e| format!("could not get oauth credential type: {e}"))?
-    };
-
-    let connections = {
+    let connections: Vec<IdentityCredentials> = {
+        use crate::schema::identity_credential_types;
         use crate::schema::identity_credentials::dsl::*;
-        identity_credentials
+
+        let query = identity_credentials
             .select(IdentityCredentials::as_select())
+            .inner_join(
+                identity_credential_types::table.on(credential_type_id
+                    .eq(identity_credential_types::id)
+                    .and(identity_credential_types::name.eq("oauth"))),
+            )
             .filter(identity_id.eq(i.id))
-            .filter(credential_type_id.eq(_credential_type_id))
             .filter(
                 credential
-                    .contains(&serde_json::json!({
+                    .contains(serde_json::json!({
                         "provider": "spotify"
                     }))
-                    .or(credential.contains(&serde_json::json!({
+                    .or(credential.contains(serde_json::json!({
                         "provider": "github"
                     }))),
-            )
+            );
+
+        query
             .load(conn)
             .await
             .map_err(|_| "could not query connected apps")?
     };
 
-    Ok(Json(connections))
+    let github = connections
+        .iter()
+        .filter(|c| {
+            if let Some(c) = &c.credential {
+                c.as_object()
+                    .unwrap()
+                    .get("provider")
+                    .map_or(false, |p| p == "github")
+            } else {
+                false
+            }
+        })
+        .map(|c| GitHub {
+            user_id: serde_json::from_value::<GitHubCredentials>(c.credential.clone().unwrap())
+                .unwrap()
+                .user_id,
+            added_on: c.created_at.and_utc(),
+        })
+        .next();
+
+    let spotify = connections
+        .iter()
+        .filter(|c| {
+            if let Some(c) = &c.credential {
+                c.as_object()
+                    .unwrap()
+                    .get("provider")
+                    .map_or(false, |p| p == "spotify")
+            } else {
+                false
+            }
+        })
+        .map(|c| Spotify {
+            display_name: serde_json::from_value::<SpotifyCredentials>(
+                c.credential.to_owned().unwrap(),
+            )
+            .unwrap()
+            .display_name,
+            added_on: c.created_at.and_utc(),
+        })
+        .next();
+
+    Ok(Json(ConnectedApps { github, spotify }))
 }

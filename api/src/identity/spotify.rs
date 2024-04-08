@@ -6,7 +6,7 @@ use axum::{
     response::IntoResponse,
 };
 use rspotify::{clients::OAuthClient, model::Id};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     error::{ApiRequestError, Error},
@@ -180,11 +180,11 @@ pub async fn handle_spotify_callback(
 }
 
 /// The credentials being persisted in the database
-#[derive(Serialize)]
-struct SpotifyCredentials {
-    user_id: String,
-    display_name: String,
-    refresh_token: String,
-    scopes: Vec<String>,
-    provider: String,
+#[derive(Deserialize, Serialize)]
+pub struct SpotifyCredentials {
+    pub user_id: String,
+    pub display_name: String,
+    pub refresh_token: String,
+    pub scopes: Vec<String>,
+    pub provider: String,
 }

@@ -9,6 +9,7 @@ use axum::{
     Json, Router,
 };
 use axum_extra::extract::CookieJar;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use time::Duration;
 
@@ -80,6 +81,13 @@ async fn handle_whoami(
     Ok(axum::Json(WhoamiRespose {
         traits: identity?.traits,
     }))
+}
+
+/// The credentials being persisted in the database
+#[derive(Deserialize, Serialize)]
+pub struct GitHubCredentials {
+    pub user_id: i64,
+    pub provider: String,
 }
 
 #[axum::debug_handler]
