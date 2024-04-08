@@ -33,7 +33,7 @@ mod utils;
 static GLOBAL: MiMalloc = MiMalloc;
 
 #[derive(Clone)]
-enum EnvironmentType {
+enum Env {
     Dev,
     Staging,
     Production,
@@ -41,7 +41,7 @@ enum EnvironmentType {
 
 #[derive(Clone)]
 struct ServerConfig {
-    environment: EnvironmentType,
+    env: Env,
 }
 
 #[derive(Clone)]
@@ -57,19 +57,19 @@ async fn main() {
     dotenv().ok();
 
     let config = ServerConfig {
-        environment: match std::env::var("ENVIRONMENT") {
+        env: match std::env::var("ENVIRONMENT") {
             Ok(env) => match env.as_str() {
-                "dev" => EnvironmentType::Dev,
-                "staging" => EnvironmentType::Staging,
-                "production" => EnvironmentType::Production,
-                _ => EnvironmentType::Dev,
+                "dev" => Env::Dev,
+                "staging" => Env::Staging,
+                "production" => Env::Production,
+                _ => Env::Dev,
             },
-            Err(_) => EnvironmentType::Dev,
+            Err(_) => Env::Dev,
         },
     };
 
-    let (json, pretty) = match config.environment {
-        EnvironmentType::Dev => (None, Some(tracing_subscriber::fmt::layer().pretty())),
+    let (json, pretty) = match config.env {
+        Env::Dev => (None, Some(tracing_subscriber::fmt::layer().pretty())),
         _ => (
             Some(
                 tracing_subscriber::fmt::layer()
