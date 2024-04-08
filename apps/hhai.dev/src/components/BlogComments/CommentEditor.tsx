@@ -214,7 +214,7 @@ export function CommentEditorBase(props: {
                     "font-weight": "var(--font-weight-medium)",
                     "text-decoration": "underline",
                   }}
-                  href={`${config.API_URL}/identity/login/oauth/github?last_visit=${window.location.href}`}
+                  href={`${config.API_URL}/login/github?return_to=${window.location.href}`}
                 >
                   login via GitHub
                 </a>{" "}
@@ -242,7 +242,7 @@ export function CommentEditorBase(props: {
               <span
                 class="logout-button"
                 onClick={() => {
-                  void fetch(`${config.API_URL}/identity/logout`, {
+                  void fetch(`${config.API_URL}/logout`, {
                     method: "POST",
                     credentials: "include",
                   }).then((response) => {

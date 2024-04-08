@@ -9,6 +9,7 @@ use axum::{
     Json, Router,
 };
 use axum_extra::extract::CookieJar;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use time::Duration;
 
@@ -18,11 +19,13 @@ use crate::{
 };
 
 use super::{
+    connected_apps::get_connected_apps,
     models::{
         credential::IdentityCredential,
         identity::{Identity, Traits},
         session::Session,
     },
+    spotify::{handle_spotify_callback, handle_spotify_connect_request},
     AuthenticationError, MaybeAuthUser, COOKIE_NAME,
 };
 
@@ -30,10 +33,13 @@ pub fn route() -> Router<APIContext> {
     // TODO rate limit these public endpoints
     Router::<APIContext>::new()
         .route("/me", get(handle_whoami))
+        .route("/link/apps", get(get_connected_apps))
         .route("/is_auth", get(is_auth))
         .route("/logout", post(logout))
-        .route("/oauth/callback/github", get(handle_github_oauth_callback))
-        .route("/login/oauth/github", get(handle_oauth_github_request))
+        .route("/login/github", get(handle_oauth_github_request))
+        .route("/login/github/callback", get(handle_github_oauth_callback))
+        .route("/link/spotify", get(handle_spotify_connect_request))
+        .route("/link/spotify/callback", get(handle_spotify_callback))
 }
 
 #[derive(serde::Serialize)]
@@ -75,6 +81,13 @@ async fn handle_whoami(
     Ok(axum::Json(WhoamiRespose {
         traits: identity?.traits,
     }))
+}
+
+/// The credentials being persisted in the database
+#[derive(Deserialize, Serialize)]
+pub struct GitHubCredentials {
+    pub user_id: i64,
+    pub provider: String,
 }
 
 #[axum::debug_handler]
@@ -222,13 +235,14 @@ pub async fn handle_github_oauth_callback(
         )
         VALUES (
             $1,
-            (SELECT id FROM identity_credential_types WHERE name = 'oauth'),
-            $2,
+            (SELECT id FROM identity_credential_types WHERE name = $2),
             $3,
-            $4
+            $4,
+            $5
         );
         ",
             &credential.credential,
+            Into::<&str>::into(credential.credential_type),
             i.id,
             credential.created_at,
             credential.updated_at,
@@ -285,12 +299,12 @@ pub async fn handle_github_oauth_callback(
 pub async fn handle_oauth_github_request(
     Query(queries): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, Error> {
-    let last_visit = queries.get("last_visit");
+    let return_to = queries.get("return_to");
     let site_url: String = std::env::var("SITE_URL").unwrap_or("http://localhost:4321".to_string());
     let redirect_uri = site_url
-        + "/login/oauth/callback/github"
-        + match last_visit {
-            Some(last_visit) => "?last_visit=".to_string() + last_visit,
+        + "/login/github"
+        + match return_to {
+            Some(return_to) => "?return_to=".to_string() + return_to,
             None => "".into(),
         }
         .as_str();

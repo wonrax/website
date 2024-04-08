@@ -4,6 +4,9 @@ use crate::{error::Error, APIContext};
 
 use self::models::identity::Identity;
 
+mod connected_apps;
+mod spotify;
+
 pub mod models;
 pub mod routes;
 

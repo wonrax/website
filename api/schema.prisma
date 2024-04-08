@@ -84,7 +84,7 @@ model IdentityCredentialType {
 
 model IdentityCredential {
   id                        Int                    @id @default(autoincrement())
-  credential                Json?                  @unique
+  credential                Json?
   credential_type_id        Int
   identity_id               Int
   created_at                DateTime               @db.Timestamp(6)
@@ -93,6 +93,7 @@ model IdentityCredential {
   identities                Identity               @relation(fields: [identity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([credential], type: Gin)
+  @@index([identity_id])
   @@map("identity_credentials")
 }
 

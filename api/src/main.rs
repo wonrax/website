@@ -26,6 +26,7 @@ mod github;
 mod identity;
 mod json;
 mod real_ip;
+mod schema;
 mod utils;
 
 #[global_allocator]
@@ -48,6 +49,7 @@ pub struct APIContext {
     pool: Pool<Postgres>,
     counters_ttl_cache: Arc<retainer::Cache<String, bool>>,
     config: ServerConfig,
+    diesel: diesel_async::pooled_connection::deadpool::Pool<diesel_async::AsyncPgConnection>,
 }
 
 #[tokio::main]
@@ -91,7 +93,7 @@ async fn main() {
     let postgres_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
 
     let pool = PgPoolOptions::new()
-        .max_connections(10)
+        .max_connections(7)
         .idle_timeout(Duration::from_secs(120))
         .acquire_timeout(Duration::from_secs(10))
         .connect(&postgres_url)
@@ -101,10 +103,20 @@ async fn main() {
             exit(1)
         });
 
+    let diesel_manager = diesel_async::pooled_connection::AsyncDieselConnectionManager::<
+        diesel_async::AsyncPgConnection,
+    >::new(postgres_url);
+    // TODO consider using bb8 pool since it has more features (min_idle, max_lifetime etc.)
+    let diesel_pool = diesel_async::pooled_connection::deadpool::Pool::builder(diesel_manager)
+        .max_size(3)
+        .build()
+        .expect("could not build Diesel pool");
+
     let shared_state = APIContext {
         pool,
         counters_ttl_cache: Arc::from(retainer::Cache::new()),
         config,
+        diesel: diesel_pool,
     };
 
     let cors = CorsLayer::new()
@@ -137,7 +149,7 @@ async fn main() {
         .route("/health", get(heath))
         .nest("/blog", blog::routes::route())
         .nest("/public", github::routes::route())
-        .nest("/identity", identity::routes::route())
+        .nest("/", identity::routes::route())
         .layer(cors)
         .with_state(shared_state)
         .layer(
