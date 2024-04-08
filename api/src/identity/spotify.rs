@@ -1,11 +1,17 @@
 use std::collections::{HashMap, HashSet};
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::{header, StatusCode},
     response::IntoResponse,
+    Json,
 };
-use rspotify::{clients::OAuthClient, model::Id};
+use diesel::deserialize::Queryable;
+use rspotify::{
+    clients::{BaseClient, OAuthClient},
+    model::Id,
+    Token,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -44,21 +50,7 @@ pub async fn handle_spotify_connect_request(
         }
         .as_str();
 
-    // TODO move this to shared config
-    let spotify_oauth_client_id: String = std::env::var("SPOTIFY_OAUTH_CLIENT_ID")
-        .expect("SPOTIFY_OAUTH_CLIENT_ID is not set in .env file");
-
-    let spotify_client = rspotify::AuthCodeSpotify::new(
-        rspotify::Credentials {
-            id: spotify_oauth_client_id,
-            secret: None,
-        },
-        rspotify::OAuth {
-            redirect_uri,
-            scopes: HashSet::from(["user-read-currently-playing".to_string()]),
-            ..Default::default() // to let it generate the state for us
-        },
-    );
+    let spotify_client = create_spotify_client(Some(redirect_uri));
 
     let url = spotify_client.get_authorize_url(false).unwrap();
 
@@ -80,12 +72,6 @@ pub async fn handle_spotify_callback(
         .get("code")
         .ok_or(("No `code` in query parameters", StatusCode::BAD_REQUEST))?;
 
-    // TODO move this to shared config
-    let spotify_oauth_client_id: String = std::env::var("SPOTIFY_OAUTH_CLIENT_ID")
-        .expect("SPOTIFY_OAUTH_CLIENT_ID is not set in .env file");
-    let spotify_oauth_client_secret: String = std::env::var("SPOTIFY_OAUTH_CLIENT_SECRET")
-        .expect("SPOTIFY_OAUTH_CLIENT_SECRET is not set in .env file");
-
     let return_to = queries.get("return_to");
     let site_url: String = std::env::var("SITE_URL").unwrap_or("http://localhost:4321".to_string());
     let redirect_uri = site_url
@@ -96,17 +82,7 @@ pub async fn handle_spotify_callback(
         }
         .as_str();
 
-    let spotify_client = rspotify::AuthCodeSpotify::new(
-        rspotify::Credentials {
-            id: spotify_oauth_client_id,
-            secret: Some(spotify_oauth_client_secret),
-        },
-        rspotify::OAuth {
-            redirect_uri,
-            scopes: HashSet::from(["user-read-currently-playing".to_string()]),
-            ..Default::default() // to let it generate the state for us
-        },
-    );
+    let spotify_client = create_spotify_client(Some(redirect_uri));
 
     spotify_client
         .request_token(code)
@@ -179,8 +155,115 @@ pub async fn handle_spotify_callback(
     Ok(())
 }
 
+#[derive(Serialize)]
+struct CurrentlyPlaying {
+    is_playing: bool,
+    item: Option<rspotify::model::PlayableItem>,
+    currently_playing_type: Option<String>,
+}
+
+// TODO cache spotify client to reuse access tokens
+#[axum::debug_handler]
+pub async fn get_currently_playing(
+    State(s): State<APIContext>,
+    Path(user_id): Path<i64>,
+) -> Result<impl IntoResponse, Error> {
+    use crate::schema::identity_credential_types;
+    use crate::schema::identity_credentials::dsl::*;
+    use diesel::prelude::*;
+    use diesel_async::RunQueryDsl;
+
+    // the user's spotify refresh token
+    let refresh_token: Option<String> = identity_credentials
+        .select(credential.retrieve_as_text("refresh_token"))
+        .inner_join(
+            identity_credential_types::table.on(credential_type_id
+                .eq(identity_credential_types::id)
+                .and(identity_credential_types::name.eq("oauth"))),
+        )
+        .filter(identity_id.eq(user_id as i32))
+        .filter(credential.contains(serde_json::json!({
+            "provider": "spotify"
+        })))
+        .first(&mut s.diesel.get().await.unwrap())
+        .await
+        .map_err(|e| {
+            format!(
+                "could not fetch spotify credential for user {}: {}",
+                user_id, e
+            )
+        })?;
+
+    match refresh_token {
+        Some(refresh_token) => {
+            let client = create_spotify_client(None);
+            let mut tok = client
+                .token
+                .lock()
+                .await
+                .map_err(|_| "could not take the lock on token")?;
+
+            *tok = Some(Token {
+                refresh_token: Some(refresh_token),
+                ..Default::default()
+            });
+
+            drop(tok);
+
+            client
+                .refresh_token()
+                .await
+                .map_err(|e| format!("could not refresh token: {}", e))?;
+
+            println!("{:?}", *client.get_token().lock().await.unwrap());
+
+            let cp = client
+                .current_playing(None, None::<&[_]>)
+                .await
+                .map_err(|e| {
+                    println!("{:?}", e);
+                    format!("could not get currently playing of user {}: {}", user_id, e,)
+                })?;
+
+            match cp {
+                Some(cp) => Ok(Json(CurrentlyPlaying {
+                    is_playing: cp.is_playing,
+                    item: cp.item,
+                    currently_playing_type: Some(format!("{:?}", cp.currently_playing_type)),
+                })),
+                None => Ok(Json(CurrentlyPlaying {
+                    is_playing: false,
+                    item: None,
+                    currently_playing_type: None,
+                })),
+            }
+        }
+        None => Err(("No data", StatusCode::NOT_FOUND))?,
+    }
+}
+
+fn create_spotify_client(redirect_uri: Option<String>) -> rspotify::AuthCodeSpotify {
+    // TODO move this to shared config
+    let spotify_oauth_client_id: String = std::env::var("SPOTIFY_OAUTH_CLIENT_ID")
+        .expect("SPOTIFY_OAUTH_CLIENT_ID is not set in .env file");
+    let spotify_oauth_client_secret: String = std::env::var("SPOTIFY_OAUTH_CLIENT_SECRET")
+        .expect("SPOTIFY_OAUTH_CLIENT_SECRET is not set in .env file");
+
+    rspotify::AuthCodeSpotify::new(
+        rspotify::Credentials {
+            id: spotify_oauth_client_id,
+            secret: Some(spotify_oauth_client_secret),
+        },
+        rspotify::OAuth {
+            redirect_uri: redirect_uri.unwrap_or_default(),
+            scopes: HashSet::from(["user-read-currently-playing".to_string()]),
+            ..Default::default() // to let it generate the state for us
+        },
+    )
+}
+
 /// The credentials being persisted in the database
-#[derive(Deserialize, Serialize)]
+#[derive(Queryable, Deserialize, Serialize)]
 pub struct SpotifyCredentials {
     pub user_id: String,
     pub display_name: String,
