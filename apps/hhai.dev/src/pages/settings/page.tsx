@@ -1,6 +1,12 @@
 import config from "@/config";
 import { AppState, checkAuthUser } from "@/state";
-import { Show, createEffect, createResource, type JSXElement } from "solid-js";
+import {
+  Show,
+  Suspense,
+  createEffect,
+  createResource,
+  type JSXElement,
+} from "solid-js";
 
 export default function AccountInfo(): JSXElement {
   createEffect(() => {
@@ -30,6 +36,29 @@ export default function AccountInfo(): JSXElement {
     };
   });
 
+  const [currentlyPlaying] = createResource(
+    () => AppState.authUser,
+    async (user) => {
+      // TODO verify schema using zod
+      const res = await fetch(
+        `${config.API_URL}/user/${user.id}/currently-playing`,
+      );
+      return (await res.json()) as {
+        is_playing: boolean;
+        item?: {
+          name: string;
+          external_urls: {
+            spotify: string;
+          };
+          artists: Array<{
+            name: string;
+          }>;
+        };
+        currently_playing_type?: string;
+      };
+    },
+  );
+
   return (
     <>
       <a href="/">Homepage</a>
@@ -44,6 +73,18 @@ export default function AccountInfo(): JSXElement {
           <p>{AppState.authUser?.email}</p>
         </div>
       </Show>
+
+      <Suspense fallback={<p>Loading currently playing</p>}>
+        <div class="currently-playing">
+          {(currentlyPlaying()?.is_playing ?? false) && <p>Listening to</p>}
+          {currentlyPlaying()?.item != null && (
+            <>
+              <h4>{currentlyPlaying()?.item?.name}</h4>
+              <p>{currentlyPlaying()?.item?.artists[0].name}</p>
+            </>
+          )}
+        </div>
+      </Suspense>
 
       <Show when={connectedApps.state === "ready"}>
         <div class="connections">

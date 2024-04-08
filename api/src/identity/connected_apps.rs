@@ -7,7 +7,7 @@ use serde::Serialize;
 #[derive(Queryable, Selectable)]
 #[diesel(table_name = crate::schema::identity_credentials)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
-struct IdentityCredentials {
+pub struct IdentityCredentials {
     id: i32,
     credential: Option<serde_json::Value>,
     credential_type_id: i32,
