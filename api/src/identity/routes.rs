@@ -18,6 +18,7 @@ use crate::{
 };
 
 use super::{
+    connected_apps::get_connected_apps,
     models::{
         credential::IdentityCredential,
         identity::{Identity, Traits},
@@ -31,6 +32,7 @@ pub fn route() -> Router<APIContext> {
     // TODO rate limit these public endpoints
     Router::<APIContext>::new()
         .route("/me", get(handle_whoami))
+        .route("/link/apps", get(get_connected_apps))
         .route("/is_auth", get(is_auth))
         .route("/logout", post(logout))
         .route("/login/github", get(handle_oauth_github_request))
