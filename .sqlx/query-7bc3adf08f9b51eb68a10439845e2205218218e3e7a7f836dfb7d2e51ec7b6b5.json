@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO identity_credentials (\n            credential,\n            credential_type_id,\n            identity_id,\n            created_at,\n            updated_at\n        )\n        VALUES (\n            $1,\n            (SELECT id FROM identity_credential_types WHERE name = $2),\n            $3,\n            $4,\n            $5\n        );\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Jsonb",
+        "Text",
+        "Int4",
+        "Timestamp",
+        "Timestamp"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7bc3adf08f9b51eb68a10439845e2205218218e3e7a7f836dfb7d2e51ec7b6b5"
+}
