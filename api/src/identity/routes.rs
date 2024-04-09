@@ -69,13 +69,18 @@ struct IsAuth {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     traits: Option<Traits>,
+
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    site_owner: bool,
 }
 
 async fn is_auth(MaybeAuthUser(identity): MaybeAuthUser) -> Result<axum::Json<IsAuth>, Error> {
     Ok(Json(IsAuth {
         is_auth: identity.is_ok(),
         id: identity.as_ref().ok().map(|i| i.id),
-        traits: identity.ok().map(|i| i.traits),
+        traits: identity.as_ref().ok().map(|i| i.traits.to_owned()),
+        // TODO remove hard-coded ID
+        site_owner: identity.as_ref().ok().map(|i| i.id == 1).unwrap_or(false),
     }))
 }
 
