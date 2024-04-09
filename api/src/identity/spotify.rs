@@ -215,13 +215,10 @@ pub async fn get_currently_playing(
                 .await
                 .map_err(|e| format!("could not refresh token: {}", e))?;
 
-            println!("{:?}", *client.get_token().lock().await.unwrap());
-
             let cp = client
                 .current_playing(None, None::<&[_]>)
                 .await
                 .map_err(|e| {
-                    println!("{:?}", e);
                     format!("could not get currently playing of user {}: {}", user_id, e,)
                 })?;
 
