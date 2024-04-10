@@ -43,8 +43,7 @@ pub async fn handle_spotify_connect_request(
     Query(queries): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, Error> {
     let return_to = queries.get("return_to");
-    let site_url: String = std::env::var("SITE_URL").unwrap_or("http://localhost:4321".to_string());
-    let redirect_uri = site_url
+    let redirect_uri = ctx.config.site_url.clone()
         + "/link/spotify"
         + match return_to {
             Some(return_to) => "?return_to=".to_string() + return_to,
@@ -75,8 +74,7 @@ pub async fn handle_spotify_callback(
         .ok_or(("No `code` in query parameters", StatusCode::BAD_REQUEST))?;
 
     let return_to = queries.get("return_to");
-    let site_url: String = std::env::var("SITE_URL").unwrap_or("http://localhost:4321".to_string());
-    let redirect_uri = site_url
+    let redirect_uri = ctx.config.site_url.clone()
         + "/link/spotify"
         + match return_to {
             Some(return_to) => "?return_to=".to_string() + return_to,

@@ -314,8 +314,7 @@ pub async fn handle_oauth_github_request(
     Query(queries): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, Error> {
     let return_to = queries.get("return_to");
-    let site_url: String = std::env::var("SITE_URL").unwrap_or("http://localhost:4321".to_string());
-    let redirect_uri = site_url
+    let redirect_uri = ctx.config.site_url.clone()
         + "/login/github"
         + match return_to {
             Some(return_to) => "?return_to=".to_string() + return_to,
