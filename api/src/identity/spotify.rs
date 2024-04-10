@@ -15,6 +15,7 @@ use rspotify::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    config::SpotifyOauth,
     error::{ApiRequestError, Error},
     identity::models::credential::IdentityCredential,
     APIContext,
@@ -38,6 +39,7 @@ impl ApiRequestError for SpotifyConnectError {}
 
 #[axum::debug_handler]
 pub async fn handle_spotify_connect_request(
+    State(ctx): State<APIContext>,
     Query(queries): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, Error> {
     let return_to = queries.get("return_to");
@@ -50,7 +52,7 @@ pub async fn handle_spotify_connect_request(
         }
         .as_str();
 
-    let spotify_client = create_spotify_client(Some(redirect_uri));
+    let spotify_client = create_spotify_client(ctx, Some(redirect_uri));
 
     let url = spotify_client.get_authorize_url(false).unwrap();
 
@@ -82,7 +84,7 @@ pub async fn handle_spotify_callback(
         }
         .as_str();
 
-    let spotify_client = create_spotify_client(Some(redirect_uri));
+    let spotify_client = create_spotify_client(ctx.clone(), Some(redirect_uri));
 
     spotify_client
         .request_token(code)
@@ -196,7 +198,7 @@ pub async fn get_currently_playing(
 
     match refresh_token {
         Some(refresh_token) => {
-            let client = create_spotify_client(None);
+            let client = create_spotify_client(s, None);
             let mut tok = client
                 .token
                 .lock()
@@ -215,13 +217,10 @@ pub async fn get_currently_playing(
                 .await
                 .map_err(|e| format!("could not refresh token: {}", e))?;
 
-            println!("{:?}", *client.get_token().lock().await.unwrap());
-
             let cp = client
                 .current_playing(None, None::<&[_]>)
                 .await
                 .map_err(|e| {
-                    println!("{:?}", e);
                     format!("could not get currently playing of user {}: {}", user_id, e,)
                 })?;
 
@@ -242,17 +241,23 @@ pub async fn get_currently_playing(
     }
 }
 
-fn create_spotify_client(redirect_uri: Option<String>) -> rspotify::AuthCodeSpotify {
-    // TODO move this to shared config
-    let spotify_oauth_client_id: String = std::env::var("SPOTIFY_OAUTH_CLIENT_ID")
-        .expect("SPOTIFY_OAUTH_CLIENT_ID is not set in .env file");
-    let spotify_oauth_client_secret: String = std::env::var("SPOTIFY_OAUTH_CLIENT_SECRET")
-        .expect("SPOTIFY_OAUTH_CLIENT_SECRET is not set in .env file");
+fn create_spotify_client(
+    ctx: APIContext,
+    redirect_uri: Option<String>,
+) -> rspotify::AuthCodeSpotify {
+    let SpotifyOauth {
+        client_id,
+        client_secret,
+    } = ctx
+        .config
+        .spotify_oauth
+        .as_ref()
+        .expect("Spotify Oauth credentials must be set");
 
     rspotify::AuthCodeSpotify::new(
         rspotify::Credentials {
-            id: spotify_oauth_client_id,
-            secret: Some(spotify_oauth_client_secret),
+            id: client_id.clone(),
+            secret: Some(client_secret.clone()),
         },
         rspotify::OAuth {
             redirect_uri: redirect_uri.unwrap_or_default(),

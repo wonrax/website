@@ -6,6 +6,7 @@ interface AuthUser {
   id: number;
   name: string;
   email: string;
+  siteOwner: boolean;
 }
 
 export const [AppState, SetAppState] = createStore<{
@@ -17,6 +18,7 @@ export async function checkAuthUser(): Promise<AuthUser | undefined> {
     credentials: "include",
   });
   if (res.ok) {
+    // todo validate using zod
     const body: {
       is_auth: boolean;
       id?: number;
@@ -24,6 +26,7 @@ export async function checkAuthUser(): Promise<AuthUser | undefined> {
         email: string;
         name: string;
       };
+      site_owner?: boolean;
     } = await res.json();
 
     if (!body.is_auth || body.traits == null || body.id == null) {
@@ -35,12 +38,14 @@ export async function checkAuthUser(): Promise<AuthUser | undefined> {
       id: body.id,
       name: body.traits.name,
       email: body.traits.email,
+      siteOwner: body.site_owner ?? false,
     });
 
     return {
       id: body.id,
       name: body.traits.name,
       email: body.traits.email,
+      siteOwner: body.site_owner ?? false,
     };
   } else {
     const error = ApiError.parse(await res.json());

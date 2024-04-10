@@ -31,7 +31,10 @@ use super::{routes::GitHubCredentials, spotify::SpotifyCredentials, AuthUser};
 
 #[derive(Serialize)]
 struct ConnectedApps {
+    #[serde(skip_serializing_if = "Option::is_none")]
     spotify: Option<Spotify>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     github: Option<GitHub>,
 }
 

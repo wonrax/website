@@ -5,12 +5,13 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use config::ServerConfig;
 use dotenv::dotenv;
 use mimalloc::MiMalloc;
 use serde::Serialize;
 use serde_json::json;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
-use std::{net::SocketAddr, process::exit, sync::Arc, time::Duration};
+use std::{net::SocketAddr, ops::Deref, process::exit, sync::Arc, time::Duration};
 use tower_http::{
     classify::ServerErrorsFailureClass,
     cors::{AllowOrigin, CorsLayer},
@@ -20,6 +21,7 @@ use tracing::{debug, error, info, info_span, Span};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod blog;
+mod config;
 mod crypto;
 mod error;
 mod github;
@@ -33,43 +35,36 @@ mod utils;
 static GLOBAL: MiMalloc = MiMalloc;
 
 #[derive(Clone)]
-enum Env {
-    Dev,
-    Staging,
-    Production,
+pub struct APIContext(Arc<Context>);
+
+impl Deref for APIContext {
+    type Target = Context;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
-#[derive(Clone)]
-struct ServerConfig {
-    env: Env,
-}
-
-#[derive(Clone)]
-pub struct APIContext {
+pub struct Context {
     pool: Pool<Postgres>,
-    counters_ttl_cache: Arc<retainer::Cache<String, bool>>,
+    counters_ttl_cache: retainer::Cache<String, bool>,
     config: ServerConfig,
     diesel: diesel_async::pooled_connection::deadpool::Pool<diesel_async::AsyncPgConnection>,
 }
 
 #[tokio::main]
 async fn main() {
+    // init default logger to enable logging in the configuration loading phase
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or("trace".into()))
+        .with(tracing_subscriber::fmt::layer().compact())
+        .init();
+
     dotenv().ok();
 
-    let config = ServerConfig {
-        env: match std::env::var("ENVIRONMENT") {
-            Ok(env) => match env.as_str() {
-                "dev" => Env::Dev,
-                "staging" => Env::Staging,
-                "production" => Env::Production,
-                _ => Env::Dev,
-            },
-            Err(_) => Env::Dev,
-        },
-    };
+    let config = ServerConfig::new_from_env();
 
     let (json, pretty) = match config.env {
-        Env::Dev => (None, Some(tracing_subscriber::fmt::layer().pretty())),
+        config::Env::Dev => (None, Some(tracing_subscriber::fmt::layer().pretty())),
         _ => (
             Some(
                 tracing_subscriber::fmt::layer()
@@ -88,7 +83,7 @@ async fn main() {
         .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or("info".into()))
         .with(json)
         .with(pretty)
-        .init();
+        .set_default();
 
     let postgres_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
 
@@ -112,12 +107,12 @@ async fn main() {
         .build()
         .expect("could not build Diesel pool");
 
-    let shared_state = APIContext {
+    let shared_state = APIContext(Arc::new(Context {
         pool,
-        counters_ttl_cache: Arc::from(retainer::Cache::new()),
+        counters_ttl_cache: retainer::Cache::new(),
         config,
         diesel: diesel_pool,
-    };
+    }));
 
     let cors = CorsLayer::new()
         // allow `GET` and `POST` when accessing the resource

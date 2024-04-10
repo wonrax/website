@@ -38,7 +38,7 @@ async fn handle_fetch_git_hub_profile_views(
         _ip = addr.ip().to_string();
     }
 
-    let cache = ctx.counters_ttl_cache;
+    let cache = &ctx.counters_ttl_cache;
 
     let mut row: Result<(i64,), sqlx::Error>;
 

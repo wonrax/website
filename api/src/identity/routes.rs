@@ -14,6 +14,7 @@ use serde_json::json;
 use time::Duration;
 
 use crate::{
+    config::GitHubOauth,
     error::{ApiRequestError, Error},
     APIContext,
 };
@@ -69,13 +70,18 @@ struct IsAuth {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     traits: Option<Traits>,
+
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    site_owner: bool,
 }
 
 async fn is_auth(MaybeAuthUser(identity): MaybeAuthUser) -> Result<axum::Json<IsAuth>, Error> {
     Ok(Json(IsAuth {
         is_auth: identity.is_ok(),
         id: identity.as_ref().ok().map(|i| i.id),
-        traits: identity.ok().map(|i| i.traits),
+        traits: identity.as_ref().ok().map(|i| i.traits.to_owned()),
+        // TODO remove hard-coded ID
+        site_owner: identity.as_ref().ok().map(|i| i.id == 1).unwrap_or(false),
     }))
 }
 
@@ -103,18 +109,21 @@ pub async fn handle_github_oauth_callback(
         .get("code")
         .ok_or(("No `code` in query parameters", StatusCode::BAD_REQUEST))?;
 
-    // TODO move this to shared config
-    let github_oauth_client_id: String = std::env::var("GITHUB_OAUTH_CLIENT_ID")
-        .expect("GITHUB_OAUTH_CLIENT_ID is not set in .env file");
-    let github_oauth_client_secret: String = std::env::var("GITHUB_OAUTH_CLIENT_SECRET")
-        .expect("GITHUB_OAUTH_CLIENT_SECRET is not set in .env file");
+    let GitHubOauth {
+        client_id: github_client_id,
+        client_secret: github_client_secret,
+    } = ctx
+        .config
+        .github_oauth
+        .as_ref()
+        .expect("GitHub Oauth credentials is not set");
 
     let code_verify: serde_json::Value = reqwest::Client::new()
         .post("https://github.com/login/oauth/access_token")
         .header("Accept", "application/json")
         .json(&serde_json::json!({
-            "client_id": github_oauth_client_id,
-            "client_secret": github_oauth_client_secret,
+            "client_id": github_client_id,
+            "client_secret": github_client_secret,
             "code": code
         }))
         .send()
@@ -301,6 +310,7 @@ pub async fn handle_github_oauth_callback(
 
 #[axum::debug_handler]
 pub async fn handle_oauth_github_request(
+    State(ctx): State<APIContext>,
     Query(queries): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, Error> {
     let return_to = queries.get("return_to");
@@ -313,13 +323,19 @@ pub async fn handle_oauth_github_request(
         }
         .as_str();
 
-    // TODO move this to shared config
-    let github_oauth_client_id: String = std::env::var("GITHUB_OAUTH_CLIENT_ID")
-        .expect("GITHUB_OAUTH_CLIENT_ID is not set in .env file");
+    let GitHubOauth {
+        client_id: github_client_id,
+        ..
+    } = ctx
+        .config
+        .github_oauth
+        .as_ref()
+        .expect("GitHub Oauth credentials is not set");
+
     let url = reqwest::Url::parse_with_params(
         "https://github.com/login/oauth/authorize",
         &[
-            ("client_id", github_oauth_client_id.as_str()),
+            ("client_id", github_client_id.as_str()),
             ("scope", "user:email"),
             ("redirect_uri", redirect_uri.as_str()),
         ],
