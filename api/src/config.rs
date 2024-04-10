@@ -1,5 +1,3 @@
-use std::collections::VecDeque;
-
 #[derive(Clone)]
 pub enum Env {
     Dev,
@@ -13,21 +11,21 @@ pub struct ServerConfig {
     pub spotify_oauth: Option<SpotifyOauth>,
 }
 
-struct GitHubOauth {
-    client_id: String,
-    client_secret: String,
+pub struct GitHubOauth {
+    pub client_id: String,
+    pub client_secret: String,
 }
 
-struct SpotifyOauth {
-    client_id: String,
-    client_secret: String,
+pub struct SpotifyOauth {
+    pub client_id: String,
+    pub client_secret: String,
 }
 
 fn var(key: &str) -> Result<Option<String>, String> {
     match std::env::var(key) {
         Ok(env) => Ok(Some(env)),
         Err(e) => {
-            tracing::warn!("Mising environment variable `key`");
+            tracing::warn!("Mising environment variable `{key}`");
             match e {
                 std::env::VarError::NotPresent => Ok(None),
                 std::env::VarError::NotUnicode(_) => Err(format!(
@@ -57,7 +55,7 @@ fn required_var(key: &str) -> String {
     }
 }
 
-/// Either all or none variables are set
+/// Either all or none variables are set, otherwise panics
 fn all_or_none_vars(keys: Vec<&str>) -> Option<Vec<String>> {
     keys.iter().fold(None, |accum, k| match var(k) {
         Ok(Some(val)) => match accum {
@@ -69,10 +67,12 @@ fn all_or_none_vars(keys: Vec<&str>) -> Option<Vec<String>> {
         },
         _ => match accum {
             Some(_) => {
+                let mut rest = keys.clone();
+                rest.retain(|_k| _k != k);
                 tracing::error!(
-                    "Environment variable `{k}` is required if variables {keys:?} are present"
+                    "Environment variable `{k}` is required if variables {rest:?} are present"
                 );
-                None
+                std::process::exit(1);
             }
             None => None,
         },

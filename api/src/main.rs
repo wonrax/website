@@ -53,6 +53,12 @@ pub struct Context {
 
 #[tokio::main]
 async fn main() {
+    // init default logger to enable logging in the configuration loading phase
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or("trace".into()))
+        .with(tracing_subscriber::fmt::layer().compact())
+        .init();
+
     dotenv().ok();
 
     let config = ServerConfig::new_from_env();
@@ -77,7 +83,7 @@ async fn main() {
         .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or("info".into()))
         .with(json)
         .with(pretty)
-        .init();
+        .set_default();
 
     let postgres_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
 
