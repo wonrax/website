@@ -4,11 +4,11 @@ use axum::{
     http::StatusCode,
 };
 
-use crate::{error::Error, identity::AuthUser, APIContext};
+use crate::{error::Error, identity::AuthUser, App};
 
 #[debug_handler]
 pub async fn delete_comment(
-    State(ctx): State<APIContext>,
+    State(ctx): State<App>,
     Path((_slug, id)): Path<(String, i32)>,
     AuthUser(auth_user): AuthUser,
 ) -> Result<(), Error> {

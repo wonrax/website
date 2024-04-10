@@ -25,7 +25,7 @@ struct IdentityCredentialTypes {
     created_at: chrono::NaiveDateTime,
 }
 
-use crate::{error::Error, APIContext};
+use crate::{error::Error, App};
 
 use super::{routes::GitHubCredentials, spotify::SpotifyCredentials, AuthUser};
 
@@ -51,7 +51,7 @@ struct GitHub {
 }
 
 pub async fn get_connected_apps(
-    State(s): State<APIContext>,
+    State(s): State<App>,
     AuthUser(i): AuthUser,
 ) -> Result<impl IntoResponse, Error> {
     let conn = &mut s

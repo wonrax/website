@@ -8,7 +8,7 @@ use std::{
     sync::OnceLock,
 };
 
-use crate::{error::Error, APIContext};
+use crate::{error::Error, App};
 
 static CLOUDFRONT_PREFIXES: OnceLock<Vec<IpNetwork>> = OnceLock::new();
 
@@ -50,13 +50,10 @@ pub fn is_cloudfront_ip(ip: &IpAddr) -> bool {
 pub struct ClientIp(pub IpAddr);
 
 #[axum::async_trait]
-impl axum::extract::FromRequestParts<APIContext> for ClientIp {
+impl axum::extract::FromRequestParts<App> for ClientIp {
     type Rejection = Error;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        _state: &APIContext,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, _state: &App) -> Result<Self, Self::Rejection> {
         let mut x_forwarded_for_ips = parts
             .headers
             .get_all("x-forwarded-for")

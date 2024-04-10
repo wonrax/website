@@ -10,20 +10,20 @@ use axum::{
 
 use crate::{
     utils::{readable_uint, render_template},
-    APIContext,
+    App,
 };
 
 const GITHUB_VIEWS_HTML_TEMPLATE: &str = include_str!("github.html");
 
-pub fn route() -> Router<APIContext> {
-    Router::<APIContext>::new().route(
+pub fn route() -> Router<App> {
+    Router::<App>::new().route(
         "/github-profile-views",
         get(handle_fetch_git_hub_profile_views),
     )
 }
 
 async fn handle_fetch_git_hub_profile_views(
-    State(ctx): State<APIContext>,
+    State(ctx): State<App>,
     headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> Response {

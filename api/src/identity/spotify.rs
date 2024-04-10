@@ -18,7 +18,7 @@ use crate::{
     config::SpotifyOauth,
     error::{ApiRequestError, Error},
     identity::models::credential::IdentityCredential,
-    APIContext,
+    App,
 };
 
 use super::AuthUser;
@@ -39,7 +39,7 @@ impl ApiRequestError for SpotifyConnectError {}
 
 #[axum::debug_handler]
 pub async fn handle_spotify_connect_request(
-    State(ctx): State<APIContext>,
+    State(ctx): State<App>,
     Query(queries): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, Error> {
     let return_to = queries.get("return_to");
@@ -61,7 +61,7 @@ pub async fn handle_spotify_connect_request(
 
 #[axum::debug_handler]
 pub async fn handle_spotify_callback(
-    State(ctx): State<APIContext>,
+    State(ctx): State<App>,
     Query(queries): Query<HashMap<String, String>>,
     AuthUser(i): AuthUser,
 ) -> Result<impl IntoResponse, Error> {
@@ -167,7 +167,7 @@ struct CurrentlyPlaying {
 // TODO cache spotify client to reuse access tokens
 #[axum::debug_handler]
 pub async fn get_currently_playing(
-    State(s): State<APIContext>,
+    State(s): State<App>,
     Path(user_id): Path<i64>,
 ) -> Result<impl IntoResponse, Error> {
     use crate::schema::identity_credential_types;
@@ -241,10 +241,7 @@ pub async fn get_currently_playing(
     }
 }
 
-fn create_spotify_client(
-    ctx: APIContext,
-    redirect_uri: Option<String>,
-) -> rspotify::AuthCodeSpotify {
+fn create_spotify_client(ctx: App, redirect_uri: Option<String>) -> rspotify::AuthCodeSpotify {
     let SpotifyOauth {
         client_id,
         client_secret,

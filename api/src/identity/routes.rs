@@ -16,7 +16,7 @@ use time::Duration;
 use crate::{
     config::GitHubOauth,
     error::{ApiRequestError, Error},
-    APIContext,
+    App,
 };
 
 use super::{
@@ -30,9 +30,9 @@ use super::{
     AuthenticationError, MaybeAuthUser, COOKIE_NAME,
 };
 
-pub fn route() -> Router<APIContext> {
+pub fn route() -> Router<App> {
     // TODO rate limit these public endpoints
-    Router::<APIContext>::new()
+    Router::<App>::new()
         .route("/me", get(handle_whoami))
         .route("/link/apps", get(get_connected_apps))
         .route("/is_auth", get(is_auth))
@@ -102,7 +102,7 @@ pub struct GitHubCredentials {
 
 #[axum::debug_handler]
 pub async fn handle_github_oauth_callback(
-    State(ctx): State<APIContext>,
+    State(ctx): State<App>,
     Query(queries): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, Error> {
     let code = queries
@@ -310,7 +310,7 @@ pub async fn handle_github_oauth_callback(
 
 #[axum::debug_handler]
 pub async fn handle_oauth_github_request(
-    State(ctx): State<APIContext>,
+    State(ctx): State<App>,
     Query(queries): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, Error> {
     let return_to = queries.get("return_to");
