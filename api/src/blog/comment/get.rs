@@ -7,7 +7,7 @@ use axum::{
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
-use crate::{error::Error, identity::MaybeAuthUser, APIContext};
+use crate::{error::Error, identity::MaybeAuthUser, App};
 
 use super::CommentTree;
 
@@ -38,7 +38,7 @@ impl<'de> Deserialize<'de> for SortType {
 }
 
 pub async fn get_comments(
-    State(ctx): State<APIContext>,
+    State(ctx): State<App>,
     Path(slug): Path<String>,
     q: Query<Queries>,
     MaybeAuthUser(auth_user): MaybeAuthUser,

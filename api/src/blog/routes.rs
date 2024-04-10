@@ -3,15 +3,15 @@ use axum::{
     Router,
 };
 
-use crate::APIContext;
+use crate::App;
 
 use super::comment::{
     create::create_comment, delete::delete_comment, get::get_comments, patch::patch_comment,
 };
 
-pub fn route() -> Router<APIContext> {
+pub fn route() -> Router<App> {
     // TODO rate limit these public endpoints
-    Router::<APIContext>::new()
+    Router::<App>::new()
         .route("/:slug/comments", get(get_comments))
         .route("/:slug/comments", post(create_comment))
         .route("/:slug/comments/:id", patch(patch_comment))

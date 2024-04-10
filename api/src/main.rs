@@ -35,16 +35,16 @@ mod utils;
 static GLOBAL: MiMalloc = MiMalloc;
 
 #[derive(Clone)]
-pub struct APIContext(Arc<Context>);
+pub struct App(Arc<Inner>);
 
-impl Deref for APIContext {
-    type Target = Context;
+impl Deref for App {
+    type Target = Inner;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-pub struct Context {
+pub struct Inner {
     pool: Pool<Postgres>,
     counters_ttl_cache: retainer::Cache<String, bool>,
     config: ServerConfig,
@@ -107,7 +107,7 @@ async fn main() {
         .build()
         .expect("could not build Diesel pool");
 
-    let shared_state = APIContext(Arc::new(Context {
+    let shared_state = App(Arc::new(Inner {
         pool,
         counters_ttl_cache: retainer::Cache::new(),
         config,

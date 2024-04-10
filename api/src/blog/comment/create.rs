@@ -10,14 +10,14 @@ use crate::{
     error::Error,
     identity::{self, models::identity::Traits, MaybeAuthUser},
     real_ip::ClientIp,
-    APIContext,
+    App,
 };
 
 use crate::blog::comment::Comment;
 
 #[debug_handler]
 pub async fn create_comment(
-    State(ctx): State<APIContext>,
+    State(ctx): State<App>,
     Path(slug): Path<String>,
     ClientIp(ip): ClientIp,
     MaybeAuthUser(auth_user): MaybeAuthUser,

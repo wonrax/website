@@ -7,13 +7,11 @@ use axum::{
 use serde::Deserialize;
 use sqlx::FromRow;
 
-use crate::{
-    blog::comment::Comment, error::Error, identity::AuthUser, real_ip::ClientIp, APIContext,
-};
+use crate::{blog::comment::Comment, error::Error, identity::AuthUser, real_ip::ClientIp, App};
 
 #[debug_handler]
 pub async fn patch_comment(
-    State(ctx): State<APIContext>,
+    State(ctx): State<App>,
     Path((_slug, id)): Path<(String, i32)>,
     ClientIp(ip): ClientIp,
     AuthUser(auth_user): AuthUser,

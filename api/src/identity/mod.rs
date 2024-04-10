@@ -1,6 +1,6 @@
 use axum::http::request::Parts;
 
-use crate::{error::Error, APIContext};
+use crate::{error::Error, App};
 
 use self::models::identity::Identity;
 
@@ -27,13 +27,10 @@ pub enum AuthenticationError {
 pub struct MaybeAuthUser(pub Result<Identity, AuthenticationError>);
 
 #[axum::async_trait]
-impl axum::extract::FromRequestParts<APIContext> for MaybeAuthUser {
+impl axum::extract::FromRequestParts<App> for MaybeAuthUser {
     type Rejection = Error;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &APIContext,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &App) -> Result<Self, Self::Rejection> {
         let jar = axum_extra::extract::cookie::CookieJar::from_headers(&parts.headers);
 
         // TODO implement and use an additional shorter cookie length and expiry
@@ -72,13 +69,10 @@ impl axum::extract::FromRequestParts<APIContext> for MaybeAuthUser {
 pub struct AuthUser(pub Identity);
 
 #[axum::async_trait]
-impl axum::extract::FromRequestParts<APIContext> for AuthUser {
+impl axum::extract::FromRequestParts<App> for AuthUser {
     type Rejection = Error;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &APIContext,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &App) -> Result<Self, Self::Rejection> {
         let MaybeAuthUser(auth_user) = MaybeAuthUser::from_request_parts(parts, state).await?;
 
         Ok(AuthUser(auth_user?))

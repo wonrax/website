@@ -7,6 +7,11 @@ pub enum Env {
 
 pub struct ServerConfig {
     pub env: Env,
+
+    /// Website URL (i.e. frontend) in full form without trailing slash
+    /// e.g. https://hhai.dev
+    pub site_url: String,
+
     pub github_oauth: Option<GitHubOauth>,
     pub spotify_oauth: Option<SpotifyOauth>,
 }
@@ -98,16 +103,23 @@ impl ServerConfig {
             client_secret: vars.remove(0),
         });
 
-        ServerConfig {
-            env: match var("ENVIRONMENT") {
-                Ok(Some(env)) => match env.as_str() {
-                    "dev" => Env::Dev,
-                    "staging" => Env::Staging,
-                    "production" => Env::Production,
-                    _ => Env::Dev,
-                },
+        let env = match var("ENVIRONMENT") {
+            Ok(Some(env)) => match env.as_str() {
+                "dev" => Env::Dev,
+                "staging" => Env::Staging,
+                "production" => Env::Production,
                 _ => Env::Dev,
             },
+            _ => Env::Dev,
+        };
+
+        let site_url = var("SITE_URL")
+            .unwrap_or(Some("http://localhost:4321".to_string()))
+            .unwrap_or("http://localhost:4321".to_string());
+
+        ServerConfig {
+            env,
+            site_url,
             github_oauth,
             spotify_oauth,
         }
