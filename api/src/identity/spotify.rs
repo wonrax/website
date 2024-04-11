@@ -193,12 +193,8 @@ pub async fn get_currently_playing(State(s): State<App>) -> Result<impl IntoResp
         let user_id = s.config.owner_identity_id;
 
         let client = SPOTIFY_CLIENT
-            .get_or_init(|| async {
-                create_my_authorized_spotify_client(s, user_id)
-                    .await
-                    .expect("Global Spotify client could not be created")
-            })
-            .await;
+            .get_or_try_init(|| async { create_my_authorized_spotify_client(s, user_id).await })
+            .await?;
 
         let cp = client
             .current_playing(None, None::<&[_]>)
@@ -222,17 +218,20 @@ pub async fn get_currently_playing(State(s): State<App>) -> Result<impl IntoResp
     }
 
     let lock = CURRENTLY_PLAYING_CACHE
-        .get_or_init(|| async {
-            RwLock::new((Arc::new(fetch_cp(&s).await.unwrap()), time::Instant::now()))
+        .get_or_try_init(|| async {
+            Ok::<_, Error>(RwLock::new((
+                Arc::new(fetch_cp(&s).await?),
+                time::Instant::now(),
+            )))
         })
-        .await;
+        .await?;
 
     let cache = lock.read().await;
 
     let cp = if cache.1.elapsed() > Duration::from_secs(1) {
         drop(cache);
         let mut cache = lock.write().await;
-        *cache = (Arc::new(fetch_cp(&s).await.unwrap()), time::Instant::now());
+        *cache = (Arc::new(fetch_cp(&s).await?), time::Instant::now());
         cache.0.to_owned()
     } else {
         cache.0.to_owned()
@@ -319,6 +318,6 @@ async fn create_my_authorized_spotify_client(
 
             Ok(client)
         }
-        None => Err(("No data", StatusCode::NOT_FOUND))?,
+        None => Err("Couldn't find refresh_token field in Spotify credentials")?,
     }
 }
