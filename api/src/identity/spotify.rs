@@ -1,12 +1,12 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::Arc,
+    time::Duration,
 };
 
-use tokio::sync::OnceCell;
+use tokio::sync::{OnceCell, RwLock};
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Query, State},
     http::{header, StatusCode},
     response::IntoResponse,
     Json,
@@ -27,6 +27,16 @@ use crate::{
 };
 
 use super::AuthUser;
+
+/// The credentials being persisted in the database
+#[derive(Queryable, Deserialize, Serialize)]
+pub struct SpotifyCredentials {
+    pub user_id: String,
+    pub display_name: String,
+    pub refresh_token: String,
+    pub scopes: Vec<String>,
+    pub provider: String,
+}
 
 #[derive(thiserror::Error, Debug)]
 pub enum SpotifyConnectError {
@@ -166,42 +176,66 @@ pub async fn handle_spotify_callback(
 /// every time the client is newly created.
 static SPOTIFY_CLIENT: OnceCell<AuthCodeSpotify> = OnceCell::const_new();
 
-#[derive(Serialize)]
+static CURRENTLY_PLAYING_CACHE: OnceCell<RwLock<(CurrentlyPlaying, time::Instant)>> =
+    OnceCell::const_new();
+
+#[derive(Clone, Serialize)]
 struct CurrentlyPlaying {
     is_playing: bool,
     item: Option<rspotify::model::PlayableItem>,
     currently_playing_type: Option<String>,
 }
 
-// TODO cache spotify client to reuse access tokens
 #[axum::debug_handler]
 pub async fn get_currently_playing(State(s): State<App>) -> Result<impl IntoResponse, Error> {
-    let user_id = s.config.owner_identity_id;
+    async fn fetch_cp(s: &App) -> Result<CurrentlyPlaying, Error> {
+        let user_id = s.config.owner_identity_id;
 
-    let client = SPOTIFY_CLIENT.get_or_init(|| async {
-        create_my_authorized_spotify_client(&s, user_id)
+        let client = SPOTIFY_CLIENT
+            .get_or_init(|| async {
+                create_my_authorized_spotify_client(s, user_id)
+                    .await
+                    .expect("Global Spotify client could not be created")
+            })
+            .await;
+
+        let cp = client
+            .current_playing(None, None::<&[_]>)
             .await
-            .expect("Global Spotify client could not be created")
-    });
+            .map_err(|e| format!("could not get currently playing of user {}: {}", user_id, e,))?;
 
-    let cp = client
-        .await
-        .current_playing(None, None::<&[_]>)
-        .await
-        .map_err(|e| format!("could not get currently playing of user {}: {}", user_id, e,))?;
+        let cp = match cp {
+            Some(cp) => CurrentlyPlaying {
+                is_playing: cp.is_playing,
+                item: cp.item,
+                currently_playing_type: Some(format!("{:?}", cp.currently_playing_type)),
+            },
+            None => CurrentlyPlaying {
+                is_playing: false,
+                item: None,
+                currently_playing_type: None,
+            },
+        };
 
-    match cp {
-        Some(cp) => Ok(Json(CurrentlyPlaying {
-            is_playing: cp.is_playing,
-            item: cp.item,
-            currently_playing_type: Some(format!("{:?}", cp.currently_playing_type)),
-        })),
-        None => Ok(Json(CurrentlyPlaying {
-            is_playing: false,
-            item: None,
-            currently_playing_type: None,
-        })),
+        Ok(cp)
     }
+
+    let lock = CURRENTLY_PLAYING_CACHE
+        .get_or_init(|| async { RwLock::new((fetch_cp(&s).await.unwrap(), time::Instant::now())) })
+        .await;
+
+    let cache = lock.read().await;
+
+    let cp = if cache.1.elapsed() > Duration::from_secs(1) {
+        drop(cache);
+        let mut cache = lock.write().await;
+        *cache = (fetch_cp(&s).await.unwrap(), time::Instant::now());
+        cache.0.clone()
+    } else {
+        cache.0.clone()
+    };
+
+    Ok(Json(cp))
 }
 
 fn create_spotify_client(ctx: App, redirect_uri: Option<String>) -> rspotify::AuthCodeSpotify {
@@ -284,14 +318,4 @@ async fn create_my_authorized_spotify_client(
         }
         None => Err(("No data", StatusCode::NOT_FOUND))?,
     }
-}
-
-/// The credentials being persisted in the database
-#[derive(Queryable, Deserialize, Serialize)]
-pub struct SpotifyCredentials {
-    pub user_id: String,
-    pub display_name: String,
-    pub refresh_token: String,
-    pub scopes: Vec<String>,
-    pub provider: String,
 }
