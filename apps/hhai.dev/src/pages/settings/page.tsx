@@ -36,28 +36,23 @@ export default function AccountInfo(): JSXElement {
     };
   });
 
-  const [currentlyPlaying] = createResource(
-    () => AppState.authUser,
-    async (user) => {
-      // TODO verify schema using zod
-      const res = await fetch(
-        `${config.API_URL}/user/${user.id}/currently-playing`,
-      );
-      return (await res.json()) as {
-        is_playing: boolean;
-        item?: {
-          name: string;
-          external_urls: {
-            spotify: string;
-          };
-          artists: Array<{
-            name: string;
-          }>;
+  const [currentlyPlaying] = createResource(async () => {
+    // TODO verify schema using zod
+    const res = await fetch(`${config.API_URL}/currently-playing`);
+    return (await res.json()) as {
+      is_playing: boolean;
+      item?: {
+        name: string;
+        external_urls: {
+          spotify: string;
         };
-        currently_playing_type?: string;
+        artists: Array<{
+          name: string;
+        }>;
       };
-    },
-  );
+      currently_playing_type?: string;
+    };
+  });
 
   return (
     <>

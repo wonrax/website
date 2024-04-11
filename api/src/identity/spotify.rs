@@ -1,4 +1,9 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
+
+use tokio::sync::OnceCell;
 
 use axum::{
     extract::{Path, Query, State},
@@ -10,7 +15,7 @@ use diesel::deserialize::Queryable;
 use rspotify::{
     clients::{BaseClient, OAuthClient},
     model::Id,
-    Token,
+    AuthCodeSpotify, Token,
 };
 use serde::{Deserialize, Serialize};
 
@@ -155,6 +160,12 @@ pub async fn handle_spotify_callback(
     Ok(())
 }
 
+/// Cache spotify client that ties to my account, so that you don't have to
+/// create a new client for every request. It also reuses the access token and
+/// only refreshed when expired, contrast to having to request for access token
+/// every time the client is newly created.
+static SPOTIFY_CLIENT: OnceCell<AuthCodeSpotify> = OnceCell::const_new();
+
 #[derive(Serialize)]
 struct CurrentlyPlaying {
     is_playing: bool,
@@ -164,78 +175,32 @@ struct CurrentlyPlaying {
 
 // TODO cache spotify client to reuse access tokens
 #[axum::debug_handler]
-pub async fn get_currently_playing(
-    State(s): State<App>,
-    Path(user_id): Path<i64>,
-) -> Result<impl IntoResponse, Error> {
-    use crate::schema::identity_credential_types;
-    use crate::schema::identity_credentials::dsl::*;
-    use diesel::prelude::*;
-    use diesel_async::RunQueryDsl;
+pub async fn get_currently_playing(State(s): State<App>) -> Result<impl IntoResponse, Error> {
+    let user_id = s.config.owner_identity_id;
 
-    // the user's spotify refresh token
-    let refresh_token: Option<String> = identity_credentials
-        .select(credential.retrieve_as_text("refresh_token"))
-        .inner_join(
-            identity_credential_types::table.on(credential_type_id
-                .eq(identity_credential_types::id)
-                .and(identity_credential_types::name.eq("oauth"))),
-        )
-        .filter(identity_id.eq(user_id as i32))
-        .filter(credential.contains(serde_json::json!({
-            "provider": "spotify"
-        })))
-        .first(&mut s.diesel.get().await.unwrap())
+    let client = SPOTIFY_CLIENT.get_or_init(|| async {
+        create_my_authorized_spotify_client(&s, user_id)
+            .await
+            .expect("Global Spotify client could not be created")
+    });
+
+    let cp = client
         .await
-        .map_err(|e| {
-            format!(
-                "could not fetch spotify credential for user {}: {}",
-                user_id, e
-            )
-        })?;
+        .current_playing(None, None::<&[_]>)
+        .await
+        .map_err(|e| format!("could not get currently playing of user {}: {}", user_id, e,))?;
 
-    match refresh_token {
-        Some(refresh_token) => {
-            let client = create_spotify_client(s, None);
-            let mut tok = client
-                .token
-                .lock()
-                .await
-                .map_err(|_| "could not take the lock on token")?;
-
-            *tok = Some(Token {
-                refresh_token: Some(refresh_token),
-                ..Default::default()
-            });
-
-            drop(tok);
-
-            client
-                .refresh_token()
-                .await
-                .map_err(|e| format!("could not refresh token: {}", e))?;
-
-            let cp = client
-                .current_playing(None, None::<&[_]>)
-                .await
-                .map_err(|e| {
-                    format!("could not get currently playing of user {}: {}", user_id, e,)
-                })?;
-
-            match cp {
-                Some(cp) => Ok(Json(CurrentlyPlaying {
-                    is_playing: cp.is_playing,
-                    item: cp.item,
-                    currently_playing_type: Some(format!("{:?}", cp.currently_playing_type)),
-                })),
-                None => Ok(Json(CurrentlyPlaying {
-                    is_playing: false,
-                    item: None,
-                    currently_playing_type: None,
-                })),
-            }
-        }
-        None => Err(("No data", StatusCode::NOT_FOUND))?,
+    match cp {
+        Some(cp) => Ok(Json(CurrentlyPlaying {
+            is_playing: cp.is_playing,
+            item: cp.item,
+            currently_playing_type: Some(format!("{:?}", cp.currently_playing_type)),
+        })),
+        None => Ok(Json(CurrentlyPlaying {
+            is_playing: false,
+            item: None,
+            currently_playing_type: None,
+        })),
     }
 }
 
@@ -260,6 +225,65 @@ fn create_spotify_client(ctx: App, redirect_uri: Option<String>) -> rspotify::Au
             ..Default::default() // to let it generate the state for us
         },
     )
+}
+
+async fn create_my_authorized_spotify_client(
+    s: &App,
+    user_id: i32,
+) -> Result<AuthCodeSpotify, Error> {
+    use crate::schema::identity_credential_types;
+    use crate::schema::identity_credentials::dsl::*;
+    use diesel::prelude::*;
+    use diesel_async::RunQueryDsl;
+
+    tracing::info!("Creating global spotify client with user ID {user_id}");
+
+    // the user's spotify refresh token
+    let refresh_token: Option<String> = identity_credentials
+        .select(credential.retrieve_as_text("refresh_token"))
+        .inner_join(
+            identity_credential_types::table.on(credential_type_id
+                .eq(identity_credential_types::id)
+                .and(identity_credential_types::name.eq("oauth"))),
+        )
+        .filter(identity_id.eq(user_id))
+        .filter(credential.contains(serde_json::json!({
+            "provider": "spotify"
+        })))
+        .first(&mut s.diesel.get().await.unwrap())
+        .await
+        .map_err(|e| {
+            format!(
+                "could not fetch spotify credential for user {}: {}",
+                user_id, e
+            )
+        })?;
+
+    match refresh_token {
+        Some(refresh_token) => {
+            let client = create_spotify_client(s.clone(), None);
+            let mut tok = client
+                .token
+                .lock()
+                .await
+                .map_err(|_| "could not take the lock on token")?;
+
+            *tok = Some(Token {
+                refresh_token: Some(refresh_token),
+                ..Default::default()
+            });
+
+            drop(tok);
+
+            client
+                .refresh_token()
+                .await
+                .map_err(|e| format!("could not refresh token: {}", e))?;
+
+            Ok(client)
+        }
+        None => Err(("No data", StatusCode::NOT_FOUND))?,
+    }
 }
 
 /// The credentials being persisted in the database

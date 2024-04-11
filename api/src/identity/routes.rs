@@ -41,10 +41,7 @@ pub fn route() -> Router<App> {
         .route("/login/github/callback", get(handle_github_oauth_callback))
         .route("/link/spotify", get(handle_spotify_connect_request))
         .route("/link/spotify/callback", get(handle_spotify_callback))
-        .route(
-            "/user/:user_id/currently-playing",
-            get(get_currently_playing),
-        )
+        .route("/currently-playing", get(get_currently_playing))
 }
 
 #[derive(serde::Serialize)]
