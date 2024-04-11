@@ -17,7 +17,7 @@ use tower_http::{
     cors::{AllowOrigin, CorsLayer},
     trace::TraceLayer,
 };
-use tracing::{debug, error, info, info_span, Span};
+use tracing::{debug, error, info, info_span, instrument::WithSubscriber, Span};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod blog;
@@ -53,15 +53,15 @@ pub struct Inner {
 
 #[tokio::main]
 async fn main() {
-    // init default logger to enable logging in the configuration loading phase
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or("trace".into()))
-        .with(tracing_subscriber::fmt::layer().compact())
-        .init();
+    // temp subscriber for logging in the configuration loading phase
+    let d = tracing_subscriber::FmtSubscriber::builder()
+        .pretty()
+        .compact()
+        .finish();
 
     dotenv().ok();
 
-    let config = ServerConfig::new_from_env();
+    let config = tracing::subscriber::with_default(d, || ServerConfig::new_from_env());
 
     let (json, pretty) = match config.env {
         config::Env::Dev => (None, Some(tracing_subscriber::fmt::layer().pretty())),
@@ -83,7 +83,7 @@ async fn main() {
         .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or("info".into()))
         .with(json)
         .with(pretty)
-        .set_default();
+        .init();
 
     let postgres_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
 
