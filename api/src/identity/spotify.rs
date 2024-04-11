@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    sync::Arc,
     time::Duration,
 };
 
@@ -176,7 +177,7 @@ pub async fn handle_spotify_callback(
 /// every time the client is newly created.
 static SPOTIFY_CLIENT: OnceCell<AuthCodeSpotify> = OnceCell::const_new();
 
-static CURRENTLY_PLAYING_CACHE: OnceCell<RwLock<(CurrentlyPlaying, time::Instant)>> =
+static CURRENTLY_PLAYING_CACHE: OnceCell<RwLock<(Arc<CurrentlyPlaying>, time::Instant)>> =
     OnceCell::const_new();
 
 #[derive(Clone, Serialize)]
@@ -221,7 +222,9 @@ pub async fn get_currently_playing(State(s): State<App>) -> Result<impl IntoResp
     }
 
     let lock = CURRENTLY_PLAYING_CACHE
-        .get_or_init(|| async { RwLock::new((fetch_cp(&s).await.unwrap(), time::Instant::now())) })
+        .get_or_init(|| async {
+            RwLock::new((Arc::new(fetch_cp(&s).await.unwrap()), time::Instant::now()))
+        })
         .await;
 
     let cache = lock.read().await;
@@ -229,10 +232,10 @@ pub async fn get_currently_playing(State(s): State<App>) -> Result<impl IntoResp
     let cp = if cache.1.elapsed() > Duration::from_secs(1) {
         drop(cache);
         let mut cache = lock.write().await;
-        *cache = (fetch_cp(&s).await.unwrap(), time::Instant::now());
-        cache.0.clone()
+        *cache = (Arc::new(fetch_cp(&s).await.unwrap()), time::Instant::now());
+        cache.0.to_owned()
     } else {
-        cache.0.clone()
+        cache.0.to_owned()
     };
 
     Ok(Json(cp))
