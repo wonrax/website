@@ -14,6 +14,9 @@ pub struct ServerConfig {
 
     pub github_oauth: Option<GitHubOauth>,
     pub spotify_oauth: Option<SpotifyOauth>,
+
+    // My ID in the identities table
+    pub owner_identity_id: i32,
 }
 
 pub struct GitHubOauth {
@@ -122,6 +125,7 @@ impl ServerConfig {
             site_url,
             github_oauth,
             spotify_oauth,
+            owner_identity_id: 1,
         }
     }
 }

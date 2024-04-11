@@ -7,6 +7,7 @@ use tracing::debug;
 
 /// The main error type for the application. Every handler should return this
 /// type as the error type.
+#[derive(Debug)]
 pub struct Error {
     error: Inner,
     reason: Option<serde_json::Value>,
@@ -26,6 +27,7 @@ impl std::fmt::Display for Error {
     }
 }
 
+#[derive(Debug)]
 pub enum Inner {
     ServerError(Box<dyn std::error::Error>),
     ApiError(Box<dyn ApiRequestError>),
@@ -91,7 +93,7 @@ impl From<String> for Error {
     }
 }
 
-pub trait ApiRequestError: std::fmt::Display {
+pub trait ApiRequestError: std::fmt::Display + std::fmt::Debug {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
     }
@@ -148,6 +150,7 @@ impl From<(ErrorCode, &'static str, StatusCode)> for Error {
     }
 }
 
+#[derive(Debug)]
 struct ErrorResponseBuilder {
     code: Option<String>,
     msg: String,
