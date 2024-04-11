@@ -25,8 +25,16 @@ export default function CurrentlyPlaying(): JSXElement {
       {currentlyPlaying()?.item != null && (
         <div class="currently-playing">
           <p>Listening to</p>
-          <h4>{currentlyPlaying()?.item?.name}</h4>
-          <p>by {currentlyPlaying()?.item?.artists[0].name}</p>
+          <p>
+            <span>🟢</span>
+            <a
+              href={currentlyPlaying()?.item?.external_urls.spotify}
+              target="_blank"
+            >
+              <strong>{currentlyPlaying()?.item?.name}</strong>
+            </a>{" "}
+            by {currentlyPlaying()?.item?.artists[0].name}
+          </p>
         </div>
       )}
     </Suspense>

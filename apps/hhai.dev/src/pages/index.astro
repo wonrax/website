@@ -168,14 +168,21 @@ import CurrentlyPlaying from "./_currently-playing";
   }
 
   .currently-playing {
-    p,
-    h4 {
-      margin: 6px 0;
+    strong {
+      color: var(--text-body-heavy);
     }
 
     p {
       color: var(--text-body-medium);
-      font-size: 14px;
+      font-size: 15px;
+      margin: 6px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    span {
+      font-size: 6px;
     }
   }
 </style>
