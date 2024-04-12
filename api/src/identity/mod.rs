@@ -1,6 +1,6 @@
 use axum::http::request::Parts;
 
-use crate::{error::Error, App};
+use crate::{error::AppError, App};
 
 use self::models::identity::Identity;
 
@@ -28,7 +28,7 @@ pub struct MaybeAuthUser(pub Result<Identity, AuthenticationError>);
 
 #[axum::async_trait]
 impl axum::extract::FromRequestParts<App> for MaybeAuthUser {
-    type Rejection = Error;
+    type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &App) -> Result<Self, Self::Rejection> {
         let jar = axum_extra::extract::cookie::CookieJar::from_headers(&parts.headers);
@@ -70,7 +70,7 @@ pub struct AuthUser(pub Identity);
 
 #[axum::async_trait]
 impl axum::extract::FromRequestParts<App> for AuthUser {
-    type Rejection = Error;
+    type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &App) -> Result<Self, Self::Rejection> {
         let MaybeAuthUser(auth_user) = MaybeAuthUser::from_request_parts(parts, state).await?;

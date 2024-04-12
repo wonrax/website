@@ -1,21 +1,52 @@
 use std::collections::HashMap;
 
 use axum::{http::StatusCode, response::IntoResponse, Json};
+use eyre::eyre;
 use serde::Serialize;
 use serde_json::Value;
 use tracing::debug;
 
 /// The main error type for the application. Every handler should return this
-/// type as the error type.
-#[derive(Debug)]
-pub struct Error {
+/// type as the error type. This error type when created will be attached
+/// debugging info and get logged automatically. If you intent to not use this
+/// type, you have to handle logging and debugging by yourself.
+pub struct AppError {
     error: Inner,
     reason: Option<serde_json::Value>,
     backtrace: Option<Backtrace>,
     context: Option<HashMap<String, serde_json::Value>>,
 }
 
-impl std::fmt::Display for Error {
+/// The error type for internal errors, should be used for reporting and
+/// debugging purpose only and not be exposed to the client. When this error is
+/// turned into a [AppError] (e.g. by [Into] or [From]), it defaults to a server
+/// error and leaks no debugging context to the client.
+pub type Error = eyre::Error;
+
+pub enum Inner {
+    /// When the wrapper [AppError] is turned into a [axum::response::Response],
+    /// the message displayed to the client will always be a internal server
+    /// error with no underlying error expose. Serverside, this will get logged
+    /// for debugging purpose.
+    ServerError(Error),
+
+    /// Expected and properly handled error that will be displayed on the
+    /// client.
+    ApiError(Box<dyn ApiRequestError>),
+}
+
+impl From<Error> for AppError {
+    fn from(value: Error) -> Self {
+        AppError {
+            error: Inner::ServerError(value),
+            backtrace: Some(create_backtrace()),
+            context: None,
+            reason: None,
+        }
+    }
+}
+
+impl std::fmt::Display for AppError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -27,12 +58,6 @@ impl std::fmt::Display for Error {
     }
 }
 
-#[derive(Debug)]
-pub enum Inner {
-    ServerError(Box<dyn std::error::Error>),
-    ApiError(Box<dyn ApiRequestError>),
-}
-
 impl std::fmt::Display for Inner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -42,10 +67,10 @@ impl std::fmt::Display for Inner {
     }
 }
 
-impl From<sqlx::Error> for Error {
+impl From<sqlx::Error> for AppError {
     fn from(e: sqlx::Error) -> Self {
-        Error {
-            error: Inner::ServerError(Box::new(e)),
+        AppError {
+            error: Inner::ServerError(eyre!(e)),
             reason: None,
             backtrace: Some(create_backtrace()),
             context: None,
@@ -53,19 +78,10 @@ impl From<sqlx::Error> for Error {
     }
 }
 
-impl From<&'static str> for Error {
+impl From<&'static str> for AppError {
     fn from(e: &'static str) -> Self {
-        #[derive(Debug)]
-        struct Wrapper(&'static str);
-        impl std::fmt::Display for Wrapper {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "{}", self.0)
-            }
-        }
-        impl std::error::Error for Wrapper {}
-
-        Error {
-            error: Inner::ServerError(Box::new(Wrapper(e))),
+        AppError {
+            error: Inner::ServerError(eyre!(e)),
             reason: None,
             backtrace: Some(create_backtrace()),
             context: None,
@@ -73,19 +89,10 @@ impl From<&'static str> for Error {
     }
 }
 
-impl From<String> for Error {
+impl From<String> for AppError {
     fn from(e: String) -> Self {
-        #[derive(Debug)]
-        struct Wrapper(String);
-        impl std::fmt::Display for Wrapper {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "{}", self.0)
-            }
-        }
-        impl std::error::Error for Wrapper {}
-
-        Error {
-            error: Inner::ServerError(Box::new(Wrapper(e))),
+        AppError {
+            error: Inner::ServerError(eyre!(e)),
             reason: None,
             backtrace: Some(create_backtrace()),
             context: None,
@@ -93,7 +100,7 @@ impl From<String> for Error {
     }
 }
 
-pub trait ApiRequestError: std::fmt::Display + std::fmt::Debug {
+pub trait ApiRequestError: std::fmt::Display {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
     }
@@ -109,9 +116,9 @@ pub trait ApiRequestError: std::fmt::Display + std::fmt::Debug {
     }
 }
 
-impl From<(&'static str, StatusCode)> for Error {
+impl From<(&'static str, StatusCode)> for AppError {
     fn from((message, status_code): (&'static str, StatusCode)) -> Self {
-        Error {
+        AppError {
             error: Inner::ApiError(Box::new(
                 ErrorResponseBuilder::new(message).with_status_code(status_code),
             )),
@@ -122,9 +129,9 @@ impl From<(&'static str, StatusCode)> for Error {
     }
 }
 
-impl From<(String, StatusCode)> for Error {
+impl From<(String, StatusCode)> for AppError {
     fn from((message, status_code): (String, StatusCode)) -> Self {
-        Error {
+        AppError {
             error: Inner::ApiError(Box::new(
                 ErrorResponseBuilder::new(message).with_status_code(status_code),
             )),
@@ -135,9 +142,9 @@ impl From<(String, StatusCode)> for Error {
     }
 }
 
-impl From<(ErrorCode, &'static str, StatusCode)> for Error {
+impl From<(ErrorCode, &'static str, StatusCode)> for AppError {
     fn from(value: (ErrorCode, &'static str, StatusCode)) -> Self {
-        Error {
+        AppError {
             error: Inner::ApiError(Box::new(
                 ErrorResponseBuilder::new(value.1)
                     .with_code(value.0 .0)
@@ -226,12 +233,12 @@ impl ApiRequestError for ErrorResponseBuilder {
 
 pub struct ErrorCode(&'static str);
 
-impl<T> From<T> for Error
+impl<T> From<T> for AppError
 where
     T: ApiRequestError + 'static,
 {
     fn from(value: T) -> Self {
-        Error {
+        AppError {
             error: Inner::ApiError(Box::new(value)),
             reason: None,
             backtrace: Some(create_backtrace()),
@@ -281,7 +288,7 @@ impl std::fmt::Display for ErrorResponse {
     }
 }
 
-impl IntoResponse for Error {
+impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         match self.error {
             Inner::ApiError(e) => {
@@ -295,9 +302,9 @@ impl IntoResponse for Error {
             }
             Inner::ServerError(ref e) => {
                 tracing::error!(
-                    error = %e,
+                    error = ?e,
                     backtrace = %self.backtrace.clone().unwrap_or_default(),
-                    context = ?self.context,
+                    context = ?self.context, // TODO turn this into tracing::Value to prettify the logs
                     "Internal server error"
                 );
                 (
@@ -322,7 +329,7 @@ impl IntoResponse for Error {
                         },
                         #[cfg(not(debug_assertions))]
                         ErrorResponse {
-                            code: Some("INTERNAL_SERVER_ERROR".into()),
+                            error: Some("INTERNAL_SERVER_ERROR".into()),
                             msg: "Something has gone wrong from our side. \
                                   We'll try to fix this as soon as possible. \
                                   Please try again later."
@@ -339,10 +346,10 @@ impl IntoResponse for Error {
     }
 }
 
-impl From<reqwest::Error> for Error {
+impl From<reqwest::Error> for AppError {
     fn from(value: reqwest::Error) -> Self {
-        Error {
-            error: Inner::ServerError(Box::new(value)),
+        AppError {
+            error: Inner::ServerError(eyre!(value)),
             reason: None,
             backtrace: Some(create_backtrace()),
             context: None,

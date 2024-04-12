@@ -4,14 +4,14 @@ use axum::{
     http::StatusCode,
 };
 
-use crate::{error::Error, identity::AuthUser, App};
+use crate::{error::AppError, identity::AuthUser, App};
 
 #[debug_handler]
 pub async fn delete_comment(
     State(ctx): State<App>,
     Path((_slug, id)): Path<(String, i32)>,
     AuthUser(auth_user): AuthUser,
-) -> Result<(), Error> {
+) -> Result<(), AppError> {
     let is_owner = sqlx::query!(
         "
         SELECT EXISTS (

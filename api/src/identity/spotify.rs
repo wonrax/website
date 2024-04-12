@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     config::SpotifyOauth,
-    error::{ApiRequestError, Error},
+    error::{ApiRequestError, AppError},
     identity::models::credential::IdentityCredential,
     App,
 };
@@ -57,7 +57,7 @@ impl ApiRequestError for SpotifyConnectError {}
 pub async fn handle_spotify_connect_request(
     State(ctx): State<App>,
     Query(queries): Query<HashMap<String, String>>,
-) -> Result<impl IntoResponse, Error> {
+) -> Result<impl IntoResponse, AppError> {
     let return_to = queries.get("return_to");
     let redirect_uri = ctx.config.site_url.clone()
         + "/link/spotify"
@@ -79,7 +79,7 @@ pub async fn handle_spotify_callback(
     State(ctx): State<App>,
     Query(queries): Query<HashMap<String, String>>,
     AuthUser(i): AuthUser,
-) -> Result<impl IntoResponse, Error> {
+) -> Result<impl IntoResponse, AppError> {
     // TODO remove hardcode
     if i.id != 1 {
         Err(SpotifyConnectError::NotPermitted)?
@@ -188,8 +188,8 @@ struct CurrentlyPlaying {
 }
 
 #[axum::debug_handler]
-pub async fn get_currently_playing(State(s): State<App>) -> Result<impl IntoResponse, Error> {
-    async fn fetch_cp(s: &App) -> Result<CurrentlyPlaying, Error> {
+pub async fn get_currently_playing(State(s): State<App>) -> Result<impl IntoResponse, AppError> {
+    async fn fetch_cp(s: &App) -> Result<CurrentlyPlaying, AppError> {
         let user_id = s.config.owner_identity_id;
 
         let client = SPOTIFY_CLIENT
@@ -219,7 +219,7 @@ pub async fn get_currently_playing(State(s): State<App>) -> Result<impl IntoResp
 
     let lock = CURRENTLY_PLAYING_CACHE
         .get_or_try_init(|| async {
-            Ok::<_, Error>(RwLock::new((
+            Ok::<_, AppError>(RwLock::new((
                 Arc::new(fetch_cp(&s).await?),
                 time::Instant::now(),
             )))
@@ -266,7 +266,7 @@ fn create_spotify_client(ctx: App, redirect_uri: Option<String>) -> rspotify::Au
 async fn create_my_authorized_spotify_client(
     s: &App,
     user_id: i32,
-) -> Result<AuthCodeSpotify, Error> {
+) -> Result<AuthCodeSpotify, AppError> {
     use crate::schema::identity_credential_types;
     use crate::schema::identity_credentials::dsl::*;
     use diesel::prelude::*;

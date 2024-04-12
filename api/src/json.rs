@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
 };
 
-use crate::error::Error;
+use crate::error::AppError;
 
 // We define our own `Json` extractor that customizes the error from `axum::Json`
 pub struct Json<T>(pub T);
@@ -15,7 +15,7 @@ where
     axum::Json<T>: FromRequest<S, Rejection = JsonRejection>,
     S: Send + Sync,
 {
-    type Rejection = Error;
+    type Rejection = AppError;
 
     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
         let (parts, body) = req.into_parts();

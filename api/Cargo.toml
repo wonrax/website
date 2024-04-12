@@ -31,6 +31,7 @@ ipnetwork = "0.20.0"
 rspotify = "0.13.1"
 diesel = { version = "2.1.5", features = ["postgres", "serde_json", "chrono"] }
 diesel-async = { version = "0.4.1", features = ["deadpool", "postgres"] }
+eyre = "0.6.12"
 
 [dev-dependencies]
 criterion = "0.5"

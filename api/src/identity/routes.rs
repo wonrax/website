@@ -9,13 +9,14 @@ use axum::{
     Json, Router,
 };
 use axum_extra::extract::CookieJar;
+use eyre::eyre;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use time::Duration;
 
 use crate::{
     config::GitHubOauth,
-    error::{ApiRequestError, Error},
+    error::{ApiRequestError, AppError, Error},
     App,
 };
 
@@ -72,7 +73,7 @@ struct IsAuth {
     site_owner: bool,
 }
 
-async fn is_auth(MaybeAuthUser(identity): MaybeAuthUser) -> Result<axum::Json<IsAuth>, Error> {
+async fn is_auth(MaybeAuthUser(identity): MaybeAuthUser) -> Result<axum::Json<IsAuth>, AppError> {
     Ok(Json(IsAuth {
         is_auth: identity.is_ok(),
         id: identity.as_ref().ok().map(|i| i.id),
@@ -84,7 +85,7 @@ async fn is_auth(MaybeAuthUser(identity): MaybeAuthUser) -> Result<axum::Json<Is
 
 async fn handle_whoami(
     MaybeAuthUser(identity): MaybeAuthUser,
-) -> Result<axum::Json<WhoamiRespose>, Error> {
+) -> Result<axum::Json<WhoamiRespose>, AppError> {
     Ok(axum::Json(WhoamiRespose {
         traits: identity?.traits,
     }))
@@ -101,7 +102,7 @@ pub struct GitHubCredentials {
 pub async fn handle_github_oauth_callback(
     State(ctx): State<App>,
     Query(queries): Query<HashMap<String, String>>,
-) -> Result<impl IntoResponse, Error> {
+) -> Result<impl IntoResponse, AppError> {
     let code = queries
         .get("code")
         .ok_or(("No `code` in query parameters", StatusCode::BAD_REQUEST))?;
@@ -312,7 +313,7 @@ pub async fn handle_github_oauth_callback(
 pub async fn handle_oauth_github_request(
     State(ctx): State<App>,
     Query(queries): Query<HashMap<String, String>>,
-) -> Result<impl IntoResponse, Error> {
+) -> Result<impl IntoResponse, AppError> {
     let return_to = queries.get("return_to");
     let redirect_uri = ctx.config.site_url.clone()
         + "/login/github"

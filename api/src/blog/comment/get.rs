@@ -7,7 +7,7 @@ use axum::{
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
-use crate::{error::Error, identity::MaybeAuthUser, App};
+use crate::{error::AppError, identity::MaybeAuthUser, App};
 
 use super::CommentTree;
 
@@ -42,7 +42,7 @@ pub async fn get_comments(
     Path(slug): Path<String>,
     q: Query<Queries>,
     MaybeAuthUser(auth_user): MaybeAuthUser,
-) -> Result<Json<Vec<CommentTree>>, Error> {
+) -> Result<Json<Vec<CommentTree>>, AppError> {
     let sort = q.sort.as_ref().unwrap_or(&SortType::Best);
 
     struct Query {

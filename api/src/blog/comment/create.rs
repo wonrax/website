@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 use crate::{
-    error::Error,
+    error::AppError,
     identity::{self, models::identity::Traits, MaybeAuthUser},
     real_ip::ClientIp,
     App,
@@ -22,7 +22,7 @@ pub async fn create_comment(
     ClientIp(ip): ClientIp,
     MaybeAuthUser(auth_user): MaybeAuthUser,
     crate::json::Json(mut comment): crate::json::Json<CommentSubmission>,
-) -> Result<Json<Comment>, Error> {
+) -> Result<Json<Comment>, AppError> {
     if let Err(ref e) = auth_user {
         if matches!(e, identity::AuthenticationError::Unauthorized) {
             return Err(identity::AuthenticationError::Unauthorized.into());

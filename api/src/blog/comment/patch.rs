@@ -7,7 +7,7 @@ use axum::{
 use serde::Deserialize;
 use sqlx::FromRow;
 
-use crate::{blog::comment::Comment, error::Error, identity::AuthUser, real_ip::ClientIp, App};
+use crate::{blog::comment::Comment, error::AppError, identity::AuthUser, real_ip::ClientIp, App};
 
 #[debug_handler]
 pub async fn patch_comment(
@@ -16,7 +16,7 @@ pub async fn patch_comment(
     ClientIp(ip): ClientIp,
     AuthUser(auth_user): AuthUser,
     crate::json::Json(mut comment): crate::json::Json<CommentPatch>,
-) -> Result<Json<Comment>, Error> {
+) -> Result<Json<Comment>, AppError> {
     comment.content = comment.content.trim().to_string();
 
     if comment.content.is_empty() {

@@ -8,7 +8,7 @@ use std::{
     sync::OnceLock,
 };
 
-use crate::{error::Error, App};
+use crate::{error::AppError, App};
 
 static CLOUDFRONT_PREFIXES: OnceLock<Vec<IpNetwork>> = OnceLock::new();
 
@@ -51,7 +51,7 @@ pub struct ClientIp(pub IpAddr);
 
 #[axum::async_trait]
 impl axum::extract::FromRequestParts<App> for ClientIp {
-    type Rejection = Error;
+    type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, _state: &App) -> Result<Self, Self::Rejection> {
         let mut x_forwarded_for_ips = parts
