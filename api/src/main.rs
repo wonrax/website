@@ -17,7 +17,7 @@ use tower_http::{
     cors::{AllowOrigin, CorsLayer},
     trace::TraceLayer,
 };
-use tracing::{debug, error, info, info_span, instrument::WithSubscriber, Span};
+use tracing::{debug, error, info, info_span, Span};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod blog;
@@ -49,6 +49,7 @@ pub struct Inner {
     counters_ttl_cache: retainer::Cache<String, bool>,
     config: ServerConfig,
     diesel: diesel_async::pooled_connection::deadpool::Pool<diesel_async::AsyncPgConnection>,
+    http: reqwest::Client,
 }
 
 #[tokio::main]
@@ -107,11 +108,17 @@ async fn main() {
         .build()
         .expect("could not build Diesel pool");
 
+    let http_client = reqwest::ClientBuilder::new()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .expect("HTTP client should be correctly constructed");
+
     let shared_state = App(Arc::new(Inner {
         pool,
         counters_ttl_cache: retainer::Cache::new(),
         config,
         diesel: diesel_pool,
+        http: http_client,
     }));
 
     let cors = CorsLayer::new()

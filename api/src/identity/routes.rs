@@ -115,7 +115,8 @@ pub async fn handle_github_oauth_callback(
         .as_ref()
         .expect("GitHub Oauth credentials is not set");
 
-    let code_verify: serde_json::Value = reqwest::Client::new()
+    let code_verify: serde_json::Value = ctx
+        .http
         .post("https://github.com/login/oauth/access_token")
         .header("Accept", "application/json")
         .json(&serde_json::json!({
@@ -134,7 +135,8 @@ pub async fn handle_github_oauth_callback(
         Err(AuthenticationError::Unauthorized)?
     }
 
-    let user_info: serde_json::Value = reqwest::Client::new()
+    let user_info: serde_json::Value = ctx
+        .http
         .get("https://api.github.com/user")
         .header("User-Agent", "reqwest")
         .header("Accept", "application/json")
@@ -154,7 +156,8 @@ pub async fn handle_github_oauth_callback(
     let user_id = user_info["id"].as_i64().ok_or(MISSING_EXPECTED_FIELD)?;
     let full_name = user_info["name"].as_str().ok_or(MISSING_EXPECTED_FIELD)?;
 
-    let emails: serde_json::Value = reqwest::Client::new()
+    let emails: serde_json::Value = ctx
+        .http
         .get("https://api.github.com/user/emails")
         .header("User-Agent", "reqwest")
         .header("Accept", "application/json")
