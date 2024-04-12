@@ -1,10 +1,16 @@
 import config from "@/config";
+import { ApiError } from "@/rpc";
 import { Suspense, createResource, type JSXElement } from "solid-js";
 
 export default function CurrentlyPlaying(): JSXElement {
   const [currentlyPlaying] = createResource(async () => {
-    // TODO verify schema using zod
     const res = await fetch(`${config.API_URL}/currently-playing`);
+    if (!res.ok) {
+      const err = ApiError.parse(await res.json());
+      throw Error(err.msg);
+    }
+
+    // TODO verify schema using zod
     return (await res.json()) as {
       is_playing: boolean;
       item?: {

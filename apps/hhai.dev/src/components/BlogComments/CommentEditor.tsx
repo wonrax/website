@@ -13,6 +13,7 @@ import { type Comment } from "./CommentSection";
 import config from "@/config";
 import "./CommentEditor.scss";
 import { AppState, SetAppState, checkAuthUser } from "@/state";
+import { ApiError } from "@/rpc";
 
 type FormEvent = Event & {
   target: EventTarget & {
@@ -60,14 +61,9 @@ export function CommentSubmission(props: {
     });
 
     if (!resp.ok) {
-      if (
-        resp.headers.get("Content-Type")?.includes("application/json") === true
-      ) {
-        const err = await resp.json();
-        if (err.msg != null && typeof err.msg === "string")
-          throw new Error(err.msg as string);
-      }
-      throw new Error("Unexpected error: " + (await resp.text()));
+      const err = ApiError.parse(await resp.json());
+      if (err.msg != null && typeof err.msg === "string")
+        throw new Error(err.msg);
     }
 
     const comment: Comment = await resp.json();
@@ -133,11 +129,8 @@ export function CommentEditing(props: {
     );
 
     if (!resp.ok) {
-      const err = await resp.json();
-      if (err.msg != null && typeof err.msg === "string")
-        throw new Error(err.msg as string);
-
-      throw new Error("Unexpected error: " + (await resp.text()));
+      const err = ApiError.parse(await resp.json());
+      throw new Error(err.msg);
     }
 
     const comment: Comment = await resp.json();
@@ -245,9 +238,12 @@ export function CommentEditorBase(props: {
                   void fetch(`${config.API_URL}/logout`, {
                     method: "POST",
                     credentials: "include",
-                  }).then((response) => {
+                  }).then(async (response) => {
                     if (response.ok) {
                       SetAppState({ authUser: null });
+                    } else {
+                      const err = ApiError.parse(await response.json());
+                      alert("Failed to log you out: " + err.msg);
                     }
                   });
                 }}

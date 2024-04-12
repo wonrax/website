@@ -1,4 +1,5 @@
 import config from "@/config";
+import { ApiError } from "@/rpc";
 import { AppState, checkAuthUser } from "@/state";
 import { Show, createEffect, createResource, type JSXElement } from "solid-js";
 
@@ -18,6 +19,11 @@ export default function AccountInfo(): JSXElement {
     const res = await fetch(`${config.API_URL}/link/apps`, {
       credentials: "include",
     });
+    if (!res.ok) {
+      const err = ApiError.parse(await res.json());
+      throw Error(err.msg);
+    }
+
     return (await res.json()) as {
       github?: {
         user_id: number;

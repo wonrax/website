@@ -199,7 +199,7 @@ impl ErrorResponseBuilder {
 
     fn build(&self) -> ErrorResponse {
         ErrorResponse {
-            code: self.code.to_owned(),
+            error: self.code.to_owned(),
             msg: self.msg.to_owned(),
             reason: self.reason.to_owned(),
             context: self.context.to_owned(),
@@ -243,7 +243,7 @@ where
 #[derive(Serialize)]
 pub struct ErrorResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
-    code: Option<String>,
+    error: Option<String>,
 
     msg: String,
 
@@ -260,7 +260,7 @@ pub struct ErrorResponse {
 impl ErrorResponse {
     pub fn new(msg: &str) -> Self {
         Self {
-            code: None,
+            error: None,
             msg: msg.into(),
             reason: None,
             context: None,
@@ -274,7 +274,7 @@ impl std::fmt::Display for ErrorResponse {
         write!(
             f,
             "Code {}: {} ({})",
-            self.code.as_deref().unwrap_or("UNKNOWN"),
+            self.error.as_deref().unwrap_or("UNKNOWN"),
             self.msg,
             self.reason.as_ref().unwrap_or(&serde_json::Value::Null)
         )
@@ -305,7 +305,7 @@ impl IntoResponse for Error {
                     Json(
                         #[cfg(debug_assertions)]
                         ErrorResponse {
-                            code: Some("INTERNAL_SERVER_ERROR".into()),
+                            error: Some("INTERNAL_SERVER_ERROR".into()),
                             msg: "Something has gone wrong from our side. \
                                   We'll try to fix this as soon as possible. \
                                   Please try again later."

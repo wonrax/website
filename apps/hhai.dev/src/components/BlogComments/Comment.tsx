@@ -4,6 +4,7 @@ import { CommentSubmission, CommentEditing } from "./CommentEditor";
 import { type Comment } from "./CommentSection";
 import { User } from "lucide-solid";
 import config from "@/config";
+import { ApiError } from "@/rpc";
 
 // https://gist.github.com/mcraz/11349449
 function timeSince(date: Date): string {
@@ -138,7 +139,6 @@ export default function CommentComponent(props: {
                   if (
                     confirm("Are you sure you want to delete this comment?")
                   ) {
-                    // TODO handle error
                     fetch(
                       `${config.API_URL}/blog/${"TODO"}/comments/${props.comment.id}`,
                       {
@@ -148,11 +148,9 @@ export default function CommentComponent(props: {
                     )
                       .then(async (res) => {
                         if (res.status !== 200) {
-                          const body: {
-                            msg: string;
-                          } = await res.json();
+                          const err = ApiError.parse(await res.json());
 
-                          alert("Failed to delete comment: " + body.msg);
+                          alert("Failed to delete comment: " + err.msg);
                         } else {
                           props.onDelete();
                         }
