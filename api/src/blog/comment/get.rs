@@ -308,7 +308,7 @@ pub async fn get_comments(
                 Some(id) => Some(id) == auth_user.as_ref().ok().map(|u| u.id),
                 None => false,
             },
-            is_blog_author: c.identity_id == Some(1), // TODO this is hardcoded
+            is_blog_author: c.identity_id == Some(ctx.config.owner_identity_id),
         })
         .collect();
 

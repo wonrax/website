@@ -4,8 +4,6 @@ use std::{
     time::Duration,
 };
 
-use tokio::sync::{OnceCell, RwLock};
-
 use axum::{
     extract::{Query, State},
     http::{header, StatusCode},
@@ -13,16 +11,18 @@ use axum::{
     Json,
 };
 use diesel::deserialize::Queryable;
+use eyre::eyre;
 use rspotify::{
     clients::{BaseClient, OAuthClient},
     model::Id,
     AuthCodeSpotify, Token,
 };
 use serde::{Deserialize, Serialize};
+use tokio::sync::{OnceCell, RwLock};
 
 use crate::{
     config::SpotifyOauth,
-    error::{ApiRequestError, AppError},
+    error::{ApiRequestError, AppError, Error},
     identity::models::credential::IdentityCredential,
     App,
 };
@@ -69,7 +69,9 @@ pub async fn handle_spotify_connect_request(
 
     let spotify_client = create_spotify_client(ctx, Some(redirect_uri));
 
-    let url = spotify_client.get_authorize_url(false).unwrap();
+    let url = spotify_client
+        .get_authorize_url(false)
+        .map_err(|e| eyre!(e).wrap_err("couldn't build spotify authorize url"))?;
 
     Ok((axum::http::StatusCode::FOUND, [(header::LOCATION, url)]).into_response())
 }
@@ -80,8 +82,7 @@ pub async fn handle_spotify_callback(
     Query(queries): Query<HashMap<String, String>>,
     AuthUser(i): AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
-    // TODO remove hardcode
-    if i.id != 1 {
+    if i.id != ctx.config.owner_identity_id {
         Err(SpotifyConnectError::NotPermitted)?
     }
 
@@ -114,7 +115,7 @@ pub async fn handle_spotify_callback(
         .token
         .lock()
         .await
-        .map_err(|e| format!("could not take the lock on token: {:?}", e))?;
+        .map_err(|_| "could not take the lock on token")?;
 
     let creds = SpotifyCredentials {
         display_name: me
@@ -139,7 +140,7 @@ pub async fn handle_spotify_callback(
 
     let credential = IdentityCredential::new_oauth_credential(
         serde_json::to_value(creds)
-            .map_err(|e| format!("couldn't serialize spotify credentials: {}", e))?,
+            .map_err(|e| eyre!(e).wrap_err("couldn't serialize spotify credentials"))?,
     );
 
     sqlx::query!(
@@ -199,7 +200,7 @@ pub async fn get_currently_playing(State(s): State<App>) -> Result<impl IntoResp
         let cp = client
             .current_playing(None, None::<&[_]>)
             .await
-            .map_err(|e| format!("could not get currently playing of user {}: {}", user_id, e,))?;
+            .map_err(|e| eyre!(e).wrap_err("could not get currently playing of user"))?;
 
         let cp = match cp {
             Some(cp) => CurrentlyPlaying {
@@ -266,7 +267,7 @@ fn create_spotify_client(ctx: App, redirect_uri: Option<String>) -> rspotify::Au
 async fn create_my_authorized_spotify_client(
     s: &App,
     user_id: i32,
-) -> Result<AuthCodeSpotify, AppError> {
+) -> Result<AuthCodeSpotify, Error> {
     use crate::schema::identity_credential_types;
     use crate::schema::identity_credentials::dsl::*;
     use diesel::prelude::*;
@@ -289,10 +290,9 @@ async fn create_my_authorized_spotify_client(
         .first(&mut s.diesel.get().await.unwrap())
         .await
         .map_err(|e| {
-            format!(
-                "could not fetch spotify credential for user {}: {}",
-                user_id, e
-            )
+            eyre!(e).wrap_err(format!(
+                "could not fetch spotify credential for user {user_id}"
+            ))
         })?;
 
     match refresh_token {
@@ -302,7 +302,7 @@ async fn create_my_authorized_spotify_client(
                 .token
                 .lock()
                 .await
-                .map_err(|_| "could not take the lock on token")?;
+                .map_err(|_| eyre!("could not take the lock on token"))?;
 
             *tok = Some(Token {
                 refresh_token: Some(refresh_token),
@@ -314,10 +314,12 @@ async fn create_my_authorized_spotify_client(
             client
                 .refresh_token()
                 .await
-                .map_err(|e| format!("could not refresh token: {}", e))?;
+                .map_err(|e| eyre!(e).wrap_err("could not refresh token"))?;
 
             Ok(client)
         }
-        None => Err("Couldn't find refresh_token field in Spotify credentials")?,
+        None => Err(eyre!(
+            "Couldn't find refresh_token field in Spotify credentials"
+        ))?,
     }
 }

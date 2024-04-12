@@ -73,13 +73,19 @@ struct IsAuth {
     site_owner: bool,
 }
 
-async fn is_auth(MaybeAuthUser(identity): MaybeAuthUser) -> Result<axum::Json<IsAuth>, AppError> {
+async fn is_auth(
+    State(ctx): State<App>,
+    MaybeAuthUser(identity): MaybeAuthUser,
+) -> Result<axum::Json<IsAuth>, AppError> {
     Ok(Json(IsAuth {
         is_auth: identity.is_ok(),
         id: identity.as_ref().ok().map(|i| i.id),
         traits: identity.as_ref().ok().map(|i| i.traits.to_owned()),
-        // TODO remove hard-coded ID
-        site_owner: identity.as_ref().ok().map(|i| i.id == 1).unwrap_or(false),
+        site_owner: identity
+            .as_ref()
+            .ok()
+            .map(|i| i.id == ctx.config.owner_identity_id)
+            .unwrap_or(false),
     }))
 }
 
