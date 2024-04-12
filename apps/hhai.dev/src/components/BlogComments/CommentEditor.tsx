@@ -13,7 +13,8 @@ import { type Comment } from "./CommentSection";
 import config from "@/config";
 import "./CommentEditor.scss";
 import { AppState, SetAppState, checkAuthUser } from "@/state";
-import { ApiError } from "@/rpc";
+import { createFetch, fetchAny } from "@/rpc";
+import { z } from "zod";
 
 type FormEvent = Event & {
   target: EventTarget & {
@@ -22,6 +23,8 @@ type FormEvent = Event & {
     content?: HTMLTextAreaElement;
   };
 };
+
+const fetchComment = createFetch(z.custom<Comment>());
 
 export function CommentSubmission(props: {
   parentId?: number;
@@ -43,30 +46,32 @@ export function CommentSubmission(props: {
       throw new Error("content is required");
     }
 
-    const resp = await fetch(`${config.API_URL}/blog/${ctx?.slug}/comments`, {
-      method: "POST",
-      body: JSON.stringify({
-        author_name: form["author-name"]?.value,
-        content: form.content.value,
-        author_email:
-          form.email?.value != null && form.email.value === ""
-            ? null
-            : form.email?.value,
-        parent_id: props.parentId,
-      }),
-      headers: {
-        "Content-Type": "application/json",
+    const resp = await fetchComment(
+      `${config.API_URL}/blog/${ctx?.slug}/comments`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          author_name: form["author-name"]?.value,
+          content: form.content.value,
+          author_email:
+            form.email?.value != null && form.email.value === ""
+              ? null
+              : form.email?.value,
+          parent_id: props.parentId,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
       },
-      credentials: "include",
-    });
+    );
 
     if (!resp.ok) {
-      const err = ApiError.parse(await resp.json());
-      if (err.msg != null && typeof err.msg === "string")
-        throw new Error(err.msg);
+      const err = await resp.error();
+      throw new Error(err.msg);
     }
 
-    const comment: Comment = await resp.json();
+    const comment = await resp.JSON();
     comment.is_comment_owner = true;
 
     props.unshift(comment);
@@ -114,7 +119,7 @@ export function CommentEditing(props: {
       throw new Error("content is required");
     }
 
-    const resp = await fetch(
+    const resp = await fetchComment(
       `${config.API_URL}/blog/${ctx?.slug}/comments/${props.commentId}`,
       {
         method: "PATCH",
@@ -129,11 +134,11 @@ export function CommentEditing(props: {
     );
 
     if (!resp.ok) {
-      const err = ApiError.parse(await resp.json());
+      const err = await resp.error();
       throw new Error(err.msg);
     }
 
-    const comment: Comment = await resp.json();
+    const comment = await resp.JSON();
 
     if (props.setEditing != null) props.setEditing(false, comment.content);
   }
@@ -235,14 +240,14 @@ export function CommentEditorBase(props: {
               <span
                 class="logout-button"
                 onClick={() => {
-                  void fetch(`${config.API_URL}/logout`, {
+                  void fetchAny(`${config.API_URL}/logout`, {
                     method: "POST",
                     credentials: "include",
                   }).then(async (response) => {
                     if (response.ok) {
                       SetAppState({ authUser: null });
                     } else {
-                      const err = ApiError.parse(await response.json());
+                      const err = await response.error();
                       alert("Failed to log you out: " + err.msg);
                     }
                   });

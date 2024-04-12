@@ -10,8 +10,9 @@ import {
 } from "solid-js";
 import CommentContext from "./CommentSectionContext";
 import config from "@/config";
-import { ApiError } from "@/rpc";
+import { createFetch } from "@/rpc";
 import { checkAuthUser } from "@/state";
+import { z } from "zod";
 import("./CommentSection.scss");
 
 const CommentComponent = lazy(async () => await import("./Comment"));
@@ -31,6 +32,8 @@ export interface Comment {
   is_blog_author?: boolean;
   is_comment_owner?: boolean;
 }
+
+const fetchComments = createFetch(z.custom<Comment[]>());
 
 export function CommentSection(): JSXElement {
   // parse slug from url in format /blog/:slug
@@ -61,19 +64,19 @@ export function CommentSection(): JSXElement {
   const [comments, { mutate, refetch }] = createResource(
     pleaseFetch,
     async () => {
-      const res = await fetch(
+      const res = await fetchComments(
         `${config.API_URL}/blog/${slug}/comments?page_offset=0&page_size=99&sort=best`,
         {
           credentials: "include",
         },
       );
 
-      if (res.status !== 200) {
-        const error = ApiError.parse(await res.json());
+      if (!res.ok) {
+        const error = await res.error();
         throw new Error(error.msg);
       }
 
-      return (await res.json()) as Comment[];
+      return await res.JSON();
     },
   );
 
@@ -151,7 +154,7 @@ export function CommentSection(): JSXElement {
         {comments.state === "errored" && (
           <p
             style={{ color: "red" }}
-          >{`Error fetching comments: ${(comments.error as Error).message}`}</p>
+          >{`Could not fetch discussions: ${(comments.error as Error).message}`}</p>
         )}
       </div>
     </CommentContext.Provider>

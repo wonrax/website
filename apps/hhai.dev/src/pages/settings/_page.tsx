@@ -1,7 +1,25 @@
 import config from "@/config";
-import { ApiError } from "@/rpc";
+import { createFetch } from "@/rpc";
 import { AppState, checkAuthUser } from "@/state";
 import { Show, createEffect, createResource, type JSXElement } from "solid-js";
+import { z } from "zod";
+
+const fetchConnectedApps = createFetch(
+  z.object({
+    github: z.optional(
+      z.object({
+        user_id: z.number(),
+        added_on: z.string(),
+      }),
+    ),
+    spotify: z.optional(
+      z.object({
+        display_name: z.string(),
+        added_on: z.string(),
+      }),
+    ),
+  }),
+);
 
 export default function AccountInfo(): JSXElement {
   createEffect(() => {
@@ -15,25 +33,15 @@ export default function AccountInfo(): JSXElement {
   });
 
   const [connectedApps] = createResource(async () => {
-    // TODO verify schema using zod
-    const res = await fetch(`${config.API_URL}/link/apps`, {
+    const res = await fetchConnectedApps(`${config.API_URL}/link/apps`, {
       credentials: "include",
     });
     if (!res.ok) {
-      const err = ApiError.parse(await res.json());
+      const err = await res.error();
       throw Error(err.msg);
     }
 
-    return (await res.json()) as {
-      github?: {
-        user_id: number;
-        added_on: string;
-      };
-      spotify?: {
-        display_name: string;
-        added_on: string;
-      };
-    };
+    return await res.JSON();
   });
 
   return (

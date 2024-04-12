@@ -1,29 +1,39 @@
 import config from "@/config";
-import { ApiError } from "@/rpc";
+import { createFetch } from "@/rpc";
 import { Suspense, createResource, type JSXElement } from "solid-js";
+import { z } from "zod";
+
+const fetchCurrentlyPlaying = createFetch(
+  z.object({
+    is_playing: z.boolean(),
+    item: z.optional(
+      z.object({
+        name: z.string(),
+        external_urls: z.object({
+          spotify: z.string(),
+        }),
+        artists: z.array(
+          z.object({
+            name: z.string(),
+          }),
+        ),
+      }),
+    ),
+    currently_playing_type: z.optional(z.string()),
+  }),
+);
 
 export default function CurrentlyPlaying(): JSXElement {
   const [currentlyPlaying] = createResource(async () => {
-    const res = await fetch(`${config.API_URL}/currently-playing`);
+    const res = await fetchCurrentlyPlaying(
+      `${config.API_URL}/currently-playing`,
+    );
     if (!res.ok) {
-      const err = ApiError.parse(await res.json());
+      const err = await res.error();
       throw Error(err.msg);
     }
 
-    // TODO verify schema using zod
-    return (await res.json()) as {
-      is_playing: boolean;
-      item?: {
-        name: string;
-        external_urls: {
-          spotify: string;
-        };
-        artists: Array<{
-          name: string;
-        }>;
-      };
-      currently_playing_type?: string;
-    };
+    return await res.JSON();
   });
 
   return (
