@@ -56,10 +56,12 @@ import Layout from "@/layouts/Layout.astro";
       );
 
       if (resp.status == 200) {
-        if (redirect == null) {
-          redirect = "/";
+        if (window.opener != null) {
+          window.opener.postMessage({ auth: true }, window.location.origin);
         }
-        window.location.replace(redirect);
+        if (redirect == null) {
+          window.close();
+        } else window.location.replace(redirect);
       } else {
         switch (resp.status) {
           case 500:

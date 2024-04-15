@@ -206,16 +206,29 @@ export function CommentEditorBase(props: {
                 }}
               >
                 Either{" "}
-                <a
+                <button
                   style={{
                     color: "var(--text-body-heavy)",
                     "font-weight": "var(--font-weight-medium)",
                     "text-decoration": "underline",
+                    display: "inline",
                   }}
-                  href={`${config.API_URL}/login/github?return_to=${window.location.href}`}
+                  onClick={(e) => {
+                    // quick workaround in order not to accidentally submit the form
+                    // TODO
+                    e.preventDefault();
+                    const w = window.open(`${config.API_URL}/login/github`);
+                    if (w != null)
+                      window.onmessage = (e) => {
+                        if (e.source !== w) {
+                          return;
+                        }
+                        if (e.data.auth as boolean) void checkAuthUser();
+                      };
+                  }}
                 >
                   login via GitHub
-                </a>{" "}
+                </button>{" "}
                 or type your name below
               </p>
               <div class="author-info">
