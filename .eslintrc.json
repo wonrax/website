@@ -11,7 +11,6 @@
         "eslint:recommended",
         "love",
         "plugin:astro/recommended",
-        "plugin:solid/typescript",
         "plugin:prettier/recommended"
     ],
     "parserOptions": {
@@ -39,8 +38,16 @@
                 // override/add rules settings here, such as:
                 // "astro/no-set-html-directive": "error"
             }
+        },
+        {
+            "files": [
+                "*.ts[x]"
+            ],
+            "extends": [
+                "plugin:solid/typescript"
+            ]
         }
-        // ...
     ],
     "ignorePatterns": ["**/prisma/**/*"]
 }
+
