@@ -12,9 +12,9 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
     "paths": {
-      "@/*": ["./src/*", "./plugins/*"],
+      "@/*": ["./src/*", "./plugins/*"]
     },
     "jsx": "preserve",
     "jsxImportSource": "solid-js"
-  },
+  }
 }
