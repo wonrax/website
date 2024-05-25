@@ -15,7 +15,6 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
       {
         allPosts
           .filter((post) => {
-            console.log("filtering", post);
             return (
               process.env.NODE_ENV !== "production" ||
               (post.frontmatter.isDraft !== true &&
@@ -23,7 +22,6 @@ const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
             );
           })
           .map((post) => {
-            console.log("rendering", post);
             return (
               <li
                 class={`article-entry${
