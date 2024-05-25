@@ -32,13 +32,12 @@
     z-index: 10;
     right: 0;
     top: 0;
-    background-color: var(--bg-color);
-    box-shadow: 0 0 36px 0 rgba($color: black, $alpha: 0.15);
     height: 100vh;
     overflow-y: auto;
     width: 0;
-    // max-width: calc(220px + (100vw - 1004px) / 2);
     max-width: 700px;
+    height: 100%;
+    max-height: 100vh;
     animation: sheet-slide-in 0.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
     z-index: 10;
     position: fixed;
@@ -72,8 +71,8 @@
 
   .close-button {
     position: absolute;
-    top: 8px;
-    right: 8px;
+    top: 16px;
+    right: 16px;
     padding: 12px;
     cursor: pointer;
     background-color: transparent;
