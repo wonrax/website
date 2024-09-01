@@ -7,7 +7,7 @@ COPY package.json .
 COPY package-lock.json .
 COPY apps/hhai.dev/package.json ./apps/hhai.dev/package.json
 
-RUN npm i -w hhai.dev
+RUN npm i
 
 # Somehow wildcard (*) doesn't work, had to use dot (.)
 # COPY packages/. ./packages
