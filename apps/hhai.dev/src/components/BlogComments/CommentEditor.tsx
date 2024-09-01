@@ -63,7 +63,7 @@ export function CommentSubmission(props: {
           "Content-Type": "application/json",
         },
         credentials: "include",
-      },
+      }
     );
 
     if (!resp.ok) {
@@ -130,7 +130,7 @@ export function CommentEditing(props: {
           "Content-Type": "application/json",
         },
         credentials: "include",
-      },
+      }
     );
 
     if (!resp.ok) {

@@ -17,7 +17,7 @@ export default function rehypeBlogPost() {
     function flushWrapper(): void {
       if (wrapQueue.length > 0) {
         finalChildren.push(
-          h("div", { class: "reading-line-width" }, wrapQueue),
+          h("div", { class: "reading-line-width" }, wrapQueue)
         );
         wrapQueue = [];
       }
@@ -94,8 +94,7 @@ export default function rehypeBlogPost() {
 
       // find the featuretype attribute
       const featureTypeAttr = imgNode.attributes.find(
-        (attr) =>
-          attr.type === "mdxJsxAttribute" && attr.name === "featuretype",
+        (attr) => attr.type === "mdxJsxAttribute" && attr.name === "featuretype"
       ) as MdxJsxAttribute | undefined;
 
       if (featureTypeAttr?.value == null) {
@@ -112,8 +111,8 @@ export default function rehypeBlogPost() {
         h(
           "figure",
           { class: ["feature", "feature-" + featureTypeAttr.value] },
-          [imgNodesParent as any],
-        ),
+          [imgNodesParent as any]
+        )
       );
     }
 

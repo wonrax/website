@@ -22,7 +22,7 @@ export default function CodeGroup(props: { children: any }): JSXElement {
           )
             throw new Error(
               `CodeGroupSolid: figure element must have \
-              data-rehype-pretty-code-figure attribute`,
+              data-rehype-pretty-code-figure attribute`
             );
         }
 

@@ -68,7 +68,7 @@ export function CommentSection(): JSXElement {
         `${config.API_URL}/blog/${slug}/comments?page_offset=0&page_size=99&sort=best`,
         {
           credentials: "include",
-        },
+        }
       );
 
       if (!res.ok) {
@@ -77,7 +77,7 @@ export function CommentSection(): JSXElement {
       }
 
       return await res.JSON();
-    },
+    }
   );
 
   // listen to sheet context to preload components and check auth user ahead of time

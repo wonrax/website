@@ -66,7 +66,6 @@ export default function CommentComponent(props: {
   const [isReplying, setIsReplying] = createSignal(false);
   const [isEditing, setIsEditing] = createSignal(false);
 
-  // eslint-disable-next-line solid/reactivity
   const [children, setChildren] = createSignal(props.comment.children);
 
   return (
@@ -112,7 +111,7 @@ export default function CommentComponent(props: {
         <div
           class="comment-content"
           // See above for safety concerns
-          // eslint-disable-next-line solid/no-innerhtml
+
           innerHTML={md.render(content())}
         />
       </Show>
@@ -144,7 +143,7 @@ export default function CommentComponent(props: {
                       {
                         method: "DELETE",
                         credentials: "include",
-                      },
+                      }
                     )
                       .then(async (res) => {
                         if (!res.ok) {

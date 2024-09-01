@@ -15,18 +15,18 @@ const fetchCurrentlyPlaying = createFetch(
         artists: z.array(
           z.object({
             name: z.string(),
-          }),
+          })
         ),
-      }),
+      })
     ),
     currently_playing_type: z.optional(z.string()),
-  }),
+  })
 );
 
 export default function CurrentlyPlaying(): JSXElement {
   const [currentlyPlaying] = createResource(async () => {
     const res = await fetchCurrentlyPlaying(
-      `${config.API_URL}/currently-playing`,
+      `${config.API_URL}/currently-playing`
     );
     if (!res.ok) {
       const err = await res.error();

@@ -21,12 +21,12 @@ function createCommentSheetContext(): {
     },
     isSheetTriggerButtonHovered: () => {
       throw new Error(
-        "isSheetTriggerButtonHoveredcalled before context was set",
+        "isSheetTriggerButtonHoveredcalled before context was set"
       );
     },
     setSheetTriggerButtonHovered: () => {
       throw new Error(
-        "setSheetTriggerButtonHovered called before context was set",
+        "setSheetTriggerButtonHovered called before context was set"
       );
     },
     toggle: () => {

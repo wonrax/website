@@ -29,9 +29,9 @@ import Layout from "@/layouts/Layout.astro";
   import config from "@/config";
   import { ApiError } from "@/rpc";
 
-  let params = new URL(window.location.href).searchParams;
+  const params = new URL(window.location.href).searchParams;
 
-  var code = params.get("code");
+  const code = params.get("code");
 
   let redirect = params.get("return_to");
   const loginUrl = `${config.API_URL}/link/spotify${redirect != null ? `?return_to=${redirect}` : ""}`;
@@ -52,7 +52,7 @@ import Layout from "@/layouts/Layout.astro";
         `${config.API_URL}/link/spotify/callback?code=` + code,
         {
           credentials: "include",
-        },
+        }
       );
 
       if (resp.status == 200) {

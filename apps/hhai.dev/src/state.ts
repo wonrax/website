@@ -23,10 +23,10 @@ export async function checkAuthUser(): Promise<AuthUser | undefined> {
         z.object({
           email: z.string(),
           name: z.string(),
-        }),
+        })
       ),
       site_owner: z.optional(z.boolean()),
-    }),
+    })
   );
 
   const res = await fetchIsAuth(`${config.API_URL}/is_auth`, {

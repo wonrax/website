@@ -11,7 +11,7 @@ export async function getStaticPaths(): Promise<GetStaticPathsResult> {
           slug: slug.replace("../", "").replace(".mdx", "").replace(".md", ""),
         },
       };
-    }),
+    })
   );
 }
 

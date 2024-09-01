@@ -39,7 +39,7 @@ setGlobalDispatcher(
           typeof options.origin === "string"
             ? new URL(options.origin)
             : options.origin;
-        let hostWithoutPort = host.split(":")[0];
+        const hostWithoutPort = host.split(":")[0];
         if (
           !noProxyRules.some((rule) =>
             rule.startsWith(".")

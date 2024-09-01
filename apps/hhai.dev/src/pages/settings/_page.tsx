@@ -10,15 +10,15 @@ const fetchConnectedApps = createFetch(
       z.object({
         user_id: z.number(),
         added_on: z.string(),
-      }),
+      })
     ),
     spotify: z.optional(
       z.object({
         display_name: z.string(),
         added_on: z.string(),
-      }),
+      })
     ),
-  }),
+  })
 );
 
 export default function AccountInfo(): JSXElement {
@@ -88,7 +88,7 @@ export default function AccountInfo(): JSXElement {
                       <span>
                         Added on{" "}
                         {new Date(
-                          connectedApps()?.spotify?.added_on ?? "",
+                          connectedApps()?.spotify?.added_on ?? ""
                         ).toLocaleDateString()}
                       </span>
                     </p>
@@ -126,7 +126,7 @@ export default function AccountInfo(): JSXElement {
                 <span>
                   Added on{" "}
                   {new Date(
-                    connectedApps()?.github?.added_on ?? "",
+                    connectedApps()?.github?.added_on ?? ""
                   ).toLocaleDateString()}
                 </span>
               </p>
