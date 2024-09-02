@@ -1,7 +1,9 @@
 ---
 import "./global.scss";
 import "@fontsource-variable/inter";
+import inter from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
 import path from "path";
+import "./global.scss";
 import { SEO, type Props as SeoProps } from "astro-seo";
 
 export type Props = {
@@ -57,6 +59,16 @@ const title = seoProps.title;
         ...seoProps?.twitter,
       }}
     />
+    <!-- Preload the font to avoid FOUT, note that you might have to add more if
+you use more additional fonts, check which fonts are being used in Chrome devtools -->
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href={inter}
+      crossorigin="anonymous"
+    />
+
     <slot name="head" />
   </head>
   <body>

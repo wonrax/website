@@ -1,7 +1,8 @@
 html {
   font-family:
     Inter Variable,
-    Inter fallback;
+    Inter fallback,
+    sans-serif;
   background-color: var(--bg-color);
   color: var(--text-body-heavy);
 
@@ -123,5 +124,5 @@ a:visited {
 button {
   font-family:
     Inter Variable,
-    sans-serif; // TODO move this to global selector
+    sans-serif;
 }
