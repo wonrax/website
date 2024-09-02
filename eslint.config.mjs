@@ -20,6 +20,9 @@ export default [
   gitignore({
     files: [".gitignore", "apps/hhai.dev/.gitignore"],
   }),
+  {
+    ignores: [".prettierrc.js"],
+  },
   js.configs.recommended,
   ...compat.extends("plugin:prettier/recommended"),
   ...tseslint.configs.recommended,
