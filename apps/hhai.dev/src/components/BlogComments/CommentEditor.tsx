@@ -341,16 +341,17 @@ export function Input(props: {
   description?: string;
   id?: string;
 }): JSXElement {
-  const { id, description, type = "text", placeholder } = props;
   return (
     <div class="input">
       <input
-        type={type}
-        placeholder={placeholder}
-        id={id}
+        type={props.type || "text"}
+        placeholder={props.placeholder}
+        id={props.id}
         autocomplete="false"
       />
-      {description != null && <p class="description">{description}</p>}
+      {props.description != null && (
+        <p class="description">{props.description}</p>
+      )}
     </div>
   );
 }

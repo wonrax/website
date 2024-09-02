@@ -1,4 +1,4 @@
-import { PrismaClient, type Identity } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { faker } from "@faker-js/faker";
 
 const prisma = new PrismaClient();
@@ -43,8 +43,8 @@ async function main() {
               identity_id: identity.id,
               credential_type_id: credentialType.id,
             },
-          }),
-        ),
+          })
+        )
     );
   }
 }

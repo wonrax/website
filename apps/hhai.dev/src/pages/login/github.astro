@@ -67,17 +67,18 @@ import Layout from "@/layouts/Layout.astro";
           case 500:
             unexpectedError();
             break;
-          default:
+          default: {
             const error = ApiError.parse(await resp.json());
             const content = document.getElementById("content");
             if (content != null)
               content.innerHTML = `
-                <p>Couldn't log you in due to an error:</p>
-                <p style="color: red;">${error.msg}</p>
-                ${error.reason != null ? "<p>Reason: ${error.reason}</p>" : ""}
-                <a href='${loginUrl}'>Login via GitHub</a>
-                <a href='/'>Return home</a>
-              `;
+              <p>Couldn't log you in due to an error:</p>
+              <p style="color: red;">${error.msg}</p>
+              ${error.reason != null ? "<p>Reason: ${error.reason}</p>" : ""}
+              <a href='${loginUrl}'>Login via GitHub</a>
+              <a href='/'>Return home</a>
+            `;
+          }
         }
       }
     } catch (e) {

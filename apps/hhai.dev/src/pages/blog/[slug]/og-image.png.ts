@@ -15,7 +15,7 @@ export async function getStaticPaths(): Promise<GetStaticPathsResult> {
   );
 }
 
-export const GET: APIRoute = async ({ params, request }) => {
+export const GET: APIRoute = async ({ params }) => {
   const { frontmatter }: { frontmatter: Frontmatter } = await import(
     `../${params.slug}.mdx`
   );

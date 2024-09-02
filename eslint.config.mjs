@@ -29,6 +29,7 @@ export default [
   ...astro.configs.recommended,
   {
     files: ["**/*.{ts,tsx}"],
+    ignores: ["**/*React.{ts,tsx}"],
     ...solid,
 
     languageOptions: {

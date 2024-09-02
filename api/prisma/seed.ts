@@ -35,7 +35,7 @@ async function seedComments(
   post: BlogPost,
   parentComment?: BlogComment,
   root: number[] = [],
-  n = 3,
+  n = 3
 ) {
   for (let i = 0; i < n; i++) {
     const newRoot = [...root, i + 1];

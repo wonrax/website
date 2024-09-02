@@ -26,13 +26,13 @@ const interMedium = await (
 ).arrayBuffer();
 
 export default async function getOgImageResponse(
-  props: Props
+  args: Props
 ): Promise<Response> {
   // TODO make a cache out of this for efficient build and bandwith
   const svg = await satori(
     await OgImage({
-      title: props.title,
-      description: props.description,
+      title: args.title,
+      description: args.description,
     }),
     {
       width: 1200,
