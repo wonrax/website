@@ -10,7 +10,13 @@ import CurrentlyPlaying from "./_currently-playing";
   <main class="centered-layout">
     <section class="home-main">
       <div class="profile-summary">
-        <h3>Ha Huy Long Hai</h3>
+        <img
+          class="only-light-mode"
+          width="48"
+          src="https://res.cloudinary.com/dmdgv6qrg/image/upload/v1726327480/hhai.dev%20blog/internet-person.ico"
+          style="image-rendering: pixelated; margin-bottom: 8px;"
+        />
+        <h3>Hai L. Ha-Huy</h3>
         <h4 class="job-title">Software Engineer</h4>
         <p class="profile-description">
           I design everything from software systems to the user interface. I
@@ -20,14 +26,39 @@ import CurrentlyPlaying from "./_currently-playing";
         <div class="links-section">
           <a href="/blog" class="link">Blog</a>
           <a
+            class="instagram"
             href="https://www.instagram.com/wnrax/"
             target="_blank"
             class="link">Photos</a
           >
         </div>
-        <p>con&#116;ac&#116;&#64;&#104;hai&#46;dev</p>
+        <div
+          style="margin-top: 12px; display: flex; flex-direction: row; align-items: center; gap: 8px;"
+        >
+          <img
+            class="only-light-mode"
+            width="32"
+            height="32"
+            src="https://res.cloudinary.com/dmdgv6qrg/image/upload/v1726327480/hhai.dev%20blog/email.ico"
+            style="image-rendering: pixelated;"
+          />
+          <p>con&#116;ac&#116;&#64;&#104;hai&#46;dev</p>
+          <img
+            class="only-light-mode"
+            width="32"
+            height="32"
+            src="https://res.cloudinary.com/dmdgv6qrg/image/upload/v1726327480/hhai.dev%20blog/email.ico"
+            style="image-rendering: pixelated;"
+          />
+        </div>
       </div>
       <div class="projects-section">
+        <img
+          class="only-light-mode"
+          width="48"
+          src="https://res.cloudinary.com/dmdgv6qrg/image/upload/v1726327480/hhai.dev%20blog/projects.ico"
+          style="image-rendering: pixelated; margin-bottom: 8px;"
+        />
         <h3>Projects</h3>
         <div class="project-entry">
           <h4>2021 — Vietnamese sentiment analysis</h4>
@@ -38,15 +69,14 @@ import CurrentlyPlaying from "./_currently-playing";
               href="https://huggingface.co/wonrax/phobert-base-vietnamese-sentiment"
               target="_blank"
               class="link">Published on Hugging Face</a
-            >, it has garnered 370,000+ downloads.
+            >, it has garnered 600,000+ downloads.
           </p>
         </div>
         <div class="project-entry">
           <h4>2021 — Mybk Mobile Android app</h4>
           <p class="project-description">
-            The app I wished for during my college days. It effortlessly fetches
-            class schedules and vital info, even offline, ensuring you never
-            miss an exam,{" "}
+            The app effortlessly fetches class schedules and vital info, built
+            with local first in mind so it works even if you're offline,{" "}
             <a
               href="https://play.google.com/store/apps/details?id=com.wonrax.mybk"
               target="_blank"
@@ -80,12 +110,51 @@ import CurrentlyPlaying from "./_currently-playing";
 </RootLayout>
 
 <style lang="scss" is:global>
+  body {
+    /* TODO: Somehow using the CSS variable doesn't work */
+    /* background-color: rgba(var(--bg-color), 0.95); */
+    background-color: rgba(255, 255, 255, 0.95);
+
+    @media (prefers-color-scheme: dark) {
+      background-color: unset;
+    }
+  }
+
+  html {
+    background-image: url("https://res.cloudinary.com/dmdgv6qrg/image/upload/v1726328435/hhai.dev%20blog/internet-pc.ico");
+    background-repeat: no-repeat;
+    background-position: 120% 120%;
+    background-size: 712px;
+    image-rendering: pixelated;
+
+    @media (max-width: 1280px) {
+      background-size: 612px;
+      background-position: 130% 130%;
+    }
+
+    @media (max-width: 768px) {
+      background-image: none;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      background-image: none;
+    }
+  }
+
   .centered-layout {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
     padding-top: 48px;
     padding-bottom: 48px;
+  }
+
+  .only-light-mode {
+    display: none;
+
+    @media (prefers-color-scheme: light) {
+      display: block;
+    }
   }
 
   .home-main {
@@ -95,7 +164,7 @@ import CurrentlyPlaying from "./_currently-playing";
 
     p {
       margin: 16px 0;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.01em;
     }
 
     .profile-summary {
@@ -127,6 +196,35 @@ import CurrentlyPlaying from "./_currently-playing";
       text-decoration: underline;
     }
 
+    .instagram {
+      background-image: linear-gradient(90deg, #e6b718, #ee2a7b, #7140ee);
+      color: transparent;
+      background-clip: text;
+      text-decoration: underline;
+      position: relative;
+
+      /* Underline */
+      &::before {
+        content: "";
+        position: absolute;
+        top: 100%;
+        width: 100%;
+        left: 0;
+        height: 1.5px;
+        margin-top: -2.5px;
+        background: linear-gradient(90deg, #e6b718, #ee2a7b, #7140ee);
+
+        @media (prefers-color-scheme: dark) {
+          background-image: linear-gradient(90deg, #f9c213, #ff3f8d, #8757ff);
+        }
+      }
+
+      /* Make the gradient more visible in dark mode */
+      @media (prefers-color-scheme: dark) {
+        background-image: linear-gradient(90deg, #f9c213, #ff3f8d, #8757ff);
+      }
+    }
+
     h3,
     h4 {
       font-weight: var(--font-weight-medium);
@@ -146,7 +244,7 @@ import CurrentlyPlaying from "./_currently-playing";
         margin-bottom: 32px;
 
         h4 {
-          margin-bottom: 0;
+          margin-bottom: -6px;
         }
 
         .project-description {
