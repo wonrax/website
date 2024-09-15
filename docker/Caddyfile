@@ -17,8 +17,7 @@ hhai.dev {
 		}
 
 		route {
-			header Cache-Control max-age=300
-			header /_astro/* Cache-Control max-age=31536000, immutable
+			header /_astro/* Cache-Control "max-age=31536000, immutable"
 		}
 	}
 
