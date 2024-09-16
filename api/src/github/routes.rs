@@ -42,6 +42,9 @@ async fn handle_fetch_git_hub_profile_views(
 
     let mut row: Result<(i64,), sqlx::Error>;
 
+    // NOTE: that currently the badge is behind GitHub's proxy since it's hosted on GitHub markdown
+    // renderer, so the IP address will always be GitHub's IP address. It means we're assuming that
+    // there should not be more than one person viewing the badge within a second.
     if cache.get(&_ip).await.is_none() {
         cache
             .insert(_ip.clone(), true, Duration::from_secs(1))
