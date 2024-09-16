@@ -39,8 +39,6 @@ hhai.dev {
 }
 
 static.hhai.dev {
-	import request-logging
-
 	handle_path /hhai.dev/* {
 		root * /www/hhai.dev
 		try_files {path}.html
@@ -73,8 +71,6 @@ api.hhai.dev {
 }
 
 files.hhai.dev {
-	import request-logging
-
 	root * /www/files.hhai.dev
 	file_server {
 		browse
