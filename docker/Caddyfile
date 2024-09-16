@@ -39,6 +39,8 @@ hhai.dev {
 }
 
 static.hhai.dev {
+	import request-logging
+
 	handle_path /hhai.dev/* {
 		root * /www/hhai.dev
 		try_files {path}.html
@@ -57,6 +59,8 @@ static.hhai.dev {
 }
 
 api.hhai.dev {
+	import request-logging
+
 	handle_path /api/* {
 		reverse_proxy api:3000 {
 			# Trust all incoming X-Forwarded-For headers since we verify the
@@ -69,6 +73,8 @@ api.hhai.dev {
 }
 
 files.hhai.dev {
+	import request-logging
+
 	root * /www/files.hhai.dev
 	file_server {
 		browse
