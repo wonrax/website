@@ -42,8 +42,7 @@ async fn handle_fetch_git_hub_profile_views(
 
     let mut row: Result<(i64,), sqlx::Error>;
 
-    // if cache.get(&_ip).await.is_none() {
-    if false {
+    if cache.get(&_ip).await.is_none() {
         cache
             .insert(_ip.clone(), true, Duration::from_secs(1))
             .await;
