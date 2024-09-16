@@ -38,6 +38,10 @@ services:
       - ./.mount/caddy-data/config:/config
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    logging:
+      driver: local
+      options:
+        max-size: 1g
 
   migrator:
     image: ghcr.io/wonrax/hhai-dev-migrator:latest

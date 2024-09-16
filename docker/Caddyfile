@@ -1,4 +1,18 @@
+(request-logging) {
+	log {
+		output stdout
+		format filter {
+			request>headers>Cookie delete
+			wrap json {
+				time_format iso8601
+			}
+		}
+	}
+}
+
 hhai.dev {
+	import request-logging
+
 	handle_path /api/* {
 		reverse_proxy api:3000 {
 			# Trust all incoming X-Forwarded-For headers since we're behind
