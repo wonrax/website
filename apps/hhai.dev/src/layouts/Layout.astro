@@ -40,21 +40,30 @@ const title = seoProps.title;
         basic: {
           image: ogImageUrl,
           title: title,
-          type: "website",
+          type: "object",
           ...seoProps?.openGraph?.basic,
         },
+        optional: {
+          siteName: "Hai L. Ha-Huy",
+          description: seoProps?.description,
+        },
+        image: {
+          url: ogImageUrl,
+          alt: "Banner image for: " + title,
+          width: 1200,
+          height: 630,
+        },
         article: {
-          authors: ["Ha Huy Long Hai"],
+          authors: ["Hai L. Ha-Huy"],
           ...seoProps?.openGraph?.article,
         },
       }}
       twitter={{
         card: "summary_large_image",
-        creator: "@wnrax",
+        site: "@wnrax",
         description: seoProps?.description,
         image: ogImageUrl,
         imageAlt: "Banner image for: " + title,
-        site: "@wnrax",
         title: title,
         ...seoProps?.twitter,
       }}
