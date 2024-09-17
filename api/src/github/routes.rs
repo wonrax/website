@@ -2,7 +2,10 @@ use std::{net::SocketAddr, time::Duration};
 
 use axum::{
     extract::{ConnectInfo, State},
-    http::{header, HeaderMap},
+    http::{
+        header::{self, USER_AGENT},
+        HeaderMap,
+    },
     response::{IntoResponse, Response},
     routing::get,
     Router,
@@ -42,10 +45,17 @@ async fn handle_fetch_git_hub_profile_views(
 
     let mut row: Result<(i64,), sqlx::Error>;
 
+    // Since we put the badge on GitHub readme, we only allow the badge to be fetched from GitHub
+    // and not from direct API calls.
+    let user_agent_from_github = headers
+        .get(USER_AGENT)
+        .map(|ua| ua.to_str().unwrap_or_default().contains("github-camo"))
+        .unwrap_or(false);
+
     // NOTE: that currently the badge is behind GitHub's proxy since it's hosted on GitHub markdown
     // renderer, so the IP address will always be GitHub's IP address. It means we're assuming that
     // there should not be more than one person viewing the badge within a second.
-    if cache.get(&_ip).await.is_none() {
+    if cache.get(&_ip).await.is_none() && user_agent_from_github {
         cache
             .insert(_ip.clone(), true, Duration::from_secs(1))
             .await;
