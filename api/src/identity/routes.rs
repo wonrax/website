@@ -161,7 +161,9 @@ pub async fn handle_github_oauth_callback(
     // TODO use a struct to deserialize into instead of this
     let user = user_info["login"].as_str().ok_or(MISSING_EXPECTED_FIELD)?;
     let user_id = user_info["id"].as_i64().ok_or(MISSING_EXPECTED_FIELD)?;
-    let full_name = user_info["name"].as_str().ok_or(MISSING_EXPECTED_FIELD)?;
+
+    // NOTE: some users don't have a name set
+    let full_name = user_info["name"].as_str().unwrap_or(user);
 
     let emails: serde_json::Value = ctx
         .http
