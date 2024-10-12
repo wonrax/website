@@ -38,6 +38,10 @@ hhai.dev {
 	encode zstd gzip
 }
 
+llm.hhai.dev {
+	reverse_proxy open-webui:8080
+}
+
 static.hhai.dev {
 	handle_path /hhai.dev/* {
 		root * /www/hhai.dev

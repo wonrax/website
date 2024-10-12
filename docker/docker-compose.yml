@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   database:
     image: postgres:15
@@ -70,3 +68,26 @@ services:
       dockerfile: docker/hhai-dev-www.Dockerfile
     volumes:
       - ./.mount/www/hhai.dev:/.mount
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: unless-stopped
+    environment:
+      ENV: prod
+      DATABASE_URL: ${OPEN_WEBUI_DATABASE_URL}
+      WEBUI_AUTH: true
+      ENABLE_SIGNUP: true
+      ENABLE_LOGIN_FORM: true
+      DEFAULT_USER_ROLE: pending
+      ENABLE_MESSAGE_RATING: false
+      DATABASE_POOL_SIZE: 10
+      ENABLE_OLLAMA_API: false
+      # The two options below helps significantly reducing RAM usage (from
+      # 600MB to 240MB)
+      # https://docs.openwebui.com/tutorials/tips/reduce-ram-usage
+      AUDIO_STT_ENGINE: openai
+      RAG_EMBEDDING_ENGINE: ollama
+    volumes:
+      - ./.mount/open-webui:/app/backend/data
+

@@ -1,0 +1,23 @@
+services:
+  open-webui:
+    extends:
+      file: docker-compose.yml
+      service: open-webui
+    volumes:
+      - ./.mount/open-webui:/app/backend/data
+    ports:
+      - 3000:8080
+
+  database:
+    extends:
+      file: docker-compose.dev.yml
+      service: database
+    volumes:
+      - ./.mount/postgres-db:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+
+  adminer:
+    extends:
+      file: docker-compose.dev.yml
+      service: adminer

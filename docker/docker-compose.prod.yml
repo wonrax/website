@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   database:
     extends:
@@ -41,7 +39,17 @@ services:
       service: www
     pull_policy: always
 
+  open-webui:
+    extends:
+      file: docker-compose.yml
+      service: open-webui
+    depends_on:
+      - database
+    volumes:
+      - open-webui:/app/backend/data
+
 volumes:
   postgres-data:
   windmill_lsp_cache:
   worker_dependency_cache:
+  open-webui:
