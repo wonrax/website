@@ -39,7 +39,10 @@ hhai.dev {
 }
 
 llm.hhai.dev {
-	reverse_proxy open-webui:8080
+    reverse_proxy open-webui:8080
+    route {
+        header /_app/immutable/* Cache-Control "max-age=31536000, immutable"
+    }
 }
 
 static.hhai.dev {
