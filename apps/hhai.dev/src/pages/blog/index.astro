@@ -2,8 +2,13 @@
 import BlogRouteLayout from "@/layouts/BlogRouteLayout.astro";
 import type { Frontmatter } from "@/layouts/BlogPostLayout.astro";
 import "@/layouts/layout.scss";
+import type { MarkdownInstance } from "astro";
 
-const allPosts = await Astro.glob<Frontmatter>("./**/*.mdx");
+const allPosts = Object.values(
+  import.meta.glob<MarkdownInstance<Frontmatter>>("./**/*.mdx", {
+    eager: true,
+  })
+);
 ---
 
 <BlogRouteLayout
