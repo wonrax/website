@@ -16,12 +16,6 @@ export type Props = RootLayoutProps;
     </nav>
     <slot />
   </div>
-  <footer class="footer">
-    <div class="nav-bar-content">
-      <a href="/" class="logo-name-text">Hai L. Ha-Huy</a>
-      <a href="/blog" class="nav-bar-link-item">Blog</a>
-    </div>
-  </footer>
 </Layout>
 
 <style lang="scss" is:global>
@@ -58,23 +52,11 @@ export type Props = RootLayoutProps;
     }
 
     .logo-name-text {
-      font-size: 18px;
       font-weight: var(--font-weight-medium);
     }
 
     .nav-bar-link-item {
-      font-size: 18px;
       font-weight: 400;
     }
-  }
-
-  .footer {
-    background-color: var(--bg-additive-light);
-    padding: 32px 0;
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    align-items: start;
-    // height: 10vh;
   }
 </style>

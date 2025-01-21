@@ -5,6 +5,8 @@ import inter from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff
 import path from "path";
 import "./global.scss";
 import { SEO, type Props as SeoProps } from "astro-seo";
+import childProcess from "child_process";
+import { version } from "../../package.json";
 
 export type Props = {
   seoProps: SeoProps & {
@@ -22,6 +24,11 @@ const ogImageUrl =
   path.posix.join(Astro.url.pathname, "og-image.png");
 
 const title = seoProps.title;
+
+const commitHash = childProcess
+  .execSync("git rev-parse --short HEAD")
+  .toString()
+  .trim();
 ---
 
 <!doctype html>
@@ -110,5 +117,42 @@ you use more additional fonts, check which fonts are being used in Chrome devtoo
         });
       }
     </script>
+    <footer>
+      <div class="footer-content">
+        <a href="/" class="logo-name-text">Hai L. Ha-Huy</a>
+        <a href="/blog" class="footer-link-item">Blog</a>
+      </div>
+      <span>
+        Commit: {commitHash} - Version: {version}
+      </span>
+    </footer>
   </body>
 </html>
+
+<style lang="scss" is:global>
+  footer {
+    background-color: var(--bg-additive-lighter);
+    padding: 32px 0;
+    gap: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+
+    .footer-content {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 16px;
+
+      .logo-name-text {
+        font-weight: var(--font-weight-medium);
+      }
+    }
+
+    span {
+      font-size: 13px;
+      color: var(--text-body-light);
+    }
+  }
+</style>
