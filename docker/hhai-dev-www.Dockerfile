@@ -18,6 +18,7 @@ COPY turbo.json .
 RUN npx turbo build --filter=hhai.dev^...
 
 COPY apps/. ./apps
+COPY .git/. ./.git
 RUN npx turbo build --filter=hhai.dev
 
 FROM busybox:latest
