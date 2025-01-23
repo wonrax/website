@@ -4,6 +4,7 @@ import { visit } from "unist-util-visit";
 // Turn directives to tag name and class names
 // Grabbed from https://github.com/remarkjs/remark-directive#use
 export function remarkDirectiveHtml() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return function (tree: any) {
     visit(tree, function (node) {
       if (
@@ -11,11 +12,9 @@ export function remarkDirectiveHtml() {
         node.type === "leafDirective" ||
         node.type === "textDirective"
       ) {
-        // exclude remark callout directives
-        if (["note", "warning"].includes(node.name)) return;
-
         const data = node.data || (node.data = {});
-        const hast: any = h(node.name, node.attributes || {});
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const hast = h(node.name, node.attributes || {}) as any;
 
         data.hName = hast.tagName;
         data.hProperties = hast.properties;

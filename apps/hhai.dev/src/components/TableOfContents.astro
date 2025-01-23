@@ -41,7 +41,7 @@ for (const h of filteredHeadings) {
 ---
 
 <div class="table-of-content">
-  <h3>On this page</h3>
+  <h3 class="title">On this page</h3>
   <ol class="level-1">
     {
       nestedHeadings.map((heading) => (
@@ -55,8 +55,8 @@ for (const h of filteredHeadings) {
 
 <style lang="scss" is:global>
   .table-of-content {
-    h3 {
-      font-size: 18px;
+    .title {
+      font-size: 16px;
       color: var(--text-body-heavy);
       font-weight: var(--font-weight-normal);
     }
@@ -71,14 +71,14 @@ for (const h of filteredHeadings) {
       list-style-type: none;
     }
 
-    & > li {
-      // margin-top: 8px;
+    ol li {
+      margin: 0;
     }
 
     li::marker,
-    a,
-    a:visited {
-      color: var(--text-body-medium);
+    li > a,
+    li > a:visited {
+      color: var(--text-body-light);
       font-size: 14px;
       line-height: 1.35em;
       letter-spacing: -0.02em;
@@ -88,14 +88,8 @@ for (const h of filteredHeadings) {
     }
 
     li.active > a,
-    a:hover {
+    li > a:hover {
       color: var(--text-body-heavy);
-      box-shadow: inset -2px 0 0 0 var(--text-body-heavy);
-      background: linear-gradient(
-        90deg,
-        rgba(0, 0, 0, 0) 0%,
-        var(--bg-additive-light) 100%
-      );
     }
 
     a {

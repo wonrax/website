@@ -4,12 +4,4 @@
   box-sizing: border-box;
   width: 1004px;
   margin: 0 auto;
-
-  @media (max-width: 1280px) {
-    width: 700px;
-  }
-
-  @media (max-width: 800px) {
-    padding: 0 32px;
-  }
 }

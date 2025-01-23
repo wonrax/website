@@ -46,6 +46,12 @@ export default function rehypeBlogPost() {
           continue;
         }
 
+        if (["warning", "note"].includes(node.tagName)) {
+          flushWrapper();
+          finalChildren.push(h("div", { class: "feature-callout" }, node));
+          continue;
+        }
+
         // code block is a special case and is feature by default
         if (
           node.tagName === "figure" &&

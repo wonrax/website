@@ -36,70 +36,59 @@ const headings = Astro.props.headings;
 <BlogRouteLayout
   seoProps={{ title: post.title, description: post.description }}
 >
-  <main class="blog-post-main">
-    <div class="right-sidebar">
-      <div class="right-sidebar-content">
-        {
-          headings.length ? (
-            <>
-              <TableOfContents headings={headings} />
-              <button id="go-to-top" aria-label="Go to top of the page">
-                <ArrowUp size={16} />
-              </button>
-            </>
-          ) : null
-        }
-        <!-- <div class="mt-6">
+  <div class="right-sidebar">
+    <div class="right-sidebar-content">
+      {
+        headings.length ? (
+          <>
+            <TableOfContents headings={headings} />
+            <button id="go-to-top" aria-label="Go to top of the page">
+              <ArrowUp size={16} />
+            </button>
+          </>
+        ) : null
+      }
+      <!-- <div class="mt-6">
           <ScrollToTopButton />
         </div> -->
-      </div>
     </div>
-    <article class="article">
-      <div class="post-header">
-        <h1>
-          {post.title}
-        </h1>
-        <div class="separator">
-          <span class="article-date">
-            {
-              new Date(post.published).toLocaleDateString("en-UK", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })
-            }
-          </span>
-          <span class="separator-line"></span>
-          {
-            post.tags &&
-              post.tags.map((tag) => <span class="post-tag">#{tag}</span>)
-          }
-        </div>
-        <Sheet.Trigger class="open-discussion" client:load>
-          <MessagesSquare size={16} strokeWidth={1.5} />
-          View discussions
-        </Sheet.Trigger>
-      </div>
-      <div class="article-body">
+  </div>
+  <div class="post-header">
+    <h1>
+      {post.title}
+    </h1>
+    <div class="separator">
+      <span class="article-date">
         {
-          post.isDraft ? (
-            <div class="feature-aside">
-              <aside class="callout callout-warning">
-                <div class="callout-title">Draft</div>
-                <div class="callout-content">
-                  <p>
-                    This post is a draft and is not yet ready for public
-                    viewing.
-                  </p>
-                </div>
-              </aside>
-            </div>
-          ) : null
+          new Date(post.published).toLocaleDateString("en-UK", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })
         }
-        <slot />
-      </div>
-    </article>
-  </main>
+      </span>
+      <span class="separator-line"></span>
+      {
+        post.tags &&
+          post.tags.map((tag) => <span class="post-tag">#{tag}</span>)
+      }
+    </div>
+    <Sheet.Trigger class="open-discussion" client:load>
+      <MessagesSquare size={16} strokeWidth={1.5} />
+      View discussions
+    </Sheet.Trigger>
+  </div>
+  {
+    post.isDraft ? (
+      <aside class="callout callout-warning">
+        <div class="callout-title">Draft</div>
+        <div class="callout-content">
+          <p>This post is a draft and is not yet ready for public viewing.</p>
+        </div>
+      </aside>
+    ) : null
+  }
+  <slot />
   <Sheet.Root client:load>
     <Sheet.Trigger
       class="close-button"
@@ -135,47 +124,8 @@ const headings = Astro.props.headings;
     }
   }
 
-  .blog-post-main {
-    display: flex;
-    flex-direction: row;
-    gap: 64px;
-    max-width: 100%;
-    justify-content: center;
-  }
-
-  .right-sidebar {
-    display: block;
-    order: 2;
-    align-self: stretch;
-
-    @media (max-width: 1280px) {
-      display: none;
-    }
-
-    .right-sidebar-content {
-      position: sticky;
-      top: 24px;
-      overflow-y: auto;
-      max-height: 90vh;
-      padding: 2px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-
-      @media (min-width: 1280px) {
-        width: 240px;
-      }
-    }
-  }
-
-  .article {
+  .blog-container {
     font-size: 16px;
-    width: 100%;
-    max-width: 800px;
-
-    @media (max-width: 1280px) {
-      max-width: 100%;
-    }
 
     .post-tag {
       display: inline-block;
@@ -198,43 +148,11 @@ const headings = Astro.props.headings;
     }
 
     figure {
-      margin: 32px 0;
+      margin: 0 auto;
     }
   }
 
-  .article .post-header {
-    max-width: 700px;
-    margin: 0 auto;
-    box-sizing: border-box;
-
-    h1 {
-      font-size: 28px;
-      font-weight: var(--font-weight-medium);
-      margin: 16px 0;
-      color: var(--text-heading);
-      letter-spacing: -0.02em;
-    }
-
-    .separator {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      margin-top: 16px;
-
-      .separator-line {
-        height: 1px;
-        background-color: var(--text-body-medium);
-        width: 12px;
-        display: inline-block;
-      }
-    }
-
-    @media (max-width: 800px) {
-      padding: 0 32px;
-    }
-  }
-
-  .article .article-body {
+  .blog-container {
     li {
       color: var(--text-body-heavy);
       margin: 8px 0;
@@ -248,7 +166,7 @@ const headings = Astro.props.headings;
     }
   }
 
-  .article .article-body {
+  .blog-container {
     // padding-left: 16px;
     // padding-right: 16px;
     // display: flex;
@@ -268,16 +186,6 @@ const headings = Astro.props.headings;
       padding-right: 0;
     }
 
-    .reading-line-width {
-      max-width: 100%;
-      width: 700px;
-      box-sizing: border-box;
-
-      @media (max-width: 800px) {
-        padding: 0 32px;
-      }
-    }
-
     .feature {
       img {
         width: 100%;
@@ -286,11 +194,9 @@ const headings = Astro.props.headings;
 
     /* <!-- TODO move to using tailwind or smth, add toggle for line numbers --> */
     .feature-sm {
-      width: 100%;
-      max-width: 800px;
-      box-sizing: border-box;
+      grid-column: 2 / 5;
 
-      @media (max-width: 1280px) {
+      @media (max-width: 1100px) {
         padding: 0 16px;
       }
     }
@@ -338,31 +244,17 @@ const headings = Astro.props.headings;
 
     .feature-lg {
       z-index: 10;
-      position: relative;
-      max-width: 1104px;
-      width: 1104px;
+      grid-column: 1 / -1;
       box-sizing: border-box;
-
-      @media (max-width: 1280px) {
-        padding: 0 8px;
-        max-width: 100%;
-      }
     }
 
     .feature-code {
-      width: 100%;
-      max-width: 800px;
-      box-sizing: border-box;
-      margin: 32px auto;
-
-      @media (max-width: 1280px) {
-        padding: 0 16px;
-      }
+      grid-column: 2 / 5;
     }
 
     .feature-table {
+      grid-column: 2 / 5;
       width: fit-content;
-      max-width: 100%;
       margin: 32px auto;
       border-radius: 12px;
       overflow-y: auto;
@@ -409,7 +301,7 @@ const headings = Astro.props.headings;
       font-size: 32px;
       font-weight: var(--font-weight-medium);
       // font-style: italic;
-      margin: 32px 0 16px 0;
+      margin: 24px 0 16px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
       color: var(--text-heading);
@@ -420,7 +312,7 @@ const headings = Astro.props.headings;
       font-size: 24px;
       font-weight: var(--font-weight-medium);
       // font-style: italic;
-      margin: 48px 0 24px 0;
+      margin: 24px 0 16px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
       color: var(--text-heading);
@@ -429,7 +321,7 @@ const headings = Astro.props.headings;
     h3 {
       font-size: 20px;
       font-weight: var(--font-weight-medium);
-      margin: 32px 0 16px 0;
+      margin: 24px 0 16px 0;
       line-height: 1.35em;
       letter-spacing: -0.02em;
       color: var(--text-heading);
@@ -444,23 +336,32 @@ const headings = Astro.props.headings;
     }
 
     .feature-aside {
-      margin: 32px auto;
+      grid-column: 5 / 6;
+      transform: translateY(100%);
+      font-style: italic;
 
-      @media (max-width: 1280px) {
-        padding: 0 16px;
+      @media (max-width: 1100px) {
+        grid-column: 3 / 4;
+        transform: unset;
       }
 
       aside {
-        background-color: var(--bg-aside);
-        padding: 24px;
-        border-radius: 12px;
-        width: 100%;
-        max-width: 748px;
+        position: absolute;
+        background-color: var(--bg-color);
         box-sizing: border-box;
         margin: 0 auto;
+        padding: 8px 0;
+        box-shadow: 0 0 16px 16px rgba($color: #fff, $alpha: 1);
+        border-top: solid 1px var(--bg-additive-medium);
+        border-bottom: solid 1px var(--bg-additive-medium);
+        height: fit-content;
+
+        @media (max-width: 1100px) {
+          position: relative;
+        }
 
         p {
-          font-size: 15px;
+          font-size: 14px;
           color: var(--text-body-medium);
           margin-top: 16px;
           margin-bottom: 0;
@@ -476,60 +377,6 @@ const headings = Astro.props.headings;
       }
     }
 
-    aside.callout {
-      .callout-title {
-        font-size: 13px;
-        font-weight: var(--font-weight-medium);
-        text-transform: uppercase;
-      }
-
-      .callout-content {
-        margin-top: 8px;
-      }
-
-      p {
-        font-size: 16px;
-      }
-    }
-
-    .callout.callout-note {
-      background-color: var(--info-light);
-
-      .callout-title {
-        color: var(--info-medium);
-      }
-
-      p {
-        color: var(--info-heavy);
-      }
-
-      a {
-        color: var(--info-heavy);
-        &:visited {
-          color: var(--info-medium);
-        }
-      }
-    }
-
-    .callout.callout-warning {
-      background-color: var(--warning-light);
-
-      .callout-title {
-        color: var(--warning-medium);
-      }
-
-      p {
-        color: var(--warning-heavy);
-      }
-
-      a {
-        color: var(--warning-heavy);
-        &:visited {
-          color: var(--warning-medium);
-        }
-      }
-    }
-
     img {
       display: block;
       height: auto;
@@ -538,9 +385,126 @@ const headings = Astro.props.headings;
     }
   }
 
-  // Code block stylying
-  .article .article-body figure[data-rehype-pretty-code-figure] {
+  .feature-callout {
+    grid-column: 2 / 5;
     margin-top: 24px;
+  }
+
+  .callout {
+    display: block;
+    padding: 40px 40px 24px 40px;
+    border-radius: 12px;
+
+    .callout-title {
+      font-size: 13px;
+      font-weight: var(--font-weight-medium);
+      text-transform: uppercase;
+    }
+
+    .callout-content {
+      margin-top: 8px;
+    }
+
+    p {
+      font-size: 16px;
+    }
+  }
+
+  .callout.callout-note {
+    background-color: var(--info-light);
+
+    .callout-title {
+      color: var(--info-medium);
+    }
+
+    p {
+      color: var(--info-heavy);
+    }
+
+    a {
+      color: var(--info-heavy);
+      &:visited {
+        color: var(--info-medium);
+      }
+    }
+  }
+
+  .callout.callout-warning {
+    background-color: var(--warning-light);
+
+    .callout-title {
+      color: var(--warning-medium);
+    }
+
+    p {
+      color: var(--warning-heavy);
+    }
+
+    a {
+      color: var(--warning-heavy);
+      &:visited {
+        color: var(--warning-medium);
+      }
+    }
+  }
+
+  .post-header {
+    box-sizing: border-box;
+    margin-left: 0;
+
+    h1 {
+      font-size: 28px;
+      font-weight: var(--font-weight-medium);
+      margin: 16px 0;
+      color: var(--text-heading);
+      letter-spacing: -0.02em;
+    }
+
+    .separator {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      margin-top: 16px;
+
+      .separator-line {
+        height: 1px;
+        background-color: var(--text-body-medium);
+        width: 12px;
+        display: inline-block;
+      }
+    }
+  }
+
+  .right-sidebar {
+    grid-column-start: 5;
+    grid-column-end: 6;
+    grid-row-start: 3;
+    height: 0;
+    position: sticky;
+    top: 24px;
+    margin-left: 0;
+
+    @media (max-width: 1100px) {
+      display: none;
+    }
+
+    .right-sidebar-content {
+      overflow-y: auto;
+      max-height: 90vh;
+      padding: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+
+      @media (min-width: 1100px) {
+        width: 240px;
+      }
+    }
+  }
+
+  // Code block stylying
+  .blog-container figure[data-rehype-pretty-code-figure] {
+    margin: 0 auto;
     border-radius: 12px;
     background-color: var(--bg-code-block);
     overflow: hidden;
@@ -629,7 +593,7 @@ const headings = Astro.props.headings;
     }
   }
 
-  .article .article-body .code-group {
+  .blog-container .code-group {
     .code-group-tabs {
       display: flex;
       padding-left: 16px;
@@ -682,7 +646,7 @@ const headings = Astro.props.headings;
   }
 
   // inline code
-  .article .article-body span[data-rehype-pretty-code-figure],
+  .blog-container span[data-rehype-pretty-code-figure],
   :not(span[data-rehype-pretty-code-figure]) > code {
     padding: 2px 4px;
     background-color: var(--bg-code-inline);
