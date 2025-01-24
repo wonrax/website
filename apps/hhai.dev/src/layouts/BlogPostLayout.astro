@@ -167,13 +167,7 @@ const headings = Astro.props.headings;
   }
 
   .blog-container {
-    // padding-left: 16px;
-    // padding-right: 16px;
-    // display: flex;
-    // flex-direction: column;
-    // align-items: center;
     word-wrap: break-word;
-    // margin-bottom: 64px;
     margin-top: 32px;
 
     & > * {
@@ -351,7 +345,7 @@ const headings = Astro.props.headings;
         box-sizing: border-box;
         margin: 0 auto;
         padding: 8px 0;
-        box-shadow: 0 0 16px 16px rgba($color: #fff, $alpha: 1);
+        box-shadow: 0 0 16px 16px var(--bg-color);
         border-top: solid 1px var(--bg-additive-medium);
         border-bottom: solid 1px var(--bg-additive-medium);
         height: fit-content;
