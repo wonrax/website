@@ -126,11 +126,9 @@ ALTER TABLE "comments"
 
 </CodeGroup>
 
-:::note
-While I use Prisma schema for migration and development purposes, the backend
-employs Rust [sqlx](https://github.com/launchbadge/sqlx) for handling SQL
-queries. I'm not embedding an engine into the API just to do basic SQL
-operations.
+:::aside
+While Prisma's tooling is superb, I only use it for schema migrations and
+development. For my use case, Rust's sqlx or diesel libraries are sufficient.
 :::
 
 To simplify things again, we're just going to sort the comments by upvotes and
@@ -536,9 +534,3 @@ fn depth_first_search(
 ```
 </CodeGroup>
 
-:::note
-As of writing this post, only the API part of the comment platform is completed,
-and the UI and moderation features are still in progress (very long way to go).
-
-You'll know when it's available 🙂
-:::

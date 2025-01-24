@@ -203,15 +203,17 @@ export function CommentEditorBase(props: {
                   color: "var(--text-body-medium)",
                   margin: "2px 8px 12px 8px",
                   "line-height": "140%",
+                  "align-items": "baseline",
                 }}
               >
-                Either{" "}
+                Either
                 <button
                   style={{
-                    color: "var(--text-body-heavy)",
-                    "font-weight": "var(--font-weight-medium)",
-                    "text-decoration": "underline",
                     display: "inline",
+                    padding: "4px 4px",
+                    color: "var(--info-heavy)",
+                    "background-color": "transparent",
+                    "text-decoration": "underline",
                   }}
                   onClick={(e) => {
                     // quick workaround in order not to accidentally submit the form
@@ -228,7 +230,7 @@ export function CommentEditorBase(props: {
                   }}
                 >
                   login via GitHub
-                </button>{" "}
+                </button>
                 or type your name below
               </p>
               <div class="author-info">
