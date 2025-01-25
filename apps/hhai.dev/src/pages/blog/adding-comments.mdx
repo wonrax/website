@@ -9,49 +9,44 @@ tags:
   - algo
 ---
 
-I'd love to hear other people's opinions on my post. So I'm adding the ability
-to post and view comments to this blog.
-
 There are solutions that streamline the integration of comments, with
 [Disqus](https://disqus.com/) being the oldest service I know. However, I
-haven't had good experience with Disqus as an audience in other blogs. Disqus
-always took very long to load the comments, sometimes failing altogether, and
-their UI is also not quite my taste.
+haven't had good experiences with Disqus as a reader on other blogs. Disqus
+always took a very long time to load the comments, sometimes failing
+altogether, and their UI is also not quite to my taste.
 
 Alternatives like [giscus](https://github.com/giscus/giscus) or
-[utterances](https://github.com/utterance) use GitHub to authenticate user and
-store the underlying comments data. But I don't feel so comfortable letting my
-website depend on a makeshift solution like that. I want my own website to last.
+[utterances](https://github.com/utterance) use GitHub to authenticate users and
+store the underlying comments data. But I don't feel comfortable letting my
+website depend on an ad hoc solution like that. I want my website to last.
 Without a clear migration plan for existing comments, the longevity of these
-solutions becomes uncertain. Since GitHub didn't create GitHub Discussions to be
-used like that, they don't have the responsibility to keep things the way you
-want forever. Additionally, I aim to keep the comment creation process on my
-blog as easy as possible, requiring no login—just enter your name.
+solutions becomes uncertain. Since GitHub didn't create GitHub Discussions to
+be used in that way, they aren't responsible for keeping things the way we want
+forever. Additionally, I aim to keep the comment creation process on my blog as
+easy as possible, requiring no login—just enter your name.
 
 Given my existing API written in Rust (yes, I'm on the hype train too) and a
-PostgreSQL database used to increase post views, I better make more use of that.
-So I decided to create my own comment platform. This means I have to address
-various aspects (not supposed to be an exhaustive list):
+PostgreSQL database used to track post views, I might as well make more use of
+that. So I decided to create my own comment platform. This means I have to
+address various aspects (this is not supposed to be an exhaustive list):
 
-- Data modelling and APIs to `GET`/`POST` comments
+- Data modeling and APIs to `GET`/`POST` comments
 - UI for displaying and submitting comments
 - Markdown rendering support and content sanitization
 - Content moderation and spam prevention
 
-This post will delve into the first half of the data modeling process, covering
-the data schema, data fetching, and the implementation to rank and fetch
-comments for display.
-
+This post will delve into the data modeling process, covering the data schema,
+data fetching, and the implementation to rank and fetch comments for display.
 
 ## Data modelling
 
-Modelling involves designing database schemas after researching a suitable model
-for storage and easy querying. To sum up, I went for the adjencency list model.
+Modeling involves designing database schemas after researching a suitable model
+for storage and easy querying. To sum up, I went for the adjacency list model.
 Each comment is a record in the database containing comment data and a
 `parent_id` pointing to the comment it's replying to. If `parent_id` is `NULL`,
-it is a root comment. To simplify things, there's no depth limit, and it's easy
-to enforce this later on the application level. Below is the schema in Prisma,
-along with a corresponding SQL migration script.
+it is a root comment. To simplify things, there's no depth limit, and if
+necessary, it's easy to enforce this later at the application level. Below is
+the schema in Prisma, along with a corresponding SQL migration script.
 
 <CodeGroup client:load>
 
@@ -128,15 +123,16 @@ ALTER TABLE "comments"
 
 :::aside
 While Prisma's tooling is superb, I only use it for schema migrations and
-development. For my use case, Rust's sqlx or diesel libraries are sufficient.
+development. For my use case, Rust's `sqlx` or `diesel` libraries are
+sufficient.
 :::
 
-To simplify things again, we're just going to sort the comments by upvotes and
-the timestamp, but the nested replies have to be sorted too. That means we have
-to sort every level of every comment replies. It's too complex (for me) to get a
+To simplify things further, we're just going to sort the comments by upvotes
+and timestamp, but the nested replies have to be sorted too. That means we have
+to sort every level of comment replies. It's too complex (for me) to get a
 final result using only the database queries. So what we're doing in SQL is to
-only sort the top level comments for pagination, and then get all the child
-comments. This is Hacker News-like thread fetching. Sorting nested comments is
+only sort the top-level comments for pagination, and then get all the child
+comments. This is Hacker News–like thread fetching. Sorting nested comments is
 deferred to the Rust API.
 
 ```sql showLineNumbers
@@ -179,10 +175,10 @@ ORDER BY root;
 ```
 
 This SQL snippet draws significant inspiration from a Stack Overflow response
-that I regrettably couldn't relocate. Executing the SQL query, we'll have a list
-of sorted comments. Any comment is guaranteed to be placed behind their parent
+that I regrettably couldn't locate. Executing the SQL query, we'll have a list
+of sorted comments. Any comment is guaranteed to be placed after its parent
 comment in the list. The SQL query employs recursive common table expressions
-(CTE) for this purpose, ensuring comments are ordered based on their
+(CTEs) for this purpose, ensuring comments are ordered based on their
 hierarchical structure.
 
 
@@ -197,33 +193,33 @@ hierarchical structure.
 | NULL      | 7   | wonrax      | 2.       | \{7\}       | 0     | 2023-10-26 | 0      |
 | 7         | 8   | wonrax      | 2.1.     | \{7,8\}     | 1     | 2023-10-26 | 0      |
 
-Now we need to rank the children of the top level comments in the application
+Now we need to rank the children of the top-level comments at the application
 level. The end result we want is similar to the one above, but all the comments
-in the same level are also sorted by upvote and timestamp.
+on the same level are also sorted by upvotes and timestamp.
 
 ## Algorithms
 
 ### Method 1: Recursively iterate through the list
 
-Our recursive iterative ranking function receives a list of comments as input
-and outputs a sorted list. Firstly, it will do a loop of:
+Our recursive ranking function receives a list of comments as input and outputs
+a sorted list. Firstly, it will loop through:
 
-- Find all children of the current comment - this takes $O(n)$ where $n$ is
+- Finding all children of the current comment—this is $O(k)$, where k is the
 number of children of the current comment. We do this by incrementing the index
-until we get a node whose level is equal to or higher than the current node.
-Call this node `next` and forget about it for now.
+until we get a node whose level is less than or equal to the current node's
+level. Call this node `next` and set it aside for now.
 
-- Call our own recursive function with all of its children. This function
-returns the sorted children.
+- We then recursively call our function with all of its children, which returns
+the sorted children.
 
-- Skip until `next` node and repeat the process or stop if we reach the end of
-the list.
+- We skip to the `next` node and repeat the process or stop if we reach the end
+of the list.
 
-After we sort all children of our top level comments, we need to sort the top
-level comments themselves. While finding the `next` (top level) nodes, we also
-store the indices of the these nodes in a seperate list. Now we sort the top
-level nodes and emplace their children to this new list - $O(m \cdot log(m))$
-where $m$ is number of top level comments, according to Rust's built-in
+After we sort all children of our top-level comments, we need to sort the
+top-level comments themselves. While finding the next top-level nodes, we also
+store the indices of these nodes in a separate list. Now we sort the top-level
+nodes and attach their children to this new list—$O(m \cdot log(m))$, where $m$
+is the number of top-level comments, according to Rust's built-in
 `sort_unstable_by_key` function.
 
 We finish the function by returning this new list.
@@ -253,12 +249,12 @@ $$
 For this method, first we iterate through the list and construct a comment tree.
 This is $O(n)$ with the help of a hash map.
 
-Having the tree, we can just recursively sort the children. This is also
-$O(n^n)$ if the reply depth is unlimited and assuming the branching factor is a
-constant $n$.
+Having the tree, we can just recursively sort the children at each node. This
+is also $O(n^n)$ if the reply depth is unlimited and assuming the branching
+factor is a constant $n$.
 
-Finally, we turn the tree back into list by doing a depth first search, which
-has the complexity of $O(n)$.
+Finally, we turn the tree back into a list by performing a depth-first search,
+which has a complexity of $O(n)$.
 
 The complexity of this algorithm is:
 
@@ -275,10 +271,10 @@ $$
 ## Benchmark
 
 It seems the second method could be a bit faster despite both being $O(n^n)$,
-and easier to reason about and implement too. But for the sake of learning Rust,
-and to verify my calculation and reasoning, I implemented both solutions and did
-a benchmark. Below is a table showing the time each implementation took in
-average for input of `n` comments.
+and it's easier to reason about and implement too. For the sake of learning
+Rust, and to verify my calculation and reasoning, I implemented both solutions
+and did a benchmark. Below is a table showing the time each implementation took
+in average for an input of `n` comments.
 
 | Number of comments | Iterative recursive | Intermediate tree |
 | ------------------ | ------------------- | ----------------- |
@@ -293,21 +289,23 @@ construct a new tree and converting it back to list, which has more overhead
 than the algorithm itself. But as $n$ increases, we can see the intermediate
 tree implementation is the clear winner here.
 
-Does it mean that my reasoning and calculation is correct? No, far from that,
+Does this mean that my reasoning and calculations are correct? Not entirely,
 I'm afraid. But I feel more confident about my ability to approximate (or in
-academic term, asymptotically analyze) worst-case complexity of an algorithm.
-One thing that I wish I could do to make this post more complete is space
-complexity, or memory usage of these two algorithms. But I'm too lazy.
+academic terms, asymptotically analyze) the worst-case complexity of an
+algorithm. One thing that I wish I could do to make this post more complete is
+analyze the space complexity, or memory usage, of these two algorithms. But I'm
+too lazy.
 
 ## The code
 
 I use the [criterion](https://docs.rs/criterion/latest/criterion/) crate for
 benchmarking. I think both implementations can be further optimized if I really
-try. Like the `iterative_recursive` could use slices instead of Vec so it
-doesn't need to allocate new ones. But until this becomes an actual problem,
-I'll optimize it.
+try—like the `iterative_recursive` method could use slices instead of `Vec` so
+it doesn't need to allocate new ones. But unless this becomes an actual
+problem, I won't optimize it.
 
 <CodeGroup client:load>
+
 ```rust showLineNumbers title="benchmark.rs"
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use rand::Rng;
