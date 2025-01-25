@@ -1,5 +1,7 @@
 /** @jsxImportSource react */
 
+// TODO: the image is broken
+
 import React from "react";
 
 interface Props {

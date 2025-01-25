@@ -2,28 +2,70 @@
 import BlogRouteLayout from "@/layouts/BlogRouteLayout.astro";
 import type { Frontmatter } from "@/layouts/BlogPostLayout.astro";
 import "@/layouts/layout.scss";
-import type { MarkdownInstance } from "astro";
+import type { GetStaticPathsResult, MarkdownInstance } from "astro";
 
 const allPosts = Object.values(
-  import.meta.glob<MarkdownInstance<Frontmatter>>("./**/*.mdx", {
+  import.meta.glob<MarkdownInstance<Frontmatter>>("../**/*.mdx", {
     eager: true,
   })
 );
+
+export async function getStaticPaths(): Promise<GetStaticPathsResult> {
+  const allPosts = import.meta.glob<MarkdownInstance<Frontmatter>>(
+    "../**/*.mdx",
+    {
+      eager: true,
+    }
+  );
+  const tag = new Set<string>();
+  for (const post of Object.values(allPosts)) {
+    if (post.frontmatter.tags) {
+      for (const t of post.frontmatter.tags) {
+        tag.add(t);
+      }
+    }
+  }
+
+  return tag
+    .values()
+    .map((t) => {
+      return {
+        params: {
+          slug: t,
+        },
+      };
+    })
+    .toArray();
+}
+
+const { slug } = Astro.params;
 ---
 
 <BlogRouteLayout
-  seoProps={{ title: "Blog", description: "hhai.dev blog index" }}
+  seoProps={{
+    title: `Blog with tag ${slug}`,
+    description: "hhai.dev blog index with tag ${slug}",
+  }}
 >
   <main class="blog-main">
-    <p style={{ color: "var(--text-body-light)" }}>Newest first</p>
+    <p
+      style={{
+        color: "var(--text-body-light)",
+      }}
+    >
+      Viewing posts tagged with <strong>{slug}</strong>
+    </p>
     <ul class="article-list">
       {
         allPosts
           .filter((post) => {
+            console.log(post.frontmatter.tags);
+            console.log(slug);
             return (
-              process.env.NODE_ENV !== "production" ||
-              (post.frontmatter.isDraft !== true &&
-                post.frontmatter.hidden !== true)
+              slug &&
+              post.frontmatter.tags.includes(String(slug)) &&
+              (process.env.NODE_ENV !== "production" ||
+                (!post.frontmatter.isDraft && !post.frontmatter.hidden))
             );
           })
           .sort((a, b) => {
@@ -58,6 +100,7 @@ const allPosts = Object.values(
                         flex: 1,
                         "background-color": "var(--bg-additive-medium)",
                         border: "none",
+                        margin: "0",
                       }}
                     />
                     <p class="article-date">
