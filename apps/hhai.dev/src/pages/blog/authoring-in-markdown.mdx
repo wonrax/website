@@ -9,109 +9,122 @@ tags:
   - javascript
 ---
 
-Markdown is really nice to work with, especially when you're a developer.  This
-is why it has become the default language choice for document writing among
-software engineers. Its design emphasizes readability in plain text, allowing
-you to read and edit raw text without relying on a parser like
-[Pandoc](https://pandoc.org/) to convert it into HTML or a renderer such as a
-browser to view the formatted HTML.
+Markdown is a pleasure to work with, especially for developers. This is why it
+has become the default language for document writing among software engineers.
+Its design emphasizes readability in plain text, allowing you to read and edit
+raw text without relying on a parser like [Pandoc](https://pandoc.org/) to
+convert it into HTML or a renderer such as a browser to view the formatted
+output.
 
-The widespread adoption of Markdown really speaks for itself; it has become so
-prevalent that its usage hardly needs any further explanation. The vast
-ecosystem has almost everything I need through Remark and Rehype plugins. I have
-even created custom plugins for this blog due to the ease and how
-straightforward it is to modify the Markdown syntax tree.
+The widespread adoption of Markdown speaks for itself; it has become so
+prevalent that its usage hardly needs further explanation. The vast ecosystem
+offers almost everything I need through Remark and Rehype plugins. I've even
+created custom plugins for this blog due to Markdown's ease of use and
+straightforward approach to modifying its syntax tree.
 
 This post demonstrates my customized Markdown-to-post process for this blog,
-serving as both documentation and a guide for future reference, saving me from
-revisiting the code to figure out what I implemented.
+serving as both documentation and a guide for future reference. This saves me
+from having to revisit the code to figure out what I implemented.
 
-## Markdown, but more powerful
+## Markdown, but More Powerful
 
-[GitHub Flavored Markdown](https://github.github.com/gfm) enhances standard
-Markdown by incorporating additional features such as tables, task list items,
-and converting plain text URLs into clickable links. I'm so used to writing
-Markdown on GitHub that I didn't realize they were extensions, not part of
-standard Markdown. GFM is the default formatting in
+[GitHub Flavored Markdown](https://github.github.com/gfm) (GFM) enhances
+standard Markdown by incorporating additional features such as tables, task
+lists, and automatic conversion of plain text URLs into clickable links. I'm so
+accustomed to writing Markdown on GitHub that I didn't realize these were
+extensions, not part of standard Markdown. GFM is the default formatting in
 [Astro](https://astro.build/), the framework powering this site.
 
-Beyond Markdown, there's MDX, a superset supporting embedded components from
+Beyond Markdown, there's MDX, a superset that supports embedded components from
 various frameworks. This flexibility ensures I'm well-equipped, especially when
 creating interactive posts.
 
-## Writing code
+## Writing Code
 
-As a developer, code snippets are a must in my blog posts. I want them to be
-well-highlighted, akin to how they appear in my IDEs. I opted for
-[rehype-pretty-code](https://rehype-pretty-code.netlify.app/), a wrapper of
-[shiki](https://github.com/shikijs/shiki) for Markdown so I don't have to worry
-much about it.
+As a developer, code snippets are essential in my blog posts. I want them to be
+well-highlighted, similar to how they appear in my IDEs. I opted for
+[rehype-pretty-code](https://rehype-pretty-code.netlify.app/), a wrapper for
+[shiki](https://github.com/shikijs/shiki), so I don't have to worry much about
+syntax highlighting.
 
-Apart from syntax highlighting, it has some other nice-to-haves. The inline code
-can also be colored: `var x = 2{:go}`. With the code block, you can add title,
-show line numbers or highlight specific lines or words.
+In addition to syntax highlighting, it offers some nice-to-have features. For
+example, inline code can also be colored: `let x = Ok(());{:rust}`. With code
+blocks, you can add titles, show line numbers, or highlight specific lines or
+words.
 
-```go showLineNumbers title="example.go" {5-6, 1} /Address/
-package main
+I also added a code group component to display multiple code blocks as tabs.
+This is a great way to show related code together without taking up too much
+space.
 
-type Address struct {
-	Street  string `json:"street"`
-	Suite   string `json:"suite"`
-	Zipcode string `json:"zipcode"`
+<CodeGroup client:load>
+
+```rust showLineNumbers title="example.rs" {5-6, 2} /compiled binary is called/
+// This is the main function.
+fn main() {
+    // Statements here are executed when the compiled binary is called.
+
+    // Print text to the console.
+    println!("Hello World!");
 }
 ```
 
-## Embedding responsive images
+```go showLineNumbers title="example.go"
+package main
 
-Adding image in Markdown is straightforward and supported by default. However,
+func main() {
+    panic("Nah, don't use Go")
+}
+```
+
+</CodeGroup>
+
+## Embedding Responsive Images
+
+Adding images in Markdown is straightforward and supported by default. However,
 ensuring they are optimized and performant on the web is a challenge. I don't
 want to serve a full-fledged 4K uncompressed image to a phone user, and it
-probably doesn't look good too. The ideal image resolution should match the
-width and height of the rendered element in the browser. For example, if you set
-an image to display on your site at 1600px wide, it looks the sharpest when the
-actual image's width is exactly 1600px. The method to achieve this is called
-responsive image and MDN has [a great
+probably wouldn't look good either. The ideal image resolution should match the
+width and height of the rendered element in the browser. For example, if you
+set an image to display at 1600px wide, it looks sharpest when the actual
+image's width is exactly 1600px. This method is called **responsive images**,
+and MDN has [a great
 article](https://developer.mozilla.org/en-US/docs/Learn/HTML/Multimedia_and_embedding/Responsive_images)
-about this.
+about it.
 
 There's also something called [Cumulative Layout Shift](https://web.dev/cls/).
 To prevent this, you need to specify the image's width and height beforehand.
 This allows the browser to reserve space for the image while it fetches it,
 ensuring a smooth layout without sudden shifts.
 
-This is when I need to write my own Markdown plugin to swap out the default
-image with my custom responsive image component. This component generates
+This is where I needed to write my own Markdown plugin to replace the default
+image with a custom responsive image component. This component generates
 different resolutions for an image at build time and provides instructions on
-which resolution to use for specific screen sizes. It would be easier if you use
-image hosting services so you can just put a query parameter at the end of the
-URL like `image.service/my-image.png?width=1600` and call it a day.  The service
-will handle image resizing and caching for you. But it's just a personal blog, I
-don't want to pay extra money for a thing that I don't even know if it would
-actually have traffic.
+which resolution to use for specific screen sizes. It would be easier to use
+image hosting services, where you can simply append a query parameter to the
+URL, like `image.service/my-image.png?width=1600`, and let the service handle
+resizing and caching. However, since this is just a personal blog, I don't want
+to pay extra for a service that might not even see much traffic.
 
 :::aside
-This is also why I moved off from Next.js, they have `export` mode which
-generates static files, thus doesn't need a Next.js server to run. But this mode
-doesn't support pre-generating images at build time.  There's [a
-discussion](https://github.com/vercel/next.js/discussions/19065) that addresses
-this and despite being one of the most requested features since 2020, they still
-haven't implemented it. Maybe because it's incredibly hard to change the
-internal without breaking things. I've also heard some people claim it's due to
-Vercel's image optimization service or something, which I don't really
-understand – I'm not exactly a business guy.
+This is also why I moved away from Next.js. They have an `export` mode
+that generates static files, eliminating the need for a Next.js server.
+However, this mode doesn't support pre-generating images at build time. There's
+[a discussion](https://github.com/vercel/next.js/discussions/19065) addressing
+this issue, and despite being one of the most requested features since 2020, it
+still hasn't been considered.
 :::
 
-Anyway, fortunately, Astro can. They even expose the API that optimizes image
-behind the scene so it's really easy to create a custom image component tailored
-to my need. My site is now 100% static and I can throw it basically anywhere and
-it can start receiving traffic.
+Fortunately, Astro can pre-generate images for multiple screen sizes at build
+time. They even expose an API that optimizes images behind the scenes, making
+it easy to create a custom image component tailored to my needs. My site is now
+100% static, and I can deploy it almost anywhere to start receiving traffic.
 
 There's one more aspect to consider: I want the optimization to apply to remote
 images as well. This way, I can avoid committing large image files to my code
-repository. During the build process, Astro will download remote images and
-transform them into custom resolutions. However, the API requires width and
-height attributes for remote images. To mitigate this, I customized Markdown
-image's title syntax to allow the injection of attributes.
+repository. During the build process, Astro downloads remote images and
+transforms them into custom resolutions. However, the API requires width and
+height attributes for remote images. To address this, I customized Markdown's
+image title syntax to allow the injection of attributes.
 
 ```mdx showLineNumbers
 Local image, supports paths relative to the markdown file:
@@ -124,60 +137,54 @@ Another way to do remote image, same end result as above:
 <img src="https://share.hhai.dev/IMG_1203.png" width="1920" height="816" />
 
 ![img](./img.jpg)
-Text right after the image is automatically recognized as image caption (without
-additional line breaks)
+Text right after the image is automatically recognized as the image caption
+(without additional line breaks).
 
 <img src="https://share.hhai.dev/IMG_1203.png" width="1920" height="816" />
-> With the <img> tag, you need to put the caption inside a block quote
+> With the <img> tag, you need to put the caption inside a block quote.
 ```
 
-## Feature section
+## Feature Section
 
 Keeping everything within the standard reading width can be boring. I want
-certain elements, like images, to stand out a bit more. To achieve this, I
-created a Rehype plugin to enclose regular parts of the post within a standard
-reading width container, while special feature elements are wrapped in a larger
-width container. These feature elements are identified by a specific
-`featuretype` attribute and can be added in a similar manner as the width and
-height attributes mentioned earlier. Additionally, tables are featured by
-default because they tend to be wide and require ample horizontal space to
-display properly. You'll need to be on desktop to see the below examples in
-effect.
+certain elements, like images, to stand out more. To achieve this, I created a
+Rehype plugin to enclose regular parts of the post within a standard reading
+width container, while special feature elements are wrapped in a larger width
+container. These feature elements are identified by a specific `featuretype`
+attribute and can be added similarly to the width and height attributes
+mentioned earlier. Additionally, tables are featured by default because they
+tend to be wide and require ample horizontal space to display properly. You'll
+need to be on desktop to see the examples below in full effect.
 
-![Remote image with featuretype=sm](https://res.cloudinary.com/dmdgv6qrg/image/upload/v1697514558/hhai.dev%20blog/authoring%20in%20markdown/IMG_1203_asjkac.png
-'#width=1920;height=816;featuretype=sm') Remote image with `featuretype=sm`
+![Remote image with featuretype=sm]
+(https://res.cloudinary.com/dmdgv6qrg/image/upload/v1697514558/hhai.dev%20blog/authoring%20in%20markdown/IMG_1203_asjkac.png
+'#width=1920;height=816;featuretype=sm')
+Remote image with `featuretype=sm`
 
-![Remote image with featuretype=lg](https://res.cloudinary.com/dmdgv6qrg/image/upload/v1697514531/hhai.dev%20blog/authoring%20in%20markdown/IMG_1219_uibxtp.png
-'#width=2048;height=871;featuretype=lg') Remote image with `featuretype=lg`
+![Remote image with featuretype=lg]
+(https://res.cloudinary.com/dmdgv6qrg/image/upload/v1697514531/hhai.dev%20blog/authoring%20in%20markdown/IMG_1219_uibxtp.png
+'#width=2048;height=871;featuretype=lg')
+Remote image with `featuretype=lg`
 
 ## Math
 
-I have a love hate relationship with math. I hate it because I'm not good at it,
-but it has the capability to solves many things that are related to most of the
-work I do. It feels great when I finally solve something using math, like this
-piece of asymptotic analysis I did for a blog post:
+I have a love-hate relationship with math. I hate it because I'm not good at
+it, but it has the capability to solve many problems related to my work. It
+feels great when I finally solve something using math, like this piece of
+asymptotic analysis I did for a blog post:
 
 $$
-O(n \cdot m^{a-1} + m^{a} \cdot log(m))
+O(n \cdot m^{a-1} + m^{a} \cdot \log(m))
 $$
 
 This is enabled by the [KaTeX](https://github.com/KaTeX/KaTeX) library.
 
-## I want more
+## I Want More
 
 This post might never truly be finished. As I continue to introduce new
 features, I'll revisit this space, editing and documenting those additions.
 
-:::warning
-**Or will I?** This could very well be my last post. Ironically, what's the
-purpose of all these efforts if I don't keep writing?
-:::
+Here are the features I want to add in the future:
 
-Anyway, these are the features that I want to add in the future:
-
-- A button to download original images: since the displayed images are already
-resized and optimized, readers will have the option to download the original
-images.
-
-- Image zoom: similar to the functionality on Medium (using something like
+- **Image zoom**: Similar to the functionality on Medium (using something like
 [react-medium-image-zoom](https://github.com/rpearce/react-medium-image-zoom)).
