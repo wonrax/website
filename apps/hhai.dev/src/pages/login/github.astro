@@ -8,7 +8,13 @@ import Layout from "@/layouts/Layout.astro";
     description: "Login using your GitHub account",
   }}
 >
-  <div style={{ padding: "24px" }}>
+  <div
+    style={{
+      padding: "24px",
+      height: "80vh",
+      "box-sizing": "border-box",
+    }}
+  >
     <div id="content">
       <p>We're logging you in...</p>
     </div>
@@ -41,7 +47,7 @@ import Layout from "@/layouts/Layout.astro";
     if (content != null)
       content.innerHTML = `
         <p>Something has gone wrong from our side. Please try again.</p>
-        <a href='${loginUrl}'>Login via GitHub</a>
+        <a href='${loginUrl}'>Login again via GitHub</a>
         <a href='/'>Return home</a>
       `;
   }
@@ -75,7 +81,7 @@ import Layout from "@/layouts/Layout.astro";
               <p>Couldn't log you in due to an error:</p>
               <p style="color: red;">${error.msg}</p>
               ${error.reason != null ? "<p>Reason: ${error.reason}</p>" : ""}
-              <a href='${loginUrl}'>Login via GitHub</a>
+              <a href='${loginUrl}'>Login again via GitHub</a>
               <a href='/'>Return home</a>
             `;
           }
