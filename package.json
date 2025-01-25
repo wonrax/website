@@ -43,7 +43,7 @@
   },
   "packageManager": "npm@9.5.0",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "prisma": {
     "seed": "ts-node api/prisma/seed.ts"
