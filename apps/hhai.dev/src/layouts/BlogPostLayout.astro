@@ -244,6 +244,7 @@ const headings = Astro.props.headings;
 
     .feature-code {
       grid-column: 2 / 5;
+      margin: 24px auto;
     }
 
     .feature-table {
@@ -331,8 +332,9 @@ const headings = Astro.props.headings;
 
     .feature-aside {
       grid-column: 5 / 6;
-      transform: translateY(100%);
       font-style: italic;
+      align-self: end;
+      z-index: 10;
 
       @media (max-width: 1100px) {
         grid-column: 3 / 4;
@@ -340,7 +342,6 @@ const headings = Astro.props.headings;
       }
 
       aside {
-        position: absolute;
         background-color: var(--bg-color);
         box-sizing: border-box;
         margin: 0 auto;
