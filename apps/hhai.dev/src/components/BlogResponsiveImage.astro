@@ -9,7 +9,7 @@ type Props = {
   featuretype?: string;
 };
 
-const { src, width, height, alt, featuretype } = Astro.props;
+const { src, width, height, alt } = Astro.props;
 
 let parsedWidth: number | undefined;
 let parsedHeight: number | undefined;
@@ -18,22 +18,6 @@ if (typeof width === "string") parsedWidth = parseInt(width);
 else parsedWidth = width;
 if (typeof height === "string") parsedHeight = parseInt(height);
 else parsedHeight = height;
-
-let sizes: string | undefined;
-switch (featuretype) {
-  case undefined:
-    sizes = "(max-width: 700px) 100vw, 700px";
-    break;
-  case "sm":
-    sizes = "(max-width: 800px) 100vw, 800px";
-    break;
-  case "lg":
-    sizes = "(max-width: 1100px) 100vw, 1200px";
-    break;
-  default:
-    sizes = undefined;
-    break;
-}
 ---
 
 <ResponsiveImage
@@ -41,8 +25,7 @@ switch (featuretype) {
   alt={alt}
   width={parsedWidth}
   height={parsedHeight}
-  sizes={sizes}
   format="webp"
-  quality={90}
-  deviceSizes={[400, 800, 1104, 2048, 3840, 5760]}><slot /></ResponsiveImage
+  quality={95}
+  deviceSizes={[400, 800, 1200, 2048, 3840, 5760]}><slot /></ResponsiveImage
 >

@@ -46,8 +46,11 @@ export type Props = RootLayoutProps;
 
     @media (max-width: 1100px) {
       grid-template-columns:
-        [first] 0% [feature-sm-l] 16px [reading-l] min(700px, calc(100% - 32px))
-        [reading-r] 16px [feature-sm-r] 0% [end];
+        [first] 1fr [feature-sm-l] 16px [reading-l] min(
+          700px,
+          calc(100% - 32px)
+        )
+        [reading-r] 16px [feature-sm-r] 1fr [end];
       column-gap: 0;
     }
   }
