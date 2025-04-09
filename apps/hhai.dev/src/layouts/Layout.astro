@@ -97,7 +97,8 @@ you use more additional fonts, check which fonts are being used in Chrome devtoo
         ]);
 
         posthog.init("phc_DNnzWNmnjFtV0dwGSFedEhviKhj9dpXAjHw0OyspGvO", {
-          api_host: "https://app.posthog.com",
+          api_host: "https://us.i.posthog.com",
+          person_profiles: "always",
           loaded: async (posthog) => {
             if (sessionStorage.getItem("posthog_identified") === "true") {
               return;
