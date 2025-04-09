@@ -15,7 +15,7 @@ npm run dev
 ```
 
 ### blog todo
-
+- Astro image has now supported remote image optimization, maybe use that instead?
 - Do not stretch small images to full width in blog posts
 - markdown auto external link
 - headings anchor clickable
