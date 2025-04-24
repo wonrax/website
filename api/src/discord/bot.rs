@@ -1,8 +1,17 @@
 use std::sync::Arc;
 
+use async_openai::{
+    config::OpenAIConfig,
+    types::{
+        ChatCompletionRequestAssistantMessage, ChatCompletionRequestAssistantMessageContent,
+        ChatCompletionRequestMessage, ChatCompletionRequestMessageContentPartText,
+        ChatCompletionRequestSystemMessage, ChatCompletionRequestSystemMessageContent,
+        ChatCompletionRequestUserMessage, ChatCompletionRequestUserMessageContent,
+        ChatCompletionRequestUserMessageContentPart, CreateChatCompletionRequest, ImageUrl,
+    },
+    Client as OpenAIClient,
+};
 use futures_util::StreamExt;
-use openai_api_rs::v1::api::OpenAIClient;
-use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
 use serenity::all::{CreateMessage, GuildId, Typing};
 use serenity::async_trait;
 use serenity::model::channel::Message;
@@ -23,6 +32,8 @@ fn generate_analyst_prompt_score(
         r#"
 [ROLE] Discord Bot Technical Conversation Analyst
 Note that you are "The Irony Himself" in the chat history with (is bot: true).
+All messages are in this format:
+{{author}} (is bot: {{is_bot}}): {{message}}\\n
 
 [CONTEXT]
 **Message in question:**
@@ -52,7 +63,7 @@ URL: {url}
 • Negative weighting for recent bot contributions (–2 to –5 points if the bot is too active)
 • Comedic potential (0-3 points)
 
-Additionally, identify any “possibly valuable insight”—a short piece of info or perspective (1–2
+Additionally, identify any "possibly valuable insight"—a short piece of info or perspective (1–2
 lines) that the conversation members might appreciate, referencing context or known best practices.
 
 If this prompt contains an image, it's the image from the user's message. You can use that to learn
@@ -100,7 +111,7 @@ Comedic: <Optional, only if you see a chance for a humorous response.>
 [EXAMPLE OUTPUT]
 ––––––––––––––––
 Score: 8
-ValuableInsight: “You might also highlight how samplesort’s average behavior differs from mergesort.”
+ValuableInsight: "You might also highlight how samplesort's average behavior differs from mergesort."
 Comedic: None
 
 Notes on Multilingual:
@@ -117,15 +128,15 @@ fn generate_analyst_prompt() -> String {
 [TASK]
 Provide a concise correction or deeper insight, referencing the flagged issues or ValuableInsight.
 • 1–2 sentences max per issue if possible
-• Use Markdown for code samples (e.g., ```rust)
-• Neutral, helpful tone, or shift to the channel’s language if appropriate
+• Use Markdown for code samples (e.g., ```python)
+• Neutral, helpful tone, or shift to the channel's language if appropriate
 • Prefer the insight or correction over the joke if possible, we can only choose one
 
 Example Good Output, NOTE THAT ONLY OUTPUT THE RESPONSE (THAT IS THE DISCORD MESSAGE BEING SENT)
 THAN OTHER TEXT, DO NOT INCLUDE THE NAME OR ROLE WITH YOUR RESPONSE (e.g. "Bot (is bot: true): " or
 "Analyst: "), DO NOT INCLUDE THE SCORE OR THE VALUEABLE ANALYSIS TO THE FINAL RESPONSE:
 –––––––––––––––––––
-Actually, counting sort is O(n + k), but it only works if k (the range of inputs) isn’t huge. See
+Actually, counting sort is O(n + k), but it only works if k (the range of inputs) isn't huge. See
 the example in the link for details.
 -------------------
         "#
@@ -134,11 +145,11 @@ the example in the link for details.
 }
 
 pub struct Handler {
-    pub openai_client: Arc<Mutex<OpenAIClient>>,
+    pub openai_client: Arc<OpenAIClient<OpenAIConfig>>,
 }
 
 async fn handle_message(
-    openai_client: &mut OpenAIClient,
+    openai_client: &OpenAIClient<OpenAIConfig>,
     ctx: Context,
     msg: Message,
 ) -> Result<(), eyre::Error> {
@@ -220,39 +231,41 @@ async fn handle_message(
         })
         .map(|attachment| attachment.proxy_url.clone());
 
-    let mut chat = vec![chat_completion::ChatCompletionMessage {
-        role: chat_completion::MessageRole::system,
-        content: chat_completion::Content::Text(score_prompt),
-        name: None,
-        tool_calls: None,
-        tool_call_id: None,
-    }];
-
-    if let Some(image) = image {
-        chat.push(chat_completion::ChatCompletionMessage {
-            role: chat_completion::MessageRole::user,
-            content: chat_completion::Content::ImageUrl(vec![chat_completion::ImageUrl {
-                r#type: chat_completion::ContentType::image_url,
-                text: None,
-                image_url: Some(chat_completion::ImageUrlType { url: image }),
-            }]),
+    let mut messages = vec![ChatCompletionRequestMessage::User(
+        ChatCompletionRequestUserMessage {
+            content: ChatCompletionRequestUserMessageContent::Array(match image {
+                None => vec![ChatCompletionRequestUserMessageContentPart::Text(
+                    ChatCompletionRequestMessageContentPartText { text: score_prompt },
+                )],
+                Some(image_url) => vec![
+                    ChatCompletionRequestUserMessageContentPart::Text(
+                        ChatCompletionRequestMessageContentPartText { text: score_prompt },
+                    ),
+                    ChatCompletionRequestUserMessageContentPart::ImageUrl(
+                        async_openai::types::ChatCompletionRequestMessageContentPartImage {
+                            image_url: ImageUrl::from(image_url),
+                        },
+                    ),
+                ],
+            }),
             name: None,
-            tool_calls: None,
-            tool_call_id: None,
-        });
-    }
+        },
+    )];
 
-    let req = ChatCompletionRequest::new("gpt-4.1".into(), chat.clone());
+    let request = CreateChatCompletionRequest {
+        model: "gpt-4.1".to_string(),
+        messages: messages.clone(),
+        ..Default::default()
+    };
 
-    let result = openai_client
-        .chat_completion(req)
+    let response = openai_client
+        .chat()
+        .create(request)
         .await
         .map_err(|e| eyre::eyre!("Error in OpenAI chat completion: {e}"))?;
 
-    let score_str = &result.choices[0].message.content;
+    let score_str = response.choices[0].message.content.as_deref().unwrap_or("");
     let score = score_str
-        .as_ref()
-        .unwrap_or(&"".to_string())
         .to_ascii_lowercase()
         .split('\n')
         .find(|line| line.trim().starts_with("score:"))
@@ -270,38 +283,49 @@ async fn handle_message(
         return Ok(());
     }
 
-    chat.push(chat_completion::ChatCompletionMessage {
-        role: chat_completion::MessageRole::assistant,
-        content: chat_completion::Content::Text((*score_str).clone().unwrap_or("None".into())),
-        name: None,
-        tool_calls: None,
-        tool_call_id: None,
-    });
+    // Add assistant response to messages
+    messages.push(ChatCompletionRequestMessage::Assistant(
+        ChatCompletionRequestAssistantMessage {
+            content: Some(ChatCompletionRequestAssistantMessageContent::Text(
+                score_str.to_string(),
+            )),
+            tool_calls: None,
+            function_call: None,
+            name: None,
+            audio: None,
+            refusal: None,
+        },
+    ));
 
-    chat.push(chat_completion::ChatCompletionMessage {
-        role: chat_completion::MessageRole::system,
-        content: chat_completion::Content::Text(generate_analyst_prompt()),
-        name: None,
-        tool_calls: None,
-        tool_call_id: None,
-    });
+    // Add system prompt for generating final response
+    messages.push(ChatCompletionRequestMessage::System(
+        ChatCompletionRequestSystemMessage {
+            content: ChatCompletionRequestSystemMessageContent::Text(generate_analyst_prompt()),
+            name: None,
+        },
+    ));
 
-    let req = ChatCompletionRequest::new("gpt-4.1".into(), chat);
-    println!("Request: {:?}", req);
-    let result = openai_client
-        .chat_completion(req)
+    let request = CreateChatCompletionRequest {
+        model: "gpt-4.1".to_string(),
+        messages,
+        ..Default::default()
+    };
+
+    let response = openai_client
+        .chat()
+        .create(request)
         .await
         .map_err(|e| eyre::eyre!("Error in OpenAI chat completion: {e}"))?;
 
-    let response = result.choices[0].message.content.as_ref();
-    if let Some(response) = response {
+    let response_text = response.choices[0].message.content.as_deref();
+    if let Some(response_text) = response_text {
         if let Err(why) = msg
             .channel_id
             .send_message(
                 &ctx.http,
                 CreateMessage::new()
                     .reference_message(&msg)
-                    .content(response),
+                    .content(response_text),
             )
             .await
         {
@@ -319,8 +343,7 @@ impl EventHandler for Handler {
     // Event handlers are dispatched through a threadpool, and so multiple events can be
     // dispatched simultaneously.
     async fn message(&self, ctx: Context, msg: Message) {
-        let mut openai_client = self.openai_client.lock().await;
-        let _ = handle_message(&mut openai_client, ctx, msg)
+        let _ = handle_message(&self.openai_client, ctx, msg)
             .await
             .inspect_err(|why| {
                 tracing::error!("Error handling Discord message: {why}");
@@ -336,3 +359,4 @@ impl EventHandler for Handler {
         tracing::info!("Discord bot {} is connected!", ready.user.name);
     }
 }
+

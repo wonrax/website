@@ -210,10 +210,13 @@ async fn main() {
 }
 
 async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> {
-    use openai_api_rs::v1::api::OpenAIClient;
+    use async_openai::{
+        config::OpenAIConfig,
+        Client as OpenAIClient,
+    };
     use serenity::all::GatewayIntents;
 
-    if let (Some(discord_token), Some(deepseek_api_key)) = (
+    if let (Some(discord_token), Some(openai_api_key)) = (
         config.discord_token.clone(),
         config.deepseek_api_key.clone(),
     ) {
@@ -221,18 +224,15 @@ async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> 
             | GatewayIntents::DIRECT_MESSAGES
             | GatewayIntents::MESSAGE_CONTENT;
 
-        let openai_client = OpenAIClient::builder()
-            .with_endpoint("https://api.openai.com/v1")
-            .with_api_key(deepseek_api_key)
-            .with_timeout(120) // 2 minutes
-            .build()
-            .map_err(|e| eyre::eyre!("Error creating OpenAI client: {e:?}"))?;
+        // Create OpenAI client with async-openai
+        let config = OpenAIConfig::new().with_api_key(openai_api_key);
+        let openai_client = OpenAIClient::with_config(config);
 
         // Create a new instance of the Client, logging in as a bot. This will automatically prepend
         // your bot token with "Bot ", which is a requirement by Discord for bot users.
         let mut discord_client = serenity::Client::builder(&discord_token, intents)
             .event_handler(discord::bot::Handler {
-                openai_client: Arc::new(Mutex::new(openai_client)),
+                openai_client: Arc::new(openai_client),
             })
             .await
             .map_err(|e| eyre::eyre!("Error creating Discord client: {e:?}"))?;
@@ -244,7 +244,7 @@ async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> 
 
         Ok(())
     } else {
-        eyre::bail!("Discord token or Deepseek API key not set in environment variables");
+        eyre::bail!("Discord token or OpenAI API key not set in environment variables");
     }
 }
 
