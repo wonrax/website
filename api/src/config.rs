@@ -5,6 +5,7 @@ pub enum Env {
     Production,
 }
 
+#[derive(Clone)]
 pub struct ServerConfig {
     pub env: Env,
 
@@ -17,13 +18,18 @@ pub struct ServerConfig {
 
     // My ID in the identities table
     pub owner_identity_id: i32,
+
+    pub discord_token: Option<String>,
+    pub deepseek_api_key: Option<String>,
 }
 
+#[derive(Clone)]
 pub struct GitHubOauth {
     pub client_id: String,
     pub client_secret: String,
 }
 
+#[derive(Clone)]
 pub struct SpotifyOauth {
     pub client_id: String,
     pub client_secret: String,
@@ -126,6 +132,8 @@ impl ServerConfig {
             github_oauth,
             spotify_oauth,
             owner_identity_id: 1,
+            discord_token: var("DISCORD_TOKEN").unwrap_or(None),
+            deepseek_api_key: var("DEEPSEEK_API_KEY").unwrap_or(None),
         }
     }
 }

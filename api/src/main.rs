@@ -8,10 +8,10 @@ use axum::{
 use config::ServerConfig;
 use dotenv::dotenv;
 use mimalloc::MiMalloc;
-use serde::Serialize;
 use serde_json::json;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use std::{net::SocketAddr, ops::Deref, process::exit, sync::Arc, time::Duration};
+use tokio::sync::Mutex;
 use tower_http::{
     classify::ServerErrorsFailureClass,
     cors::{AllowOrigin, CorsLayer},
@@ -23,6 +23,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod blog;
 mod config;
 mod crypto;
+mod discord;
 mod error;
 mod github;
 mod identity;
@@ -62,7 +63,7 @@ async fn main() {
 
     dotenv().ok();
 
-    let config = tracing::subscriber::with_default(d, || ServerConfig::new_from_env());
+    let config = tracing::subscriber::with_default(d, ServerConfig::new_from_env);
 
     let (json, pretty) = match config.env {
         config::Env::Dev => (None, Some(tracing_subscriber::fmt::layer().pretty())),
@@ -116,7 +117,7 @@ async fn main() {
     let shared_state = App(Arc::new(Inner {
         pool,
         counters_ttl_cache: retainer::Cache::new(),
-        config,
+        config: config.clone(),
         diesel: diesel_pool,
         http: http_client,
     }));
@@ -192,6 +193,12 @@ async fn main() {
                 ),
         );
 
+    tokio::spawn(async move {
+        if let Err(e) = start_discord_service(config).await {
+            error!("Error starting Discord service: {e:?}");
+        }
+    });
+
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     info!("listening on http://0.0.0.0:3000");
     axum::serve(
@@ -202,11 +209,42 @@ async fn main() {
     .unwrap();
 }
 
-#[derive(Serialize)]
-struct Health {
-    status: i32,
-    msg: String,
-    detail: Option<String>,
+async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> {
+    use openai_api_rs::v1::api::OpenAIClient;
+    use serenity::all::GatewayIntents;
+
+    if let (Some(discord_token), Some(deepseek_api_key)) = (
+        config.discord_token.clone(),
+        config.deepseek_api_key.clone(),
+    ) {
+        let intents = GatewayIntents::GUILD_MESSAGES
+            | GatewayIntents::DIRECT_MESSAGES
+            | GatewayIntents::MESSAGE_CONTENT;
+
+        let openai_client = OpenAIClient::builder()
+            .with_endpoint("https://api.deepseek.com/v1")
+            .with_api_key(deepseek_api_key)
+            .build()
+            .map_err(|e| eyre::eyre!("Error creating OpenAI client: {e:?}"))?;
+
+        // Create a new instance of the Client, logging in as a bot. This will automatically prepend
+        // your bot token with "Bot ", which is a requirement by Discord for bot users.
+        let mut discord_client = serenity::Client::builder(&discord_token, intents)
+            .event_handler(discord::bot::Handler {
+                openai_client: Arc::new(Mutex::new(openai_client)),
+            })
+            .await
+            .map_err(|e| eyre::eyre!("Error creating Discord client: {e:?}"))?;
+
+        discord_client
+            .start()
+            .await
+            .map_err(|e| eyre::eyre!("Error starting Discord client: {e:?}"))?;
+
+        Ok(())
+    } else {
+        eyre::bail!("Discord token or Deepseek API key not set in environment variables");
+    }
 }
 
 async fn heath() -> impl IntoResponse {
