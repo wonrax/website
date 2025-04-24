@@ -240,14 +240,19 @@ async fn handle_message(
     let result = openai_client.chat_completion(req).await.unwrap();
 
     let score_str = &result.choices[0].message.content;
-    println!("Score: {score_str:?}");
     let score = score_str
         .as_ref()
         .unwrap_or(&"".to_string())
         .to_ascii_lowercase()
         .split('\n')
         .find(|line| line.trim().starts_with("score:"))
-        .map(|line| line.trim().trim_start_matches("score:").trim())
+        .map(|line| {
+            line.trim()
+                .trim_start_matches("score:")
+                .split_whitespace()
+                .next()
+        })
+        .flatten()
         .and_then(|score_text| score_text.parse::<i32>().ok())
         .unwrap_or(0);
 
