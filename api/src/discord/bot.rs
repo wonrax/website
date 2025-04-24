@@ -56,7 +56,8 @@ Additionally, identify any “possibly valuable insight”—a short piece of in
 lines) that the conversation members might appreciate, referencing context or known best practices.
 
 If the message is a question aiming to the bot, it's very likely the bot should answer it
-regardless of the score.
+regardless of the score. If the message directly mentions the bot, the score should be
+automatically 10 in order to avoid the bot being ignored.
 
 For the comedic potential, consider if the bot's response could be humorous or entertaining added
 to the conversation. If so, assign a score between 0 and 3. Generate short, edgy dev humor about
@@ -140,9 +141,10 @@ async fn handle_message(
         return Ok(());
     }
 
-    if msg.guild_id.is_none_or(|g| {
-        g != GuildId::new(968774421668065330) && g != GuildId::new(1117654544827043920)
-    }) {
+    if msg
+        .guild_id
+        .is_none_or(|g| g != GuildId::new(968774421668065330))
+    {
         return Ok(());
     }
 
@@ -191,6 +193,7 @@ async fn handle_message(
     let result = openai_client.chat_completion(req).await.unwrap();
 
     let score_str = &result.choices[0].message.content;
+    println!("Score: {score_str:?}");
     let score = score_str
         .as_ref()
         .unwrap_or(&"".to_string())
