@@ -160,6 +160,29 @@ async fn handle_message(
         .mentions
         .iter()
         .any(|user| user.id == ctx.cache.current_user().id);
+
+    let url_in_message = msg
+        .content
+        .split_whitespace()
+        .find(|word| word.starts_with("http://") || word.starts_with("https://"))
+        .map(|url| url.to_string());
+
+    // crawl the URL if it exists and convert to markdown using htmd
+    let url_content = if let Some(ref url) = url_in_message {
+        let site_content = reqwest::get(url)
+            .await
+            .map_err(|e| eyre::eyre!("Failed to fetch URL content: {e}"))?
+            .text()
+            .await
+            .map_err(|e| eyre::eyre!("Failed to read URL content: {e}"))?;
+        let content = htmd::convert(&site_content)
+            .map_err(|e| eyre::eyre!("Failed to convert URL content to markdown: {e}"))?;
+
+        Some(content)
+    } else {
+        None
+    };
+
     let score_prompt = generate_analyst_prompt_score(
         &messages
             .filter_map(async |msg| {
@@ -176,8 +199,8 @@ async fn handle_message(
             .await
             .join("\n"),
         bot_mentioned,
-        None,
-        None,
+        url_in_message.as_deref(),
+        url_content.as_deref(),
     );
 
     let mut chat = vec![chat_completion::ChatCompletionMessage {
