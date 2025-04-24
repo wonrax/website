@@ -222,22 +222,32 @@ async fn handle_message(
 
     let mut chat = vec![chat_completion::ChatCompletionMessage {
         role: chat_completion::MessageRole::system,
-        content: match image {
-            Some(image) => chat_completion::Content::ImageUrl(vec![chat_completion::ImageUrl {
-                r#type: chat_completion::ContentType::image_url,
-                text: Some(score_prompt),
-                image_url: Some(chat_completion::ImageUrlType { url: image }),
-            }]),
-            None => chat_completion::Content::Text(score_prompt),
-        },
+        content: chat_completion::Content::Text(score_prompt),
         name: None,
         tool_calls: None,
         tool_call_id: None,
     }];
 
+    if let Some(image) = image {
+        chat.push(chat_completion::ChatCompletionMessage {
+            role: chat_completion::MessageRole::user,
+            content: chat_completion::Content::ImageUrl(vec![chat_completion::ImageUrl {
+                r#type: chat_completion::ContentType::image_url,
+                text: None,
+                image_url: Some(chat_completion::ImageUrlType { url: image }),
+            }]),
+            name: None,
+            tool_calls: None,
+            tool_call_id: None,
+        });
+    }
+
     let req = ChatCompletionRequest::new("gpt-4.1-mini".into(), chat.clone());
 
-    let result = openai_client.chat_completion(req).await.unwrap();
+    let result = openai_client
+        .chat_completion(req)
+        .await
+        .map_err(|e| eyre::eyre!("Error in OpenAI chat completion: {e}"))?;
 
     let score_str = &result.choices[0].message.content;
     let score = score_str
@@ -262,7 +272,7 @@ async fn handle_message(
 
     chat.push(chat_completion::ChatCompletionMessage {
         role: chat_completion::MessageRole::assistant,
-        content: chat_completion::Content::Text((*score_str).clone().unwrap()),
+        content: chat_completion::Content::Text((*score_str).clone().unwrap_or("".into())),
         name: None,
         tool_calls: None,
         tool_call_id: None,
@@ -277,7 +287,10 @@ async fn handle_message(
     });
 
     let req = ChatCompletionRequest::new("gpt-4.1-mini".into(), chat.clone());
-    let result = openai_client.chat_completion(req).await.unwrap();
+    let result = openai_client
+        .chat_completion(req)
+        .await
+        .map_err(|e| eyre::eyre!("Error in OpenAI chat completion: {e}"))?;
 
     let response = result.choices[0].message.content.as_ref();
     if let Some(response) = response {
