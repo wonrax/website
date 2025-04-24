@@ -272,7 +272,7 @@ async fn handle_message(
 
     chat.push(chat_completion::ChatCompletionMessage {
         role: chat_completion::MessageRole::assistant,
-        content: chat_completion::Content::Text((*score_str).clone().unwrap_or("".into())),
+        content: chat_completion::Content::Text((*score_str).clone().unwrap_or("None".into())),
         name: None,
         tool_calls: None,
         tool_call_id: None,
@@ -286,7 +286,7 @@ async fn handle_message(
         tool_call_id: None,
     });
 
-    let req = ChatCompletionRequest::new("gpt-4.1-mini".into(), chat.clone());
+    let req = ChatCompletionRequest::new("gpt-4.1-mini".into(), chat);
     let result = openai_client
         .chat_completion(req)
         .await
