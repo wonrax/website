@@ -146,6 +146,8 @@ async fn handle_message(
         return Ok(());
     }
 
+    let _typing = Typing::start(ctx.http.clone(), msg.channel_id);
+
     const MESSAGE_CONTEXT_SIZE: usize = 20;
     let messages = msg
         .channel_id
@@ -194,16 +196,14 @@ async fn handle_message(
         .unwrap_or(&"".to_string())
         .to_ascii_lowercase()
         .split('\n')
-        .find(|line| line.starts_with("Score: "))
-        .and_then(|line| line.split(':').nth(1))
-        .and_then(|line| line.trim().parse::<i32>().ok())
+        .find(|line| line.trim().starts_with("score:"))
+        .map(|line| line.trim().trim_start_matches("score:").trim())
+        .and_then(|score_text| score_text.parse::<i32>().ok())
         .unwrap_or(0);
 
     if score < 3 {
         return Ok(());
     }
-
-    let _typing = Typing::start(ctx.http.clone(), msg.channel_id);
 
     chat.push(chat_completion::ChatCompletionMessage {
         role: chat_completion::MessageRole::assistant,
