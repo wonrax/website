@@ -147,10 +147,9 @@ async fn handle_message(
         return Ok(());
     }
 
-    if msg
-        .guild_id
-        .is_none_or(|g| g != GuildId::new(968774421668065330))
-    {
+    if msg.guild_id.is_none_or(|g| {
+        g != GuildId::new(968774421668065330) && g != GuildId::new(1117654544827043920)
+    }) {
         return Ok(());
     }
 
