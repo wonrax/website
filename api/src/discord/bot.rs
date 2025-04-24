@@ -168,8 +168,6 @@ async fn handle_message(
         None,
     );
 
-    println!("score_prompt: {score_prompt}");
-
     let mut chat = vec![chat_completion::ChatCompletionMessage {
         role: chat_completion::MessageRole::system,
         content: chat_completion::Content::Text(score_prompt),
@@ -185,15 +183,15 @@ async fn handle_message(
     let score_str = &result.choices[0].message.content;
     let score = score_str
         .as_ref()
-        .unwrap()
-        .split_whitespace()
-        .find(|&word| word.parse::<i32>().is_ok())
-        .unwrap_or("0")
-        .parse::<i32>()
+        .unwrap_or(&"".to_string())
+        .to_ascii_lowercase()
+        .split('\n')
+        .find(|line| line.starts_with("Score: "))
+        .and_then(|line| line.split(':').nth(1))
+        .and_then(|line| line.trim().parse::<i32>().ok())
         .unwrap_or(0);
 
     if score < 3 {
-        println!("Score is too low: {score} {score_str:?}");
         return Ok(());
     }
 
