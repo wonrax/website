@@ -28,10 +28,10 @@ Note that you are "The Irony Himself" in the chat history with (is bot: true).
 **Message in question:**
 {message}
 
-**Mentioned you or not:**
+**Mentioned you or not (true or false):**
 {bot_mentioned}
 
-**Recent Messages (newest first):**
+**Recent Messages (sorted by newest first):**
 {message_history}
 
 **Linked Content (if any):**
@@ -43,7 +43,7 @@ URL: {url}
 
 [END CONTEXT]
 
-[TASK] Evaluate the need for a response to the most recent message in the context. Consider:
+[TASK] Evaluate the need for a response to the message in question. Consider:
 • Factual or logical errors (0–3 points)
 • Conceptual misunderstandings (0–3 points)
 • Security or critical risks (0–5 points)
@@ -64,7 +64,7 @@ automatically 10 in order to avoid the bot being ignored.
 
 For the comedic potential, consider if the bot's response could be humorous or entertaining added
 to the conversation. If so, assign a score between 0 and 3. Generate short, edgy dev humor about
-{{concept}}, referencing {{pop_culture_ref}} if provided.
+[concept], referencing [pop_culture_ref] if provided.
 
 COMEDIC FORMAT:
 • 1–2 sentences
@@ -242,7 +242,7 @@ async fn handle_message(
         });
     }
 
-    let req = ChatCompletionRequest::new("gpt-4.1-mini".into(), chat.clone());
+    let req = ChatCompletionRequest::new("gpt-4.1".into(), chat.clone());
 
     let result = openai_client
         .chat_completion(req)
@@ -286,7 +286,8 @@ async fn handle_message(
         tool_call_id: None,
     });
 
-    let req = ChatCompletionRequest::new("gpt-4.1-mini".into(), chat);
+    let req = ChatCompletionRequest::new("gpt-4.1".into(), chat);
+    println!("Request: {:?}", req);
     let result = openai_client
         .chat_completion(req)
         .await
