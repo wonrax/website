@@ -222,7 +222,7 @@ async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> 
             | GatewayIntents::MESSAGE_CONTENT;
 
         let openai_client = OpenAIClient::builder()
-            .with_endpoint("https://api.deepseek.com/v1")
+            .with_endpoint("https://api.openai.com/v1")
             .with_api_key(deepseek_api_key)
             .with_timeout(120) // 2 minutes
             .build()

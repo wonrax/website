@@ -235,7 +235,7 @@ async fn handle_message(
         tool_call_id: None,
     }];
 
-    let req = ChatCompletionRequest::new("deepseek-chat".into(), chat.clone());
+    let req = ChatCompletionRequest::new("gpt-4.1-mini".into(), chat.clone());
 
     let result = openai_client.chat_completion(req).await.unwrap();
 
@@ -271,7 +271,7 @@ async fn handle_message(
         tool_call_id: None,
     });
 
-    let req = ChatCompletionRequest::new("deepseek-chat".into(), chat.clone());
+    let req = ChatCompletionRequest::new("gpt-4.1-mini".into(), chat.clone());
     let result = openai_client.chat_completion(req).await.unwrap();
 
     let response = result.choices[0].message.content.as_ref();
