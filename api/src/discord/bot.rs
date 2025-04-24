@@ -87,6 +87,9 @@ feel free to adapt to other topics):
 - CI/CD Failures
 "our pipeline more broken than crypto bros after FTX collapsed 💸📉"
 
+Note that Discord partially support markdown so be careful with the formatting so that the text is
+not rendered incorrectly, for example if you use `*` or `_` in the text, it will be rendered as
+italic or bold.
 
 [OUTPUT FORMAT]
 Score: 0–10
