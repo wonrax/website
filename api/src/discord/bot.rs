@@ -55,6 +55,9 @@ URL: {url}
 Additionally, identify any “possibly valuable insight”—a short piece of info or perspective (1–2
 lines) that the conversation members might appreciate, referencing context or known best practices.
 
+If this prompt contains an image, it's the image from the user's message. You can use that to learn
+more about the context of the conversation.
+
 If the message is a question aiming to the bot, it's very likely the bot should answer it
 regardless of the score. If the message directly mentions the bot, the score should be
 automatically 10 in order to avoid the bot being ignored.
@@ -203,9 +206,28 @@ async fn handle_message(
         url_content.as_deref(),
     );
 
+    let image = msg
+        .attachments
+        .iter()
+        .find(|attachment| {
+            attachment
+                .content_type
+                .as_ref()
+                .map(|ct| ct.starts_with("image/"))
+                .unwrap_or(false)
+        })
+        .map(|attachment| attachment.proxy_url.clone());
+
     let mut chat = vec![chat_completion::ChatCompletionMessage {
         role: chat_completion::MessageRole::system,
-        content: chat_completion::Content::Text(score_prompt),
+        content: match image {
+            Some(image) => chat_completion::Content::ImageUrl(vec![chat_completion::ImageUrl {
+                r#type: chat_completion::ContentType::image_url,
+                text: Some(score_prompt),
+                image_url: Some(chat_completion::ImageUrlType { url: image }),
+            }]),
+            None => chat_completion::Content::Text(score_prompt),
+        },
         name: None,
         tool_calls: None,
         tool_call_id: None,
