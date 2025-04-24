@@ -11,6 +11,7 @@ use serenity::prelude::*;
 
 fn generate_analyst_prompt_score(
     message_history: &str,
+    bot_mentioned: bool,
     url: Option<&str>,
     url_content: Option<&str>,
 ) -> String {
@@ -26,6 +27,9 @@ Note that you are "The Irony Himself" in the chat history with (is bot: true).
 [CONTEXT]
 **Message in question:**
 {message}
+
+**Mentioned you or not:**
+{bot_mentioned}
 
 **Recent Messages (newest first):**
 {message_history}
@@ -148,7 +152,10 @@ async fn handle_message(
         .messages_iter(ctx.http.clone())
         .take(MESSAGE_CONTEXT_SIZE);
 
-    // println!("messages context: {:?}", messages.await);
+    let bot_mentioned = msg
+        .mentions
+        .iter()
+        .any(|user| user.id == ctx.cache.current_user().id);
     let score_prompt = generate_analyst_prompt_score(
         &messages
             .filter_map(async |msg| {
@@ -164,6 +171,7 @@ async fn handle_message(
             .collect::<Vec<_>>()
             .await
             .join("\n"),
+        bot_mentioned,
         None,
         None,
     );
