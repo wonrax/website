@@ -9,11 +9,11 @@ WORKDIR /src
 
 FROM rust-builder AS planner
 COPY . .
-RUN cargo chef prepare  --recipe-path recipe.json
+RUN cargo chef prepare --recipe-path recipe.json
 
 FROM rust-builder AS build-step
 COPY --from=planner /src/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
+RUN cargo chef cook --workspace --release --recipe-path recipe.json
 COPY . .
 # Enable debug in release build, thus also enable backtrace
 ENV RUSTFLAGS=-g
