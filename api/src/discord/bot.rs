@@ -3,11 +3,11 @@ use std::sync::Arc;
 use async_openai::{
     config::OpenAIConfig,
     types::{
-        ChatCompletionRequestAssistantMessage, ChatCompletionRequestAssistantMessageContent,
-        ChatCompletionRequestMessage, ChatCompletionRequestMessageContentPartText,
-        ChatCompletionRequestSystemMessage, ChatCompletionRequestSystemMessageContent,
-        ChatCompletionRequestUserMessage, ChatCompletionRequestUserMessageContent,
-        ChatCompletionRequestUserMessageContentPart, CreateChatCompletionRequest, ImageUrl,
+        ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
+        ChatCompletionRequestMessageContentPartText, ChatCompletionRequestSystemMessage,
+        ChatCompletionRequestSystemMessageContent, ChatCompletionRequestUserMessage,
+        ChatCompletionRequestUserMessageContent, ChatCompletionRequestUserMessageContentPart,
+        CreateChatCompletionRequest, ImageUrl,
     },
     Client as OpenAIClient,
 };
@@ -227,7 +227,7 @@ async fn handle_message(
         })
         .map(|attachment| attachment.proxy_url.clone());
 
-    let mut messages = vec![ChatCompletionRequestMessage::User(
+    let mut chat = vec![ChatCompletionRequestMessage::User(
         ChatCompletionRequestUserMessage {
             content: ChatCompletionRequestUserMessageContent::Array(match image {
                 None => vec![ChatCompletionRequestUserMessageContentPart::Text(
@@ -250,7 +250,7 @@ async fn handle_message(
 
     let request = CreateChatCompletionRequest {
         model: "gpt-4.1-mini".to_string(),
-        messages: messages.clone(),
+        messages: chat.clone(),
         ..Default::default()
     };
 
@@ -280,21 +280,15 @@ async fn handle_message(
     }
 
     // Add assistant response to messages
-    messages.push(ChatCompletionRequestMessage::Assistant(
-        ChatCompletionRequestAssistantMessage {
-            content: Some(ChatCompletionRequestAssistantMessageContent::Text(
-                score_str.to_string(),
-            )),
-            tool_calls: None,
-            function_call: None,
-            name: None,
-            audio: None,
-            refusal: None,
-        },
-    ));
+    chat.push(
+        ChatCompletionRequestAssistantMessageArgs::default()
+            .content(score_str)
+            .build()?
+            .into(),
+    );
 
     // Add system prompt for generating final response
-    messages.push(ChatCompletionRequestMessage::System(
+    chat.push(ChatCompletionRequestMessage::System(
         ChatCompletionRequestSystemMessage {
             content: ChatCompletionRequestSystemMessageContent::Text(generate_analyst_prompt()),
             name: None,
@@ -303,7 +297,7 @@ async fn handle_message(
 
     let request = CreateChatCompletionRequest {
         model: "gpt-4.1".to_string(),
-        messages,
+        messages: chat,
         ..Default::default()
     };
 
