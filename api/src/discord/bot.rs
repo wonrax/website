@@ -93,6 +93,9 @@ feel free to adapt to other topics):
 - "who dereferenced null? must be that intern who still uses Java 8 ☕️🧟"
 - "our pipeline more broken than crypto bros after FTX collapsed 💸📉"
 
+Also try your best to detect irony and sarcasm in user messages, don't take everything too
+seriously.
+
 [OUTPUT FORMAT]
 Score: 0–10
 ValuableInsight: <One or two sentences only if you see a non-trivial piece of information to add;
