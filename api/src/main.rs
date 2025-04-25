@@ -11,7 +11,6 @@ use mimalloc::MiMalloc;
 use serde_json::json;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use std::{net::SocketAddr, ops::Deref, process::exit, sync::Arc, time::Duration};
-use tokio::sync::Mutex;
 use tower_http::{
     classify::ServerErrorsFailureClass,
     cors::{AllowOrigin, CorsLayer},
@@ -210,16 +209,12 @@ async fn main() {
 }
 
 async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> {
-    use async_openai::{
-        config::OpenAIConfig,
-        Client as OpenAIClient,
-    };
+    use async_openai::{config::OpenAIConfig, Client as OpenAIClient};
     use serenity::all::GatewayIntents;
 
-    if let (Some(discord_token), Some(openai_api_key)) = (
-        config.discord_token.clone(),
-        config.deepseek_api_key.clone(),
-    ) {
+    if let (Some(discord_token), Some(openai_api_key)) =
+        (config.discord_token.clone(), config.openai_api_key.clone())
+    {
         let intents = GatewayIntents::GUILD_MESSAGES
             | GatewayIntents::DIRECT_MESSAGES
             | GatewayIntents::MESSAGE_CONTENT;

@@ -20,7 +20,7 @@ pub struct ServerConfig {
     pub owner_identity_id: i32,
 
     pub discord_token: Option<String>,
-    pub deepseek_api_key: Option<String>,
+    pub openai_api_key: Option<String>,
 }
 
 #[derive(Clone)]
@@ -133,7 +133,7 @@ impl ServerConfig {
             spotify_oauth,
             owner_identity_id: 1,
             discord_token: var("DISCORD_TOKEN").unwrap_or(None),
-            deepseek_api_key: var("DEEPSEEK_API_KEY").unwrap_or(None),
+            openai_api_key: var("OPENAI_API_KEY").unwrap_or(None),
         }
     }
 }
