@@ -160,8 +160,6 @@ async fn handle_message(
         return Ok(());
     }
 
-    let _typing = Typing::start(ctx.http.clone(), msg.channel_id);
-
     const MESSAGE_CONTEXT_SIZE: usize = 20;
     let messages = msg
         .channel_id
@@ -278,6 +276,8 @@ async fn handle_message(
     if score < 3 {
         return Ok(());
     }
+
+    let _typing = Typing::start(ctx.http.clone(), msg.channel_id);
 
     // Add assistant response to messages
     chat.push(
