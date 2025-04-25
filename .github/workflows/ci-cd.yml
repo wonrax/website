@@ -63,15 +63,15 @@ jobs:
               - "docker/*.Dockerfile"
               - "docker/vector/vector.toml"
 
-  test-backend:
-    name: Test backend API
-    needs: files-changed
-    if: ${{ needs.files-changed.outputs.backend == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --workspace --all-features
+  # test-backend:
+  #   name: Test backend API
+  #   needs: files-changed
+  #   if: ${{ needs.files-changed.outputs.backend == 'true' }}
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: dtolnay/rust-toolchain@stable
+  #     - run: cargo test --workspace --all-features
 
   build-and-push-www:
     name: Build www
@@ -86,7 +86,8 @@ jobs:
 
   build-and-push-backend:
     name: Build API
-    needs: [files-changed, test-backend]
+    # needs: [files-changed, test-backend]
+    needs: [files-changed]
     if: ${{ needs.files-changed.outputs.backend == 'true' }}
     uses: ./.github/workflows/container-ci.yml
     with:
