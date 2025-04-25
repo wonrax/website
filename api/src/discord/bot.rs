@@ -121,7 +121,9 @@ fn generate_analyst_prompt() -> String {
     r#"
 [TASK]
 Provide a concise correction or deeper insight, referencing the flagged issues or ValuableInsight.
-• 1–2 sentences max per issue if possible, unless asked otherwise
+• There's no enforcement on message length, you should read the room (analyze the context) to
+choose the correct length to reply. That can be either short and concise or a detailed, lengthy
+reply depending on the context.
 • Use Markdown for code samples (e.g., ```python)
 • Neutral, helpful tone, or shift to the channel's language if appropriate
 • Prefer the insight or correction over the joke if possible, we can only choose one
