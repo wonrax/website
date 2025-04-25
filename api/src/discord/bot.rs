@@ -127,10 +127,11 @@ fn generate_analyst_prompt() -> String {
     r#"
 [TASK]
 Provide a concise correction or deeper insight, referencing the flagged issues or ValuableInsight.
-• 1–2 sentences max per issue if possible
+• 1–2 sentences max per issue if possible, unless asked otherwise
 • Use Markdown for code samples (e.g., ```python)
 • Neutral, helpful tone, or shift to the channel's language if appropriate
 • Prefer the insight or correction over the joke if possible, we can only choose one
+• Output human-like message, in natural language and tone
 
 Example Good Output, NOTE THAT ONLY OUTPUT THE RESPONSE (THAT IS THE DISCORD MESSAGE BEING SENT)
 THAN OTHER TEXT, DO NOT INCLUDE THE NAME OR ROLE WITH YOUR RESPONSE (e.g. "Bot (is bot: true): " or
@@ -253,7 +254,7 @@ async fn handle_message(
     )];
 
     let request = CreateChatCompletionRequest {
-        model: "gpt-4.1".to_string(),
+        model: "gpt-4.1-mini".to_string(),
         messages: messages.clone(),
         ..Default::default()
     };
@@ -359,4 +360,3 @@ impl EventHandler for Handler {
         tracing::info!("Discord bot {} is connected!", ready.user.name);
     }
 }
-
