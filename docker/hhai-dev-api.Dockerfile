@@ -1,11 +1,22 @@
-FROM rust:1 as build-step
-
+# This stage is divided into 2 substages which uses cargo chef to cache the
+# dependency build step
+FROM rust:latest AS rust-builder
+RUN curl -L --proto '=https' --tlsv1.2 -sSf \
+        https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh \
+      | bash
+RUN cargo binstall cargo-chef -y
 WORKDIR /src
-COPY . .
 
+FROM rust-builder AS planner
+COPY . .
+RUN cargo chef prepare  --recipe-path recipe.json
+
+FROM rust-builder AS build-step
+COPY --from=planner /src/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+COPY . .
 # Enable debug in release build, thus also enable backtrace
 ENV RUSTFLAGS=-g
-
 RUN cargo build --release -p api
 
 FROM debian:bookworm-slim

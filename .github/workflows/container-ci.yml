@@ -50,3 +50,6 @@ jobs:
         push: true
         tags: ${{ inputs.tags }}
         file: ${{ inputs.dockerfile }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
