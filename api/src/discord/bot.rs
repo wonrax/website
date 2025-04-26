@@ -537,6 +537,10 @@ impl EventHandler for Handler {
     // Event handlers are dispatched through a threadpool, and so multiple events can be
     // dispatched simultaneously.
     async fn message(&self, ctx: Context, msg: Message) {
+        if msg.channel_id != 1119652436102086809 {
+            return;
+        }
+
         let _ = handle_message(&self.openai_client, ctx, msg)
             .await
             .inspect_err(|why| {
