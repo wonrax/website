@@ -12,6 +12,7 @@ use async_openai::{
     Client as OpenAIClient,
 };
 use futures_util::StreamExt;
+use regex::Regex;
 use reqwest::Url;
 use serenity::all::{ChannelId, CreateMessage, Typing};
 use serenity::async_trait;
@@ -464,12 +465,19 @@ async fn handle_message(
         if let Some(response_content) = layer2_response.choices[0].message.content.as_deref() {
             let trimmed_response = response_content.trim();
             if !trimmed_response.is_empty() {
+                fn clean_message(message: &str) -> String {
+                    let re =
+                        Regex::new(r"^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\]\s+[^:]+:\s+")
+                            .unwrap();
+                    re.replace(message, "").into_owned()
+                }
+
                 msg.channel_id
                     .send_message(
                         &ctx.http,
                         CreateMessage::new()
                             .reference_message(&msg)
-                            .content(trimmed_response),
+                            .content(clean_message(trimmed_response)),
                     )
                     .await?;
             }
