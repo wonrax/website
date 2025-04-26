@@ -221,7 +221,11 @@ async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> 
 
         // Create OpenAI client with async-openai
         let config = OpenAIConfig::new().with_api_key(openai_api_key);
-        let openai_client = OpenAIClient::with_config(config);
+        let openai_client = OpenAIClient::with_config(config).with_http_client(
+            reqwest::Client::builder()
+                .timeout(Duration::from_secs(120))
+                .build()?,
+        );
 
         // Create a new instance of the Client, logging in as a bot. This will automatically prepend
         // your bot token with "Bot ", which is a requirement by Discord for bot users.
