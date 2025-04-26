@@ -242,7 +242,6 @@ async fn build_history_messages(
                 if let Ok(parsed_url) = Url::parse(word) {
                     match fetch_url_content_and_parse(parsed_url.as_str()).await {
                         Ok(md_content) => {
-                            println!("Successfully fetched URL: {}", parsed_url);
                             // Add clear delimiters and newlines for readability
                             fetched_links_text.push_str(&format!(
                                 "\n\n[Fetched Link Content: {}]\n{}\n[End Fetched Link Content]",
