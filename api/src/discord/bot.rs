@@ -89,7 +89,7 @@ You MUST output your analysis *only* in the following format, with each key on a
 Score: <0-10 score reflecting the need/opportunity to respond. Score 10 if bot mentioned.>
 Insight: <One or two sentences for the potential insight, OR the literal word "None">
 HumorTopic: <Brief topic/idea for a joke relevant to the last message, OR the literal word "None">
-Respond: <"Yes" if score is >= 3 (or bot mentioned), otherwise "No">
+Respond: <"Yes" if score is >= 5 (or bot mentioned), otherwise "No">
 "#
     )
     .trim()
@@ -363,7 +363,7 @@ async fn handle_message(
         return Ok(()); // Ignore messages from the bot itself
     }
 
-    const MESSAGE_CONTEXT_SIZE: usize = 15; // Adjust as needed
+    const MESSAGE_CONTEXT_SIZE: usize = 30; // Adjust as needed
 
     let base_history =
         match build_history_messages(&ctx, msg.channel_id, MESSAGE_CONTEXT_SIZE).await {
