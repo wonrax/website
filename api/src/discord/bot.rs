@@ -258,7 +258,15 @@ async fn build_history_messages(
                 * This messsage mentions or is replying to the bot: [{}]
             <</context>>",
             msg.referenced_message
-                .map(|m| format!("{}: {}...", m.author.name, &m.content[..30]))
+                .map(|m| format!(
+                    "{}: {}",
+                    m.author.name,
+                    if m.content.len() > 30 {
+                        m.content[..30].to_string() + "..."
+                    } else {
+                        m.content
+                    }
+                ))
                 .unwrap_or("None".into()),
             replying_to_bot_or_mentioned_bot,
         ));
