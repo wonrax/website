@@ -86,8 +86,8 @@ Also try your best to detect irony and sarcasm in user messages, don't take ever
 
 [OUTPUT FORMAT]
 You MUST output your analysis *only* in the following format, with each key on a new line. Do NOT add any other explanation or text.
-Insight: <One or two sentences for the potential insight, OR the literal word "None">
-HumorTopic: <Brief topic/idea for a joke relevant to the last message, OR the literal word "None">
+Insight: <One or two sentences for the potential insight, OR the literal word "None". If there are multiple potential insights, seperate them with a semicolon.>
+HumorTopic: <Brief topic/idea for a joke relevant to the last message, OR the literal word "None". If there are multiple potential ideas, seperate them with a semicolon.>
 Score: <0-10 score reflecting the need/opportunity to respond. Also consider the impact of the humor topic, if it's too subpar or unimportant, lower the score. Score 10 if bot mentioned.>
 Respond: <"Yes" if score is >= 7 (or bot mentioned), otherwise "No">
 "#
@@ -192,12 +192,10 @@ here are some example slang terms you can use:
 46. **Wig**: An exclamation used when something is done exceptionally well.
 47. **Yeet**: To throw something with force; an exclamation of excitement.
 
-[COMEDIC FORMAT]
-
 [OUTPUT INSTRUCTIONS]
 *   Output *only* the raw message content you want to send to Discord.
 *   Do NOT include "Assistant:", your name, or any other prefix or explanation.
-*   Just the text of the chat message.
+*   Just the text of the chat message. Use a blank line to separate multiple messages/insights/ideas if needed.
 "#
     )
     .trim()
@@ -433,8 +431,8 @@ async fn handle_message(
     let layer1_request = CreateChatCompletionRequestArgs::default()
         .model("gpt-4.1-nano") // Vision capable
         .messages(layer1_input_messages)
-        .max_tokens(150u16)
-        .temperature(0.2)
+        .max_tokens(300u16)
+        .temperature(0.3)
         .build()?;
     let layer1_response = openai_client.chat().create(layer1_request).await?;
     let layer1_output = layer1_response.choices[0]
