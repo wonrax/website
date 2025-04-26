@@ -1,152 +1,358 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use async_openai::{
     config::OpenAIConfig,
     types::{
         ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
-        ChatCompletionRequestMessageContentPartText, ChatCompletionRequestSystemMessage,
-        ChatCompletionRequestSystemMessageContent, ChatCompletionRequestUserMessage,
+        ChatCompletionRequestMessageContentPartImage, ChatCompletionRequestMessageContentPartText,
+        ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
         ChatCompletionRequestUserMessageContent, ChatCompletionRequestUserMessageContentPart,
-        CreateChatCompletionRequest, ImageUrl,
+        CreateChatCompletionRequestArgs, ImageUrl,
     },
     Client as OpenAIClient,
 };
 use futures_util::StreamExt;
-use serenity::all::{CreateMessage, GuildId, Typing};
+use reqwest::Url;
+use serenity::all::{ChannelId, CreateMessage, Typing};
 use serenity::async_trait;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
 
-fn generate_analyst_prompt_score(
-    message_history: &str,
-    bot_mentioned: bool,
-    url: Option<&str>,
-    url_content: Option<&str>,
-) -> String {
-    let url = url.unwrap_or("None");
-    let url_content = url_content.unwrap_or("None");
-    let message = message_history.split('\n').next().unwrap_or("None");
+async fn fetch_url_content_and_parse(url_str: &str) -> Result<String, eyre::Error> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()?;
 
+    let response = client.get(url_str).send().await?;
+
+    if !response.status().is_success() {
+        return Err(eyre::eyre!(
+            "Failed to fetch URL {}: Status {}",
+            url_str,
+            response.status()
+        ));
+    }
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|val| val.to_str().ok())
+        .unwrap_or("");
+
+    if !content_type.starts_with("text/html") {
+        tracing::debug!(
+            "Skipping non-HTML content for URL: {} (not HTML content)",
+            url_str
+        );
+        return Ok("[Empty]".into());
+    }
+
+    let site_content = response.text().await?;
+
+    let md_content = htmd::convert(&site_content).inspect_err(|e| {
+        tracing::error!(
+            "Failed to convert URL {} content to markdown: {}",
+            url_str,
+            e
+        )
+    });
+
+    Ok(md_content.unwrap_or("[Empty]".into()))
+}
+
+// Generates the SYSTEM prompt content for the Layer 1 analysis task
+fn generate_layer1_system_prompt() -> String {
     format!(
         r#"
-[ROLE] Discord Bot Technical Conversation Analyst
-Note that you are "The Irony Himself" in the chat history with (is bot: true).
-All messages are in this format:
-{{author}} (is bot: {{is_bot}}): {{message}}\\n
+[ROLE] Discord Conversation Analyst
 
 [CONTEXT]
-**Message in question:**
-{message}
+You will be given a sequence of User and Assistant messages representing a Discord conversation history, ordered chronologically (oldest first). The 'Assistant' messages are from the bot ("The Irony Himself"), and 'User' messages are from others.
 
-**Mentioned you or not (true or false):**
-{bot_mentioned}
+[TASK]
+Analyze the **final message** in the provided sequence. Evaluate if the bot "The Irony Himself" should respond, considering the channel's casual, fun, and friendly vibe.
+Your analysis should consider:
+*   Direct Engagement: Is the last message a question to the bot? Does it mention the bot?
+*   Relevance & Flow: Does it continue the immediate prior topic? Is it engaging?
+*   Engagement Potential: Is there an opportunity to add value, humor, or continue the conversation naturally?
+*   Bot Activity: Was 'Assistant' the last or second-to-last speaker? (If so, lean against responding unless directly engaged).
+*   Information Value: Is there a *brief* (1-2 sentence) interesting fact, perspective, or clarification that fits the casual vibe?
+*   The last message missed crucial background or historical context, contains factual or logical errors while in a debate, or conceptual misunderstandings?
+*   Humor Potential: Is there a clear opportunity for a witty, sarcastic, or funny comment relevant to the *last message* or *current topic*?
 
-**Recent Messages (sorted by newest first):**
-{message_history}
-
-**Linked Content (if any):**
-URL: {url}
-
-[URL CONTENT]
-{url_content}
-[END URL CONTENT]
-
-[END CONTEXT]
-
-[TASK] Evaluate the need for a response to the message in question. Consider:
-• Factual or logical errors (0–3 points)
-• Conceptual misunderstandings (0–3 points)
-• Security or critical risks (0–5 points)
-• Missed crucial background or historical context (0–2 points)
-• Debate stalling (0–2 points)
-• Negative weighting for recent bot contributions (–2 to –5 points if the bot is too active)
-• Comedic potential (0-3 points)
-
-Additionally, identify any "possibly valuable insight"—a short piece of info or perspective (1–2
-lines) that the conversation members might appreciate, referencing context or known best practices.
-
-If this prompt contains an image, it's the image from the user's message. You can use that to learn
-more about the context of the conversation.
-
-If the message is a question aiming to the bot, it's very likely the bot should answer it
-regardless of the score. If the message directly mentions the bot, the score should be
-automatically 10 in order to avoid the bot being ignored.
-
-For the comedic potential, consider if the bot's response could be humorous or entertaining added
-to the conversation. If so, assign a score between 0 and 3. Generate short, edgy dev humor about
-[concept], referencing [pop_culture_ref] if provided.
-
-COMEDIC FORMAT:
-• 1–2 sentences
-• Up to 12 words total if possible
-• (Optional) End with 1-2 savage/ironic emoji
-• Allowed references: memes, IRL dev pains, mild pop culture sass, gen alpha brain rot etc., feel
-free to be super offensive and political incorrect if it fits the context, because this is a closed
-Discord channel.
-
-Sample Outputs That Pass the Vibe Check (we only provide examples for compsci-related topics but
-feel free to adapt to other topics):
-- "this code's got more memory leaks than your mama's weight bro 💀"
-- "these unit tests running slower than Blizzard's sexual harassment investigations ⏳⚖️"
-- "this inheritance hierarchy more fucked up than Elon's Twitter algo 🌐🪓"
-- "who dereferenced null? must be that intern who still uses Java 8 ☕️🧟"
-- "our pipeline more broken than crypto bros after FTX collapsed 💸📉"
-
-Also try your best to detect irony and sarcasm in user messages, don't take everything too
-seriously.
+Also try your best to detect irony and sarcasm in user messages, don't take everything too seriously.
 
 [OUTPUT FORMAT]
-Score: 0–10
-ValuableInsight: <One or two sentences only if you see a non-trivial piece of information to add;
-otherwise omit.>
-Comedic: <Optional, only if you see a chance for a humorous response.>
-
-[EXAMPLE OUTPUT]
-––––––––––––––––
-Score: 8
-ValuableInsight: "You might also highlight how samplesort's average behavior differs from mergesort."
-Comedic: None
-
-Notes on Multilingual:
-• By default, keep the output in English unless explicitly asked otherwise.
-• If the conversation is predominantly another language (≥80% non-English), you may provide this
-analysis in that language instead."#
+You MUST output your analysis *only* in the following format, with each key on a new line. Do NOT add any other explanation or text.
+Score: <0-10 score reflecting the need/opportunity to respond. Score 10 if bot mentioned.>
+Insight: <One or two sentences for the potential insight, OR the literal word "None">
+HumorTopic: <Brief topic/idea for a joke relevant to the last message, OR the literal word "None">
+Respond: <"Yes" if score is >= 3 (or bot mentioned), otherwise "No">
+"#
     )
     .trim()
     .into()
 }
+// Generates the SYSTEM prompt content for the Layer 2 response generation task
+fn generate_layer2_system_prompt(
+    insight: Option<&str>,     // Parsed from Layer 1 output
+    humor_topic: Option<&str>, // Parsed from Layer 1 output
+) -> String {
+    let task_guidance = match (humor_topic, insight) {
+        (Some(topic), _) if topic != "None" => {
+            format!("Your main goal is to generate a witty, sarcastic, or funny response related to: '{}'. Keep it relevant to the latest message.", topic)
+        },
+        (_, Some(valuable_insight)) if valuable_insight != "None" => {
+            format!("Your main goal is to briefly share this interesting point or perspective in a casual, friendly way: '{}'. Make sure it flows naturally.", valuable_insight)
+        },
+        _ => "Your main goal is to engage naturally with the latest message. Keep the conversation flowing in a fun and friendly way. Be witty or add a touch of irony if appropriate.".to_string(),
+    };
 
-fn generate_analyst_prompt() -> String {
-    r#"
-[TASK]
-Provide a concise correction or deeper insight, referencing the flagged issues or ValuableInsight.
-• There's no enforcement on message length, you should read the room (analyze the context) to
-choose the correct length to reply. That can be either short and concise or a detailed, lengthy
-reply depending on the context.
-• Use Markdown for code samples (e.g., ```python)
-• Neutral, helpful tone, or shift to the channel's language if appropriate
-• Prefer the insight or correction over the joke if possible, we can only choose one
-• Output human-like message, in natural language and tone
+    format!(
+        r#"
+[PERSONA]
+You ARE the Discord bot "The Irony Himself". Your personality is witty, sarcastic, friendly, and casual. You are part of a fun, informal community channel. You are participating in the conversation provided.
 
-Note that Discord partially support markdown so be careful with the formatting so that the text is
-not rendered incorrectly, for example if you use `*` or `_` in the text, it will be rendered as
-italic or bold.
+[CONTEXT]
+You are seeing the recent conversation history (User/Assistant messages) chronologically. You need to generate the *next* message in the sequence, acting as the 'Assistant'.
 
-Example Good Output, NOTE THAT ONLY OUTPUT THE RESPONSE (THAT IS THE DISCORD MESSAGE BEING SENT)
-THAN OTHER TEXT, DO NOT INCLUDE THE NAME OR ROLE WITH YOUR RESPONSE (e.g. "Bot (is bot: true): " or
-"Analyst: "), DO NOT INCLUDE THE SCORE OR THE VALUEABLE ANALYSIS TO THE FINAL RESPONSE:
-–––––––––––––––––––
-Actually, counting sort is O(n + k), but it only works if k (the range of inputs) isn't huge. See
-the example in the link for details.
--------------------
-        "#
+[TASK GUIDANCE]
+{task_guidance}
+
+[TONE & STYLE INSTRUCTIONS]
+*   **BE YOUR PERSONA:** Witty, maybe a bit ironic/sarcastic, be mean if necessary.
+*   **Be Casual:** Use natural language. Avoid formality, preaching, or sounding like a teacher.
+*   **Be Relevant:** Respond to the *latest* message(s) in the history.
+*   **Be Concise (usually):** Adapt length to the chat flow. Short and punchy is often good. For
+*   example, write in all lowercase if everybody is doing so, or use slang and jargons without
+*   formal consideration.
+*   **Use Markdown Subtly:** `*italic*`, `**bold**`, `` `code` `` sparingly if needed. 1-2 relevant emojis are okay.
+*   **AVOID:** Sounding like generic AI, being overly helpful/corrective unless that *is* the witty angle, asking for confirmation unless the user request is truly unclear or risky.
+
+[COMEDIC FORMAT]
+For the comedic potential, consider if the bot's response could be humorous or entertaining added
+to the conversation. Generate short, edgy dev humor about [concept], referencing [pop_culture_ref]
+if referenced.
+
+• 1–2 sentences
+• (Optional) End with 1-2 savage/ironic emoji
+• Allowed references: memes, IRL dev pains, mild pop culture sass, gen alpha brain rot etc., feel free to be super offensive and political incorrect if it fits the context, because this is a closed Discord channel.
+
+Sample Outputs That Pass the Vibe Check (we only provide examples for compsci-related topics but feel free to adapt to other topics):
+*   "this code's got more memory leaks than your mama's weight bro 💀"
+*   "these unit tests running slower than Blizzard's sexual harassment investigations ⏳⚖️"
+*   "this inheritance hierarchy more fucked up than Elon's Twitter algo 🌐🪓"
+*   "who dereferenced null? must be that intern who still uses Java 8 ☕️🧟"
+*   "our pipeline more broken than crypto bros after FTX collapsed 💸📉"
+
+[OUTPUT INSTRUCTIONS]
+*   Output *only* the raw message content you want to send to Discord.
+*   Do NOT include "Assistant:", your name, or any other prefix or explanation.
+*   Just the text of the chat message.
+*   For example, don't say this:
+*   ```
+*   [2025-04-25T11:39:22.384Z] The Irony Himself: my bad frfr
+*   ```
+*   Instead, say this:
+*   ```
+*   my bad frfr
+*   ```
+"#
+    )
     .trim()
     .into()
 }
+// --- Helper function to build the history message sequence ---
+async fn build_history_messages(
+    ctx: &Context,
+    channel_id: ChannelId,
+    message_context_size: usize,
+) -> Result<Vec<ChatCompletionRequestMessage>, eyre::Error> {
+    let bot_user_id = ctx.cache.current_user().id;
 
-pub struct Handler {
-    pub openai_client: Arc<OpenAIClient<OpenAIConfig>>,
+    let fetched_messages: Vec<Message> = channel_id
+        .messages_iter(ctx.http.clone())
+        .take(message_context_size)
+        .filter_map(|m| async {
+            m.ok().and_then(|m| {
+                if m.content.trim().is_empty() && m.attachments.is_empty() {
+                    None
+                } else {
+                    Some(m)
+                }
+            })
+        })
+        .collect()
+        .await;
+
+    let mut history_messages: Vec<ChatCompletionRequestMessage> = Vec::new();
+
+    for msg in fetched_messages.into_iter().rev() {
+        // Chronological order
+        let author_name = msg.author.name.clone();
+        let is_bot_message = msg.author.id == bot_user_id;
+
+        // --- Content Parts ---
+        let mut content_parts: Vec<ChatCompletionRequestUserMessageContentPart> = Vec::new();
+        let mut accumulated_text = String::new();
+
+        // TODO: use relative time instead to emphasize the importance
+        let timestamp_str = format!("[{}] ", msg.timestamp.to_rfc3339().unwrap_or("".into()));
+        accumulated_text.push_str(&timestamp_str);
+
+        let author_prefix = format!("{}: ", author_name); // Format author name prefix
+        accumulated_text.push_str(&author_prefix); // Add it after timestamp
+
+        if !msg.content.is_empty() {
+            accumulated_text.push_str(&msg.content);
+        }
+
+        let mut has_images = false;
+        for attachment in &msg.attachments {
+            if attachment
+                .content_type
+                .as_ref()
+                .map_or(false, |ct| ct.starts_with("image/"))
+            {
+                has_images = true;
+                // Add accumulated text as a Text part before the Image part
+                if !accumulated_text.is_empty() {
+                    content_parts.push(ChatCompletionRequestUserMessageContentPart::Text(
+                        ChatCompletionRequestMessageContentPartText {
+                            text: accumulated_text.clone(),
+                        },
+                    ));
+                    accumulated_text.clear(); // Reset for any text *after* this image
+                }
+                content_parts.push(ChatCompletionRequestUserMessageContentPart::ImageUrl(
+                    ChatCompletionRequestMessageContentPartImage {
+                        image_url: ImageUrl {
+                            url: attachment.proxy_url.clone(),
+                            detail: None,
+                        },
+                    },
+                ));
+            }
+        }
+
+        let words = msg.content.split_whitespace();
+        let mut fetched_links_text = String::new(); // Accumulate link text separately
+        for word in words {
+            if word.starts_with("http://") || word.starts_with("https://") {
+                if let Ok(parsed_url) = Url::parse(word) {
+                    match fetch_url_content_and_parse(parsed_url.as_str()).await {
+                        Ok(md_content) => {
+                            println!("Successfully fetched URL: {}", parsed_url);
+                            // Add clear delimiters and newlines for readability
+                            fetched_links_text.push_str(&format!(
+                                "\n\n[Fetched Link Content: {}]\n{}\n[End Fetched Link Content]",
+                                parsed_url,
+                                md_content.trim()
+                            ));
+                        }
+                        Err(_) => {
+                            fetched_links_text
+                                .push_str(&format!("\n[Could not fetch link: {}]", parsed_url));
+                        }
+                    }
+                }
+            }
+        }
+        if !fetched_links_text.is_empty() {
+            // Ensure there's a space or newline before adding link blocks if original text exists
+            if !accumulated_text.is_empty()
+                && !accumulated_text.ends_with('\n')
+                && !accumulated_text.ends_with(' ')
+            {
+                accumulated_text.push(' ');
+            }
+            accumulated_text.push_str(&fetched_links_text);
+        }
+
+        // Add any remaining accumulated text as the last text part
+        if !accumulated_text.is_empty() {
+            content_parts.push(ChatCompletionRequestUserMessageContentPart::Text(
+                ChatCompletionRequestMessageContentPartText {
+                    text: accumulated_text,
+                },
+            ));
+        }
+
+        // --- Build the Message Object ---
+        if content_parts.is_empty() {
+            continue; // Skip if absolutely nothing to send
+        }
+
+        if is_bot_message {
+            // Combine all text parts for assistant message (NOTE: ignore images in bot history?)
+            let assistant_content = content_parts
+                .iter()
+                .filter_map(|part| {
+                    if let ChatCompletionRequestUserMessageContentPart::Text(text_part) = part {
+                        Some(text_part.text.as_str())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<&str>>()
+                .join("");
+
+            if !assistant_content.trim().is_empty() {
+                history_messages.push(
+                    ChatCompletionRequestAssistantMessageArgs::default()
+                        .content(assistant_content)
+                        .build()?
+                        .into(),
+                );
+            }
+        } else {
+            // User message
+            let user_content = if has_images || content_parts.len() > 1 {
+                ChatCompletionRequestUserMessageContent::Array(content_parts)
+            } else {
+                // Should only be one Text part if no images and links didn't create new parts
+                if let Some(ChatCompletionRequestUserMessageContentPart::Text(text_part)) =
+                    content_parts.first()
+                {
+                    ChatCompletionRequestUserMessageContent::Text(text_part.text.clone())
+                } else {
+                    continue; // Skip if something went wrong
+                }
+            };
+
+            history_messages.push(
+                ChatCompletionRequestUserMessageArgs::default()
+                    .content(user_content)
+                    .build()?
+                    .into(),
+            );
+        }
+    }
+
+    Ok(history_messages)
+}
+
+// --- System Prompt Updates ---
+
+fn generate_layer_system_prompt_context() -> String {
+    format!(
+        r#"
+[CONTEXT]
+You are processing a sequence of Discord messages provided chronologically (oldest first).
+Each message object has a 'role' ('user' or 'assistant'). 'Assistant' messages are from the bot you are acting as or analyzing ("The Irony Himself").
+Message content starts with metadata followed by the actual message:
+1.  An ISO 8601 timestamp in brackets (e.g., '[2023-10-27T10:30:00Z]').
+2.  The author's Discord username followed by a colon (e.g., 'JohnDoe: ').
+3.  The message text, potentially including fetched link content or image URLs.
+
+User message 'content' can be complex beyond the initial metadata:
+- It may be simple text following the metadata.
+- It may be an array containing text parts (each starting with metadata) and image URLs (`ImageUrl`).
+- Text parts may include fetched content from links, marked like: '[Fetched Link Content: URL]...[End Fetched Link Content]'.
+
+Interpret the full message content, including timestamps, author names (from the prefix), text, images (via URL), and fetched link data, in the context of the conversation history. Use timestamps and authorship to gauge flow and relevance.
+"#
+    )
 }
 
 async fn handle_message(
@@ -154,181 +360,120 @@ async fn handle_message(
     ctx: Context,
     msg: Message,
 ) -> Result<(), eyre::Error> {
-    // ignore if message is from ourself
-    if msg.author.id == ctx.cache.current_user().id {
-        return Ok(());
-    }
+    const MESSAGE_CONTEXT_SIZE: usize = 15; // Adjust as needed
 
-    if msg.guild_id.is_none_or(|g| {
-        g != GuildId::new(968774421668065330) && g != GuildId::new(1117654544827043920)
-    }) {
-        return Ok(());
-    }
+    let base_history =
+        match build_history_messages(&ctx, msg.channel_id, MESSAGE_CONTEXT_SIZE).await {
+            Ok(history) => history,
+            Err(e) => {
+                tracing::error!("Error building message history: {}. Aborting.", e);
+                return Ok(());
+            }
+        };
 
-    const MESSAGE_CONTEXT_SIZE: usize = 20;
-    let messages = msg
-        .channel_id
-        .messages_iter(ctx.http.clone())
-        .take(MESSAGE_CONTEXT_SIZE);
-
-    let bot_mentioned = msg
-        .mentions
-        .iter()
-        .any(|user| user.id == ctx.cache.current_user().id);
-
-    let url_in_message = msg
-        .content
-        .split_whitespace()
-        .find(|word| word.starts_with("http://") || word.starts_with("https://"))
-        .map(|url| url.to_string());
-
-    // crawl the URL if it exists and convert to markdown using htmd
-    let url_content = if let Some(ref url) = url_in_message {
-        let site_content = reqwest::get(url)
-            .await
-            .map_err(|e| eyre::eyre!("Failed to fetch URL content: {e}"))?
-            .text()
-            .await
-            .map_err(|e| eyre::eyre!("Failed to read URL content: {e}"))?;
-        let content = htmd::convert(&site_content)
-            .map_err(|e| eyre::eyre!("Failed to convert URL content to markdown: {e}"))?;
-
-        Some(content)
-    } else {
-        None
-    };
-
-    let score_prompt = generate_analyst_prompt_score(
-        &messages
-            .filter_map(async |msg| {
-                msg.ok()
-                    .and_then(|m| if m.content.is_empty() { None } else { Some(m) })
-            })
-            .map(|msg| {
-                format!(
-                    "{} (is bot: {}): {}",
-                    msg.author.name, msg.author.bot, msg.content
-                )
-            })
-            .collect::<Vec<_>>()
-            .await
-            .join("\n"),
-        bot_mentioned,
-        url_in_message.as_deref(),
-        url_content.as_deref(),
-    );
-
-    let image = msg
-        .attachments
-        .iter()
-        .find(|attachment| {
-            attachment
-                .content_type
-                .as_ref()
-                .map(|ct| ct.starts_with("image/"))
-                .unwrap_or(false)
-        })
-        .map(|attachment| attachment.proxy_url.clone());
-
-    let mut chat = vec![ChatCompletionRequestMessage::User(
-        ChatCompletionRequestUserMessage {
-            content: ChatCompletionRequestUserMessageContent::Array(match image {
-                None => vec![ChatCompletionRequestUserMessageContentPart::Text(
-                    ChatCompletionRequestMessageContentPartText { text: score_prompt },
-                )],
-                Some(image_url) => vec![
-                    ChatCompletionRequestUserMessageContentPart::Text(
-                        ChatCompletionRequestMessageContentPartText { text: score_prompt },
-                    ),
-                    ChatCompletionRequestUserMessageContentPart::ImageUrl(
-                        async_openai::types::ChatCompletionRequestMessageContentPartImage {
-                            image_url: ImageUrl::from(image_url),
-                        },
-                    ),
-                ],
-            }),
-            name: None,
-        },
-    )];
-
-    let request = CreateChatCompletionRequest {
-        model: "gpt-4.1-mini".to_string(),
-        messages: chat.clone(),
-        ..Default::default()
-    };
-
-    let response = openai_client
-        .chat()
-        .create(request)
-        .await
-        .map_err(|e| eyre::eyre!("Error in OpenAI chat completion: {e}"))?;
-
-    let score_str = response.choices[0].message.content.as_deref().unwrap_or("");
-    let score = score_str
-        .to_ascii_lowercase()
-        .split('\n')
-        .find(|line| line.trim().starts_with("score:"))
-        .map(|line| {
-            line.trim()
-                .trim_start_matches("score:")
-                .split_whitespace()
-                .next()
-        })
-        .flatten()
-        .and_then(|score_text| score_text.parse::<i32>().ok())
-        .unwrap_or(0);
-
-    if score < 3 {
-        return Ok(());
-    }
-
-    let _typing = Typing::start(ctx.http.clone(), msg.channel_id);
-
-    // Add assistant response to messages
-    chat.push(
-        ChatCompletionRequestAssistantMessageArgs::default()
-            .content(score_str)
+    let common_system_prompt_content = generate_layer_system_prompt_context();
+    let common_system_message: ChatCompletionRequestMessage =
+        ChatCompletionRequestSystemMessageArgs::default()
+            .content(common_system_prompt_content)
             .build()?
-            .into(),
-    );
+            .into();
 
-    // Add system prompt for generating final response
-    chat.push(ChatCompletionRequestMessage::System(
-        ChatCompletionRequestSystemMessage {
-            content: ChatCompletionRequestSystemMessageContent::Text(generate_analyst_prompt()),
-            name: None,
-        },
-    ));
+    // --- Layer 1 ---
+    let layer1_system_prompt_content = generate_layer1_system_prompt();
+    let layer1_system_message = ChatCompletionRequestSystemMessageArgs::default()
+        .content(layer1_system_prompt_content)
+        .build()?
+        .into();
+    let mut layer1_input_messages = vec![common_system_message.clone(), layer1_system_message];
+    layer1_input_messages.extend(base_history.clone());
+    let layer1_request = CreateChatCompletionRequestArgs::default()
+        .model("gpt-4.1-mini") // Vision capable
+        .messages(layer1_input_messages)
+        .max_tokens(150u16)
+        .temperature(0.2)
+        .build()?;
+    let layer1_response = openai_client.chat().create(layer1_request).await?;
+    let layer1_output = layer1_response.choices[0]
+        .message
+        .content
+        .as_deref()
+        .unwrap_or("");
 
-    let request = CreateChatCompletionRequest {
-        model: "gpt-4.1".to_string(),
-        messages: chat,
-        ..Default::default()
-    };
+    // --- Parse Layer 1 ---
+    // ... (parsing logic) ...
+    let mut score = 0;
+    let mut insight: Option<String> = None;
+    let mut humor_topic: Option<String> = None;
+    let mut should_respond = false;
+    let threshold = 3;
+    for line in layer1_output.lines() {
+        /* ... parsing logic ... */
+        let trimmed_line = line.trim();
+        if let Some(s) = trimmed_line.strip_prefix("Score:") {
+            score = s.trim().parse::<i32>().unwrap_or(0);
+        } else if let Some(i) = trimmed_line.strip_prefix("Insight:") {
+            let val = i.trim();
+            if !val.eq_ignore_ascii_case("None") {
+                insight = Some(val.to_string());
+            }
+        } else if let Some(h) = trimmed_line.strip_prefix("HumorTopic:") {
+            let val = h.trim();
+            if !val.eq_ignore_ascii_case("None") {
+                humor_topic = Some(val.to_string());
+            }
+        } else if let Some(r) = trimmed_line.strip_prefix("Respond:") {
+            should_respond = r.trim().eq_ignore_ascii_case("Yes");
+        }
+    }
 
-    let response = openai_client
-        .chat()
-        .create(request)
-        .await
-        .map_err(|e| eyre::eyre!("Error in OpenAI chat completion: {e}"))?;
+    // --- Decision Gate ---
+    let bot_mentioned = msg.mentions_user_id(ctx.cache.current_user().id)
+        || msg
+            .referenced_message
+            .as_ref()
+            .is_some_and(|m| m.author.id == ctx.cache.current_user().id);
 
-    let response_text = response.choices[0].message.content.as_deref();
-    if let Some(response_text) = response_text {
-        if let Err(why) = msg
-            .channel_id
-            .send_message(
-                &ctx.http,
-                CreateMessage::new()
-                    .reference_message(&msg)
-                    .content(response_text),
-            )
-            .await
-        {
-            return Err(eyre::Error::new(why));
+    if bot_mentioned || (should_respond && score >= threshold) {
+        let _typing = Typing::start(ctx.http.clone(), msg.channel_id);
+
+        // --- Layer 2 ---
+        let layer2_system_prompt_content =
+            generate_layer2_system_prompt(insight.as_deref(), humor_topic.as_deref());
+        let layer2_system_message = ChatCompletionRequestSystemMessageArgs::default()
+            .content(layer2_system_prompt_content)
+            .build()?
+            .into();
+        let mut layer2_input_messages = vec![common_system_message, layer2_system_message];
+        layer2_input_messages.extend(base_history); // Use same rich history
+        let layer2_request = CreateChatCompletionRequestArgs::default()
+            .model("gpt-4.1") // Vision capable
+            .messages(layer2_input_messages)
+            .max_tokens(4096u16)
+            .temperature(0.75)
+            .build()?;
+        let layer2_response = openai_client.chat().create(layer2_request).await?;
+
+        // --- Send Response ---
+        if let Some(response_content) = layer2_response.choices[0].message.content.as_deref() {
+            let trimmed_response = response_content.trim();
+            if !trimmed_response.is_empty() {
+                msg.channel_id
+                    .send_message(
+                        &ctx.http,
+                        CreateMessage::new()
+                            .reference_message(&msg)
+                            .content(trimmed_response),
+                    )
+                    .await?;
+            }
         }
     }
 
     Ok(())
+}
+
+pub struct Handler {
+    pub openai_client: Arc<OpenAIClient<OpenAIConfig>>,
 }
 
 #[async_trait]
