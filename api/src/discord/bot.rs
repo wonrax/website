@@ -535,7 +535,9 @@ impl EventHandler for Handler {
     // Event handlers are dispatched through a threadpool, and so multiple events can be
     // dispatched simultaneously.
     async fn message(&self, ctx: Context, msg: Message) {
-        if msg.channel_id != 1119652436102086809 {
+        const WHITELIST_CHANNELS: [i64; 2] = [1133997981637554188, 1119652436102086809];
+
+        if !WHITELIST_CHANNELS.contains(&msg.channel_id.into()) {
             return;
         }
 
