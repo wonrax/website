@@ -80,6 +80,7 @@ Your analysis should consider:
 *   The last message missed crucial background or historical context, contains factual or logical errors while in a debate, or conceptual misunderstandings?
 *   Humor Potential: Is there a clear opportunity for a witty, sarcastic, or funny comment relevant to the *last message* or *current topic*?
 
+Note that if the lastest message is from you (The Irony Himself), avoid replying to yourself so that we don't go into recursive mode.
 Also try your best to detect irony and sarcasm in user messages, don't take everything too seriously.
 
 [OUTPUT FORMAT]
@@ -359,6 +360,10 @@ async fn handle_message(
     ctx: Context,
     msg: Message,
 ) -> Result<(), eyre::Error> {
+    if msg.author.id == ctx.cache.current_user().id {
+        return Ok(()); // Ignore messages from the bot itself
+    }
+
     const MESSAGE_CONTEXT_SIZE: usize = 15; // Adjust as needed
 
     let base_history =
@@ -425,12 +430,15 @@ async fn handle_message(
         }
     }
 
+    let bot_id = ctx.cache.current_user().id;
+
     // --- Decision Gate ---
-    let bot_mentioned = msg.mentions_user_id(ctx.cache.current_user().id)
-        || msg
-            .referenced_message
-            .as_ref()
-            .is_some_and(|m| m.author.id == ctx.cache.current_user().id);
+    let bot_mentioned = msg.author.id != bot_id // Ignore messages from the bot itself
+        && (msg.mentions_user_id(bot_id)
+            || msg
+                .referenced_message
+                .as_ref()
+                .is_some_and(|m| m.author.id == ctx.cache.current_user().id));
 
     if bot_mentioned || (should_respond && score >= threshold) {
         let _typing = Typing::start(ctx.http.clone(), msg.channel_id);
