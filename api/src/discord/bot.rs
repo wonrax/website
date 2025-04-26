@@ -261,8 +261,12 @@ async fn build_history_messages(
                 .map(|m| format!(
                     "{}: {}",
                     m.author.name,
-                    if m.content.len() > 30 {
-                        m.content[..30].to_string() + "..."
+                    if m.content.len() >= 30 {
+                        m.content
+                            .chars()
+                            .take(30)
+                            .chain("...".chars())
+                            .collect::<String>()
                     } else {
                         m.content
                     }
