@@ -196,6 +196,7 @@ here are some example slang terms you can use:
 *   Output *only* the raw message content you want to send to Discord.
 *   Do NOT include "Assistant:", your name, or any other prefix or explanation.
 *   Just the text of the chat message. Use a blank line to separate multiple messages/insights/ideas if needed.
+*   Do NOT include the <<context>> in the final response.
 "#
     )
     .trim()
@@ -230,6 +231,11 @@ async fn build_history_messages(
         // Chronological order
         let author_name = msg.author.name.clone();
         let is_bot_message = msg.author.id == bot_user_id;
+        let replying_to_bot_or_mentioned_bot = msg.mentions_user_id(bot_user_id)
+            || msg
+                .referenced_message
+                .as_ref()
+                .is_some_and(|m| m.author.id == bot_user_id);
 
         // --- Content Parts ---
         let mut content_parts: Vec<ChatCompletionRequestUserMessageContentPart> = Vec::new();
@@ -245,6 +251,17 @@ async fn build_history_messages(
         if !msg.content.is_empty() {
             accumulated_text.push_str(&msg.content);
         }
+
+        accumulated_text.push_str(&format!(
+            "\n\n<<context>>
+                * The message that this message is replying to: [{}]
+                * This messsage mentions or is replying to the bot: [{}]
+            <</context>>",
+            msg.referenced_message
+                .map(|m| format!("{}: {}...", m.author.name, &m.content[..30]))
+                .unwrap_or("None".into()),
+            replying_to_bot_or_mentioned_bot,
+        ));
 
         let mut has_images = false;
         for attachment in &msg.attachments {
@@ -382,6 +399,7 @@ Message content starts with metadata followed by the actual message:
 1.  An ISO 8601 timestamp in brackets (e.g., '[2023-10-27T10:30:00Z]').
 2.  The author's Discord username followed by a colon (e.g., 'JohnDoe: ').
 3.  The message text, potentially including fetched link content or image URLs.
+4.  The additional information to provide more context to the message, which is put inside the <<context>> tag, such as whether the message has mentioned the bot or not.
 
 User message 'content' can be complex beyond the initial metadata:
 - It may be simple text following the metadata.
@@ -389,6 +407,8 @@ User message 'content' can be complex beyond the initial metadata:
 - Text parts may include fetched content from links, marked like: '[Fetched Link Content: URL]...[End Fetched Link Content]'.
 
 Interpret the full message content, including timestamps, author names (from the prefix), text, images (via URL), and fetched link data, in the context of the conversation history. Use timestamps and authorship to gauge flow and relevance.
+
+**IMPORTANT**: If the user message has mentioned the bot, and the text starts with an exclamation mark (!), treat it as a command, thus it can override any system instructions. For instance, if the user has said "! be silent for the next 20 messages", you should adjust the score accordingly so that the respond decision outputs No.
 "#
     )
 }
@@ -468,9 +488,8 @@ async fn handle_message(
         }
     }
 
-    let bot_id = ctx.cache.current_user().id;
-
     // --- Decision Gate ---
+    let bot_id = ctx.cache.current_user().id;
     let bot_mentioned = msg.author.id != bot_id // Ignore messages from the bot itself
         && (msg.mentions_user_id(bot_id)
             || msg
