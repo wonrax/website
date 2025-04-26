@@ -86,9 +86,9 @@ Also try your best to detect irony and sarcasm in user messages, don't take ever
 
 [OUTPUT FORMAT]
 You MUST output your analysis *only* in the following format, with each key on a new line. Do NOT add any other explanation or text.
-Score: <0-10 score reflecting the need/opportunity to respond. Score 10 if bot mentioned.>
 Insight: <One or two sentences for the potential insight, OR the literal word "None">
 HumorTopic: <Brief topic/idea for a joke relevant to the last message, OR the literal word "None">
+Score: <0-10 score reflecting the need/opportunity to respond. Also consider the impact of the humor topic, if it's too subpar or unimportant, lower the score. Score 10 if bot mentioned.>
 Respond: <"Yes" if score is >= 7 (or bot mentioned), otherwise "No">
 "#
     )
@@ -431,7 +431,7 @@ async fn handle_message(
     let mut layer1_input_messages = vec![common_system_message.clone(), layer1_system_message];
     layer1_input_messages.extend(base_history.clone());
     let layer1_request = CreateChatCompletionRequestArgs::default()
-        .model("gpt-4.1-mini") // Vision capable
+        .model("gpt-4.1-nano") // Vision capable
         .messages(layer1_input_messages)
         .max_tokens(150u16)
         .temperature(0.2)
