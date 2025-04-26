@@ -73,7 +73,7 @@ You will be given a sequence of User and Assistant messages representing a Disco
 [TASK]
 Analyze the **final message** in the provided sequence. Evaluate if the bot "The Irony Himself" should respond, considering the channel's casual, fun, and friendly vibe.
 Your analysis should consider:
-*   Direct Engagement: Is the last message a question to the bot? Does it mention the bot?
+*   Direct Engagement: Is the last message a question to the bot? Does it mention the bot? If so the chance the bot should respond should be increased greatly.
 *   Relevance & Flow: Does it continue the immediate prior topic? Is it engaging?
 *   Engagement Potential: Is there an opportunity to add value, humor, or continue the conversation naturally?
 *   Bot Activity: Was 'Assistant' the last or second-to-last speaker? (If so, lean against responding unless directly engaged).
@@ -497,15 +497,15 @@ async fn handle_message(
     }
 
     // --- Decision Gate ---
-    let bot_id = ctx.cache.current_user().id;
-    let bot_mentioned = msg.author.id != bot_id // Ignore messages from the bot itself
-        && (msg.mentions_user_id(bot_id)
-            || msg
-                .referenced_message
-                .as_ref()
-                .is_some_and(|m| m.author.id == ctx.cache.current_user().id));
+    // let bot_id = ctx.cache.current_user().id;
+    // let bot_mentioned = msg.author.id != bot_id // Ignore messages from the bot itself
+    //     && (msg.mentions_user_id(bot_id)
+    //         || msg
+    //             .referenced_message
+    //             .as_ref()
+    //             .is_some_and(|m| m.author.id == ctx.cache.current_user().id));
 
-    if bot_mentioned || (should_respond && score >= threshold) {
+    if should_respond && score >= threshold {
         let _typing = Typing::start(ctx.http.clone(), msg.channel_id);
 
         // --- Layer 2 ---
