@@ -17,7 +17,7 @@ use serenity::prelude::*;
 use std::{sync::LazyLock, time::Duration};
 use tracing;
 
-const WHITELIST_CHANNELS: [u64; 1] = [1366055834412384327];
+const WHITELIST_CHANNELS: [u64; 2] = [1133997981637554188, 1119652436102086809];
 const MESSAGE_CONTEXT_SIZE: usize = 30;
 const LAYER1_MODEL: &str = "gpt-4.1-mini";
 const LAYER2_MODEL: &str = "gpt-4.1";
