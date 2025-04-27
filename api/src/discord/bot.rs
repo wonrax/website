@@ -17,15 +17,15 @@ use serenity::prelude::*;
 use std::{sync::LazyLock, time::Duration};
 use tracing;
 
-const WHITELIST_CHANNELS: [u64; 2] = [1133997981637554188, 1119652436102086809];
+const WHITELIST_CHANNELS: [u64; 1] = [1366055834412384327];
 const MESSAGE_CONTEXT_SIZE: usize = 30;
-const LAYER1_MODEL: &str = "gpt-4.1-nano";
+const LAYER1_MODEL: &str = "gpt-4.1-mini";
 const LAYER2_MODEL: &str = "gpt-4.1";
 const LAYER1_TEMPERATURE: f32 = 0.3;
 const LAYER2_TEMPERATURE: f32 = 0.75;
 const LAYER1_MAX_TOKENS: u16 = 300;
 const LAYER2_MAX_TOKENS: u16 = 4096;
-const RESPONSE_THRESHOLD: i32 = 7;
+const RESPONSE_THRESHOLD: i32 = 5;
 const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 const MAX_REF_MSG_LEN: usize = 50; // Max length for referenced message preview
 
@@ -75,9 +75,9 @@ Evaluate if "The Irony Himself" should respond, considering the channel's casual
 Note: Avoid replying to yourself ('Assistant' as the last message). Detect irony/sarcasm.
 
 [OUTPUT FORMAT]
-Output *only* in this format, each key on a new line. No extra text.
+You MUST output your analysis *only* in the following format, with each key on a new line. Do NOT add any other explanation or text. DO NOT output in the format of a user or assistant message (that is [timestamp] [author]: [message]), you MUST follow the format below:
 Insight: <One or two sentences for the potential insight, OR "None". Separate multiple insights with a semicolon.>
-HumorTopic: <Brief topic/idea for a joke relevant to the last message, OR "None". Separate multiple ideas with a semicolon.>
+HumorTopic: <Brief topic/idea for a joke relevant to the last message, OR "None". Separate multiple ideas with a semicolon. Lower the score below if this does not have enough potential to crack smiles, the bar is very high in the channel.>
 Score: <0-10 score reflecting need/opportunity. Increase for direct mentions. Decrease for commands like "be silent".>
 Respond: <"Yes" if score >= {RESPONSE_THRESHOLD} (or bot mentioned and score is not drastically lowered by a command), otherwise "No">
 "#
@@ -85,7 +85,19 @@ Respond: <"Yes" if score >= {RESPONSE_THRESHOLD} (or bot mentioned and score is 
 
 fn generate_layer2_system_prompt(insight: Option<&str>, humor_topic: Option<&str>) -> String {
     let task_guidance = match (humor_topic, insight) {
-        (Some(topic), _) if topic != "None" => {
+        (_, Some(valuable_insight)) if valuable_insight != "None" => {
+            format!(r#"
+Your main goal is to briefly share this interesting point/perspective casually: '{}'. Ensure natural flow.
+
+[TONE & STYLE INSTRUCTIONS]
+*   **BE YOUR PERSONA:** Witty, maybe ironic/sarcastic, be mean if necessary.
+*   **Be Casual:** Natural language. Avoid formality, preaching, teaching unless that *is* the witty angle.
+*   **Be Relevant:** Respond to the *latest* message(s).
+*   **Be Concise (usually):** Adapt length. Short/punchy often good, but detail is okay if needed. Match chat style (e.g., lowercase, slang).
+*   **Use Markdown Subtly:** `*italic*`, `**bold**`, `` `code` `` sparingly. 1-2 relevant emojis okay.
+*   **AVOID:** Generic AI sound, being overly helpful/corrective unless witty, asking for confirmation unless truly unclear/risky."#, valuable_insight)
+        },
+        (Some(humour_topic), _) if humour_topic != "None" => {
             format!(r#"
 Your main goal is to generate a witty, sarcastic, or funny response related to: '{}'. Keep it relevant to the latest message.
 
@@ -99,19 +111,7 @@ Sample Vibe Check Outputs (adapt beyond compsci):
 *   "these unit tests running slower than blizzard's sexual harassment investigations ⏳⚖️"
 *   "this inheritance hierarchy more fucked up than elon's twitter algo 🌐🪓"
 *   "who dereferenced null? must be that intern who still uses java 8 ☕️🧟"
-*   "our pipeline more broken than crypto bros after ftx collapsed 💸📉""#, topic)
-        },
-        (_, Some(valuable_insight)) if valuable_insight != "None" => {
-            format!(r#"
-Your main goal is to briefly share this interesting point/perspective casually: '{}'. Ensure natural flow.
-
-[TONE & STYLE INSTRUCTIONS]
-*   **BE YOUR PERSONA:** Witty, maybe ironic/sarcastic, be mean if necessary.
-*   **Be Casual:** Natural language. Avoid formality, preaching, teaching unless that *is* the witty angle.
-*   **Be Relevant:** Respond to the *latest* message(s).
-*   **Be Concise (usually):** Adapt length. Short/punchy often good, but detail is okay if needed. Match chat style (e.g., lowercase, slang).
-*   **Use Markdown Subtly:** `*italic*`, `**bold**`, `` `code` `` sparingly. 1-2 relevant emojis okay.
-*   **AVOID:** Generic AI sound, being overly helpful/corrective unless witty, asking for confirmation unless truly unclear/risky."#, valuable_insight)
+*   "our pipeline more broken than crypto bros after ftx collapsed 💸📉""#, humour_topic)
         },
         _ => "Your main goal is to engage naturally with the latest message. Keep the conversation flowing fun and friendly. Be witty or add irony if appropriate.".to_string(),
     };
@@ -350,7 +350,7 @@ async fn build_history_messages(
 }
 
 /// Represents the parsed output of the Layer 1 analysis.
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct Layer1AnalysisResult {
     score: i32,
     insight: Option<String>,
@@ -371,25 +371,29 @@ fn parse_layer1_output(output: &str) -> Layer1AnalysisResult {
 
         // Split into key and value based on the first colon
         if let Some((key, value)) = trimmed_line.split_once(':') {
-            let key = key.trim();
+            let key = key.trim().to_ascii_lowercase();
             let value_trimmed = value.trim();
 
-            match key {
-                "Score" => {
+            match key.as_str() {
+                "score" => {
                     result.score = value_trimmed.parse::<i32>().unwrap_or(0);
                 }
-                "Insight" => {
-                    if !value_trimmed.is_empty() && !value_trimmed.eq_ignore_ascii_case("None") {
+                "insight" => {
+                    if !value_trimmed.is_empty()
+                        && !value_trimmed.to_ascii_lowercase().starts_with("none")
+                    {
                         result.insight = Some(value_trimmed.to_string());
                     }
                 }
-                "HumorTopic" => {
-                    if !value_trimmed.is_empty() && !value_trimmed.eq_ignore_ascii_case("None") {
+                "humortopic" => {
+                    if !value_trimmed.is_empty()
+                        && !value_trimmed.to_ascii_lowercase().starts_with("none")
+                    {
                         result.humor_topic = Some(value_trimmed.to_string());
                     }
                 }
-                "Respond" => {
-                    result.should_respond = value_trimmed.eq_ignore_ascii_case("Yes");
+                "respond" => {
+                    result.should_respond = value_trimmed.to_ascii_lowercase().starts_with("yes");
                 }
                 k => {
                     tracing::warn!(key = %k, "Unexpected key in Layer 1 output: {}", key);
@@ -430,6 +434,8 @@ async fn handle_message(
     let mut layer1_messages = vec![common_system_message.clone(), layer1_system_message];
     layer1_messages.extend(base_history.clone()); // Clone history for Layer 1
 
+    tracing::debug!(?layer1_messages, "layer 1 message");
+
     let layer1_request = CreateChatCompletionRequestArgs::default()
         .model(LAYER1_MODEL)
         .messages(layer1_messages)
@@ -445,10 +451,14 @@ async fn handle_message(
         .and_then(|c| c.message.content.as_deref())
         .unwrap_or("");
 
+    tracing::debug!(layer1_output_content, "layer 1 response");
+
     let analysis_result = parse_layer1_output(layer1_output_content);
 
+    tracing::debug!(?analysis_result, "Parsed Layer 1 analysis result");
+
     // --- Layer 2: Generate Response ---
-    if analysis_result.should_respond && analysis_result.score >= RESPONSE_THRESHOLD {
+    if analysis_result.should_respond {
         let _typing = Typing::start(ctx.http.clone(), msg.channel_id);
 
         let layer2_system_prompt = generate_layer2_system_prompt(
