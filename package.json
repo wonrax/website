@@ -34,7 +34,7 @@
     "globals": "^15.14.0",
     "prettier": "^3.4.2",
     "prettier-plugin-astro": "^0.14.1",
-    "prisma": "^6.2.1",
+    "prisma": "^6.6.0",
     "ts-node": "^10.9.2",
     "turbo": "^2.3.3",
     "typescript": "^5.7.3",
