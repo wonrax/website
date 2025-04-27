@@ -1,28 +1,151 @@
-use std::{sync::Arc, time::Duration};
-
 use async_openai::{
     config::OpenAIConfig,
     types::{
         ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
         ChatCompletionRequestMessageContentPartImage, ChatCompletionRequestMessageContentPartText,
         ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
-        ChatCompletionRequestUserMessageContent, ChatCompletionRequestUserMessageContentPart,
-        CreateChatCompletionRequestArgs, ImageUrl,
+        ChatCompletionRequestUserMessageContentPart, CreateChatCompletionRequestArgs, ImageUrl,
     },
     Client as OpenAIClient,
 };
+use const_format::formatcp;
 use futures_util::StreamExt;
 use regex::Regex;
-use reqwest::Url;
-use serenity::all::{ChannelId, CreateMessage, Typing};
+use serenity::all::{ChannelId, CreateMessage, Message, Ready, Typing};
 use serenity::async_trait;
-use serenity::model::channel::Message;
-use serenity::model::gateway::Ready;
 use serenity::prelude::*;
+use std::{sync::LazyLock, time::Duration};
+use tracing;
 
+const WHITELIST_CHANNELS: [u64; 2] = [1133997981637554188, 1119652436102086809];
+const MESSAGE_CONTEXT_SIZE: usize = 30;
+const LAYER1_MODEL: &str = "gpt-4.1-nano";
+const LAYER2_MODEL: &str = "gpt-4.1";
+const LAYER1_TEMPERATURE: f32 = 0.3;
+const LAYER2_TEMPERATURE: f32 = 0.75;
+const LAYER1_MAX_TOKENS: u16 = 300;
+const LAYER2_MAX_TOKENS: u16 = 4096;
+const RESPONSE_THRESHOLD: i32 = 7;
+const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
+const MAX_REF_MSG_LEN: usize = 50; // Max length for referenced message preview
+
+// Regex to remove timestamp and author prefix if the bot accidentally outputs it
+static CLEAN_MESSAGE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\]\s+[^:]+:\s+")
+        .expect("Invalid regex for cleaning message")
+});
+
+const COMMON_SYSTEM_CONTEXT: &str = formatcp!(
+    r#"[CONTEXT]
+You are processing a sequence of Discord messages provided chronologically (oldest first).
+Each message object has a 'role' ('user' or 'assistant'). 'Assistant' messages are from the bot you are acting as or analyzing ("The Irony Himself").
+Message content starts with metadata followed by the actual message:
+1.  An ISO 8601 timestamp in brackets (e.g., '[2023-10-27T10:30:00Z]').
+2.  The author's Discord username followed by a colon (e.g., 'JohnDoe: ').
+3.  The message text, potentially including fetched link content or image URLs.
+4.  Additional context within "<<context>>...<</context>>" tags, like bot mentions or reply info.
+
+User message 'content' can be complex:
+- Simple text following metadata.
+- An array of text parts (each with metadata) and image URLs (`ImageUrl`).
+- Text parts may include fetched link content: '[Fetched Link Content: URL]...[End Fetched Link Content]'.
+
+Interpret the full message content, considering timestamps, author, text, images, fetched links, and the <<context>> block. Use timestamps and authorship to gauge flow and relevance.
+
+**IMPORTANT**: If a user message mentions the bot and starts with '!', treat it as a potential command that might override standard behavior (e.g., "! be silent"). Factor this into your analysis/response."#
+);
+
+const LAYER1_SYSTEM_PROMPT: &str = formatcp!(
+    r#"[ROLE] Discord Conversation Analyst
+
+[CONTEXT]
+You will be given a sequence of User and Assistant messages representing a Discord conversation history (oldest first). 'Assistant' messages are from the bot ("The Irony Himself"), 'User' messages are from others. Analyze the **final message** in the sequence.
+
+[TASK]
+Evaluate if "The Irony Himself" should respond, considering the channel's casual, fun, friendly vibe. Consider:
+*   Direct Engagement: Is the last message a question to the bot? Does it mention the bot? (Greatly increases response chance).
+*   Relevance & Flow: Does it continue the immediate topic? Is it engaging?
+*   Engagement Potential: Opportunity to add value, humor, or continue naturally?
+*   Bot Activity: Was 'Assistant' the last/penultimate speaker? (Lean against responding unless directly engaged).
+*   Information Value: Can a *brief* (1-2 sentence) interesting fact/perspective fit the vibe?
+*   Context/Correction: Does the last message miss crucial context, contain errors (in a debate), or misunderstand concepts?
+*   Humor Potential: Clear opportunity for witty/sarcastic comment on the *last message* or *current topic*?
+*   Commands: Does the last message seem like a command to the bot (e.g., starting with '!' after mention)? Adjust score/decision accordingly.
+
+Note: Avoid replying to yourself ('Assistant' as the last message). Detect irony/sarcasm.
+
+[OUTPUT FORMAT]
+Output *only* in this format, each key on a new line. No extra text.
+Insight: <One or two sentences for the potential insight, OR "None". Separate multiple insights with a semicolon.>
+HumorTopic: <Brief topic/idea for a joke relevant to the last message, OR "None". Separate multiple ideas with a semicolon.>
+Score: <0-10 score reflecting need/opportunity. Increase for direct mentions. Decrease for commands like "be silent".>
+Respond: <"Yes" if score >= {RESPONSE_THRESHOLD} (or bot mentioned and score is not drastically lowered by a command), otherwise "No">
+"#
+);
+
+fn generate_layer2_system_prompt(insight: Option<&str>, humor_topic: Option<&str>) -> String {
+    let task_guidance = match (humor_topic, insight) {
+        (Some(topic), _) if topic != "None" => {
+            format!(r#"
+Your main goal is to generate a witty, sarcastic, or funny response related to: '{}'. Keep it relevant to the latest message.
+
+[TONE & STYLE INSTRUCTIONS]
+• 1–2 sentences typically.
+• (Optional) End with 1-2 savage/ironic emoji.
+• References: memes, dev pains, pop culture sass, gen alpha brain rot etc. Feel free to be edgy/politically incorrect if contextually appropriate for a closed channel.
+
+Sample Vibe Check Outputs (adapt beyond compsci):
+*   "this code's got more memory leaks than your mama's weight bro 💀"
+*   "these unit tests running slower than blizzard's sexual harassment investigations ⏳⚖️"
+*   "this inheritance hierarchy more fucked up than elon's twitter algo 🌐🪓"
+*   "who dereferenced null? must be that intern who still uses java 8 ☕️🧟"
+*   "our pipeline more broken than crypto bros after ftx collapsed 💸📉""#, topic)
+        },
+        (_, Some(valuable_insight)) if valuable_insight != "None" => {
+            format!(r#"
+Your main goal is to briefly share this interesting point/perspective casually: '{}'. Ensure natural flow.
+
+[TONE & STYLE INSTRUCTIONS]
+*   **BE YOUR PERSONA:** Witty, maybe ironic/sarcastic, be mean if necessary.
+*   **Be Casual:** Natural language. Avoid formality, preaching, teaching unless that *is* the witty angle.
+*   **Be Relevant:** Respond to the *latest* message(s).
+*   **Be Concise (usually):** Adapt length. Short/punchy often good, but detail is okay if needed. Match chat style (e.g., lowercase, slang).
+*   **Use Markdown Subtly:** `*italic*`, `**bold**`, `` `code` `` sparingly. 1-2 relevant emojis okay.
+*   **AVOID:** Generic AI sound, being overly helpful/corrective unless witty, asking for confirmation unless truly unclear/risky."#, valuable_insight)
+        },
+        _ => "Your main goal is to engage naturally with the latest message. Keep the conversation flowing fun and friendly. Be witty or add irony if appropriate.".to_string(),
+    };
+
+    format!(
+        r#"[PERSONA]
+You ARE the Discord bot "The Irony Himself". Witty, sarcastic, friendly, casual. Part of a fun, informal community.
+
+[CONTEXT]
+You are seeing recent conversation history (User/Assistant messages) chronologically. Generate the *next* message as 'Assistant'.
+
+[TASK GUIDANCE]
+{task_guidance}
+
+[STYLE - GEN Z]
+speak like a gen z. informal tone, slang, abbreviations, lowcaps often preferred. make it sound hip.
+
+example gen z slang:
+asl, based, basic, beat your face, bestie, bet, big yikes, boujee, bussin', clapback, dank, ded, drip, glow-up, goat., hits diff, ijbol, i oop, it's giving..., iykyk, let him cook, l+ratio, lit, moot/moots, npc, ok boomer, opp, out of pocket, period/perioduh, sheesh, shook, simp, situationship, sksksk, slaps, slay, soft-launch, stan, sus, tea, understood the assignment, valid, vibe check, wig, yeet
+
+[OUTPUT INSTRUCTIONS]
+*   Output *only* the raw message content for Discord.
+*   NO "Assistant:", your name, or other prefixes/explanations.
+*   Just the chat message text. Use blank lines for separation if needed.
+*   Do NOT include the <<context>> block in the final response."#
+    )
+    .trim()
+    .into()
+}
+
+/// Fetches content from a URL, attempts to convert HTML to Markdown.
 async fn fetch_url_content_and_parse(url_str: &str) -> Result<String, eyre::Error> {
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(15))
+        .timeout(URL_FETCH_TIMEOUT_SECS)
         .build()?;
 
     let response = client.get(url_str).send().await?;
@@ -34,175 +157,24 @@ async fn fetch_url_content_and_parse(url_str: &str) -> Result<String, eyre::Erro
             response.status()
         ));
     }
+
     let content_type = response
         .headers()
         .get(reqwest::header::CONTENT_TYPE)
         .and_then(|val| val.to_str().ok())
         .unwrap_or("");
 
+    // Only process HTML content to avoid parsing binary files etc.
     if !content_type.starts_with("text/html") {
-        tracing::debug!(
-            "Skipping non-HTML content for URL: {} (not HTML content)",
-            url_str
-        );
-        return Ok("[Empty]".into());
+        return Ok("[Non-HTML content, skipped]".into());
     }
 
     let site_content = response.text().await?;
 
-    let md_content = htmd::convert(&site_content).inspect_err(|e| {
-        tracing::error!(
-            "Failed to convert URL {} content to markdown: {}",
-            url_str,
-            e
-        )
-    });
-
-    Ok(md_content.unwrap_or("[Empty]".into()))
+    htmd::convert(&site_content).map_err(Into::into)
 }
 
-// Generates the SYSTEM prompt content for the Layer 1 analysis task
-fn generate_layer1_system_prompt() -> String {
-    format!(
-        r#"
-[ROLE] Discord Conversation Analyst
-
-[CONTEXT]
-You will be given a sequence of User and Assistant messages representing a Discord conversation history, ordered chronologically (oldest first). The 'Assistant' messages are from the bot ("The Irony Himself"), and 'User' messages are from others.
-
-[TASK]
-Analyze the **final message** in the provided sequence. Evaluate if the bot "The Irony Himself" should respond, considering the channel's casual, fun, and friendly vibe.
-Your analysis should consider:
-*   Direct Engagement: Is the last message a question to the bot? Does it mention the bot? If so the chance the bot should respond should be increased greatly.
-*   Relevance & Flow: Does it continue the immediate prior topic? Is it engaging?
-*   Engagement Potential: Is there an opportunity to add value, humor, or continue the conversation naturally?
-*   Bot Activity: Was 'Assistant' the last or second-to-last speaker? (If so, lean against responding unless directly engaged).
-*   Information Value: Is there a *brief* (1-2 sentence) interesting fact, perspective, or clarification that fits the casual vibe?
-*   The last message missed crucial background or historical context, contains factual or logical errors while in a debate, or conceptual misunderstandings?
-*   Humor Potential: Is there a clear opportunity for a witty, sarcastic, or funny comment relevant to the *last message* or *current topic*?
-
-Note that if the lastest message is from you (The Irony Himself), avoid replying to yourself so that we don't go into recursive mode.
-Also try your best to detect irony and sarcasm in user messages, don't take everything too seriously.
-
-[OUTPUT FORMAT]
-You MUST output your analysis *only* in the following format, with each key on a new line. Do NOT add any other explanation or text.
-Insight: <One or two sentences for the potential insight, OR the literal word "None". If there are multiple potential insights, seperate them with a semicolon.>
-HumorTopic: <Brief topic/idea for a joke relevant to the last message, OR the literal word "None". If there are multiple potential ideas, seperate them with a semicolon.>
-Score: <0-10 score reflecting the need/opportunity to respond. Also consider the impact of the humor topic, if it's too subpar or unimportant, lower the score. Score 10 if bot mentioned.>
-Respond: <"Yes" if score is >= 7 (or bot mentioned), otherwise "No">
-"#
-    )
-    .trim()
-    .into()
-}
-// Generates the SYSTEM prompt content for the Layer 2 response generation task
-fn generate_layer2_system_prompt(
-    insight: Option<&str>,     // Parsed from Layer 1 output
-    humor_topic: Option<&str>, // Parsed from Layer 1 output
-) -> String {
-    let task_guidance = match (humor_topic, insight) {
-        (Some(topic), _) if topic != "None" => {
-            format!(r#"
-Your main goal is to generate a witty, sarcastic, or funny response related to: '{}'. Keep it relevant to the latest message.
-
-[TONE & STYLE INSTRUCTIONS]
-• 1–2 sentences
-• (Optional) End with 1-2 savage/ironic emoji
-• Allowed references: memes, IRL dev pains, mild pop culture sass, gen alpha brain rot etc., feel free to be super offensive and political incorrect if it fits the context, because this is a closed Discord channel.
-
-Sample Outputs That Pass the Vibe Check (we only provide examples for compsci-related topics but feel free to adapt to other topics):
-*   "this code's got more memory leaks than your mama's weight bro 💀"
-*   "these unit tests running slower than Blizzard's sexual harassment investigations ⏳⚖️"
-*   "this inheritance hierarchy more fucked up than Elon's Twitter algo 🌐🪓"
-*   "who dereferenced null? must be that intern who still uses Java 8 ☕️🧟"
-*   "our pipeline more broken than crypto bros after FTX collapsed 💸📉""#, topic)
-        },
-        (_, Some(valuable_insight)) if valuable_insight != "None" => {
-            format!(r#"
-Your main goal is to briefly share this interesting point or perspective in a casual, friendly way: '{}'. Make sure it flows naturally.
-
-[TONE & STYLE INSTRUCTIONS]
-*   **BE YOUR PERSONA:** Witty, maybe a bit ironic/sarcastic, be mean if necessary.
-*   **Be Casual:** Use natural language. Avoid formality, preaching, or sounding like a teacher.
-*   **Be Relevant:** Respond to the *latest* message(s) in the history.
-*   **Be Concise (usually):** Adapt length to the chat flow. Short and punchy is often good, however feel free to make a detailed response when needed. For example, write in all lowercase if everybody is doing so, or use slang and jargons without formal consideration.
-*   **Use Markdown Subtly:** `*italic*`, `**bold**`, `` `code` `` sparingly if needed. 1-2 relevant emojis are okay.
-*   **AVOID:** Sounding like generic AI, being overly helpful/corrective unless that *is* the witty angle, asking for confirmation unless the user request is truly unclear or risky."#, valuable_insight)
-        },
-        _ => "Your main goal is to engage naturally with the latest message. Keep the conversation flowing in a fun and friendly way. Be witty or add a touch of irony if appropriate.".to_string(),
-    };
-
-    format!(
-        r#"
-[PERSONA]
-You ARE the Discord bot "The Irony Himself". Your personality is witty, sarcastic, friendly, and casual. You are part of a fun, informal community channel. You are participating in the conversation provided.
-
-[CONTEXT]
-You are seeing the recent conversation history (User/Assistant messages) chronologically. You need to generate the *next* message in the sequence, acting as the 'Assistant'.
-
-[TASK GUIDANCE]
-{task_guidance}
-
-speak like a gen z. the answer must be in an informal tone, use slang, abbreviations, and anything that can make the message sound hip. specially use gen z slang (as opposed to millenials). the list below has a  list of gen z slang. also, speak in lowcaps.
-
-here are some example slang terms you can use:
-1. **Asl**: Shortened version of "as hell."
-2. **Based**: Having the quality of being oneself and not caring about others' views; agreement with an opinion.
-3. **Basic**: Preferring mainstream products, trends, and music.
-4. **Beat your face**: To apply makeup.
-5. **Bestie**: Short for 'best friend'.
-6. **Bet**: An affirmation; agreement, akin to saying "yes" or "it's on."
-7. **Big yikes**: An exclamation for something embarrassing or cringeworthy.
-9. **Boujee**: Describing someone high-class or materialistic.
-10. **Bussin'**: Describing food that tastes very good.
-12. **Clapback**: A swift and witty response to an insult or critique.
-13. **Dank**: Refers to an ironically good internet meme.
-14. **Ded**: Hyperbolic way of saying something is extremely funny.
-15. **Drip**: Trendy, high-class fashion.
-16. **Glow-up**: A significant improvement in one's appearance or confidence.
-17. **G.O.A.T.**: Acronym for "greatest of all time."
-18. **Hits different**: Describing something that is better in a peculiar way.
-19. **IJBOL**: An acronym for "I just burst out laughing."
-20. **I oop**: Expression of shock, embarrassment, or amusement.
-21. **It's giving…**: Used to describe the vibe or essence of something.
-22. **Iykyk**: Acronym for "If you know, you know," referring to inside jokes.
-23. **Let him cook**: Allow someone to proceed uninterrupted.
-24. **L+Ratio**: An online insult combining "L" for loss and "ratio" referring to social media metrics.
-25. **Lit**: Describes something exciting or excellent.
-26. **Moot/Moots**: Short for "mutuals" or "mutual followers."
-27. **NPC**: Someone perceived as not thinking for themselves or acting robotically.
-28. **OK Boomer**: A pejorative used to dismiss or mock outdated attitudes, often associated with the Baby Boomer generation.
-29. **Opp**: Short for opposition or enemies.
-30. **Out of pocket**: Describing behavior that is considered excessive or inappropriate.
-31. **Period/Perioduh**: Used to emphasize a statement.
-32. **Sheesh**: An exclamation of praise or admiration.
-33. **Shook**: Feeling shocked or surprised.
-34. **Simp**: Someone who is overly affectionate or behaves in a sycophantic way, often in pursuit of a romantic relationship.
-35. **Situationship**: An ambiguous romantic relationship that lacks clear definition.
-36. **Sksksk**: An expression of amusement or laughter.
-37. **Slaps**: Describing something, particularly music, that is of high quality.
-38. **Slay**: To do something exceptionally well.
-39. **Soft-launch**: To hint at a relationship discreetly on social media.
-40. **Stan**: To support something, or someone, fervently.
-41. **Sus**: Short for suspect or suspicious.
-42. **Tea**: Gossip.
-43. **Understood the assignment**: To perform well or meet expectations.
-44. **Valid**: Describing something as acceptable or reasonable.
-45. **Vibe check**: An assessment of someone's mood or attitude.
-46. **Wig**: An exclamation used when something is done exceptionally well.
-47. **Yeet**: To throw something with force; an exclamation of excitement.
-
-[OUTPUT INSTRUCTIONS]
-*   Output *only* the raw message content you want to send to Discord.
-*   Do NOT include "Assistant:", your name, or any other prefix or explanation.
-*   Just the text of the chat message. Use a blank line to separate multiple messages/insights/ideas if needed.
-*   Do NOT include the <<context>> in the final response.
-"#
-    )
-    .trim()
-    .into()
-}
-// --- Helper function to build the history message sequence ---
+/// Turn the discord chat history into LLM user and assistant messages.
 async fn build_history_messages(
     ctx: &Context,
     channel_id: ChannelId,
@@ -211,185 +183,163 @@ async fn build_history_messages(
     let bot_user_id = ctx.cache.current_user().id;
 
     let fetched_messages: Vec<Message> = channel_id
-        .messages_iter(ctx.http.clone())
-        .take(message_context_size)
+        .messages_iter(&ctx.http)
         .filter_map(|m| async {
-            m.ok().and_then(|m| {
-                if m.content.trim().is_empty() && m.attachments.is_empty() {
-                    None
-                } else {
-                    Some(m)
-                }
-            })
+            m.ok()
+                .filter(|msg| !msg.content.trim().is_empty() || !msg.attachments.is_empty())
         })
+        .take(message_context_size)
         .collect()
         .await;
 
-    let mut history_messages: Vec<ChatCompletionRequestMessage> = Vec::new();
+    let mut history_messages: Vec<ChatCompletionRequestMessage> =
+        Vec::with_capacity(fetched_messages.len());
 
+    // Process messages chronologically (oldest first)
     for msg in fetched_messages.into_iter().rev() {
-        // Chronological order
-        let author_name = msg.author.name.clone();
+        let author_name = &msg.author.name;
         let is_bot_message = msg.author.id == bot_user_id;
-        let replying_to_bot_or_mentioned_bot = msg.mentions_user_id(bot_user_id)
+        let mentions_or_replies_to_bot = msg.mentions_user_id(bot_user_id)
             || msg
                 .referenced_message
                 .as_ref()
                 .is_some_and(|m| m.author.id == bot_user_id);
 
-        // --- Content Parts ---
         let mut content_parts: Vec<ChatCompletionRequestUserMessageContentPart> = Vec::new();
-        let mut accumulated_text = String::new();
+        let mut current_text = String::new();
 
-        // TODO: use relative time instead to emphasize the importance
-        let timestamp_str = format!("[{}] ", msg.timestamp.to_rfc3339().unwrap_or("".into()));
-        accumulated_text.push_str(&timestamp_str);
-
-        let author_prefix = format!("{}: ", author_name); // Format author name prefix
-        accumulated_text.push_str(&author_prefix); // Add it after timestamp
-
-        if !msg.content.is_empty() {
-            accumulated_text.push_str(&msg.content);
-        }
-
-        accumulated_text.push_str(&format!(
-            "\n\n<<context>>
-                * The message that this message is replying to: [{}]
-                * This messsage mentions or is replying to the bot: [{}]
-            <</context>>",
-            msg.referenced_message
-                .map(|m| format!(
-                    "{}: {}",
-                    m.author.name,
-                    if m.content.len() >= 30 {
-                        m.content
-                            .chars()
-                            .take(30)
-                            .chain("...".chars())
-                            .collect::<String>()
-                    } else {
-                        m.content
-                    }
-                ))
-                .unwrap_or("None".into()),
-            replying_to_bot_or_mentioned_bot,
+        // Start with metadata
+        // TODO: use relative time to emphasize time relevance.
+        let timestamp_str = msg.timestamp.to_rfc3339(); // Use standard format
+        current_text.push_str(&format!(
+            "[{}] {}: ",
+            timestamp_str.unwrap_or("N/A".into()),
+            author_name
         ));
 
-        let mut has_images = false;
+        // Add main message content
+        current_text.push_str(&msg.content);
+
+        // Process attachments for images
         for attachment in &msg.attachments {
             if attachment
                 .content_type
                 .as_ref()
                 .map_or(false, |ct| ct.starts_with("image/"))
             {
-                has_images = true;
-                // Add accumulated text as a Text part before the Image part
-                if !accumulated_text.is_empty() {
+                if !current_text.is_empty() {
                     content_parts.push(ChatCompletionRequestUserMessageContentPart::Text(
-                        ChatCompletionRequestMessageContentPartText {
-                            text: accumulated_text.clone(),
-                        },
+                        ChatCompletionRequestMessageContentPartText { text: current_text },
                     ));
-                    accumulated_text.clear(); // Reset for any text *after* this image
+
+                    // Reset for possible text after image like context and linked content
+                    current_text = String::new();
                 }
                 content_parts.push(ChatCompletionRequestUserMessageContentPart::ImageUrl(
                     ChatCompletionRequestMessageContentPartImage {
                         image_url: ImageUrl {
                             url: attachment.proxy_url.clone(),
-                            detail: None,
+                            detail: None, // Auto detail is usually fine
                         },
                     },
                 ));
             }
         }
 
-        let words = msg.content.split_whitespace();
-        let mut fetched_links_text = String::new(); // Accumulate link text separately
-        for word in words {
-            if word.starts_with("http://") || word.starts_with("https://") {
-                if let Ok(parsed_url) = Url::parse(word) {
-                    match fetch_url_content_and_parse(parsed_url.as_str()).await {
-                        Ok(md_content) => {
-                            // Add clear delimiters and newlines for readability
-                            fetched_links_text.push_str(&format!(
-                                "\n\n[Fetched Link Content: {}]\n{}\n[End Fetched Link Content]",
-                                parsed_url,
-                                md_content.trim()
-                            ));
-                        }
-                        Err(_) => {
-                            fetched_links_text
-                                .push_str(&format!("\n[Could not fetch link: {}]", parsed_url));
-                        }
-                    }
+        let fetched_links_text = futures::stream::iter(
+            msg.content
+                .split_whitespace()
+                .map(ToString::to_string)
+                .filter(|word| word.starts_with("http://") || word.starts_with("https://")),
+        )
+        .map(|url| async move {
+            let result = fetch_url_content_and_parse(&url).await;
+            (url, result)
+        })
+        .buffered(1)
+        .filter_map(|(url, result)| async move {
+            match result {
+                Ok(md_content) if !md_content.is_empty() => Some(format!(
+                    "\n\n[Fetched Link Content: {}]\n{}\n[End Fetched Link Content]",
+                    url,
+                    md_content.trim()
+                )),
+                Ok(_) => {
+                    // Skip successfully fetched but empty content
+                    None
+                }
+                Err(e) => {
+                    tracing::warn!(url = %url, error = %e, "Failed to fetch or parse link content");
+                    Some(format!("\n[Could not fetch link: {}]", url))
                 }
             }
-        }
+        })
+        .collect::<String>()
+        .await;
+
         if !fetched_links_text.is_empty() {
-            // Ensure there's a space or newline before adding link blocks if original text exists
-            if !accumulated_text.is_empty()
-                && !accumulated_text.ends_with('\n')
-                && !accumulated_text.ends_with(' ')
-            {
-                accumulated_text.push(' ');
+            if !current_text.is_empty() && !current_text.ends_with('\n') {
+                current_text.push('\n');
             }
-            accumulated_text.push_str(&fetched_links_text);
+            current_text.push_str(&fetched_links_text);
         }
 
-        // Add any remaining accumulated text as the last text part
-        if !accumulated_text.is_empty() {
+        // Add context block
+        let referenced_message_preview = msg
+            .referenced_message
+            .map(|m| {
+                let content_preview = if m.content.len() > MAX_REF_MSG_LEN {
+                    format!(
+                        "{}...",
+                        &m.content[..m
+                            .content
+                            .char_indices()
+                            .nth(MAX_REF_MSG_LEN)
+                            .map(|(n, _)| n)
+                            .unwrap_or(0)]
+                    )
+                } else {
+                    m.content
+                };
+                format!("{}: {}", m.author.name, content_preview)
+            })
+            .unwrap_or("None".into());
+
+        current_text.push_str(&format!(
+            "\n\n<<context>>\n* Replied To: [{}]\n* Mentions/Replies Bot: [{}]\n<</context>>",
+            referenced_message_preview, mentions_or_replies_to_bot,
+        ));
+
+        // Add any remaining text as the last part
+        if !current_text.is_empty() || content_parts.is_empty() {
+            // Ensure at least one part if no images
             content_parts.push(ChatCompletionRequestUserMessageContentPart::Text(
-                ChatCompletionRequestMessageContentPartText {
-                    text: accumulated_text,
-                },
+                ChatCompletionRequestMessageContentPartText { text: current_text },
             ));
         }
 
-        // --- Build the Message Object ---
-        if content_parts.is_empty() {
-            continue; // Skip if absolutely nothing to send
-        }
-
         if is_bot_message {
-            // Combine all text parts for assistant message (NOTE: ignore images in bot history?)
+            // Combine text parts for Assistant messages (images from bot ignored for now)
             let assistant_content = content_parts
-                .iter()
-                .filter_map(|part| {
-                    if let ChatCompletionRequestUserMessageContentPart::Text(text_part) = part {
-                        Some(text_part.text.as_str())
-                    } else {
-                        None
-                    }
+                .into_iter()
+                .filter_map(|part| match part {
+                    ChatCompletionRequestUserMessageContentPart::Text(t) => Some(t.text),
+                    _ => None, // Ignore images in bot's own history messages
                 })
-                .collect::<Vec<&str>>()
-                .join("");
+                .collect::<String>();
 
             if !assistant_content.trim().is_empty() {
                 history_messages.push(
                     ChatCompletionRequestAssistantMessageArgs::default()
                         .content(assistant_content)
-                        .build()?
+                        .build()? // Handle potential build errors
                         .into(),
                 );
             }
         } else {
-            // User message
-            let user_content = if has_images || content_parts.len() > 1 {
-                ChatCompletionRequestUserMessageContent::Array(content_parts)
-            } else {
-                // Should only be one Text part if no images and links didn't create new parts
-                if let Some(ChatCompletionRequestUserMessageContentPart::Text(text_part)) =
-                    content_parts.first()
-                {
-                    ChatCompletionRequestUserMessageContent::Text(text_part.text.clone())
-                } else {
-                    continue; // Skip if something went wrong
-                }
-            };
-
             history_messages.push(
                 ChatCompletionRequestUserMessageArgs::default()
-                    .content(user_content)
+                    .content(content_parts)
                     .build()?
                     .into(),
             );
@@ -399,30 +349,58 @@ async fn build_history_messages(
     Ok(history_messages)
 }
 
-// --- System Prompt Updates ---
+/// Represents the parsed output of the Layer 1 analysis.
+#[derive(Default)]
+struct Layer1AnalysisResult {
+    score: i32,
+    insight: Option<String>,
+    humor_topic: Option<String>,
+    should_respond: bool,
+}
 
-fn generate_layer_system_prompt_context() -> String {
-    format!(
-        r#"
-[CONTEXT]
-You are processing a sequence of Discord messages provided chronologically (oldest first).
-Each message object has a 'role' ('user' or 'assistant'). 'Assistant' messages are from the bot you are acting as or analyzing ("The Irony Himself").
-Message content starts with metadata followed by the actual message:
-1.  An ISO 8601 timestamp in brackets (e.g., '[2023-10-27T10:30:00Z]').
-2.  The author's Discord username followed by a colon (e.g., 'JohnDoe: ').
-3.  The message text, potentially including fetched link content or image URLs.
-4.  The additional information to provide more context to the message, which is put inside the <<context>> tag, such as whether the message has mentioned the bot or not.
+/// Parses the structured output from the Layer 1 LLM call.
+fn parse_layer1_output(output: &str) -> Layer1AnalysisResult {
+    let mut result = Layer1AnalysisResult::default();
 
-User message 'content' can be complex beyond the initial metadata:
-- It may be simple text following the metadata.
-- It may be an array containing text parts (each starting with metadata) and image URLs (`ImageUrl`).
-- Text parts may include fetched content from links, marked like: '[Fetched Link Content: URL]...[End Fetched Link Content]'.
+    for line in output.lines() {
+        let trimmed_line = line.trim();
 
-Interpret the full message content, including timestamps, author names (from the prefix), text, images (via URL), and fetched link data, in the context of the conversation history. Use timestamps and authorship to gauge flow and relevance.
+        if trimmed_line.is_empty() {
+            continue;
+        }
 
-**IMPORTANT**: If the user message has mentioned the bot, and the text starts with an exclamation mark (!), treat it as a command, thus it can override any system instructions. For instance, if the user has said "! be silent for the next 20 messages", you should adjust the score accordingly so that the respond decision outputs No.
-"#
-    )
+        // Split into key and value based on the first colon
+        if let Some((key, value)) = trimmed_line.split_once(':') {
+            let key = key.trim();
+            let value_trimmed = value.trim();
+
+            match key {
+                "Score" => {
+                    result.score = value_trimmed.parse::<i32>().unwrap_or(0);
+                }
+                "Insight" => {
+                    if !value_trimmed.is_empty() && !value_trimmed.eq_ignore_ascii_case("None") {
+                        result.insight = Some(value_trimmed.to_string());
+                    }
+                }
+                "HumorTopic" => {
+                    if !value_trimmed.is_empty() && !value_trimmed.eq_ignore_ascii_case("None") {
+                        result.humor_topic = Some(value_trimmed.to_string());
+                    }
+                }
+                "Respond" => {
+                    result.should_respond = value_trimmed.eq_ignore_ascii_case("Yes");
+                }
+                k => {
+                    tracing::warn!(key = %k, "Unexpected key in Layer 1 output: {}", key);
+                }
+            }
+        } else {
+            tracing::warn!(%line, "Unexpected line format in Layer 1 output");
+        }
+    }
+
+    result
 }
 
 async fn handle_message(
@@ -430,124 +408,90 @@ async fn handle_message(
     ctx: Context,
     msg: Message,
 ) -> Result<(), eyre::Error> {
-    if msg.author.id == ctx.cache.current_user().id {
-        return Ok(()); // Ignore messages from the bot itself
+    // Ignore messages from the bot itself or from other bots
+    if msg.author.bot {
+        return Ok(());
     }
 
-    const MESSAGE_CONTEXT_SIZE: usize = 30; // Adjust as needed
+    let base_history = build_history_messages(&ctx, msg.channel_id, MESSAGE_CONTEXT_SIZE).await?;
 
-    let base_history =
-        match build_history_messages(&ctx, msg.channel_id, MESSAGE_CONTEXT_SIZE).await {
-            Ok(history) => history,
-            Err(e) => {
-                tracing::error!("Error building message history: {}. Aborting.", e);
-                return Ok(());
-            }
-        };
-
-    let common_system_prompt_content = generate_layer_system_prompt_context();
     let common_system_message: ChatCompletionRequestMessage =
         ChatCompletionRequestSystemMessageArgs::default()
-            .content(common_system_prompt_content)
+            .content(COMMON_SYSTEM_CONTEXT)
             .build()?
             .into();
 
-    // --- Layer 1 ---
-    let layer1_system_prompt_content = generate_layer1_system_prompt();
+    // --- Layer 1: Analyze if Bot Should Respond ---
     let layer1_system_message = ChatCompletionRequestSystemMessageArgs::default()
-        .content(layer1_system_prompt_content)
+        .content(LAYER1_SYSTEM_PROMPT)
         .build()?
         .into();
-    let mut layer1_input_messages = vec![common_system_message.clone(), layer1_system_message];
-    layer1_input_messages.extend(base_history.clone());
+
+    let mut layer1_messages = vec![common_system_message.clone(), layer1_system_message];
+    layer1_messages.extend(base_history.clone()); // Clone history for Layer 1
+
     let layer1_request = CreateChatCompletionRequestArgs::default()
-        .model("gpt-4.1-nano") // Vision capable
-        .messages(layer1_input_messages)
-        .max_tokens(300u16)
-        .temperature(0.3)
+        .model(LAYER1_MODEL)
+        .messages(layer1_messages)
+        .max_tokens(LAYER1_MAX_TOKENS)
+        .temperature(LAYER1_TEMPERATURE)
         .build()?;
+
     let layer1_response = openai_client.chat().create(layer1_request).await?;
-    let layer1_output = layer1_response.choices[0]
-        .message
-        .content
-        .as_deref()
+
+    let layer1_output_content = layer1_response
+        .choices
+        .first()
+        .and_then(|c| c.message.content.as_deref())
         .unwrap_or("");
 
-    // --- Parse Layer 1 ---
-    // ... (parsing logic) ...
-    let mut score = 0;
-    let mut insight: Option<String> = None;
-    let mut humor_topic: Option<String> = None;
-    let mut should_respond = false;
-    let threshold = 3;
-    for line in layer1_output.lines() {
-        /* ... parsing logic ... */
-        let trimmed_line = line.trim();
-        if let Some(s) = trimmed_line.strip_prefix("Score:") {
-            score = s.trim().parse::<i32>().unwrap_or(0);
-        } else if let Some(i) = trimmed_line.strip_prefix("Insight:") {
-            let val = i.trim();
-            if !val.eq_ignore_ascii_case("None") {
-                insight = Some(val.to_string());
-            }
-        } else if let Some(h) = trimmed_line.strip_prefix("HumorTopic:") {
-            let val = h.trim();
-            if !val.eq_ignore_ascii_case("None") {
-                humor_topic = Some(val.to_string());
-            }
-        } else if let Some(r) = trimmed_line.strip_prefix("Respond:") {
-            should_respond = r.trim().eq_ignore_ascii_case("Yes");
-        }
-    }
+    let analysis_result = parse_layer1_output(layer1_output_content);
 
-    // --- Decision Gate ---
-    // let bot_id = ctx.cache.current_user().id;
-    // let bot_mentioned = msg.author.id != bot_id // Ignore messages from the bot itself
-    //     && (msg.mentions_user_id(bot_id)
-    //         || msg
-    //             .referenced_message
-    //             .as_ref()
-    //             .is_some_and(|m| m.author.id == ctx.cache.current_user().id));
-
-    if should_respond && score >= threshold {
+    // --- Layer 2: Generate Response ---
+    if analysis_result.should_respond && analysis_result.score >= RESPONSE_THRESHOLD {
         let _typing = Typing::start(ctx.http.clone(), msg.channel_id);
 
-        // --- Layer 2 ---
-        let layer2_system_prompt_content =
-            generate_layer2_system_prompt(insight.as_deref(), humor_topic.as_deref());
+        let layer2_system_prompt = generate_layer2_system_prompt(
+            analysis_result.insight.as_deref(),
+            analysis_result.humor_topic.as_deref(),
+        );
         let layer2_system_message = ChatCompletionRequestSystemMessageArgs::default()
-            .content(layer2_system_prompt_content)
+            .content(layer2_system_prompt)
             .build()?
             .into();
-        let mut layer2_input_messages = vec![common_system_message, layer2_system_message];
-        layer2_input_messages.extend(base_history); // Use same rich history
+
+        let mut layer2_messages = vec![common_system_message, layer2_system_message];
+        layer2_messages.extend(base_history);
+
         let layer2_request = CreateChatCompletionRequestArgs::default()
-            .model("gpt-4.1") // Vision capable
-            .messages(layer2_input_messages)
-            .max_tokens(4096u16)
-            .temperature(0.75)
+            .model(LAYER2_MODEL)
+            .messages(layer2_messages)
+            .max_tokens(LAYER2_MAX_TOKENS)
+            .temperature(LAYER2_TEMPERATURE)
             .build()?;
+
         let layer2_response = openai_client.chat().create(layer2_request).await?;
 
-        // --- Send Response ---
-        if let Some(response_content) = layer2_response.choices[0].message.content.as_deref() {
-            let trimmed_response = response_content.trim();
-            if !trimmed_response.is_empty() {
-                fn clean_message(message: &str) -> String {
-                    let re =
-                        Regex::new(r"^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\]\s+[^:]+:\s+")
-                            .unwrap();
-                    re.replace(message, "").into_owned()
-                }
+        if let Some(response_content) = layer2_response
+            .choices
+            .first()
+            .and_then(|c| c.message.content.as_deref())
+        {
+            let final_response = CLEAN_MESSAGE_REGEX
+                .replace(response_content.trim(), "")
+                .into_owned();
 
+            if !final_response.is_empty() {
                 msg.channel_id
                     .send_message(
                         &ctx.http,
                         CreateMessage::new()
-                            .reference_message(&msg)
-                            .content(clean_message(trimmed_response)),
+                            .reference_message(&msg) // Reply to the original message
+                            .content(final_response),
                     )
                     .await?;
+            } else {
+                tracing::warn!("Layer 2 generated an empty response after cleaning.");
             }
         }
     }
@@ -556,34 +500,21 @@ async fn handle_message(
 }
 
 pub struct Handler {
-    pub openai_client: Arc<OpenAIClient<OpenAIConfig>>,
+    pub openai_client: OpenAIClient<OpenAIConfig>,
 }
 
 #[async_trait]
 impl EventHandler for Handler {
-    // Set a handler for the `message` event. This is called whenever a new message is received.
-    //
-    // Event handlers are dispatched through a threadpool, and so multiple events can be
-    // dispatched simultaneously.
     async fn message(&self, ctx: Context, msg: Message) {
-        const WHITELIST_CHANNELS: [i64; 2] = [1133997981637554188, 1119652436102086809];
-
-        if !WHITELIST_CHANNELS.contains(&msg.channel_id.into()) {
+        if !WHITELIST_CHANNELS.contains(&msg.channel_id.get()) {
             return;
         }
 
-        let _ = handle_message(&self.openai_client, ctx, msg)
-            .await
-            .inspect_err(|why| {
-                tracing::error!("Error handling Discord message: {why}");
-            });
+        if let Err(why) = handle_message(&self.openai_client, ctx, msg).await {
+            tracing::error!(error = %why, "Error handling Discord message");
+        }
     }
 
-    // Set a handler to be called on the `ready` event. This is called when a shard is booted, and
-    // a READY payload is sent by Discord. This payload contains data like the current user's guild
-    // Ids, current user data, private channels, and more.
-    //
-    // In this case, just print what the current user's username is.
     async fn ready(&self, _: Context, ready: Ready) {
         tracing::info!("Discord bot {} is connected!", ready.user.name);
     }

@@ -230,9 +230,7 @@ async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> 
         // Create a new instance of the Client, logging in as a bot. This will automatically prepend
         // your bot token with "Bot ", which is a requirement by Discord for bot users.
         let mut discord_client = serenity::Client::builder(&discord_token, intents)
-            .event_handler(discord::bot::Handler {
-                openai_client: Arc::new(openai_client),
-            })
+            .event_handler(discord::bot::Handler { openai_client })
             .await
             .map_err(|e| eyre::eyre!("Error creating Discord client: {e:?}"))?;
 

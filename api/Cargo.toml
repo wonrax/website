@@ -36,6 +36,8 @@ serenity = "0.12.4"
 htmd = "0.1.6"
 async-openai = "0.28.1"
 regex = "1.11.1"
+const_format = "0.2.34"
+futures = "0.3.31"
 
 [dev-dependencies]
 criterion = "0.5.1"
