@@ -575,21 +575,28 @@ async fn handle_message(
                 break;
             }
 
-            let builder = if is_first_response {
-                CreateMessage::new()
-                    .reference_message(&msg)
-                    .content(&final_response)
-            } else {
-                CreateMessage::new().content(&final_response)
-            };
+            // Split the response into parts on blank lines (two newlines)
+            let parts: Vec<&str> = final_response
+                .split("\n\n")
+                .map(|part| part.trim())
+                .filter(|part| !part.is_empty())
+                .collect();
 
-            if let Err(e) = msg.channel_id.send_message(&ctx.http, builder).await {
-                tracing::error!(error = %e, "Failed to send Layer 2 message to Discord");
-                break;
+            // Send each part as a separate message
+            for part in parts {
+                let builder = if is_first_response {
+                    CreateMessage::new().reference_message(&msg).content(part)
+                } else {
+                    CreateMessage::new().content(part)
+                };
+
+                if let Err(e) = msg.channel_id.send_message(&ctx.http, builder).await {
+                    tracing::error!(error = %e, "Failed to send Layer 2 message part to Discord");
+                    break;
+                }
+
+                is_first_response = false;
             }
-
-            response_message_count += 1;
-            is_first_response = false; // No longer the first response
 
             // --- Update History for Next Iteration ---
             let assistant_message = ChatCompletionRequestAssistantMessageArgs::default()
