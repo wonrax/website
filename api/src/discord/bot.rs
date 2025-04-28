@@ -527,7 +527,7 @@ async fn handle_message(
 
             if !is_first_response {
                 // Add a small delay to prevent rate limiting or flooding
-                tokio::time::sleep(Duration::from_millis(500)).await;
+                tokio::time::sleep(Duration::from_millis(1000)).await;
             }
 
             let layer2_request = CreateChatCompletionRequestArgs::default()
@@ -587,7 +587,7 @@ async fn handle_message(
                 let builder = if is_first_response {
                     CreateMessage::new().reference_message(&msg).content(part)
                 } else {
-                    tokio::time::sleep(Duration::from_millis(1000)).await;
+                    tokio::time::sleep(Duration::from_millis(part.len() as u64 * 100)).await;
                     CreateMessage::new().content(part)
                 };
 
