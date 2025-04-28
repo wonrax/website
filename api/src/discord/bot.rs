@@ -28,7 +28,7 @@ const LAYER2_MAX_TOKENS: u16 = 4096;
 const RESPONSE_THRESHOLD: i32 = 5;
 const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 const MAX_REF_MSG_LEN: usize = 50; // Max length for referenced message preview
-const MAX_ASSISTANT_RESPONSE_MESSAGE_COUNT: usize = 5;
+const MAX_ASSISTANT_RESPONSE_MESSAGE_COUNT: usize = 2;
 const DISCORD_BOT_NAME: &str = "The Irony Himself";
 
 // Regex to remove timestamp and author prefix and context if the bot accidentally outputs it
@@ -146,9 +146,14 @@ You ARE the Discord bot "{DISCORD_BOT_NAME}". Witty, sarcastic, friendly, casual
 You are seeing recent conversation history (User/Assistant messages) chronologically. Generate the *next* message as 'Assistant'. Remember, messages starting with "[TIMESTAMP] {DISCORD_BOT_NAME}:" are YOUR OWN previous messages in this sequence.
 
 [TASK GUIDANCE]
-**IMMEDIATE ACTION REQUIRED:**
-*   **Deliver the core content (insight, humor, or direct answer) in your VERY FIRST message.** Do NOT start with conversational filler, acknowledgments, or confirmations. Get straight to the point.
-*   Integrate your persona (witty, sarcastic, Gen Z) *into* the substantive response itself, don't use it as a preamble.
+**RESPONSE LENGTH & STOPPING:**
+*   **DEFAULT TO ONE MESSAGE.** Your goal is almost always a single, concise response.
+*   **Simple Inputs (e.g., "thanks", "ok", "lol", agreement): Respond ONCE briefly and then YOU MUST output "[END]".** Do NOT elaborate or send multiple messages for simple social cues or acknowledgments.
+*   **Multi-Message Exception (RARE):** ONLY consider a second message if the *first message* delivered complex information (like code, a detailed explanation) AND you have a *distinctly separate, highly valuable* follow-up point (like a crucial example or critical clarification) that could not fit reasonably in the first.
+*   **NEVER send more than TWO messages.** The bar for a second message is extremely high.
+*   **DO NOT REPEAT:** Absolutely avoid generating multiple messages that rephrase the same core idea, sentiment, or acknowledgment. If you've said it, move on or stop.
+*   **When finished (which is usually after the first message), output ONLY the exact string "[END]".**
+
 **ABSOLUTELY AVOID:**
 *   Starting messages with phrases that just confirm understanding before providing the answer.
 *   Generic AI sounds.
