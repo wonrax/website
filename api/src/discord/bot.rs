@@ -587,6 +587,7 @@ async fn handle_message(
                 let builder = if is_first_response {
                     CreateMessage::new().reference_message(&msg).content(part)
                 } else {
+                    tokio::time::sleep(Duration::from_millis(1000)).await;
                     CreateMessage::new().content(part)
                 };
 
@@ -597,6 +598,8 @@ async fn handle_message(
 
                 is_first_response = false;
             }
+
+            response_message_count += 1;
 
             // --- Update History for Next Iteration ---
             let assistant_message = ChatCompletionRequestAssistantMessageArgs::default()
