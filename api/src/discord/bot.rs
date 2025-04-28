@@ -28,6 +28,8 @@ const LAYER2_MAX_TOKENS: u16 = 4096;
 const RESPONSE_THRESHOLD: i32 = 5;
 const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 const MAX_REF_MSG_LEN: usize = 50; // Max length for referenced message preview
+const MAX_ASSISTANT_RESPONSE_MESSAGE_COUNT: usize = 5;
+const DISCORD_BOT_NAME: &str = "The Irony Himself";
 
 // Regex to remove timestamp and author prefix if the bot accidentally outputs it
 static CLEAN_MESSAGE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
@@ -38,7 +40,7 @@ static CLEAN_MESSAGE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 const COMMON_SYSTEM_CONTEXT: &str = formatcp!(
     r#"[CONTEXT]
 You are processing a sequence of Discord messages provided chronologically (oldest first).
-Each message object has a 'role' ('user' or 'assistant'). 'Assistant' messages are from the bot you are acting as or analyzing ("The Irony Himself").
+Each message object has a 'role' ('user' or 'assistant'). 'Assistant' messages are from the bot you are acting as or analyzing ("{DISCORD_BOT_NAME}"). This is IMPORTANT because it means if a message starts with [TIMESTAMP] {{{DISCORD_BOT_NAME}}}, the message IS FROM YOU YOURSELF. Use this information to avoid repeating what you've said or adjust behavior accordingly to align with what you've said, or continue responding to what you've left in the middle.
 Message content starts with metadata followed by the actual message:
 1.  An ISO 8601 timestamp in brackets (e.g., '[2023-10-27T10:30:00Z]').
 2.  The author's Discord username followed by a colon (e.g., 'JohnDoe: ').
@@ -52,17 +54,21 @@ User message 'content' can be complex:
 
 Interpret the full message content, considering timestamps, author, text, images, fetched links, and the <<context>> block. Use timestamps and authorship to gauge flow and relevance.
 
-**IMPORTANT**: If a user message mentions the bot and starts with '!', treat it as a potential command that might override standard behavior (e.g., "! be silent"). Factor this into your analysis/response."#
+**IMPORTANT**: If a user message mentions the bot and starts with '!', treat it as a potential command that might override standard behavior (e.g., "! be silent"). Factor this into your analysis/response.
+
+**IMPORTANT MULTI-MESSAGE INSTRUCTIONS:**
+*   You can separate your response into multiple messages for a natural chat flow.
+*   Your *first* message should deliver the main point (insight or humor).
+*   **Subsequent messages MUST build upon the previous one, add a *new* related point, ask a follow-up question, or transition the topic naturally.**
+*   **DO NOT repeat or simply rephrase the content of your immediately preceding message.**
+*   When you have nothing *new* and relevant to add, output only the exact string "[END]"."#
 );
 
 const LAYER1_SYSTEM_PROMPT: &str = formatcp!(
     r#"[ROLE] Discord Conversation Analyst
 
-[CONTEXT]
-You will be given a sequence of User and Assistant messages representing a Discord conversation history (oldest first). 'Assistant' messages are from the bot ("The Irony Himself"), 'User' messages are from others. Analyze the **final message** in the sequence.
-
 [TASK]
-Evaluate if "The Irony Himself" should respond, considering the channel's casual, fun, friendly vibe. Consider:
+Analyze the **final message** in the sequence. Evaluate if "{DISCORD_BOT_NAME}" should respond, considering the channel's casual, fun, friendly vibe. Consider:
 *   Direct Engagement: Is the last message a question to the bot? Does it mention the bot? (Greatly increases response chance).
 *   Relevance & Flow: Does it continue the immediate topic? Is it engaging?
 *   Engagement Potential: Opportunity to add value, humor, or continue naturally?
@@ -92,7 +98,7 @@ Your main goal is to briefly share this interesting point/perspective casually: 
 [TONE & STYLE INSTRUCTIONS]
 *   **BE YOUR PERSONA:** Witty, maybe ironic/sarcastic, be mean if necessary.
 *   **Be Casual:** Natural language. Avoid formality, preaching, teaching unless that *is* the witty angle.
-*   **Be Relevant:** Respond to the *latest* message(s).
+*   **Be Relevant:** Respond to the *latest* message(s), primarily the user message that triggered this response.
 *   **Be Concise (usually):** Adapt length. Short/punchy often good, but detail is okay if needed. Match chat style (e.g., lowercase, slang).
 *   **Use Markdown Subtly:** `*italic*`, `**bold**`, `` `code` `` sparingly. 1-2 relevant emojis okay.
 *   **AVOID:** Generic AI sound, being overly helpful/corrective unless witty, asking for confirmation unless truly unclear/risky."#, valuable_insight)
@@ -118,10 +124,10 @@ Sample Vibe Check Outputs (adapt beyond compsci):
 
     format!(
         r#"[PERSONA]
-You ARE the Discord bot "The Irony Himself". Witty, sarcastic, friendly, casual. Part of a fun, informal community.
+You ARE the Discord bot "{DISCORD_BOT_NAME}". Witty, sarcastic, friendly, casual. Part of a fun, informal community.
 
 [CONTEXT]
-You are seeing recent conversation history (User/Assistant messages) chronologically. Generate the *next* message as 'Assistant'.
+You are seeing recent conversation history (User/Assistant messages) chronologically. Generate the *next* message as 'Assistant'. Remember, messages starting with "[TIMESTAMP] {DISCORD_BOT_NAME}:" are YOUR OWN previous messages in this sequence.
 
 [TASK GUIDANCE]
 {task_guidance}
@@ -473,36 +479,91 @@ async fn handle_message(
         let mut layer2_messages = vec![common_system_message, layer2_system_message];
         layer2_messages.extend(base_history);
 
-        let layer2_request = CreateChatCompletionRequestArgs::default()
-            .model(LAYER2_MODEL)
-            .messages(layer2_messages)
-            .max_tokens(LAYER2_MAX_TOKENS)
-            .temperature(LAYER2_TEMPERATURE)
-            .build()?;
+        let mut is_first_response = true; // Flag to control replying vs sending
+        let mut response_message_count = 0;
 
-        let layer2_response = openai_client.chat().create(layer2_request).await?;
+        loop {
+            if response_message_count > MAX_ASSISTANT_RESPONSE_MESSAGE_COUNT {
+                tracing::warn!("Layer 2 message history exceeded limit, breaking loop.");
+                break;
+            }
 
-        if let Some(response_content) = layer2_response
-            .choices
-            .first()
-            .and_then(|c| c.message.content.as_deref())
-        {
+            let layer2_request = CreateChatCompletionRequestArgs::default()
+                .model(LAYER2_MODEL)
+                .messages(layer2_messages.clone())
+                .max_tokens(LAYER2_MAX_TOKENS)
+                .temperature(LAYER2_TEMPERATURE)
+                .n(1)
+                .stop(["[END]".to_string()])
+                .build()?;
+
+            tracing::debug!(?layer2_request, "Layer 2 request");
+
+            let layer2_response = match openai_client.chat().create(layer2_request).await {
+                Ok(res) => res,
+                Err(e) => {
+                    tracing::error!(error = %e, "Layer 2 OpenAI API call failed during loop");
+                    break;
+                }
+            };
+
+            let assistant_response_content = layer2_response
+                .choices
+                .first()
+                .and_then(|c| c.message.content.as_deref())
+                .unwrap_or("")
+                .trim();
+
+            tracing::debug!(
+                raw_response = assistant_response_content,
+                "Layer 2 raw response in loop"
+            );
+
+            if assistant_response_content == "[END]" {
+                tracing::info!("Received '[END]' signal. Terminating response generation.");
+                break;
+            }
+
             let final_response = CLEAN_MESSAGE_REGEX
-                .replace(response_content.trim(), "")
+                .replace_all(assistant_response_content, "")
                 .into_owned();
 
-            if !final_response.is_empty() {
-                msg.channel_id
-                    .send_message(
-                        &ctx.http,
-                        CreateMessage::new()
-                            .reference_message(&msg) // Reply to the original message
-                            .content(final_response),
-                    )
-                    .await?;
-            } else {
-                tracing::warn!("Layer 2 generated an empty response after cleaning.");
+            if final_response.is_empty() {
+                tracing::warn!("Layer 2 generated an empty response after cleaning (and not '[END]'). Stopping.");
+                break;
             }
+
+            let builder = if is_first_response {
+                CreateMessage::new()
+                    .reference_message(&msg)
+                    .content(&final_response)
+            } else {
+                CreateMessage::new().content(&final_response)
+            };
+
+            if let Err(e) = msg.channel_id.send_message(&ctx.http, builder).await {
+                tracing::error!(error = %e, "Failed to send Layer 2 message to Discord");
+                break;
+            }
+
+            response_message_count += 1;
+            is_first_response = false; // No longer the first response
+
+            // --- Update History for Next Iteration ---
+            let assistant_message = ChatCompletionRequestAssistantMessageArgs::default()
+                .content(format!(
+                    "[{}] {}: {}",
+                    chrono::Utc::now().to_rfc3339(),
+                    DISCORD_BOT_NAME,
+                    final_response
+                ))
+                .build()?
+                .into();
+
+            layer2_messages.push(assistant_message);
+
+            // Add a small delay to prevent rate limiting or flooding
+            tokio::time::sleep(Duration::from_millis(500)).await;
         }
     }
 
