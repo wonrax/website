@@ -25,7 +25,7 @@ const LAYER1_TEMPERATURE: f32 = 0.3;
 const LAYER2_TEMPERATURE: f32 = 0.75;
 const LAYER1_MAX_TOKENS: u16 = 300;
 const LAYER2_MAX_TOKENS: u16 = 4096;
-const RESPONSE_THRESHOLD: i32 = 7;
+const RESPONSE_THRESHOLD: i32 = 8;
 const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 const MAX_REF_MSG_LEN: usize = 50; // Max length for referenced message preview
 const MAX_ASSISTANT_RESPONSE_MESSAGE_COUNT: usize = 1;
@@ -587,7 +587,7 @@ async fn handle_message(
                 let builder = if is_first_response {
                     CreateMessage::new().reference_message(&msg).content(part)
                 } else {
-                    tokio::time::sleep(Duration::from_millis(part.len() as u64 * 100)).await;
+                    tokio::time::sleep(Duration::from_millis(part.len() as u64 * 50)).await;
                     CreateMessage::new().content(part)
                 };
 
