@@ -28,7 +28,7 @@ const LAYER2_MAX_TOKENS: u16 = 4096;
 const RESPONSE_THRESHOLD: i32 = 5;
 const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 const MAX_REF_MSG_LEN: usize = 50; // Max length for referenced message preview
-const MAX_ASSISTANT_RESPONSE_MESSAGE_COUNT: usize = 2;
+const MAX_ASSISTANT_RESPONSE_MESSAGE_COUNT: usize = 1;
 const DISCORD_BOT_NAME: &str = "The Irony Himself";
 
 // Regex to remove timestamp and author prefix and context if the bot accidentally outputs it
@@ -520,7 +520,7 @@ async fn handle_message(
         let mut response_message_count = 0;
 
         loop {
-            if response_message_count > MAX_ASSISTANT_RESPONSE_MESSAGE_COUNT {
+            if response_message_count >= MAX_ASSISTANT_RESPONSE_MESSAGE_COUNT {
                 tracing::warn!("Layer 2 message history exceeded limit, breaking loop.");
                 break;
             }
