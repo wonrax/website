@@ -31,10 +31,34 @@ const MAX_REF_MSG_LEN: usize = 50; // Max length for referenced message preview
 const MAX_ASSISTANT_RESPONSE_MESSAGE_COUNT: usize = 5;
 const DISCORD_BOT_NAME: &str = "The Irony Himself";
 
-// Regex to remove timestamp and author prefix if the bot accidentally outputs it
+// Regex to remove timestamp and author prefix and context if the bot accidentally outputs it
 static CLEAN_MESSAGE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\]\s+[^:]+:\s+")
-        .expect("Invalid regex for cleaning message")
+    Regex::new(
+        r"(?xms) # Enable comments, insignificant whitespace, multiline mode, and dotall mode
+        # --- Option 1: Generic Timestamp/Author prefix at the START of the string ---
+        (
+            ^           # Anchor to the beginning of the entire string
+            \[          # Literal opening bracket
+            .*?         # *ANY* character (.), matched 0+ times (*), non-greedily (?)
+                        # This will match everything inside the brackets, regardless of format
+            \]          # Literal closing bracket
+            \s+         # Whitespace after timestamp bracket
+            [^:]+       # Author name (one or more characters that are NOT a colon)
+            :           # Colon after author
+            \s+         # Whitespace after colon
+        )
+        | # --- OR ---
+        # --- Option 2: Context block ANYWHERE in the string ---
+        (
+            \s*           # Optional leading whitespace before the block
+            <<context>>   # The literal opening tag
+            .*?           # Any character (including newline due to 's' flag), matched non-greedily
+            <</context>>  # The literal closing tag
+            \s*           # Optional trailing whitespace after the block
+        )
+        ",
+    )
+    .expect("Invalid regex for cleaning message")
 });
 
 const COMMON_SYSTEM_CONTEXT: &str = formatcp!(
