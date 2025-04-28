@@ -525,6 +525,11 @@ async fn handle_message(
                 break;
             }
 
+            if !is_first_response {
+                // Add a small delay to prevent rate limiting or flooding
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+
             let layer2_request = CreateChatCompletionRequestArgs::default()
                 .model(LAYER2_MODEL)
                 .messages(layer2_messages.clone())
@@ -598,9 +603,6 @@ async fn handle_message(
                 .into();
 
             layer2_messages.push(assistant_message);
-
-            // Add a small delay to prevent rate limiting or flooding
-            tokio::time::sleep(Duration::from_millis(500)).await;
         }
     }
 
