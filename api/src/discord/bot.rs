@@ -25,7 +25,7 @@ const LAYER1_TEMPERATURE: f32 = 0.3;
 const LAYER2_TEMPERATURE: f32 = 0.75;
 const LAYER1_MAX_TOKENS: u16 = 300;
 const LAYER2_MAX_TOKENS: u16 = 4096;
-const RESPONSE_THRESHOLD: i32 = 8;
+const RESPONSE_THRESHOLD: i32 = 9;
 const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 const MAX_REF_MSG_LEN: usize = 50; // Max length for referenced message preview
 const MAX_ASSISTANT_RESPONSE_MESSAGE_COUNT: usize = 1;
@@ -96,6 +96,7 @@ Analyze the **final message** in the sequence. Evaluate if "{DISCORD_BOT_NAME}" 
 *   Commands: Does the last message seem like a command to the bot (e.g., starting with '!' after mention)? Adjust score/decision accordingly.
 
 Note: Avoid replying to yourself ('Assistant' as the last message). Detect irony/sarcasm.
+**IMPORTANT:** Do not repeat or rephrase what have been said in the chat history. If the insight or humour topic is similar to what have been said in this chat, lower the score substantially.
 
 [OUTPUT FORMAT]
 You MUST output your analysis *only* in the following format, with each key on a new line. Do NOT add any other explanation or text. DO NOT output in the format of a user or assistant message (that is [timestamp] [author]: [message]), you MUST follow the format below:
@@ -151,7 +152,7 @@ You are seeing recent conversation history (User/Assistant messages) chronologic
 *   **Simple Inputs (e.g., "thanks", "ok", "lol", agreement): Respond ONCE briefly and then YOU MUST output "[END]".** Do NOT elaborate or send multiple messages for simple social cues or acknowledgments.
 *   **Multi-Message Exception (RARE):** ONLY consider a second message if the *first message* delivered complex information (like code, a detailed explanation) AND you have a *distinctly separate, highly valuable* follow-up point (like a crucial example or critical clarification) that could not fit reasonably in the first.
 *   **NEVER send more than TWO messages.** The bar for a second message is extremely high.
-*   **DO NOT REPEAT:** Absolutely avoid generating multiple messages that rephrase the same core idea, sentiment, or acknowledgment. If you've said it, move on or stop.
+*   **DO NOT REPEAT:** Absolutely avoid generating multiple messages that rephrase the same core idea, sentiment, or acknowledgment. If you or anyone else has said it, move on or stop.
 *   **When finished (which is usually after the first message), output ONLY the exact string "[END]".**
 
 **ABSOLUTELY AVOID:**
