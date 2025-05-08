@@ -20,7 +20,7 @@ use tracing;
 const WHITELIST_CHANNELS: [u64; 2] = [1133997981637554188, 1119652436102086809];
 const MESSAGE_CONTEXT_SIZE: usize = 30;
 const LAYER1_MODEL: &str = "gpt-4.1-mini";
-const LAYER2_MODEL: &str = "gpt-4.1";
+const LAYER2_MODEL: &str = "o4-mini";
 const LAYER1_TEMPERATURE: f32 = 0.3;
 const LAYER2_TEMPERATURE: f32 = 0.75;
 const LAYER1_MAX_TOKENS: u16 = 300;
@@ -588,7 +588,7 @@ async fn handle_message(
                 let builder = if is_first_response {
                     CreateMessage::new().reference_message(&msg).content(part)
                 } else {
-                    tokio::time::sleep(Duration::from_millis(part.len() as u64 * 50)).await;
+                    tokio::time::sleep(Duration::from_millis(part.len() as u64 * 10)).await;
                     CreateMessage::new().content(part)
                 };
 
