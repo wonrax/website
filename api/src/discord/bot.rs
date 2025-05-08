@@ -520,7 +520,7 @@ async fn handle_message(
         let mut is_first_response = true; // Flag to control replying vs sending
         let mut response_message_count = 0;
 
-        loop {
+        'outer: loop {
             if response_message_count >= MAX_ASSISTANT_RESPONSE_MESSAGE_COUNT {
                 tracing::warn!("Layer 2 message history exceeded limit, breaking loop.");
                 break;
@@ -535,9 +535,11 @@ async fn handle_message(
                 .model(LAYER2_MODEL)
                 .messages(layer2_messages.clone())
                 .max_completion_tokens(LAYER2_MAX_TOKENS)
-                .temperature(LAYER2_TEMPERATURE)
                 .n(1)
-                .stop(["[END]".to_string()])
+                // Commented due to not compatible with current model (prev: gpt-4.1)
+                // .max_tokens(LAYER2_MAX_TOKENS)
+                // .temperature(LAYER2_TEMPERATURE)
+                // .stop(["[END]".to_string()])
                 .build()?;
 
             tracing::debug!(?layer2_request, "Layer 2 request");
@@ -563,7 +565,7 @@ async fn handle_message(
             );
 
             if assistant_response_content == "[END]" {
-                tracing::info!("Received '[END]' signal. Terminating response generation.");
+                tracing::debug!("Received '[END]' signal. Terminating response generation.");
                 break;
             }
 
@@ -585,10 +587,15 @@ async fn handle_message(
 
             // Send each part as a separate message
             for part in parts {
+                if part == "[END]" {
+                    tracing::debug!("Received '[END]' signal. Terminating response generation.");
+                    break 'outer;
+                }
+
                 let builder = if is_first_response {
                     CreateMessage::new().reference_message(&msg).content(part)
                 } else {
-                    tokio::time::sleep(Duration::from_millis(part.len() as u64 * 10)).await;
+                    tokio::time::sleep(Duration::from_millis(part.len() as u64 * 20)).await;
                     CreateMessage::new().content(part)
                 };
 
@@ -598,9 +605,8 @@ async fn handle_message(
                 }
 
                 is_first_response = false;
+                response_message_count += 1;
             }
-
-            response_message_count += 1;
 
             // --- Update History for Next Iteration ---
             let assistant_message = ChatCompletionRequestAssistantMessageArgs::default()
