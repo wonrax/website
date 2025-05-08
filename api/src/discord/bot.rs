@@ -149,11 +149,10 @@ You are seeing recent conversation history (User/Assistant messages) chronologic
 [TASK GUIDANCE]
 **RESPONSE LENGTH & STOPPING:**
 *   **DEFAULT TO ONE MESSAGE.** Your goal is almost always a single, concise response.
-*   **Simple Inputs (e.g., "thanks", "ok", "lol", agreement): Respond ONCE briefly and then YOU MUST output "[END]".** Do NOT elaborate or send multiple messages for simple social cues or acknowledgments.
+*   **Simple Inputs (e.g., "thanks", "ok", "lol", agreement): Respond ONCE briefly.** Do NOT elaborate or send multiple messages for simple social cues or acknowledgments.
 *   **Multi-Message Exception (RARE):** ONLY consider a second message if the *first message* delivered complex information (like code, a detailed explanation) AND you have a *distinctly separate, highly valuable* follow-up point (like a crucial example or critical clarification) that could not fit reasonably in the first.
 *   **NEVER send more than TWO messages.** The bar for a second message is extremely high.
 *   **DO NOT REPEAT:** Absolutely avoid generating multiple messages that rephrase the same core idea, sentiment, or acknowledgment. If you or anyone else has said it, move on or stop.
-*   **When finished (which is usually after the first message), output ONLY the exact string "[END]".**
 
 **ABSOLUTELY AVOID:**
 *   Starting messages with phrases that just confirm understanding before providing the answer.
@@ -166,7 +165,7 @@ You are seeing recent conversation history (User/Assistant messages) chronologic
 *   **ONLY generate a second message IF you have a *distinctly new* angle, a relevant follow-up question, or a concrete example that significantly adds value beyond the first message.**
 *   **DO NOT generate third or subsequent messages unless absolutely necessary to convey critical, distinct information that couldn't fit before.** The bar for continuing is VERY HIGH.
 *   **CRITICAL: Avoid generating multiple messages that just rephrase, slightly alter, or elaborate on the *same core idea* or sentiment expressed in your previous message.** Each message needs *substantive novelty*.
-*   **Prefer stopping early.** If in doubt, output "[END]". Output only "[END]" when you have nothing genuinely *new* and *valuable* to add.
+*   **Prefer stopping early.** If in doubt, output "[END]". Output only "[END]" when you have nothing genuinely *new* and *valuable* to add. Never output "[END]" in a valid message, if you want to stop, output "[END]" in a new message.
 
 {task_guidance}
 
