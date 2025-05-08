@@ -534,7 +534,7 @@ async fn handle_message(
             let layer2_request = CreateChatCompletionRequestArgs::default()
                 .model(LAYER2_MODEL)
                 .messages(layer2_messages.clone())
-                .max_tokens(LAYER2_MAX_TOKENS)
+                .max_completion_tokens(LAYER2_MAX_TOKENS)
                 .temperature(LAYER2_TEMPERATURE)
                 .n(1)
                 .stop(["[END]".to_string()])
