@@ -535,6 +535,7 @@ async fn handle_message(
                 .messages(layer2_messages.clone())
                 .max_completion_tokens(LAYER2_MAX_TOKENS)
                 .n(1)
+                .reasoning_effort(ReasoningEffort::High)
                 // Commented due to not compatible with current model (prev: gpt-4.1)
                 // .max_tokens(LAYER2_MAX_TOKENS)
                 // .temperature(LAYER2_TEMPERATURE)
