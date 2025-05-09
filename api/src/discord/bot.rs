@@ -28,7 +28,7 @@ const LAYER2_MAX_TOKENS: u16 = 4096;
 const RESPONSE_THRESHOLD: i32 = 9;
 const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 const MAX_REF_MSG_LEN: usize = 50; // Max length for referenced message preview
-const MAX_ASSISTANT_RESPONSE_MESSAGE_COUNT: usize = 2;
+const MAX_ASSISTANT_RESPONSE_MESSAGE_COUNT: usize = 1;
 const DISCORD_BOT_NAME: &str = "The Irony Himself";
 
 // Regex to remove timestamp and author prefix and context if the bot accidentally outputs it
