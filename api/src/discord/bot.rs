@@ -5,6 +5,7 @@ use async_openai::{
         ChatCompletionRequestMessageContentPartImage, ChatCompletionRequestMessageContentPartText,
         ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
         ChatCompletionRequestUserMessageContentPart, CreateChatCompletionRequestArgs, ImageUrl,
+        ReasoningEffort,
     },
     Client as OpenAIClient,
 };
@@ -533,7 +534,7 @@ async fn handle_message(
             let layer2_request = CreateChatCompletionRequestArgs::default()
                 .model(LAYER2_MODEL)
                 .messages(layer2_messages.clone())
-                .max_completion_tokens(LAYER2_MAX_TOKENS)
+                .max_completion_tokens(25000u32) // including reasoning tokens
                 .n(1)
                 .reasoning_effort(ReasoningEffort::High)
                 // Commented due to not compatible with current model (prev: gpt-4.1)
