@@ -15,7 +15,7 @@ COPY turbo.json .
 
 # Build 'hhai.dev's dependencies, but not 'hhai.dev' itself
 # This enable caching for the dependencies build layer
-ENV SITE_URL=https://wrx.sh
+ENV PUBLIC_SITE_URL=https://wrx.sh
 RUN npx turbo build --filter=hhai.dev^...
 
 COPY apps/. ./apps
