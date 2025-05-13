@@ -13,6 +13,20 @@
 hhai.dev {
 	import request-logging
 
+	redir https://wrx.sh{uri} permanent
+}
+
+llm.hhai.dev {
+	redir https://chat._.wrx.sh{uri} permanent
+}
+
+files.hhai.dev {
+	redir https://files.wrx.sh{uri} permanent
+}
+
+wrx.sh {
+	import request-logging
+
 	handle_path /api/* {
 		reverse_proxy api:3000 {
 			# Trust all incoming X-Forwarded-For headers since we're behind
@@ -38,46 +52,14 @@ hhai.dev {
 	encode zstd gzip
 }
 
-llm.hhai.dev {
+chat._.wrx.sh {
     reverse_proxy open-webui:8080
     route {
         header /_app/immutable/* Cache-Control "max-age=31536000, immutable"
     }
 }
 
-static.hhai.dev {
-	handle_path /hhai.dev/* {
-		root * /www/hhai.dev
-		try_files {path}.html
-		file_server {
-			disable_canonical_uris
-			precompressed zstd gzip
-		}
-
-		route {
-			header Cache-Control max-age=300
-			header /_astro/* Cache-Control max-age=31536000
-		}
-	}
-
-	encode zstd gzip
-}
-
-api.hhai.dev {
-	import request-logging
-
-	handle_path /api/* {
-		reverse_proxy api:3000 {
-			# Trust all incoming X-Forwarded-For headers since we verify the
-			# proxy in application layer anyway
-			trusted_proxies 0.0.0.0/0
-		}
-	}
-
-	encode zstd gzip
-}
-
-files.hhai.dev {
+files.wrx.sh {
 	root * /www/files.hhai.dev
 	file_server {
 		browse
