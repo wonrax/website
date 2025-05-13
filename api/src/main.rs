@@ -121,6 +121,7 @@ async fn main() {
         http: http_client,
     }));
 
+    let site_url = config.site_url.clone();
     let cors = CorsLayer::new()
         // allow `GET` and `POST` when accessing the resource
         .allow_methods(vec![
@@ -131,14 +132,13 @@ async fn main() {
         ])
         .allow_headers([CONTENT_TYPE])
         .allow_credentials(true)
-        .allow_origin(AllowOrigin::predicate(|_, request| {
+        .allow_origin(AllowOrigin::predicate(move |_, request| {
             request
                 .headers
                 .get("origin")
                 .map(|origin| {
                     if let Ok(origin) = origin.to_str() {
-                        origin.starts_with("http://localhost:")
-                            || origin.starts_with("https://hhai.dev")
+                        origin.starts_with("http://localhost:") || origin.starts_with(&site_url)
                     } else {
                         false
                     }

@@ -55,7 +55,7 @@ const codeHighlightOptions = {
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://hhai.dev",
+  site: "https://wrx.sh",
   markdown: {
     syntaxHighlight: false,
     remarkPlugins: [
@@ -88,7 +88,7 @@ export default defineConfig({
   integrations: [mdx(), solid({ exclude: "**/*/*React.tsx" }), react()],
   image: {
     service: sharpImageService(),
-    domains: ["share.hhai.dev", "res.cloudinary.com"],
+    domains: ["files.wrx.sh", "res.cloudinary.com"],
   },
   vite: {
     resolve: {
