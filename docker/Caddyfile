@@ -17,7 +17,7 @@ hhai.dev {
 }
 
 llm.hhai.dev {
-	redir https://chat._.wrx.sh{uri} permanent
+	redir https://c.wrx.sh{uri} permanent
 }
 
 files.hhai.dev {
@@ -52,7 +52,7 @@ wrx.sh {
 	encode zstd gzip
 }
 
-chat._.wrx.sh {
+c.wrx.sh {
     reverse_proxy open-webui:8080
     route {
         header /_app/immutable/* Cache-Control "max-age=31536000, immutable"
