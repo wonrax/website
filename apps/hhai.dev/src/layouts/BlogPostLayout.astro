@@ -80,12 +80,20 @@ const headings = Astro.props.headings;
   </div>
   {
     post.isDraft ? (
-      <aside class="callout callout-warning">
-        <div class="callout-title">Draft</div>
-        <div class="callout-content">
-          <p>This post is a draft and is not yet ready for public viewing.</p>
-        </div>
-      </aside>
+      <div class="feature-callout">
+        <warning class="callout callout-warning">
+          <>
+            <div class="callout-indicator">
+              <div class="callout-title">Warning</div>
+            </div>
+            <div class="callout-content">
+              <p>
+                This post is a draft and is not yet ready for public viewing.
+              </p>
+            </div>
+          </>
+        </warning>
+      </div>
     ) : null
   }
   <slot />
@@ -388,11 +396,12 @@ const headings = Astro.props.headings;
   .feature-callout {
     grid-column: 2 / 5;
     margin-top: 24px;
+    padding: 0 16px;
   }
 
   .callout {
     display: block;
-    padding: 40px 40px 24px 40px;
+    padding: 24px 24px 8px 24px;
     border-radius: 12px;
 
     .callout-title {
@@ -402,7 +411,7 @@ const headings = Astro.props.headings;
     }
 
     .callout-content {
-      margin-top: 8px;
+      margin-top: -8px;
     }
 
     p {
