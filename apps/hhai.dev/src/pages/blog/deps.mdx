@@ -17,20 +17,25 @@ However it did get me thinking about dependencies in general and how they
 relate to reproducibility and trust, and how can we make them better without
 giving up on the convenience they provide.
 
-Just complaining without understanding the problem is harmful in my opinion,
-and I think it's important to understand the tradeoffs so that we can make
-better decisions and set up guardrails to protect ourselves from the problems
-that come with them.
+Just complaining without understanding the problem is harmful in my opinion
+(people are scared of things they don't understand), and I think it's important
+to understand the tradeoffs so that we can make better decisions and set up
+guardrails to protect ourselves from the problems that come with them.
 
-[LetsBeRealAboutDependencies](https://wiki.alopex.li/LetsBeRealAboutDependencies)
-argues that package manager and statically linked binaries are improvements
-upon the old way of doing things--dynamic linking and shared libraries. However
-they're aware of the tradeoffs that come with it. They also do not offer
-solutions to the problems they raise, but rather just point them out.
+[LetsBeRealAboutDependencies](
+https://wiki.alopex.li/LetsBeRealAboutDependencies) argues that package manager
+and statically linked binaries are improvements upon the old way of doing
+things--dynamic linking and shared libraries. However they're aware of the
+tradeoffs that come with it. They also do not offer solutions to the problems
+they raise, but rather just point them out.
 
 Unfortunately, this post does not offer any solutions either, but rather argues
 that package managers are fine, but we need to be aware of the tradeoffs they
 bring. And shows what are the ways to address these problems.
+
+Dependencies are not inherent, your project does not depend on some packages
+does not mean you don't have dependencies. Your compiler may depend on some
+runtime or build time dependencies,...
 
 - Running the “Reflections on Trusting Trust” Compiler:
   >  The programming environments for languages like Go, NPM, and Rust make it
@@ -47,14 +52,38 @@ bring. And shows what are the ways to address these problems.
   >  possible attacks required the sophistication of approaches like Ken’s
   >  (like in this excellent science fiction story).
 
-- Proposed solution:
-  - Minimize deps, don't use package managers at all, vendor your dependencies
+- Minimize deps, don't use package managers at all, vendor your dependencies
   (JonBlow tweet)
-  - 
+  - This is a good idea, but it doesn't scale well. You end up with a lot of
+    code duplication and it's hard to keep track of what you have and what you
+    don't have. It's also hard to update dependencies when you need to.
+  - When you need to audit your dependencies, it's exponentially harder since
+    every package has their own implementation of X. Whereas if you use a
+    package manager, multiple packages can share the same implementation of X.
 
 - A mix of trust and verify (you can't verify everything), reduce blast radius
   and attack surface
 
 - Nix
+
+### Trust
+We have to trust our dependencies to some extent. Society is built on trust,
+and we can't live in a world where we don't trust anything. We trust the
+compiler to not have a backdoor, otherwise we'd have to bootstrap our own
+compiler. And how do we know that the bootstrapping compiler is also not
+compromised? Just like [basic beliefs](https://iep.utm.edu/epi-just), we have
+to trust some things without proof otherwise we'll fall into a vicious cycle of
+infinite regress or total skepticism.
+
+Depends on the seriousness of what you're building, the level of trust can be
+different. Whether you need to assess the trustworthiness by number of GitHub
+stars, trusting certified 3rd party audits or or audit the code yourself.
+
+\## TODO reproducibility
+
+### Overcome
+For rust and cargo, but might apply to other languages as well:
+- cargo-vendor: to not depend on centralized package registries.
+- cargo-deny: to ban packages in lockfile that you don't trust.
 
 \## TODO fix the adding comments complexity analysis
