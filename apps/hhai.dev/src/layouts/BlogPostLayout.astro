@@ -70,7 +70,11 @@ const headings = Astro.props.headings;
       <span class="separator-line"></span>
       {
         post.tags &&
-          post.tags.map((tag) => <span class="post-tag">#{tag}</span>)
+          post.tags.map((tag) => (
+            <a href={`/blog/tag/${tag}`} class="post-tag">
+              #{tag}
+            </a>
+          ))
       }
     </div>
     <Sheet.Trigger class="open-discussion" client:load>
