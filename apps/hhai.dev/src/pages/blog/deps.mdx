@@ -1,0 +1,60 @@
+---
+layout: "@/layouts/BlogPostLayout.astro"
+title: "Dependencies, reproducibility and trust"
+description: ""
+published: '17 May 2025'
+tags:
+  - reproducibility
+  - rust
+isDraft: true
+---
+
+Recently [a post](https://vincents.dev/blog/rust-dependencies-scare-me/) blew
+up on Hacker News and many more places about Rust dependency hell. The post
+just shallowly rants about how many dependencies needed for a simple Rust
+project without proposing a solution, so there's not much to say about it.
+However it did get me thinking about dependencies in general and how they
+relate to reproducibility and trust, and how can we make them better without
+giving up on the convenience they provide.
+
+Just complaining without understanding the problem is harmful in my opinion,
+and I think it's important to understand the tradeoffs so that we can make
+better decisions and set up guardrails to protect ourselves from the problems
+that come with them.
+
+[LetsBeRealAboutDependencies](https://wiki.alopex.li/LetsBeRealAboutDependencies)
+argues that package manager and statically linked binaries are improvements
+upon the old way of doing things--dynamic linking and shared libraries. However
+they're aware of the tradeoffs that come with it. They also do not offer
+solutions to the problems they raise, but rather just point them out.
+
+Unfortunately, this post does not offer any solutions either, but rather argues
+that package managers are fine, but we need to be aware of the tradeoffs they
+bring. And shows what are the ways to address these problems.
+
+- Running the “Reflections on Trusting Trust” Compiler:
+  >  The programming environments for languages like Go, NPM, and Rust make it
+  >  trivial to download and run source code published by strangers on the
+  >  internet, and again almost no one is checking the code, until there is a
+  >  problem. No one needs Ken’s backdoor: there are far easier ways to mount a
+  >  supply chain attack.
+  >
+  >  On the other hand, given all our reckless behavior, there are far fewer
+  >  problems than you would expect. Quite the opposite: we trust computers
+  >  with nearly every aspect of our lives, and for the most part nothing bad
+  >  happens. Something about our security posture must be better than it
+  >  seems. Even so, it might be nicer to live in a world where the only
+  >  possible attacks required the sophistication of approaches like Ken’s
+  >  (like in this excellent science fiction story).
+
+- Proposed solution:
+  - Minimize deps, don't use package managers at all, vendor your dependencies
+  (JonBlow tweet)
+  - 
+
+- A mix of trust and verify (you can't verify everything), reduce blast radius
+  and attack surface
+
+- Nix
+
+\## TODO fix the adding comments complexity analysis
