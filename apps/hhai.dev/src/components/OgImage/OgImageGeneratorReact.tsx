@@ -29,23 +29,10 @@ export default async function OgImage(
     >
       <div
         style={{
-          flexGrow: 1,
-          height: "100%",
-          width: "450px",
-          maxWidth: "450px",
-          background:
-            "radial-gradient(circle farthest-corner at 50% 100%, rgba(255,255,255,1) 5%, rgba(0,0,0,0.4) 5%, rgba(0,0,0,0.4) 10%, rgba(255,255,255,1) 10%, rgba(255,255,255,1) 15%, rgba(0,0,0,0.4) 15%, rgba(0,0,0,0.4) 20%, rgba(255,255,255,1) 20%, rgba(255,255,255,1) 25%, rgba(0,0,0,0.4) 25%, rgba(0,0,0,0.4) 30%, rgba(255,255,255,1) 30%, rgba(255,255,255,1) 35%, rgba(0,0,0,0.4) 35%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0) 40%), radial-gradient(circle at 100% 50%, rgba(255,255,255,1) 5%, rgba(0,0,0,0.4) 5%, rgba(0,0,0,0.4) 10%, rgba(255,255,255,1) 10%, rgba(255,255,255,1) 15%, rgba(0,0,0,0.4) 15%, rgba(0,0,0,0.4) 20%, rgba(255,255,255,1) 20%, rgba(255,255,255,1) 25%, rgba(0,0,0,0.4) 25%, rgba(0,0,0,0.4) 30%, rgba(255,255,255,1) 30%, rgba(255,255,255,1) 35%, rgba(0,0,0,0.4) 35%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0) 40%), radial-gradient(circle at 50% 0%, rgba(255,255,255,1) 5%, rgba(0,0,0,0.4) 5%, rgba(0,0,0,0.4) 10%, rgba(255,255,255,1) 10%, rgba(255,255,255,1) 15%, rgba(0,0,0,0.4) 15%, rgba(0,0,0,0.4) 20%, rgba(255,255,255,1) 20%, rgba(255,255,255,1) 25%, rgba(0,0,0,0.4) 25%, rgba(0,0,0,0.4) 30%, rgba(255,255,255,1) 30%, rgba(255,255,255,1) 35%, rgba(0,0,0,0.4) 35%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0) 40%), radial-gradient(circle at 0px 50%, rgba(255,255,255,1) 5%, rgba(0,0,0,0.4) 5%, rgba(0,0,0,0.4) 10%, rgba(255,255,255,1) 10%, rgba(255,255,255,1) 15%, rgba(0,0,0,0.4) 15%, rgba(0,0,0,0.4) 20%, rgba(255,255,255,1) 20%, rgba(255,255,255,1) 25%, rgba(0,0,0,0.4) 25%, rgba(0,0,0,0.4) 30%, rgba(255,255,255,1) 30%, rgba(255,255,255,1) 35%, rgba(0,0,0,0.4) 35%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0) 40%)",
-          backgroundSize: "180px 180px, 180px 180px, 180px 180px, 180px 180px",
-          backgroundPosition: "0% 0%, 0% 0%, 0% 0%, 0% 0%",
-          backgroundRepeat: "repeat, repeat, repeat, repeat",
-          backgroundColor: "rgba(255,255,255,1)",
-        }}
-      />
-      <div
-        style={{
           display: "flex",
           flexDirection: "column",
-          padding: "0 96px 0 48px",
+          // padding: "48px 96px 48px 48px",
+          padding: "96px",
           flexShrink: 1,
           boxSizing: "border-box",
           justifyContent: "center",
@@ -55,8 +42,8 @@ export default async function OgImage(
           style={{
             letterSpacing: "-0.035em",
             margin: "0px",
-            fontSize: props.description != null ? 48 : 82,
-            lineHeight: 1.3,
+            fontSize: props.description != null ? 64 : 96,
+            lineHeight: 1.4,
             color: "#333",
             fontWeight: 500,
           }}

@@ -3,6 +3,6 @@ import type { APIRoute } from "astro";
 
 export const GET: APIRoute = async () => {
   return await generate({
-    title: "Hai's Blog",
+    title: "wrx.sh blog index",
   });
 };
