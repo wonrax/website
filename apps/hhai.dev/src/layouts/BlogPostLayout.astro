@@ -388,6 +388,42 @@ const headings = Astro.props.headings;
     }
   }
 
+  .blog-container blockquote {
+    padding: 0px 4px 0px 16px;
+    font-size: 16px;
+    font-weight: var(--font-weight-normal);
+    line-height: 1.65em;
+    letter-spacing: -0.02em;
+    position: relative;
+    margin-left: 0;
+    margin-right: 0;
+    font-style: italic;
+
+    &::before {
+      content: "";
+      position: absolute;
+      left: 0px;
+      top: 0px;
+      bottom: 0px;
+      width: 2px;
+      background-color: var(--text-body-light);
+      border-radius: 4px;
+    }
+
+    p {
+      &:first-child {
+        margin-top: 0;
+      }
+
+      &:last-child {
+        margin-top: 0;
+      }
+
+      color: var(--text-body-medium);
+      margin: 8px 0;
+    }
+  }
+
   .feature-callout {
     grid-column: 2 / 5;
     margin-top: 24px;
