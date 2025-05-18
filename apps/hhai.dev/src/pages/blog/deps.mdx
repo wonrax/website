@@ -4,7 +4,9 @@ title: "Dependencies, reproducibility and trust"
 description: ""
 published: '17 May 2025'
 tags:
+  - dependency
   - reproducibility
+  - nix
   - rust
 isDraft: true
 ---
@@ -17,10 +19,16 @@ However it did get me thinking about dependencies in general and how they
 relate to reproducibility and trust, and how can we make them better without
 giving up on the convenience they provide.
 
+> This is just a modern problem in all software development, regardless of language. We are doing more complex things, we have a much bigger library of existing code to draw from and there are many reasons to use it. Ultimately a dependency is untrusted code, and there's a long road to go in hardening entire systems to make running arbitrary dependencies safe (if its even possible). https://news.ycombinator.com/item?id=43941131
+
+> It's a tradeoff. Those languages also have a very difficult time evolving anything in that standard library because the entire ecosystem relies on it and expects non-breaking changes. I think Rust gets sort of best of both worlds because dependencies are so easy to install it's almost as good as native, but there's a diversity of options and design choices, easy evolution and winners naturally emerge - these become as high quality as a stdlib component because they attract people/money to work on them but with more flexibility to change or be replaced https://news.ycombinator.com/user?id=zaptheimpaler
+
 Just complaining without understanding the problem is harmful in my opinion
 (people are scared of things they don't understand), and I think it's important
 to understand the tradeoffs so that we can make better decisions and set up
 guardrails to protect ourselves from the problems that come with them.
+
+## Dependencies
 
 [LetsBeRealAboutDependencies](
 https://wiki.alopex.li/LetsBeRealAboutDependencies) argues that package manager
@@ -28,6 +36,8 @@ and statically linked binaries are improvements upon the old way of doing
 things--dynamic linking and shared libraries. However they're aware of the
 tradeoffs that come with it. They also do not offer solutions to the problems
 they raise, but rather just point them out.
+
+> Because most dependencies are either manually installed by the user, or are dynamic libraries that are provided and audited by the distro maintainers. The dependencies are there, they're just harder to see https://news.ycombinator.com/item?id=43941299
 
 Unfortunately, this post does not offer any solutions either, but rather argues
 that package managers are fine, but we need to be aware of the tradeoffs they
@@ -53,20 +63,40 @@ runtime or build time dependencies,...
   >  (like in this excellent science fiction story).
 
 - Minimize deps, don't use package managers at all, vendor your dependencies
-  (JonBlow tweet)
+  (JonBlow https://x.com/Jonathan_Blow/status/1923414922484232404)
   - This is a good idea, but it doesn't scale well. You end up with a lot of
-    code duplication and it's hard to keep track of what you have and what you
-    don't have. It's also hard to update dependencies when you need to.
+  code duplication and it's hard to keep track of what you have and what you
+  don't have. It's also hard to update dependencies when you need to.
   - When you need to audit your dependencies, it's exponentially harder since
-    every package has their own implementation of X. Whereas if you use a
-    package manager, multiple packages can share the same implementation of X.
+  every package has their own implementation of X. Whereas if you use a package
+  manager, multiple packages can share the same implementation of X.
+
+  - JonBlow is full of shit. His rants are nothing but peak elitism. He is the
+  example of being in a specific domain and speaking out fallaciously of
+  others. His being against abstraction and software safety is because he
+  primarily works on games, where performance is crucial but the cost of
+  incorrectness is approximately zero. Software complexity evolves naturally
+  along with human accomplishments.
+
+> With such a grandiose title, before I first watched I thought it must be satire. Turns out, it is food for the credulous. I believe Jonathan Blow is less "seriously worried about software quality/complexity" than he is about marketing himself as the "last great hope". At least Blow's software has found success within its domain. However, I fear Blow's problem is the problem of all intellectuals: “An intellectual is a person knowledgeable in one field who speaks out only in others.” Blow has plenty of opinions about software outside his domain, but IMHO very little curiosity about why his domain may be different than your own. https://news.ycombinator.com/item?id=43943607
 
 - A mix of trust and verify (you can't verify everything), reduce blast radius
   and attack surface
 
-- Nix
+## Reproducibility
 
-### Trust
+- Nix
+  - Nix is not hard, nix exposes the complexity of the build and runtime
+  complexity
+
+- > Rust's primary sin here is that it makes dependency usage transparent to the end-user. Nobody wants to think about how many libraries they depend upon and how many faceless people it takes to maintain those libraries, so they're uncomfortable when Rust shows you. This isn't a Rust problem, it's a software complexity problem. https://news.ycombinator.com/item?id=43946324
+
+- An argument is to put as much things into the stdlib as possible
+  - To reduce the number of dependencies, but this is not a good idea since
+    it makes the stdlib more complex and harder to maintain (forever).
+
+
+## Trust
 We have to trust our dependencies to some extent. Society is built on trust,
 and we can't live in a world where we don't trust anything. We trust the
 compiler to not have a backdoor, otherwise we'd have to bootstrap our own
@@ -77,13 +107,51 @@ infinite regress or total skepticism.
 
 Depends on the seriousness of what you're building, the level of trust can be
 different. Whether you need to assess the trustworthiness by number of GitHub
-stars, trusting certified 3rd party audits or or audit the code yourself.
+stars, number of dependents or downloads, trusting certified 3rd party audits
+or or audit the code yourself.
+
+- Level of assurance: https://slsa.dev/spec/v1.1/levels
+  - Establish trust in a small number of platforms and systems—such as change management, build, and packaging platforms—and then automatically verify the many artifacts produced by those platforms.
+  - Trusted computing bases are unavoidable—there’s no choice but to trust some platforms. Hardening and verifying platforms is difficult and expensive manual work, and each trusted platform expands the attack surface of the supply chain. Verifying that an artifact is produced by a trusted platform, though, is easy to automate.
+
+
 
 \## TODO reproducibility
 
-### Overcome
+## How do we make it better?
 For rust and cargo, but might apply to other languages as well:
 - cargo-vendor: to not depend on centralized package registries.
 - cargo-deny: to ban packages in lockfile that you don't trust.
+- cargo-vet: to audit your dependencies
+- cargo-crev: distributed code review
+
+Now if we take a step back further, if we can't fully trust the program, can we
+contain the damage? Deno has permission based sandboxing.
+
+- Maybe zero trust is useful here? If the program of Ken Thompson can allow
+  login from a backdoor, then could isolating the program behind firewall and
+  limiting the access to the network and filesystem help?
+
+> trust is typically managed at the repository-level. An organization trusts an SCM for their first-party code, and a series of artifact managers (language, container) for their third-party code. Stricter companies may require all artifacts to be mirrored into a fully-trusted first-party repository. In these scenarios, trust moves internal but remains at the repository level.
+> https://dlorenc.medium.com/zero-trust-supply-chain-security-e3fb8b6973b8
+
 
 \## TODO fix the adding comments complexity analysis
+\## TODO Include X profile in about page
+
+As Rust's philosophy is to embrace everyone to build reliable software:
+> As much as I disagree with the speaker, I love how much of this is the result of experience and deep thought on a subject.
+> 
+> That said, I'd love to see him create a company that puts in the work to replace all of these mediocre systems and offers this 'something better' that everyone will want to adopt. Where's his will to make such a difference? He's not going to do and this is reflected in his response at 1:01:08 "Yeah...I don't know man." 
+> 
+> He's missed the biggest part of all of this. It's never been about software. It's about humans being able to accomplish human things.
+> 
+> 
+> He recommends the equivalent of requiring that every person who wants to write a book that passes on valuable knowledge needing to know how make paper. We would be left with a civilization of paper makers and no one sharing knowledge that empowers more and more people to go out and do amazing things.
+> 
+> He speaks like an artist of so many ages that was proud to be part of a small enclave of success. Surrounded by people who looked like him, had access to education and mentoring like him, and only open the doors for people like him.
+> 
+> Thankfully, that's just not how software works any more.
+> https://www.youtube.com/watch?v=ZSRHeXYDLko&lc=UgwEUc46IkIfqsjwNPN4AaABAg
+
+
