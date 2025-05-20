@@ -19,6 +19,13 @@ However it did get me thinking about dependencies in general and how they
 relate to reproducibility and trust, and how can we make them better without
 giving up on the convenience they provide.
 
+[LetsBeRealAboutDependencies](
+https://wiki.alopex.li/LetsBeRealAboutDependencies) argues that package manager
+and statically linked binaries are improvements upon the old way of doing
+things--dynamic linking and shared libraries. However they're aware of the
+tradeoffs that come with it. They also do not offer solutions to the problems
+they raise, but rather just point them out.
+
 > This is just a modern problem in all software development, regardless of language. We are doing more complex things, we have a much bigger library of existing code to draw from and there are many reasons to use it. Ultimately a dependency is untrusted code, and there's a long road to go in hardening entire systems to make running arbitrary dependencies safe (if its even possible). https://news.ycombinator.com/item?id=43941131
 
 > It's a tradeoff. Those languages also have a very difficult time evolving anything in that standard library because the entire ecosystem relies on it and expects non-breaking changes. I think Rust gets sort of best of both worlds because dependencies are so easy to install it's almost as good as native, but there's a diversity of options and design choices, easy evolution and winners naturally emerge - these become as high quality as a stdlib component because they attract people/money to work on them but with more flexibility to change or be replaced https://news.ycombinator.com/user?id=zaptheimpaler
@@ -30,6 +37,11 @@ guardrails to protect ourselves from the problems that come with them. It also
 shows the ignorance of the works people have done to make the ecosystem better...
 
 ## Dependencies
+
+When I use the word dependency, I don't just mean components that the software
+imports, but also the abstractions that the software uses, whether it's a high
+level programming language, a library, a framework or a package manager.
+
 
 [LetsBeRealAboutDependencies](
 https://wiki.alopex.li/LetsBeRealAboutDependencies) argues that package manager
@@ -65,12 +77,56 @@ runtime or build time dependencies,...
 
 - Minimize deps, don't use package managers at all, vendor your dependencies
   (JonBlow https://x.com/Jonathan_Blow/status/1923414922484232404)
+
+  -
+    > This means, for example: If you are shipping on iOS, you only reluctantly
+    > use any functions iOS gives you, because when you use them, Tim Apple
+    > will come along and break your program next year for arbitrary pointless
+    > reasons, because Tim Apple does not respect you or anyone you know.
+
+    Why would you depend on iOS libraries if you don't have to unless for some
+    platform specific features? This seems like common sense. The same reason
+    can be used to advocate for cross platform framework like Qt or Electron,
+    but that wouldn't make them "good softwares" (in JonBlow term) as they are
+    not as native as possible. Is JonBlow contradicting himself here?
+
+  -
+    > I shipped a binary for this game Braid in 2009 that you can still
+    > download and play on Steam 16 years later. If you are pretty young (like
+    > 35), you can run binaries on Windows that were compiled before you were
+    > even born, which is amazing given how hard they have been trying to f up
+    > Windows lately.
+
+    That's because Windows really commits to backwards compatibility. So his
+    argument is rather about platform decision rather than software complexity.
+    Once that contract is broken, there's no guarantee that your software will
+    run on the next version of Windows whether your software or game engine
+    depends too little or too much on the winapi. One way to resolve this is
+    you don't assume anything at all! (*start hinting about Nix in the next
+    part*).
+
   - This is a good idea, but it doesn't scale well. You end up with a lot of
   code duplication and it's hard to keep track of what you have and what you
   don't have. It's also hard to update dependencies when you need to.
   - When you need to audit your dependencies, it's exponentially harder since
   every package has their own implementation of X. Whereas if you use a package
   manager, multiple packages can share the same implementation of X.
+- On `Preventing the Collapse of Civilization` by Jonathan Blow
+  - Instead of improving upon what we have, JonBlow suggests that we go back to
+  the stone age and do everything ourselves. That is pretty idealistic and full
+  of elitism. Just because he's a cracked programmer who doesn't have a life
+  doesn't mean we all have to be like him.
+    > With such a grandiose title, before I first watched I thought it must be
+    > satire. Turns out, it is food for the credulous. I believe Jonathan Blow
+    > is less "seriously worried about software quality/complexity" than he is
+    > about marketing himself as the "last great hope".
+
+    > He's missed the biggest part of all of this. It's never been about software. It's about humans being able to accomplish human things.
+    >
+    > ...
+    >
+    > He speaks like an artist of so many ages that was proud to be part of a small enclave of success. Surrounded by people who looked like him, had access to education and mentoring like him, and only open the doors for people like him.
+    > Thankfully, that's just not how software works any more.
 
   - JonBlow is full of shit. His rants are nothing but peak elitism. He is the
   example of being in a specific domain and speaking out fallaciously of
@@ -78,17 +134,52 @@ runtime or build time dependencies,...
   primarily works on games, where performance is crucial but the cost of
   incorrectness is approximately zero. Software complexity evolves naturally
   along with human accomplishments.
+  - JonBlow is right to point out software inefficiencies, but his proposed
+  solution makes no sense and toxic and harmful.
+
+- https://x.com/cmuratori/status/1426299131270615040
+
+  -
+    > [3/*] With just one tool, the build has an over 95% chance of working after
+    > five year. With ten tools, it has only a 60% chance! And that's with every
+    > tool having a _99%_ chance of remaining working (meaning no breaking
+    > changes to the tool that affect the build in question).
+
+    Casey Muratori is right in some senses. But I think that's a reasonable
+    cost of keeping the software up to date, and small price you have to pay
+    for not implementing the dependencies yourself (although *very small*
+    compared to actually implementing them). If you want to simply archive your
+    software, there's countless way to do it. *(start hinting about Nix in the
+    next part)*.
 
 > With such a grandiose title, before I first watched I thought it must be satire. Turns out, it is food for the credulous. I believe Jonathan Blow is less "seriously worried about software quality/complexity" than he is about marketing himself as the "last great hope". At least Blow's software has found success within its domain. However, I fear Blow's problem is the problem of all intellectuals: “An intellectual is a person knowledgeable in one field who speaks out only in others.” Blow has plenty of opinions about software outside his domain, but IMHO very little curiosity about why his domain may be different than your own. https://news.ycombinator.com/item?id=43943607
 
 - A mix of trust and verify (you can't verify everything), reduce blast radius
   and attack surface
 
+- The case against https://www.youtube.com/watch?v=ZSRHeXYDLko
+  - Abstraction enables less error prone programming, and allows parallelization
+  of computing safely (rust fearless concurrency).
+
+
+> "Dennis Richie created the C language. C is a very nice high level language
+> with many of the modern programming constructs in it. The thing that is very
+> important about it is that it lets you avoid the details of the machine when
+> you want to, but when you need to and sometimes when you're writing an
+> operating system you really do need to, you can get at the details of the
+> machine and control everything. But you're not forced to do that, and that's
+> important because that means you can write operating systems in this language
+> and still have something that can be portable to other machines.
+> https://www.youtube.com/watch?v=tc4ROCJYbm0
+
 ## Reproducibility
 
 - Nix
   - Nix is not hard, nix exposes the complexity of the build and runtime
   complexity
+  - Nix fixes the questions I have about software compliling and running on
+  OSes. Why do you have to install random packages to build something or run
+  some binary? And it's undocumented more often than not.
 
 - > Rust's primary sin here is that it makes dependency usage transparent to the end-user. Nobody wants to think about how many libraries they depend upon and how many faceless people it takes to maintain those libraries, so they're uncomfortable when Rust shows you. This isn't a Rust problem, it's a software complexity problem. https://news.ycombinator.com/item?id=43946324
 
@@ -96,6 +187,13 @@ runtime or build time dependencies,...
   - To reduce the number of dependencies, but this is not a good idea since
     it makes the stdlib more complex and harder to maintain (forever).
 
+- Maybe also a part to compare docker (OCI container) and nix and how to compose them?
+
+- Unfortunately Nix only works on Linux and MacOS, and it's not perfect either,
+but I know someone on X who is building the next build system that will be
+cross platform and work on all 3 major OSes, that claims to fix all Nix's
+shortcomings. I don't know if that's true, but I think it's worth a believe.
+https://github.com/cull-os/carcass
 
 ## Trust
 We have to trust our dependencies to some extent. Society is built on trust,
