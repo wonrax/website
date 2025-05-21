@@ -1,7 +1,7 @@
 ---
 layout: "@/layouts/BlogPostLayout.astro"
 title: "Dependencies, reproducibility and trust"
-description: ""
+description: "In defense of dependencies and package managers."
 published: '17 May 2025'
 tags:
   - dependency
@@ -12,12 +12,29 @@ isDraft: true
 ---
 
 Recently [a post](https://vincents.dev/blog/rust-dependencies-scare-me/) blew
-up on Hacker News and many more places about Rust dependency hell. The post
-just shallowly rants about how many dependencies needed for a simple Rust
-project without proposing a solution, so there's not much to say about it.
-However it did get me thinking about dependencies in general and how they
-relate to reproducibility and trust, and how can we make them better without
-giving up on the convenience they provide.
+up on [Hacker News](https://news.ycombinator.com/item?id=43935067) and
+[elsewhere](https://www.reddit.com/r/rust/comments/1ki3kzj/rust_dependencies_scare_me/)
+about Rust's dependency hell. The post presents nothing new but a familiar
+challenge in modern software development regardless of the language and
+ecosystem. While this is reasonable, I've noticed people often fear and
+overreact to concepts they don’t fully grasp. This reaction risks being
+counterproductive and even harmful at some point. The discussions did push me
+to reconsider dependencies in a broader sense and how we can improve them
+without sacrificing their convenience. I believe the answer lies in truly
+understanding their role and embracing the complexity they introduce.
+
+This post is a defense of dependencies and package managers.
+
+## Dependencies
+
+Foremost, it's important to let us agree on what dependencies are.
+
+> If I understand correctly how it works, when cargo goes to build dependencies, it automatically picks up bug fixes in transitive dependencies (semver)
+
+> Software quality is at its historical worst. (JonBlow and Casey)
+Well this rant is not new. It's because softwares are more accessible than
+ever. While before people have to learn how to use command line and composing
+unix utilities to perform their tasks, even programming in bash. https://www.youtube.com/watch?v=tc4ROCJYbm0
 
 [LetsBeRealAboutDependencies](
 https://wiki.alopex.li/LetsBeRealAboutDependencies) argues that package manager
@@ -36,11 +53,6 @@ to understand the tradeoffs so that we can make better decisions and set up
 guardrails to protect ourselves from the problems that come with them. It also
 shows the ignorance of the works people have done to make the ecosystem better...
 
-## Dependencies
-
-When I use the word dependency, I don't just mean components that the software
-imports, but also the abstractions that the software uses, whether it's a high
-level programming language, a library, a framework or a package manager.
 
 
 [LetsBeRealAboutDependencies](
@@ -172,6 +184,11 @@ runtime or build time dependencies,...
 > and still have something that can be portable to other machines.
 > https://www.youtube.com/watch?v=tc4ROCJYbm0
 
+- https://www.youtube.com/watch?v=kZRE7HIO3vk makes a good argument about
+rethinking how we interface with hardware in a radical way "in order to avoid
+having to rely on abstraction layers on top of abstraction layers" but it
+doesn't seem to be practical at least in the short run, and "implement the higher levels in software because it's more flexible and easier to update, and the cpu load isn't that much"
+
 ## Reproducibility
 
 - Nix
@@ -212,6 +229,9 @@ or or audit the code yourself.
 - Level of assurance: https://slsa.dev/spec/v1.1/levels
   - Establish trust in a small number of platforms and systems—such as change management, build, and packaging platforms—and then automatically verify the many artifacts produced by those platforms.
   - Trusted computing bases are unavoidable—there’s no choice but to trust some platforms. Hardening and verifying platforms is difficult and expensive manual work, and each trusted platform expands the attack surface of the supply chain. Verifying that an artifact is produced by a trusted platform, though, is easy to automate.
+
+> In the real world, you literally depend on 3rd parties for everything. You need a water company to supply water, electric company to supply electricity, a telecom company for internet, and a food distributor for your groceries/restaurant meals. Seemingly, we’ve decided that reinventing these things every time is too much of a hassle, so it’s widely accepted to use existing solutions.
+
 
 
 
