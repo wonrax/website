@@ -42,8 +42,8 @@ export default async function OgImage(
           style={{
             letterSpacing: "-0.035em",
             margin: "0px",
-            fontSize: props.description != null ? 64 : 96,
-            lineHeight: 1.4,
+            fontSize: props.description ? 80 : 96,
+            lineHeight: 1.2,
             color: "#333",
             fontWeight: 500,
           }}
@@ -54,7 +54,8 @@ export default async function OgImage(
           <p
             style={{
               margin: "0",
-              color: "#777",
+              marginTop: "16px",
+              color: "#999",
               lineHeight: 1.3,
               fontSize: 48,
               letterSpacing: "-0.035em",
