@@ -27,21 +27,54 @@ This post is a defense of dependencies and package managers.
 
 ## Dependencies
 
-Foremost, it's important to let us agree on what dependencies are.
+Foremost, it's important to agree on what constitutes dependencies.
+Dependencies aren't just the libraries you pull into your project, but also the
+tools used to build and run your software. This includes the compiler, build
+system, dynamically linked libraries, and the operating system itself. In other
+words, dependencies are everything your software relies on to function
+correctly. Hardware is also a dependency, but this post stops at the software
+boundary.
 
-> If I understand correctly how it works, when cargo goes to build dependencies, it automatically picks up bug fixes in transitive dependencies (semver)
+[LetsBeRealAboutDependencies](
+https://wiki.alopex.li/LetsBeRealAboutDependencies) points out that softwares
+that don't use a package manager still depend on a lot of dynamic libraries
+that made available by the operating system or its package manager. These two
+types of dependencies are not mutually exclusive. In rust, for example, you can
+have both static and dynamic dependencies: the Rust standard library relies on
+`libc`, while third-party libraries may depend on dynamic ones like `openssl`
+or `libpq`. What's important is, whether statically or dynamically linked, they
+remain dependencies.
+
+When we choose a language to build software, we've already chosen to depend on
+its abstractions and become tied to its ecosystem. When designing software for
+a specific platform, we inherently depend on that platform unless
+cross-platform abstractions exist to avoid fragmentation.
+
+### The goods
+
+> "Dennis Richie created the C language. C is a very nice high-level language
+> with many of the modern programming constructs in it. The thing that is very
+> important about it is that it lets you avoid the details of the machine when
+> you want to, but when you need to and sometimes when you're writing an
+> operating system you really do need to, you can get at the details of the
+> machine and control everything. But you're not forced to do that, and that's
+> important because that means you can write operating systems in this language
+> and still have something that can be portable to other machines." -- [AT&T
+> Archives: The UNIX Operating
+> System (1982)](https://www.youtube.com/watch?v=tc4ROCJYbm0)
+
+### The bads
+
+
+> If I understand correctly how it works, when cargo goes to build
+> dependencies, it automatically picks up bug fixes in transitive dependencies
+> (semver)
 
 > Software quality is at its historical worst. (JonBlow and Casey)
 Well this rant is not new. It's because softwares are more accessible than
 ever. While before people have to learn how to use command line and composing
-unix utilities to perform their tasks, even programming in bash. https://www.youtube.com/watch?v=tc4ROCJYbm0
-
-[LetsBeRealAboutDependencies](
-https://wiki.alopex.li/LetsBeRealAboutDependencies) argues that package manager
-and statically linked binaries are improvements upon the old way of doing
-things--dynamic linking and shared libraries. However they're aware of the
-tradeoffs that come with it. They also do not offer solutions to the problems
-they raise, but rather just point them out.
+unix utilities to perform their tasks, even programming in bash.
+https://www.youtube.com/watch?v=tc4ROCJYbm0
 
 > This is just a modern problem in all software development, regardless of language. We are doing more complex things, we have a much bigger library of existing code to draw from and there are many reasons to use it. Ultimately a dependency is untrusted code, and there's a long road to go in hardening entire systems to make running arbitrary dependencies safe (if its even possible). https://news.ycombinator.com/item?id=43941131
 
@@ -173,16 +206,6 @@ runtime or build time dependencies,...
   - Abstraction enables less error prone programming, and allows parallelization
   of computing safely (rust fearless concurrency).
 
-
-> "Dennis Richie created the C language. C is a very nice high level language
-> with many of the modern programming constructs in it. The thing that is very
-> important about it is that it lets you avoid the details of the machine when
-> you want to, but when you need to and sometimes when you're writing an
-> operating system you really do need to, you can get at the details of the
-> machine and control everything. But you're not forced to do that, and that's
-> important because that means you can write operating systems in this language
-> and still have something that can be portable to other machines.
-> https://www.youtube.com/watch?v=tc4ROCJYbm0
 
 - https://www.youtube.com/watch?v=kZRE7HIO3vk makes a good argument about
 rethinking how we interface with hardware in a radical way "in order to avoid
