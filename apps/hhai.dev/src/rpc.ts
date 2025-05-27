@@ -7,12 +7,12 @@ export const ApiError = z.object({
   // debug_info: z.optional(z.string()),
 });
 
-interface AugmentedResponse<TData> extends Response {
-  JSON: () => Promise<TData>;
+interface AugmentedResponse<TData extends z.ZodType> extends Response {
+  JSON: () => Promise<z.infer<TData>>;
   error: () => Promise<z.infer<typeof ApiError>>;
 }
 
-export function createFetch<TData>(schema: z.ZodType<TData>) {
+export function createFetch<TData extends z.ZodType>(schema: TData) {
   return async (...args: Parameters<typeof fetch>) => {
     const response = await fetch(...args);
 
