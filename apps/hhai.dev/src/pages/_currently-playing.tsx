@@ -19,7 +19,7 @@ const fetchCurrentlyPlaying = createFetch(
         ),
       })
     ),
-    currently_playing_type: z.optional(z.string()),
+    currently_playing_type: z.nullish(z.string()),
   })
 );
 
