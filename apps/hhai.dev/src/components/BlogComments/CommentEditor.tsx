@@ -14,7 +14,7 @@ import config from "@/config";
 import "./CommentEditor.scss";
 import { AppState, SetAppState, checkAuthUser } from "@/state";
 import { createFetch, fetchAny } from "@/rpc";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 type FormEvent = Event & {
   target: EventTarget & {
@@ -24,6 +24,7 @@ type FormEvent = Event & {
   };
 };
 
+// FIXME: proper type validation
 const fetchComment = createFetch(z.custom<Comment>());
 
 export function CommentSubmission(props: {

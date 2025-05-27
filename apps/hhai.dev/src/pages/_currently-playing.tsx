@@ -1,12 +1,12 @@
 import config from "@/config";
 import { createFetch } from "@/rpc";
 import { Suspense, createResource, type JSXElement } from "solid-js";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 const fetchCurrentlyPlaying = createFetch(
   z.object({
     is_playing: z.boolean(),
-    item: z.optional(
+    item: z.nullish(
       z.object({
         name: z.string(),
         external_urls: z.object({

@@ -12,7 +12,7 @@ import CommentContext from "./CommentSectionContext";
 import config from "@/config";
 import { createFetch } from "@/rpc";
 import { checkAuthUser } from "@/state";
-import { z } from "zod";
+import { z } from "zod/v4";
 import("./CommentSection.scss");
 
 const CommentComponent = lazy(async () => await import("./Comment"));

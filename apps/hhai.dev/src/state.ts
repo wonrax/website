@@ -1,7 +1,7 @@
 import { createStore } from "solid-js/store";
 import config from "./config";
 import { createFetch } from "./rpc";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 interface AuthUser {
   id: number;

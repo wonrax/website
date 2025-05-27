@@ -1,4 +1,4 @@
-import { type Schema, z } from "zod";
+import { z } from "zod/v4";
 
 export const ApiError = z.object({
   error: z.optional(z.string()),
@@ -12,7 +12,7 @@ interface AugmentedResponse<TData> extends Response {
   error: () => Promise<z.infer<typeof ApiError>>;
 }
 
-export function createFetch<TData>(schema: Schema<TData>) {
+export function createFetch<TData>(schema: z.ZodType<TData>) {
   return async (...args: Parameters<typeof fetch>) => {
     const response = await fetch(...args);
 

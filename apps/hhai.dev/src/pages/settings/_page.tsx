@@ -2,7 +2,7 @@ import config from "@/config";
 import { createFetch } from "@/rpc";
 import { AppState, checkAuthUser } from "@/state";
 import { Show, createEffect, createResource, type JSXElement } from "solid-js";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 const fetchConnectedApps = createFetch(
   z.object({
