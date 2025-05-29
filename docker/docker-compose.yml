@@ -75,6 +75,7 @@ services:
     restart: unless-stopped
     environment:
       ENV: prod
+      WEBUI_SECRET_KEY: ${OPEN_WEBUI_SECRET_KEY}
       DATABASE_URL: ${OPEN_WEBUI_DATABASE_URL}
       WEBUI_AUTH: true
       ENABLE_SIGNUP: true
