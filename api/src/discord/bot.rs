@@ -10,6 +10,7 @@ use async_openai::{
     Client as OpenAIClient,
 };
 use const_format::formatcp;
+use eyre::Context as _;
 use futures_util::StreamExt;
 use regex::Regex;
 use serenity::all::{ChannelId, CreateMessage, Message, Ready, Typing};
@@ -487,7 +488,12 @@ async fn handle_message(
         .temperature(LAYER1_TEMPERATURE)
         .build()?;
 
-    let layer1_response = openai_client.chat().create(layer1_request).await?;
+    let layer1_response = openai_client
+        .chat()
+        .create(layer1_request.clone())
+        .await
+        .with_context(|| format!("{:?}", &layer1_request))
+        .context("Failed to make layer 1 request")?;
 
     let layer1_output_content = layer1_response
         .choices
@@ -545,10 +551,10 @@ async fn handle_message(
 
             tracing::debug!(?layer2_request, "Layer 2 request");
 
-            let layer2_response = match openai_client.chat().create(layer2_request).await {
+            let layer2_response = match openai_client.chat().create(layer2_request.clone()).await {
                 Ok(res) => res,
                 Err(e) => {
-                    tracing::error!(error = %e, "Layer 2 OpenAI API call failed during loop");
+                    tracing::error!(error = %e, ?layer2_request, "Layer 2 OpenAI API call failed during loop");
                     break;
                 }
             };
