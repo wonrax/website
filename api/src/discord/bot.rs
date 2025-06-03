@@ -492,8 +492,8 @@ async fn handle_message(
         .chat()
         .create(layer1_request.clone())
         .await
-        .with_context(|| format!("{:?}", &layer1_request))
-        .context("Failed to make layer 1 request")?;
+        .wrap_err_with(|| format!("{:?}", &layer1_request))
+        .wrap_err("Failed to make layer 1 request")?;
 
     let layer1_output_content = layer1_response
         .choices
