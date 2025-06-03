@@ -26,7 +26,7 @@ RUN cargo build --release -p api
 FROM debian:bookworm-slim
 
 RUN apt-get -y update \
-    && apt-get install -y libssl3 ca-certificates libpq-dev
+    && apt-get install -y libssl3 ca-certificates libpq-dev libxml2
 
 COPY --from=build-step /src/target/release/api /bin/api
 

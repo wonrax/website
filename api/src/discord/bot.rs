@@ -306,6 +306,7 @@ async fn build_history_messages(
         .filter_map(|(url, result)| async move {
             match result {
                 Ok(md_content) if !md_content.is_empty() => Some(format!(
+                    // TODO: bring fetched link content to <<context>> block
                     "\n\n[Fetched Link Content: {}]\n{}\n[End Fetched Link Content]",
                     url,
                     md_content.trim()
