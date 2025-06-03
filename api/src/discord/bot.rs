@@ -16,7 +16,10 @@ use regex::Regex;
 use serenity::all::{ChannelId, CreateMessage, Message, Ready, Typing};
 use serenity::async_trait;
 use serenity::prelude::*;
-use std::{sync::LazyLock, time::Duration};
+use std::{
+    sync::{atomic::AtomicBool, LazyLock},
+    time::Duration,
+};
 use tracing;
 
 const WHITELIST_CHANNELS: [u64; 2] = [1133997981637554188, 1119652436102086809];
@@ -635,6 +638,7 @@ async fn handle_message(
 
 pub struct Handler {
     pub openai_client: OpenAIClient<OpenAIConfig>,
+    pub error_acked: AtomicBool,
 }
 
 #[async_trait]
@@ -644,8 +648,27 @@ impl EventHandler for Handler {
             return;
         }
 
-        if let Err(why) = handle_message(&self.openai_client, ctx, msg).await {
+        let chan_id = msg.channel_id.clone();
+
+        if let Err(why) = handle_message(&self.openai_client, ctx.clone(), msg).await {
             tracing::error!(error = ?why, "Error handling Discord message");
+
+            if !self.error_acked.load(std::sync::atomic::Ordering::Relaxed) {
+                self.error_acked
+                    .store(true, std::sync::atomic::Ordering::Relaxed);
+                chan_id
+                    .send_message(
+                        &ctx.http,
+                        CreateMessage::new().content(format!(
+                            "An error occurred while processing your message:\n```\n{:?}\n```",
+                            why
+                        )),
+                    )
+                    .await
+                    .inspect_err(|e| {
+                        tracing::error!(error = ?e, "Failed to send error message to Discord");
+                    });
+            }
         }
     }
 

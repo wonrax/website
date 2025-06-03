@@ -10,7 +10,13 @@ use dotenv::dotenv;
 use mimalloc::MiMalloc;
 use serde_json::json;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
-use std::{net::SocketAddr, ops::Deref, process::exit, sync::Arc, time::Duration};
+use std::{
+    net::SocketAddr,
+    ops::Deref,
+    process::exit,
+    sync::{atomic::AtomicBool, Arc},
+    time::Duration,
+};
 use tower_http::{
     classify::ServerErrorsFailureClass,
     cors::{AllowOrigin, CorsLayer},
@@ -230,7 +236,10 @@ async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> 
         // Create a new instance of the Client, logging in as a bot. This will automatically prepend
         // your bot token with "Bot ", which is a requirement by Discord for bot users.
         let mut discord_client = serenity::Client::builder(&discord_token, intents)
-            .event_handler(discord::bot::Handler { openai_client })
+            .event_handler(discord::bot::Handler {
+                openai_client,
+                error_acked: AtomicBool::new(false),
+            })
             .await
             .map_err(|e| eyre::eyre!("Error creating Discord client: {e:?}"))?;
 
