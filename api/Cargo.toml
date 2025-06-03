@@ -33,11 +33,12 @@ diesel = { version = "2.2.4", features = ["postgres", "serde_json", "chrono"] }
 diesel-async = { version = "0.5.0", features = ["deadpool", "postgres"] }
 eyre = "0.6.12"
 serenity = "0.12.4"
-htmd = "0.1.6"
 async-openai = "0.28.1"
 regex = "1.11.1"
 const_format = "0.2.34"
 futures = "0.3.31"
+article_scraper = "2.1.2"
+url = "2.5.4"
 
 [dev-dependencies]
 criterion = "0.5.1"

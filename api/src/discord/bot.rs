@@ -192,34 +192,32 @@ asl, based, basic, beat your face, bestie, bet, big yikes, boujee, bussin', clap
 
 /// Fetches content from a URL, attempts to convert HTML to Markdown.
 async fn fetch_url_content_and_parse(url_str: &str) -> Result<String, eyre::Error> {
-    let client = reqwest::Client::builder()
-        .timeout(URL_FETCH_TIMEOUT_SECS)
-        .build()?;
+    use article_scraper::{ArticleScraper, Readability};
+    use reqwest::Client;
+    use url::Url;
 
-    let response = client.get(url_str).send().await?;
+    let scraper = ArticleScraper::new(None).await;
+    let url = Url::parse(url_str)?;
+    let client = Client::builder().timeout(URL_FETCH_TIMEOUT_SECS).build()?;
 
-    if !response.status().is_success() {
-        return Err(eyre::eyre!(
-            "Failed to fetch URL {}: Status {}",
-            url_str,
-            response.status()
-        ));
+    let article = scraper
+        .parse(&url, false, &client, None)
+        .await
+        .map_err(|e| eyre::eyre!("Failed to scrape article for {url_str}: {e}"))?;
+
+    let mut result = String::new();
+    if let Some(title) = article.title {
+        result.push_str(&format!("# {}\n\n", title.trim()));
     }
-
-    let content_type = response
-        .headers()
-        .get(reqwest::header::CONTENT_TYPE)
-        .and_then(|val| val.to_str().ok())
-        .unwrap_or("");
-
-    // Only process HTML content to avoid parsing binary files etc.
-    if !content_type.starts_with("text/html") {
-        return Ok("[Non-HTML content, skipped]".into());
+    if let Some(html) = article.html {
+        let content = Readability::extract(&html, None).await?;
+        result.push_str(&content);
     }
-
-    let site_content = response.text().await?;
-
-    htmd::convert(&site_content).map_err(Into::into)
+    if result.is_empty() {
+        Ok("[No readable article content found]".to_string())
+    } else {
+        Ok(result)
+    }
 }
 
 /// Turn the discord chat history into LLM user and assistant messages.
@@ -669,6 +667,15 @@ impl EventHandler for Handler {
                         tracing::error!(error = ?e, "Failed to send error message to Discord");
                     });
             }
+        } else {
+            self.error_acked
+                .compare_exchange(
+                    true,
+                    false,
+                    std::sync::atomic::Ordering::Relaxed,
+                    std::sync::atomic::Ordering::Relaxed,
+                )
+                .ok();
         }
     }
 

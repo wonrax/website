@@ -2,7 +2,7 @@
   description = "Development environment for hhai.dev monorepo";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/release-24.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/release-25.05";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
@@ -55,10 +55,14 @@
           with pkgs;
           mkShell {
             buildInputs = [
+              pkg-config
               rust-bin.stable.latest.default
               nodejs_22
               # libpq required for sqlx
               postgresql_17
+              # article-scraper rust
+              libxml2
+              openssl
             ];
 
             shellHook = if system == "x86_64-linux" then prisma.shellHook else "";
