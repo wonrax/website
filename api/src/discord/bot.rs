@@ -645,7 +645,7 @@ impl EventHandler for Handler {
         }
 
         if let Err(why) = handle_message(&self.openai_client, ctx, msg).await {
-            tracing::error!(error = %why, "Error handling Discord message");
+            tracing::error!(error = ?why, "Error handling Discord message");
         }
     }
 
