@@ -306,7 +306,6 @@ async fn build_history_messages(
         .filter_map(|(url, result)| async move {
             match result {
                 Ok(md_content) if !md_content.is_empty() => Some(format!(
-                    // TODO: bring fetched link content to <<context>> block
                     "\n\n[Fetched Link Content: {}]\n{}\n[End Fetched Link Content]",
                     url,
                     md_content.trim()
@@ -324,14 +323,7 @@ async fn build_history_messages(
         .collect::<String>()
         .await;
 
-        if !fetched_links_text.is_empty() {
-            if !current_text.is_empty() && !current_text.ends_with('\n') {
-                current_text.push('\n');
-            }
-            current_text.push_str(&fetched_links_text);
-        }
-
-        // Add context block
+        // Add context block, with fetched links inside <<context>>
         let referenced_message_preview = msg
             .referenced_message
             .map(|m| {
@@ -352,10 +344,20 @@ async fn build_history_messages(
             })
             .unwrap_or("None".into());
 
-        current_text.push_str(&format!(
-            "\n\n<<context>>\n* Replied To: [{}]\n* Mentions/Replies Bot: [{}]\n<</context>>",
-            referenced_message_preview, mentions_or_replies_to_bot,
-        ));
+        let context_block = if !fetched_links_text.is_empty() {
+            format!(
+                "\n\n<<context>>\n* Replied To: [{}]\n* Mentions/Replies Bot: [{}]\n{}\n<</context>>",
+                referenced_message_preview,
+                mentions_or_replies_to_bot,
+                fetched_links_text
+            )
+        } else {
+            format!(
+                "\n\n<<context>>\n* Replied To: [{}]\n* Mentions/Replies Bot: [{}]\n<</context>>",
+                referenced_message_preview, mentions_or_replies_to_bot
+            )
+        };
+        current_text.push_str(&context_block);
 
         // Add any remaining text as the last part
         if !current_text.is_empty() || content_parts.is_empty() {
