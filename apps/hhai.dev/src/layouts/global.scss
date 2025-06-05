@@ -1,10 +1,12 @@
 html {
   font-family:
-    Inter Variable,
+    Sono Variable,
+    Bricolage Grotesque Variable,
     Inter fallback,
     sans-serif;
   background-color: var(--bg-color);
   color: var(--text-body-heavy);
+  letter-spacing: -0.05em;
 
   // attempt to fix safari unexpectedly large font size
   // https://stackoverflow.com/questions/3226001/some-font-sizes-rendered-larger-on-safari-iphone
@@ -29,7 +31,10 @@ html {
 }
 
 code {
-  font-family: Inconsolata, monospace;
+  font-family:
+    Sono Variable,
+    Inconsolata,
+    monospace;
 }
 
 :root {
@@ -60,13 +65,13 @@ code {
   --bg-additive-light: rgba(0, 0, 0, 0.05);
   --bg-additive-medium: rgba(0, 0, 0, 0.1);
 
-  --warning-light: #fff9ec;
-  --warning-medium: #b69245;
-  --warning-heavy: #794e0f;
+  --warning-light: black;
+  --warning-medium: #ffff00;
+  --warning-heavy: #ffff00;
 
-  --info-light: #fbf7ff;
-  --info-medium: #7b5fbb;
-  --info-heavy: #220e5a;
+  --info-light: black;
+  --info-medium: #00ffff;
+  --info-heavy: #00ffff;
 
   --error-light: #ffecec;
   --error-medium: #b64545;
@@ -124,6 +129,7 @@ a:visited {
 
 button {
   font-family:
-    Inter Variable,
+    Sono Variable,
+    Bricolage Grotesque Variable,
     sans-serif;
 }

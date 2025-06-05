@@ -168,7 +168,7 @@ const headings = Astro.props.headings;
     li {
       color: var(--text-body-heavy);
       margin: 8px 0;
-      line-height: 1.65em;
+      line-height: 1.35em;
       letter-spacing: -0.02em;
       font-weight: var(--font-weight-normal);
 
@@ -298,9 +298,9 @@ const headings = Astro.props.headings;
 
     p {
       margin: 16px 0;
-      line-height: 1.65em;
+      line-height: 1.45em;
       color: var(--text-body-heavy);
-      letter-spacing: -0.01em;
+      letter-spacing: -0.05em;
       font-weight: var(--font-weight-normal);
     }
 
@@ -315,7 +315,7 @@ const headings = Astro.props.headings;
       // font-style: italic;
       margin: 24px 0 16px 0;
       line-height: 1.35em;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.05em;
       color: var(--text-heading);
     }
 
@@ -326,7 +326,7 @@ const headings = Astro.props.headings;
       // font-style: italic;
       margin: 24px 0 16px 0;
       line-height: 1.35em;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.04em;
       color: var(--text-heading);
     }
 
@@ -335,7 +335,7 @@ const headings = Astro.props.headings;
       font-weight: var(--font-weight-medium);
       margin: 24px 0 16px 0;
       line-height: 1.35em;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.03em;
       color: var(--text-heading);
     }
 
@@ -392,7 +392,7 @@ const headings = Astro.props.headings;
     img {
       display: block;
       height: auto;
-      border-radius: 12px;
+      border-radius: 4px;
       margin: 0 auto;
     }
   }
@@ -406,7 +406,7 @@ const headings = Astro.props.headings;
   .callout {
     display: block;
     padding: 24px 24px 8px 24px;
-    border-radius: 12px;
+    border-radius: 4px;
 
     .callout-title {
       font-size: 13px;
@@ -520,21 +520,22 @@ const headings = Astro.props.headings;
   // Code block stylying
   .blog-container figure[data-rehype-pretty-code-figure] {
     margin: 0 auto;
-    border-radius: 12px;
+    border-radius: 4px;
     background-color: var(--bg-code-block);
     overflow: hidden;
     border: solid 1px var(--bg-additive-light);
-    box-shadow: 0 4px 4px 0px rgba($color: black, $alpha: 0.025);
+    /* box-shadow: 0 4px 4px 0px rgba($color: black, $alpha: 0.025); */
 
     pre {
       overflow-x: auto;
       line-height: 1.4em;
+      letter-spacing: 0;
       margin: 0;
       padding: 16px 0;
     }
 
     code {
-      font-size: 16px;
+      font-size: 14px;
       display: grid;
       counter-reset: line;
       margin: 0;
@@ -598,11 +599,10 @@ const headings = Astro.props.headings;
       width: fit-content;
       background-color: var(--bg-code-block-elevated-active);
       color: var(--text-body-heavy);
-      box-shadow: 0 1px 3px 0px rgba($color: black, $alpha: 0.05);
       font-size: 14px;
       font-weight: var(--font-weight-normal);
       margin-left: 16px;
-      border-radius: 0 0 8px 8px;
+      border-radius: 0 0 4px 4px;
       border: solid 1px var(--bg-additive-medium);
       border-top: none;
     }
@@ -674,20 +674,20 @@ const headings = Astro.props.headings;
   }
 
   button {
-    background-color: transparent;
-    color: var(--text-body-heavy);
-    border-radius: 6px;
-    font-size: 14px;
-    cursor: pointer;
-    border: none;
-    outline: none;
-    padding: 6px 12px;
+    /* background-color: transparent; */
+    /* color: var(--text-body-heavy); */
+    /* border-radius: 6px; */
+    /* font-size: 14px; */
+    /* cursor: pointer; */
+    /* border: none; */
+    /* outline: none; */
+    /* padding: 6px 12px; */
     display: flex;
     flex-direction: row;
     align-items: center;
     gap: 6px;
     width: fit-content;
-    background-color: var(--bg-additive-light);
+    /* background-color: var(--bg-additive-light); */
 
     &:focus {
       outline: var(--bg-additive-medium) solid 2px;
