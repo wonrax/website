@@ -60,26 +60,23 @@ export default function GreatReadsFeed() {
       <ul className={styles["reading-list"]}>
         {items.map((item) => (
           <li className={styles["reading-entry"]} key={item.link}>
-            <div className={styles["reading-row"]}>
-              <a
-                href={item.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={styles["reading-title"]}
-              >
-                {item.title}
-              </a>
-              <hr className={styles["reading-divider"]} />
-              <span className={styles["reading-date"]}>
-                {item.pubDate
-                  ? new Date(item.pubDate).toLocaleDateString(undefined, {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })
-                  : ""}
-              </span>
-            </div>
+            <span className={styles["reading-date"]}>
+              {item.pubDate
+                ? new Date(item.pubDate).toLocaleDateString(undefined, {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })
+                : ""}
+            </span>
+            <a
+              href={item.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles["reading-title"]}
+            >
+              {item.title}
+            </a>
             {item.link && (
               <span className={styles["reading-source"]}>
                 <a
