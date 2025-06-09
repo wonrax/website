@@ -2,6 +2,7 @@
 
 import config from "@/config";
 import { useEffect, useState } from "react";
+import styles from "../pages/great-reads/GreatReadsFeed.module.scss";
 
 interface RSSItem {
   title?: string;
@@ -51,19 +52,36 @@ export default function GreatReadsFeed() {
   if (err) return <p>{err}</p>;
 
   return (
-    <div>
-      <h2>Great Reads</h2>
-      <ul>
+    <>
+      <p style={{ color: "var(--text-body-light)" }}>
+        A selection of interesting articles, papers, and resources curated by
+        me.
+      </p>
+      <ul className={styles["reading-list"]}>
         {items.map((item) => (
-          <li key={item.link}>
-            <a href={item.link} target="_blank" rel="noopener noreferrer">
-              {item.title}
-            </a>
-            <br />
-            <small>
-              {item.pubDate && new Date(item.pubDate).toLocaleDateString()}{" "}
-              &nbsp; | &nbsp;
-              {item.link && (
+          <li className={styles["reading-entry"]} key={item.link}>
+            <div className={styles["reading-row"]}>
+              <a
+                href={item.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles["reading-title"]}
+              >
+                {item.title}
+              </a>
+              <hr className={styles["reading-divider"]} />
+              <span className={styles["reading-date"]}>
+                {item.pubDate
+                  ? new Date(item.pubDate).toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })
+                  : ""}
+              </span>
+            </div>
+            {item.link && (
+              <span className={styles["reading-source"]}>
                 <a
                   href={getWebsiteUrl(item.link)}
                   target="_blank"
@@ -71,11 +89,11 @@ export default function GreatReadsFeed() {
                 >
                   {getWebsiteUrl(item.link)}
                 </a>
-              )}
-            </small>
+              </span>
+            )}
           </li>
         ))}
       </ul>
-    </div>
+    </>
   );
 }

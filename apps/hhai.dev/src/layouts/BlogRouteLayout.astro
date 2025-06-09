@@ -12,6 +12,7 @@ export type Props = RootLayoutProps;
       <div class="nav-bar-content">
         <a href="/" class="logo-name-text">Home</a>
         <a href="/blog" class="nav-bar-link-item">Blog</a>
+        <a href="/great-reads" class="nav-bar-link-item">Bookmarks</a>
       </div>
     </nav>
     <slot />
@@ -33,6 +34,7 @@ export type Props = RootLayoutProps;
     column-gap: 24px;
     row-gap: 0;
     margin: 0 12px;
+    margin-top: 32px;
     justify-content: center;
 
     /* Default starts at the center column */
@@ -52,6 +54,14 @@ export type Props = RootLayoutProps;
         )
         [reading-r] 16px [feature-sm-r] 1fr [end];
       column-gap: 0;
+    }
+
+    a {
+      text-decoration: underline;
+      color: var(--text-body-link);
+      &:visited {
+        color: var(--text-body-link-visited);
+      }
     }
   }
 

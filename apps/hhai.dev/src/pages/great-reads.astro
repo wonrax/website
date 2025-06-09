@@ -1,14 +1,16 @@
 ---
-import RootLayout from "../layouts/Layout.astro";
+import BlogRouteLayout from "../layouts/BlogRouteLayout.astro";
 import GreatReadsFeed from "../components/GreatReadsFeedReact";
-import "@/layouts/layout.scss";
+import "./great-reads/GreatReadsFeed.module.scss";
 ---
 
-<RootLayout
+<BlogRouteLayout
   seoProps={{
     title: "Great Reads",
     description: "A collection of great reads curated by me.",
   }}
 >
-  <GreatReadsFeed client:idle />
-</RootLayout>
+  <main class="blog-main">
+    <GreatReadsFeed client:idle />
+  </main>
+</BlogRouteLayout>

@@ -1,26 +1,5 @@
-.centered-layout {
-  max-width: 100%;
-  box-sizing: border-box;
-  width: 1004px;
-  margin: 0 auto;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  padding-top: 48px;
-  padding-bottom: 48px;
-
-  @media (max-width: 1100px) {
-    width: 100%;
-    padding: 32px 24px;
-  }
-}
-
-.reading-main {
-  margin: 0 auto;
-  max-width: 700px;
-  padding: 2rem 1rem;
-}
-
+/*
+.reading-main wrapper not used, let blog-main handle grid */
 .reading-list {
   list-style-type: decimal;
   padding-inline-start: 0;
@@ -28,11 +7,9 @@
 }
 
 .reading-entry {
-  background: var(--bg-additive-medium, #f8fafb);
-  border-radius: 8px;
-  margin-bottom: 20px;
-  padding: 1rem 1.2rem 0.8rem 1.2rem;
-  box-shadow: 0 1px 3px #0001;
+  /* No background, no box-shadow, no border-radius */
+  margin-bottom: 16px;
+  padding: 0.6rem 0 0.4rem 0;
   display: flex;
   flex-direction: column;
   gap: 0.3em;
@@ -47,10 +24,12 @@
 
 .reading-title {
   font-size: 16px;
-  font-weight: 600;
-  color: var(--link, #234f77);
+  color: var(--text-body-link, #234f77);
   text-decoration: none;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .reading-divider {
@@ -75,8 +54,6 @@
   padding-left: 2px;
 }
 .reading-source a {
-  color: var(--link, #0076d1);
+  color: var(--text-body-medium, #0076d1);
   text-decoration: underline dotted;
-  font-style: italic;
 }
-
