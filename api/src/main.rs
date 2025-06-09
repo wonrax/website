@@ -31,6 +31,7 @@ mod crypto;
 mod discord;
 mod error;
 mod github;
+mod great_reads_feed;
 mod identity;
 mod json;
 mod real_ip;
@@ -158,6 +159,7 @@ async fn main() {
         .nest("/blog", blog::routes::route())
         .nest("/public", github::routes::route())
         .nest("/", identity::routes::route())
+        .route("/great-reads-feed", get(great_reads_feed::proxy_rss))
         .layer(cors)
         .with_state(shared_state)
         .layer(
