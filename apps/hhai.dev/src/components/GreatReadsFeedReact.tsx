@@ -3,21 +3,10 @@
 import config from "@/config";
 import { useEffect, useState } from "react";
 import styles from "../pages/great-reads/GreatReadsFeed.module.scss";
+import { parseFeed, type RSSItem } from "../shared/parseRssFeed";
 
-interface RSSItem {
-  title?: string;
-  link?: string;
-  pubDate?: string;
-}
-
-function parseFeed(xml: string): RSSItem[] {
-  const doc = new window.DOMParser().parseFromString(xml, "text/xml");
-  const items = Array.from(doc.querySelectorAll("item"));
-  return items.map((item) => ({
-    title: item.querySelector("title")?.textContent ?? undefined,
-    link: item.querySelector("link")?.textContent ?? undefined,
-    pubDate: item.querySelector("pubDate")?.textContent ?? undefined,
-  }));
+interface Props {
+  initialItems?: RSSItem[];
 }
 
 function getWebsiteUrl(link: string | undefined) {
@@ -30,9 +19,9 @@ function getWebsiteUrl(link: string | undefined) {
   }
 }
 
-export default function GreatReadsFeed() {
-  const [items, setItems] = useState<RSSItem[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function GreatReadsFeed({ initialItems = [] }: Props) {
+  const [items, setItems] = useState<RSSItem[]>(initialItems);
+  const [loading, setLoading] = useState(initialItems.length === 0);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,14 +31,15 @@ export default function GreatReadsFeed() {
         setItems(parseFeed(xml));
         setLoading(false);
       })
-      .catch(() => {
+      .catch((e) => {
         setErr("Failed to load feed");
+        console.error("Failed to load great reads feed: ", e);
         setLoading(false);
       });
   }, []);
 
   if (loading) return <p>Loading…</p>;
-  if (err) return <p>{err}</p>;
+  if (err && !items) return <p>{err}</p>;
 
   return (
     <>

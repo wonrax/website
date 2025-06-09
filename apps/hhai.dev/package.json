@@ -1,7 +1,7 @@
 {
   "name": "hhai.dev",
   "type": "module",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "scripts": {
     "dev": "wireit",
@@ -42,6 +42,8 @@
     "zod": "^3.25.30"
   },
   "devDependencies": {
-    "@types/remarkable": "^2.0.8"
+    "@types/jsdom": "^21.1.7",
+    "@types/remarkable": "^2.0.8",
+    "jsdom": "^26.1.0"
   }
 }

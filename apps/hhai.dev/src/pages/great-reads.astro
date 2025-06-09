@@ -2,6 +2,26 @@
 import BlogRouteLayout from "../layouts/BlogRouteLayout.astro";
 import GreatReadsFeed from "../components/GreatReadsFeedReact";
 import "./great-reads/GreatReadsFeed.module.scss";
+import { JSDOM } from "jsdom";
+import type { RSSItem } from "@/shared/parseRssFeed";
+
+export function parseFeedServer(xml: string): RSSItem[] {
+  const doc = new JSDOM(xml, {
+    contentType: "text/xml",
+  }).window.document;
+
+  const items = Array.from(doc.querySelectorAll("item"));
+  return items.map((item) => ({
+    title: item.querySelector("title")?.textContent ?? undefined,
+    link: item.querySelector("link")?.textContent ?? undefined,
+    pubDate: item.querySelector("pubDate")?.textContent ?? undefined,
+  }));
+}
+
+const FEED_URL = "https://bg.raindrop.io/rss/public/55948413";
+const rssRes = await fetch(FEED_URL);
+const xml = await rssRes.text();
+const items = parseFeedServer(xml);
 ---
 
 <BlogRouteLayout
@@ -11,6 +31,6 @@ import "./great-reads/GreatReadsFeed.module.scss";
   }}
 >
   <main class="blog-main">
-    <GreatReadsFeed client:idle />
+    <GreatReadsFeed initialItems={items} client:idle />
   </main>
 </BlogRouteLayout>
