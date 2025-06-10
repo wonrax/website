@@ -59,8 +59,6 @@ const { slug } = Astro.params;
       {
         allPosts
           .filter((post) => {
-            console.log(post.frontmatter.tags);
-            console.log(slug);
             return (
               slug &&
               post.frontmatter.tags.includes(String(slug)) &&

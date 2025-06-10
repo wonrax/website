@@ -85,7 +85,13 @@ export default defineConfig({
       rehypeBlogPost,
     ],
   },
-  integrations: [mdx(), solid({ exclude: "**/*/*React.tsx" }), react()],
+  integrations: [
+    mdx(),
+    solid({ exclude: "**/*React.tsx" }),
+    react({
+      include: ["**/*React.tsx"],
+    }),
+  ],
   image: {
     service: sharpImageService(),
     domains: ["files.wrx.sh", "res.cloudinary.com"],
