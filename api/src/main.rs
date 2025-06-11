@@ -54,6 +54,7 @@ impl Deref for App {
 pub struct Inner {
     pool: Pool<Postgres>,
     counters_ttl_cache: retainer::Cache<String, bool>,
+    great_reads_cache: retainer::Cache<String, Vec<u8>>,
     config: ServerConfig,
     diesel: diesel_async::pooled_connection::deadpool::Pool<diesel_async::AsyncPgConnection>,
     http: reqwest::Client,
@@ -123,6 +124,7 @@ async fn main() {
     let shared_state = App(Arc::new(Inner {
         pool,
         counters_ttl_cache: retainer::Cache::new(),
+        great_reads_cache: retainer::Cache::new(),
         config: config.clone(),
         diesel: diesel_pool,
         http: http_client,
