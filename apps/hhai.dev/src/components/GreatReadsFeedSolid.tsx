@@ -108,6 +108,9 @@ export default function GreatReadsFeed(props: Props): JSXElement {
       setLoading(true);
     }
 
+    // Capture current articles length before async operation
+    const currentArticlesLength = articles().length;
+
     // Always try to fetch both highlights and RSS, then merge them
     Promise.all([
       fetch(`${config.API_URL}/great-reads-highlights`)
@@ -156,7 +159,7 @@ export default function GreatReadsFeed(props: Props): JSXElement {
       })
       .catch((e) => {
         // Only set error if we have no content to show
-        if (articles().length === 0) {
+        if (currentArticlesLength === 0) {
           setErr("Failed to load feed");
         }
         console.error("Failed to load great reads feed: ", e);
