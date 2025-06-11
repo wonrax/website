@@ -50,11 +50,7 @@ pub async fn get_highlights(State(app): State<App>) -> impl IntoResponse {
     let cache_key = "highlights";
 
     // Check if we have cached data
-    if let Some(cached_data) = app
-        .great_reads_cache
-        .get(&cache_key.to_string())
-        .await
-    {
+    if let Some(cached_data) = app.great_reads_cache.get(&cache_key.to_string()).await {
         return Json(
             serde_json::from_slice::<Vec<HighlightItem>>(&cached_data).unwrap_or_default(),
         )
@@ -144,7 +140,7 @@ pub async fn get_highlights(State(app): State<App>) -> impl IntoResponse {
         }
     }
 
-    let highlights: Vec<HighlightItem> = all_highlights
+    let mut highlights: Vec<HighlightItem> = all_highlights
         .into_iter()
         .map(|h| HighlightItem {
             id: h.id,
@@ -161,6 +157,11 @@ pub async fn get_highlights(State(app): State<App>) -> impl IntoResponse {
             tags: h.tags,
         })
         .collect();
+
+    highlights.sort_by(|a, b| {
+        // sort by oldest first
+        a.created_at.cmp(&b.created_at)
+    });
 
     // Cache the result
     if let Ok(serialized) = serde_json::to_vec(&highlights) {
