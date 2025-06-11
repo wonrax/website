@@ -47,9 +47,6 @@ export default function GreatReadsFeed(props: Props): JSXElement {
       }
       const article = grouped.get(key)!;
       article.highlights.push(highlight);
-      if (highlight.created_at > article.latestDate) {
-        article.latestDate = highlight.created_at;
-      }
     });
 
     return Array.from(grouped.values());
