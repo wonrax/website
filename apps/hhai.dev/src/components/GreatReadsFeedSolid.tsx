@@ -14,7 +14,6 @@ interface ArticleHighlights {
   link: string;
   title: string;
   highlights: HighlightItem[];
-  latestDate: string; // For sorting - either the latest highlight date or pubDate
 }
 
 interface MergedArticle {
@@ -42,7 +41,6 @@ export default function GreatReadsFeed(props: Props): JSXElement {
           link: highlight.link,
           title: highlight.title,
           highlights: [],
-          latestDate: highlight.created_at,
         });
       }
       const article = grouped.get(key)!;
@@ -79,7 +77,6 @@ export default function GreatReadsFeed(props: Props): JSXElement {
         articlesMap.set(article.link, {
           ...existingArticle,
           highlights: article.highlights,
-          date: article.latestDate, // Use highlight date as it's more recent
         });
       }
       // Skip highlights for articles not in RSS collection
