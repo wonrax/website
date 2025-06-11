@@ -219,6 +219,7 @@ export default function GreatReadsFeed(props: Props): JSXElement {
                         <div class={styles["highlight-content"]}>
                           <blockquote
                             class={styles["highlight-text"]}
+                            style={{ "white-space": "pre-line" }} // preserve line breaks
                             // style={{ "border-left-color": highlight.color }}
                           >
                             {highlight.text}
