@@ -160,6 +160,10 @@ async fn main() {
         .nest("/public", github::routes::route())
         .nest("/", identity::routes::route())
         .route("/great-reads-feed", get(great_reads_feed::proxy_rss))
+        .route(
+            "/great-reads-highlights",
+            get(great_reads_feed::get_highlights),
+        )
         .layer(cors)
         .with_state(shared_state)
         .layer(

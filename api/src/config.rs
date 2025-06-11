@@ -21,6 +21,7 @@ pub struct ServerConfig {
 
     pub discord_token: Option<String>,
     pub openai_api_key: Option<String>,
+    pub raindrop_api_token: Option<String>,
 }
 
 #[derive(Clone)]
@@ -134,6 +135,7 @@ impl ServerConfig {
             owner_identity_id: 1,
             discord_token: var("DISCORD_TOKEN").unwrap_or(None),
             openai_api_key: var("OPENAI_API_KEY").unwrap_or(None),
+            raindrop_api_token: var("RAINDROP_API_TOKEN").unwrap_or(None),
         }
     }
 }

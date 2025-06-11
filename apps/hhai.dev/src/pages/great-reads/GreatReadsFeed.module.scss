@@ -57,3 +57,50 @@
   color: var(--text-body-medium, #0076d1);
   text-decoration: underline dotted;
 }
+
+.highlights-container {
+  font-size: 14px;
+  margin: 12px 0 8px 0;
+  width: 100%;
+}
+
+.highlight-content {
+  margin: 8px 0;
+  width: 100%;
+}
+
+.highlight-text {
+  margin: 8px 0;
+  padding: 8px 16px;
+  border-left: 4px solid var(--bg-additive-light);
+  font-style: italic;
+  line-height: 1.5;
+  border-radius: 0 4px 4px 0;
+}
+
+.highlight-note {
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: var(--bg-additive-light);
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.highlight-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 4px 0;
+}
+
+.highlight-tag {
+  background: var(--text-body-light, #888);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
