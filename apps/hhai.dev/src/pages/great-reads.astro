@@ -1,9 +1,10 @@
 ---
 import BlogRouteLayout from "../layouts/BlogRouteLayout.astro";
-import GreatReadsFeed from "../components/GreatReadsFeedReact";
+import GreatReadsFeed from "../components/GreatReadsFeedSolid.tsx";
 import "./great-reads/GreatReadsFeed.module.scss";
 import { JSDOM } from "jsdom";
 import type { RSSItem } from "@/shared/parseRssFeed";
+import type { HighlightItem } from "@/shared/parseHighlights";
 
 export function parseFeedServer(xml: string): RSSItem[] {
   const doc = new JSDOM(xml, {
@@ -18,10 +19,20 @@ export function parseFeedServer(xml: string): RSSItem[] {
   }));
 }
 
-const FEED_URL = "https://bg.raindrop.io/rss/public/55948413";
-const rssRes = await fetch(FEED_URL);
-const xml = await rssRes.text();
-const items = parseFeedServer(xml);
+// Always fetch RSS feed server-side for initial page load
+let highlights: HighlightItem[] = [];
+let fallbackItems: RSSItem[] = [];
+
+try {
+  // Always fetch RSS feed for initial page load
+  const FEED_URL = "https://bg.raindrop.io/rss/public/55948413";
+  const rssRes = await fetch(FEED_URL);
+  const xml = await rssRes.text();
+  fallbackItems = parseFeedServer(xml);
+} catch (error) {
+  console.error("Failed to fetch RSS feed:", error);
+  fallbackItems = [];
+}
 ---
 
 <BlogRouteLayout
@@ -31,6 +42,10 @@ const items = parseFeedServer(xml);
   }}
 >
   <main class="blog-main">
-    <GreatReadsFeed initialItems={items} client:idle />
+    <GreatReadsFeed
+      initialItems={fallbackItems}
+      initialHighlights={highlights}
+      client:idle
+    />
   </main>
 </BlogRouteLayout>
