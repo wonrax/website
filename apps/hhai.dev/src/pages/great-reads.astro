@@ -5,6 +5,7 @@ import "./great-reads/GreatReadsFeed.module.scss";
 import { JSDOM } from "jsdom";
 import type { RSSItem } from "@/shared/parseRssFeed";
 import type { HighlightItem } from "@/shared/parseHighlights";
+import ToasterProvider from "@/components/ToasterProvider";
 
 export function parseFeedServer(xml: string): RSSItem[] {
   const doc = new JSDOM(xml, {
@@ -41,6 +42,7 @@ try {
     description: "A collection of great reads curated by me.",
   }}
 >
+  <ToasterProvider client:only="solid-js" />
   <main class="blog-main">
     <GreatReadsFeed
       initialItems={fallbackItems}

@@ -1,4 +1,5 @@
 import { createSignal, onMount, For, Show, type JSXElement } from "solid-js";
+import { toast } from "solid-sonner";
 import config from "@/config";
 import styles from "../pages/great-reads/GreatReadsFeed.module.scss";
 import { parseFeed, type RSSItem } from "../shared/parseRssFeed";
@@ -108,19 +109,24 @@ export default function GreatReadsFeed(props: Props): JSXElement {
     // Capture current articles length before async operation
     const currentArticlesLength = articles().length;
 
+    // Show fetching status with toast using a consistent ID
+    toast.loading("Fetching latest articles and highlights...", {
+      id: "great-reads-fetch",
+      duration: Infinity,
+    });
+
     // Always try to fetch both highlights and RSS, then merge them
     Promise.all([
-      fetch(`${config.API_URL}/great-reads-highlights`)
-        .then((resp) => {
-          if (!resp.ok) throw new Error("Highlights API failed");
-          return resp.json() as Promise<HighlightItem[]>;
-        })
-        .catch(() => initialHighlights), // Fallback to initial highlights on error
+      fetch(`${config.API_URL}/great-reads-highlights`).then((resp) => {
+        if (!resp.ok) throw new Error("Highlights API failed");
+        return resp.json() as Promise<HighlightItem[]>;
+      }), // Fallback to initial highlights on error
 
       fetch(`${config.API_URL}/great-reads-feed`)
         .then((resp) => resp.text())
-        .then((xml) => parseFeed(xml))
-        .catch(() => initialItems), // Fallback to initial RSS items on error
+        .then((xml) => parseFeed(xml)), // Fallback to initial RSS items on error
+      // artificially delay to simulate loading
+      new Promise((resolve) => setTimeout(resolve, 3000)),
     ])
       .then(([highlightsData, rssData]) => {
         const newArticles = mergeArticles(
@@ -153,11 +159,19 @@ export default function GreatReadsFeed(props: Props): JSXElement {
 
         setLoading(false);
         setErr(null); // Clear any previous errors on successful load
+        toast.dismiss("great-reads-fetch");
       })
       .catch((e) => {
-        // Only set error if we have no content to show
+        // Update the same toast to show error
         if (currentArticlesLength === 0) {
           setErr("Failed to load feed");
+          toast.error("Failed to load articles and highlights", {
+            id: "great-reads-fetch",
+          });
+        } else {
+          toast.error("Failed to refresh content, showing cached data", {
+            id: "great-reads-fetch",
+          });
         }
         console.error("Failed to load great reads feed: ", e);
         setLoading(false);
