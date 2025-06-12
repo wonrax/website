@@ -167,10 +167,14 @@ export default function GreatReadsFeed(props: Props): JSXElement {
           setErr("Failed to load feed");
           toast.error("Failed to load articles and highlights", {
             id: "great-reads-fetch",
+            closeButton: true,
+            duration: 5000,
           });
         } else {
           toast.error("Failed to refresh content, showing cached data", {
             id: "great-reads-fetch",
+            closeButton: true,
+            duration: 5000,
           });
         }
         console.error("Failed to load great reads feed: ", e);
