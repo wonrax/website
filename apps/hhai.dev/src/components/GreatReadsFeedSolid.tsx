@@ -125,8 +125,6 @@ export default function GreatReadsFeed(props: Props): JSXElement {
       fetch(`${config.API_URL}/great-reads-feed`)
         .then((resp) => resp.text())
         .then((xml) => parseFeed(xml)), // Fallback to initial RSS items on error
-      // artificially delay to simulate loading
-      new Promise((resolve) => setTimeout(resolve, 3000)),
     ])
       .then(([highlightsData, rssData]) => {
         const newArticles = mergeArticles(
