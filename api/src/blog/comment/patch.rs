@@ -4,16 +4,25 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use diesel::prelude::*;
+use diesel_async::RunQueryDsl;
 use serde::Deserialize;
-use sqlx::FromRow;
 
-use crate::{blog::comment::Comment, error::AppError, identity::AuthUser, real_ip::ClientIp, App};
+use crate::{
+    blog::comment::Comment,
+    blog::models::UpdateBlogComment,
+    error::AppError,
+    identity::AuthUser,
+    real_ip::ClientIp,
+    schema::{blog_comments, identities},
+    App,
+};
 
 #[debug_handler]
 pub async fn patch_comment(
     State(ctx): State<App>,
     Path((_slug, id)): Path<(String, i32)>,
-    ClientIp(ip): ClientIp,
+    ClientIp(_ip): ClientIp,
     AuthUser(auth_user): AuthUser,
     crate::json::Json(mut comment): crate::json::Json<CommentPatch>,
 ) -> Result<Json<Comment>, AppError> {
@@ -30,56 +39,76 @@ pub async fn patch_comment(
         ))?;
     }
 
-    let is_owner = sqlx::query!(
-        "
-        SELECT EXISTS (
-            SELECT 1 FROM blog_comments WHERE id = $1 AND identity_id = $2
-        ) AS is_owner;
-        ",
-        id,
-        auth_user.id
-    )
-    .fetch_one(&ctx.pool)
-    .await?
-    .is_owner
-    .unwrap_or(false);
+    let mut conn = ctx.diesel.get().await?;
 
-    if !is_owner {
+    let is_owner = blog_comments::table
+        .filter(blog_comments::id.eq(id))
+        .filter(blog_comments::identity_id.eq(auth_user.id))
+        .select(blog_comments::id)
+        .first::<i32>(&mut conn)
+        .await
+        .optional()?;
+
+    if is_owner.is_none() {
         return Err((
             "You are not the owner of this comment",
             StatusCode::FORBIDDEN,
         ))?;
     }
 
-    let mut resulting_comment = sqlx::query!(
-        "
-        UPDATE blog_comments SET (author_ip, content) = ($1, $2)
-        WHERE id = $3
-        RETURNING *;
-        ",
-        ip.to_string(),
-        comment.content,
-        id
-    )
-    .fetch_one(&ctx.pool)
-    .await?;
+    let update_comment = UpdateBlogComment {
+        content: Some(comment.content.clone()),
+    };
 
-    if resulting_comment.author_name.is_none() {
-        resulting_comment.author_name = auth_user.traits.name;
+    let updated_comment = diesel::update(blog_comments::table.filter(blog_comments::id.eq(id)))
+        .set(&update_comment)
+        .returning((
+            blog_comments::id,
+            blog_comments::author_name,
+            blog_comments::identity_id,
+            blog_comments::content,
+            blog_comments::parent_id,
+            blog_comments::created_at,
+        ))
+        .get_result::<(
+            i32,
+            Option<String>,
+            Option<i32>,
+            String,
+            Option<i32>,
+            chrono::NaiveDateTime,
+        )>(&mut conn)
+        .await?;
+
+    let mut author_name = updated_comment.1.clone();
+
+    if author_name.is_none() && updated_comment.2.is_some() {
+        let identity_traits = identities::table
+            .filter(identities::id.eq(updated_comment.2.unwrap()))
+            .select(identities::traits)
+            .first::<serde_json::Value>(&mut conn)
+            .await
+            .optional()?;
+
+        if let Some(traits) = identity_traits {
+            let traits: crate::identity::models::identity::Traits =
+                serde_json::from_value(traits).map_err(|_| "Invalid traits")?;
+            author_name = traits.name;
+        }
     }
 
     Ok(Json(Comment {
-        id: resulting_comment.id,
-        author_name: resulting_comment.author_name.ok_or("missing author_name")?,
-        content: resulting_comment.content,
-        parent_id: resulting_comment.parent_id,
-        created_at: resulting_comment.created_at,
+        id: updated_comment.0,
+        author_name: author_name.unwrap_or_else(|| "Anonymous".to_string()),
+        content: updated_comment.3,
+        parent_id: updated_comment.4,
+        created_at: updated_comment.5,
         votes: 0,
         depth: -1,
     }))
 }
 
-#[derive(Deserialize, FromRow)]
+#[derive(Deserialize)]
 pub struct CommentPatch {
     content: String,
 }

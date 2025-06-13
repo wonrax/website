@@ -10,6 +10,8 @@ use axum::{
     routing::get,
     Router,
 };
+use diesel::prelude::*;
+use diesel_async::RunQueryDsl;
 
 use crate::{
     utils::{readable_uint, render_template},
@@ -43,7 +45,7 @@ async fn handle_fetch_git_hub_profile_views(
 
     let cache = &ctx.counters_ttl_cache;
 
-    let mut row: Result<(i64,), sqlx::Error>;
+    let mut count_result: Result<i64, diesel::result::Error>;
 
     // Since we put the badge on GitHub readme, we only allow the badge to be fetched from GitHub
     // and not from direct API calls.
@@ -59,42 +61,48 @@ async fn handle_fetch_git_hub_profile_views(
         cache
             .insert(_ip.clone(), true, Duration::from_secs(1))
             .await;
-        row = sqlx::query_as(
-            "
-            UPDATE counters SET count = count + 1
-            WHERE key = 'github-profile-views' AND name = 'wonrax'
-            RETURNING count;
-        ",
-        )
-        .fetch_one(&ctx.pool)
-        .await;
+
+        use crate::schema::counters;
+        let mut conn = ctx.diesel.get().await.unwrap();
+
+        count_result = diesel::update(counters::table)
+            .filter(counters::key.eq("github-profile-views"))
+            .filter(counters::name.eq("wonrax"))
+            .set(counters::count.eq(counters::count + 1))
+            .returning(counters::count)
+            .get_result(&mut conn)
+            .await;
     } else {
-        row = sqlx::query_as(
-            "
-            SELECT count FROM counters
-            WHERE key = 'github-profile-views' AND name = 'wonrax';
-        ",
-        )
-        .fetch_one(&ctx.pool)
-        .await;
+        use crate::schema::counters;
+        let mut conn = ctx.diesel.get().await.unwrap();
+
+        count_result = counters::table
+            .filter(counters::key.eq("github-profile-views"))
+            .filter(counters::name.eq("wonrax"))
+            .select(counters::count)
+            .first(&mut conn)
+            .await;
     }
 
-    if let Err(_) = row {
-        let _ = sqlx::query(
-            "
-            INSERT INTO counters (key, name, count)
-            VALUES ('github-profile-views', 'wonrax', 1);
-        ",
-        )
-        .execute(&ctx.pool)
-        .await;
+    if count_result.is_err() {
+        use crate::schema::counters;
+        let mut conn = ctx.diesel.get().await.unwrap();
 
-        row = Ok((1,))
+        let _ = diesel::insert_into(counters::table)
+            .values((
+                counters::key.eq("github-profile-views"),
+                counters::name.eq("wonrax"),
+                counters::count.eq(1i64),
+            ))
+            .execute(&mut conn)
+            .await;
+
+        count_result = Ok(1);
     }
 
-    match row {
-        Ok(row) => {
-            let readable_views = readable_uint(row.0.to_string());
+    match count_result {
+        Ok(count) => {
+            let readable_views = readable_uint(count.to_string());
             let int_length = readable_views.len();
             let width = 16 + (int_length * 6);
             let total_width = width + 81;

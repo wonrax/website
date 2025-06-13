@@ -67,8 +67,8 @@ impl std::fmt::Display for Inner {
     }
 }
 
-impl From<sqlx::Error> for AppError {
-    fn from(e: sqlx::Error) -> Self {
+impl From<diesel::result::Error> for AppError {
+    fn from(e: diesel::result::Error) -> Self {
         AppError {
             error: Inner::ServerError(eyre!(e)),
             reason: None,
@@ -109,6 +109,7 @@ pub trait ApiRequestError: std::fmt::Display {
         ErrorResponse::new(&self.to_string())
     }
 
+    #[allow(clippy::wrong_self_convention)]
     fn into_response(&self) -> axum::response::Response {
         let error = self.error();
         let status_code = self.status_code();
@@ -184,11 +185,13 @@ impl ErrorResponseBuilder {
         self
     }
 
+    #[allow(dead_code)]
     fn with_reason(mut self, reason: &str) -> Self {
         self.reason = Some(reason.into());
         self
     }
 
+    #[allow(dead_code)]
     fn with_debug_info(mut self, debug_info: HashMap<&'static str, Value>) -> Self {
         self.debug_info = Some(debug_info);
         self
@@ -199,6 +202,7 @@ impl ErrorResponseBuilder {
         self
     }
 
+    #[allow(dead_code)]
     fn with_context(mut self, context: HashMap<String, serde_json::Value>) -> Self {
         self.context = Some(context);
         self
@@ -357,6 +361,17 @@ impl From<reqwest::Error> for AppError {
     }
 }
 
+impl From<diesel_async::pooled_connection::deadpool::PoolError> for AppError {
+    fn from(e: diesel_async::pooled_connection::deadpool::PoolError) -> Self {
+        AppError {
+            error: Inner::ServerError(eyre!(e)),
+            reason: None,
+            backtrace: Some(create_backtrace()),
+            context: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct BacktraceFrame {
     name: String,
@@ -375,7 +390,7 @@ pub struct Backtrace(Vec<BacktraceFrame>);
 impl std::fmt::Display for Backtrace {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for frame in self.0.iter() {
-            write!(f, "{}\n", frame)?;
+            writeln!(f, "{}", frame)?;
         }
         Ok(())
     }

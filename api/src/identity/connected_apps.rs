@@ -7,6 +7,7 @@ use serde::Serialize;
 #[derive(Queryable, Selectable)]
 #[diesel(table_name = crate::schema::identity_credentials)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
+#[allow(dead_code)]
 pub struct IdentityCredentials {
     id: i32,
     credential: Option<serde_json::Value>,
@@ -19,6 +20,7 @@ pub struct IdentityCredentials {
 #[derive(Queryable, Selectable)]
 #[diesel(table_name = crate::schema::identity_credential_types)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
+#[allow(dead_code)]
 struct IdentityCredentialTypes {
     id: i32,
     name: String,
@@ -95,7 +97,7 @@ pub async fn get_connected_apps(
                 c.as_object()
                     .unwrap()
                     .get("provider")
-                    .map_or(false, |p| p == "github")
+                    .is_some_and(|p| p == "github")
             } else {
                 false
             }
@@ -115,7 +117,7 @@ pub async fn get_connected_apps(
                 c.as_object()
                     .unwrap()
                     .get("provider")
-                    .map_or(false, |p| p == "spotify")
+                    .is_some_and(|p| p == "spotify")
             } else {
                 false
             }

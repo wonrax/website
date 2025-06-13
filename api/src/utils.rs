@@ -18,5 +18,5 @@ pub fn readable_uint(int_str: String) -> String {
         }
         s.insert(0, char);
     }
-    return s;
+    s
 }

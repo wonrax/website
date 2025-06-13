@@ -1,5 +1,7 @@
+use diesel::prelude::*;
 use serde_json::Value as JsonValue;
 
+#[allow(dead_code)]
 pub enum IdentityState {
     Active,
     Inactive,
@@ -7,6 +9,7 @@ pub enum IdentityState {
 }
 
 impl IdentityState {
+    #[allow(dead_code)]
     pub fn as_str(&self) -> &'static str {
         match self {
             IdentityState::Active => "active",
@@ -16,28 +19,36 @@ impl IdentityState {
     }
 }
 
-#[derive(Debug)]
+#[derive(Queryable, Selectable, Insertable, AsChangeset, Debug)]
+#[diesel(table_name = crate::schema::identities)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Identity {
     pub id: i32,
-    pub traits: Traits,
+    pub traits: JsonValue,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
+}
 
-    // Optional means will be expanded (filled) when needed (e.g. from database)
-    // pub credentials: Option<HashMap<CredentialType, IdentityCredential>>,
+#[derive(Insertable, Debug)]
+#[diesel(table_name = crate::schema::identities)]
+pub struct NewIdentity {
+    pub traits: JsonValue,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
 }
 
 impl Identity {
-    pub fn new_with_traits(traits: Traits) -> Self {
+    pub fn new_with_traits(traits: Traits) -> NewIdentity {
         let now = chrono::Utc::now().naive_utc();
-
-        Identity {
-            id: 0,
-            traits,
-            // credentials: None,
+        NewIdentity {
+            traits: JsonValue::from(&traits),
             created_at: now,
             updated_at: now,
         }
+    }
+
+    pub fn get_traits(&self) -> Traits {
+        Traits::from(self.traits.clone())
     }
 
     // pub fn with_credentials(

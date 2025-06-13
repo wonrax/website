@@ -9,24 +9,25 @@ use axum::{
     Json, Router,
 };
 use axum_extra::extract::CookieJar;
-use eyre::eyre;
+use diesel::prelude::*;
+use diesel_async::RunQueryDsl;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use time::Duration;
 
 use crate::{
     config::GitHubOauth,
-    error::{ApiRequestError, AppError, Error},
+    error::{ApiRequestError, AppError},
+    identity::models::{
+        credential::{IdentityCredential, NewIdentityCredential},
+        identity::{Identity, NewIdentity, Traits},
+        session::{NewSession, Session},
+    },
     App,
 };
 
 use super::{
     connected_apps::get_connected_apps,
-    models::{
-        credential::IdentityCredential,
-        identity::{Identity, Traits},
-        session::Session,
-    },
     spotify::{get_currently_playing, handle_spotify_callback, handle_spotify_connect_request},
     AuthenticationError, MaybeAuthUser, COOKIE_NAME,
 };
@@ -80,7 +81,10 @@ async fn is_auth(
     Ok(Json(IsAuth {
         is_auth: identity.is_ok(),
         id: identity.as_ref().ok().map(|i| i.id),
-        traits: identity.as_ref().ok().map(|i| i.traits.to_owned()),
+        traits: identity
+            .as_ref()
+            .ok()
+            .map(|i| Traits::from(i.traits.clone())),
         site_owner: identity
             .as_ref()
             .ok()
@@ -93,7 +97,7 @@ async fn handle_whoami(
     MaybeAuthUser(identity): MaybeAuthUser,
 ) -> Result<axum::Json<WhoamiRespose>, AppError> {
     Ok(axum::Json(WhoamiRespose {
-        traits: identity?.traits,
+        traits: Traits::from(identity?.traits),
     }))
 }
 
@@ -206,103 +210,88 @@ pub async fn handle_github_oauth_callback(
         email: Some(email.to_owned()),
     });
 
-    let mut identity = sqlx::query_as!(
-        Identity,
-        "
-        SELECT i.*
-        FROM identities i JOIN identity_credentials ic
-        ON i.id = ic.identity_id
-        WHERE ic.credential @> $1
-        ",
-        json!({
-            "provider": "github",
-            "user_id": user_id
-        })
-    )
-    .fetch_one(&ctx.pool)
-    .await
-    .ok();
+    let mut identity = {
+        use crate::schema::{identities, identity_credentials};
+
+        let mut conn = ctx.diesel.get().await?;
+
+        identities::table
+            .inner_join(identity_credentials::table)
+            .filter(identity_credentials::credential.contains(json!({
+                "provider": "github",
+                "user_id": user_id
+            })))
+            .select(identities::all_columns)
+            .first::<Identity>(&mut conn)
+            .await
+            .ok()
+    };
 
     if identity.is_none() {
-        let mut tx = ctx.pool.begin().await?;
-        let i = sqlx::query_as!(
-            Identity,
-            "INSERT INTO identities (
-			traits,
-			created_at,
-			updated_at
-		)
-		VALUES ($1, $2, $3)
-        RETURNING *;",
-            serde_json::Value::from(&i.traits),
-            i.created_at,
-            i.updated_at,
-        )
-        .fetch_one(&mut *tx)
-        .await?;
+        use crate::schema::{identities, identity_credential_types, identity_credentials};
+
+        let mut conn = ctx.diesel.get().await?;
+
+        let new_identity = NewIdentity {
+            traits: i.traits.clone(),
+            created_at: i.created_at,
+            updated_at: i.updated_at,
+        };
+
+        let inserted_identity: Identity = diesel::insert_into(identities::table)
+            .values(&new_identity)
+            .get_result(&mut conn)
+            .await?;
 
         let credential = IdentityCredential::new_oauth_credential(serde_json::json!({
             "user_id": user_id,
             "provider": "github",
         }));
 
-        // TODO have a credential types cache since it's not going to change
-        sqlx::query!(
-            "INSERT INTO identity_credentials (
-            credential,
-            credential_type_id,
-            identity_id,
-            created_at,
-            updated_at
-        )
-        VALUES (
-            $1,
-            (SELECT id FROM identity_credential_types WHERE name = $2),
-            $3,
-            $4,
-            $5
-        );
-        ",
-            &credential.credential,
-            Into::<&str>::into(credential.credential_type),
-            i.id,
-            credential.created_at,
-            credential.updated_at,
-        )
-        .execute(&mut *tx)
-        .await?;
+        let new_credential = NewIdentityCredential {
+            credential: credential.credential,
+            credential_type_id: identity_credential_types::table
+                .filter(identity_credential_types::name.eq("oauth"))
+                .select(identity_credential_types::id)
+                .first::<i32>(&mut conn)
+                .await?,
+            identity_id: inserted_identity.id,
+            created_at: credential.created_at,
+            updated_at: credential.updated_at,
+        };
 
-        tx.commit().await?;
+        diesel::insert_into(identity_credentials::table)
+            .values(&new_credential)
+            .execute(&mut conn)
+            .await?;
 
-        identity = Some(i);
+        identity = Some(inserted_identity);
     }
 
     let identity = identity.unwrap();
 
-    let session = Session::new_with_identity_id(identity.id.clone());
+    let session = Session::new_with_identity_id(identity.id);
 
-    sqlx::query!(
-        "
-        INSERT INTO sessions (
-            token,
-            active,
-            issued_at,
-            expires_at,
-            identity_id,
-            created_at,
-            updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7);",
-        session.token,
-        session.active,
-        session.issued_at,
-        session.expires_at,
-        session.identity_id,
-        session.created_at,
-        session.updated_at,
-    )
-    .execute(&ctx.pool)
-    .await?;
+    {
+        use crate::schema::sessions;
+
+        let mut conn = ctx.diesel.get().await?;
+
+        let new_session = NewSession {
+            token: session.token.clone(),
+            active: session.active,
+            issued_at: session.issued_at,
+            expires_at: session.expires_at,
+            identity_id: session.identity_id,
+            created_at: session.created_at,
+            updated_at: session.updated_at,
+        };
+
+        diesel::insert_into(sessions::table)
+            .values(&new_session)
+            .execute(&mut conn)
+            .await?;
+    }
 
     let auth_cookie = axum_extra::extract::cookie::Cookie::build((COOKIE_NAME, session.token))
         .secure(true)

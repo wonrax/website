@@ -51,6 +51,7 @@ fn var(key: &str) -> Result<Option<String>, String> {
     }
 }
 
+#[allow(dead_code)]
 fn required_var(key: &str) -> String {
     let val = var(key);
     match val {
