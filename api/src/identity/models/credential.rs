@@ -1,23 +1,34 @@
+use diesel::prelude::*;
+
+#[derive(Queryable, Selectable, Insertable, AsChangeset, Debug)]
+#[diesel(table_name = crate::schema::identity_credentials)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct IdentityCredential {
     pub id: i32,
+    pub credential: Option<serde_json::Value>,
+    pub credential_type_id: i32,
+    pub identity_id: i32,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
+}
 
-    // Credential contains data that can be used to authenticate (e.g. password
-    // hash if the credential type is password).
-    pub credential: serde_json::value::Value,
-    pub credential_type: CredentialType,
-
+#[derive(Insertable, Debug)]
+#[diesel(table_name = crate::schema::identity_credentials)]
+pub struct NewIdentityCredential {
+    pub credential: Option<serde_json::Value>,
+    pub credential_type_id: i32,
+    pub identity_id: i32,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
 }
 
 impl IdentityCredential {
-    pub fn new_oauth_credential(oauth_credential: serde_json::Value) -> Self {
+    pub fn new_oauth_credential(oauth_credential: serde_json::Value) -> NewIdentityCredential {
         let now = chrono::Utc::now().naive_utc();
-
-        IdentityCredential {
-            id: 0,
-            credential: oauth_credential,
-            credential_type: CredentialType::OAuth,
+        NewIdentityCredential {
+            credential: Some(oauth_credential),
+            credential_type_id: 1, // OAuth type ID from database
+            identity_id: 0,        // This will be set when inserting
             created_at: now,
             updated_at: now,
         }
@@ -48,4 +59,14 @@ impl<'de> serde::Deserialize<'de> for CredentialType {
             _ => Err(serde::de::Error::custom("invalid credential type")),
         }
     }
+}
+
+#[derive(Queryable, Selectable, Debug)]
+#[diesel(table_name = crate::schema::identity_credential_types)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+#[allow(dead_code)]
+pub struct IdentityCredentialType {
+    pub id: i32,
+    pub name: String,
+    pub created_at: chrono::NaiveDateTime,
 }

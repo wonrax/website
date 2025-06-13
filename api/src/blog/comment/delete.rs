@@ -3,8 +3,10 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
+use diesel::prelude::*;
+use diesel_async::RunQueryDsl;
 
-use crate::{error::AppError, identity::AuthUser, App};
+use crate::{error::AppError, identity::AuthUser, schema::blog_comments, App};
 
 #[debug_handler]
 pub async fn delete_comment(
@@ -12,36 +14,26 @@ pub async fn delete_comment(
     Path((_slug, id)): Path<(String, i32)>,
     AuthUser(auth_user): AuthUser,
 ) -> Result<(), AppError> {
-    let is_owner = sqlx::query!(
-        "
-        SELECT EXISTS (
-            SELECT 1 FROM blog_comments WHERE id = $1 AND identity_id = $2
-        ) AS is_owner;
-        ",
-        id,
-        auth_user.id
-    )
-    .fetch_one(&ctx.pool)
-    .await?
-    .is_owner
-    .unwrap_or(false);
+    let mut conn = ctx.diesel.get().await?;
 
-    if !is_owner {
+    let is_owner = blog_comments::table
+        .filter(blog_comments::id.eq(id))
+        .filter(blog_comments::identity_id.eq(auth_user.id))
+        .select(blog_comments::id)
+        .first::<i32>(&mut conn)
+        .await
+        .optional()?;
+
+    if is_owner.is_none() {
         return Err((
             "You are not the owner of this comment",
             StatusCode::FORBIDDEN,
         ))?;
     }
 
-    sqlx::query!(
-        "
-        DELETE FROM blog_comments
-        WHERE id = $1;
-        ",
-        id
-    )
-    .execute(&ctx.pool)
-    .await?;
+    diesel::delete(blog_comments::table.filter(blog_comments::id.eq(id)))
+        .execute(&mut conn)
+        .await?;
 
     Ok(())
 }

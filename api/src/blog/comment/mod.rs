@@ -3,38 +3,33 @@ pub mod delete;
 pub mod get;
 pub mod patch;
 
-use std::{cell::RefCell, rc::Rc};
+use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 
 // The model that maps to the database table
-#[derive(FromRow, Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Comment {
-    id: i32,
-    author_name: String,
-    content: String,
-    parent_id: Option<i32>,
-    created_at: chrono::NaiveDateTime,
-    votes: i64,
-    depth: i32,
+    pub id: i32,
+    pub author_name: String,
+    pub content: String,
+    pub parent_id: Option<i32>,
+    pub created_at: chrono::NaiveDateTime,
+    pub votes: i64,
+    pub depth: i64,
 }
 
 // The model that will be returned to the client
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CommentTree {
-    id: i32,
-    author_name: String,
-    content: String,
-    parent_id: Option<i32>,
-    created_at: chrono::NaiveDateTime,
-    children: Option<Vec<Rc<RefCell<CommentTree>>>>,
-    upvote: i64,
-    depth: usize,
-
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
-    is_comment_owner: bool,
-
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
-    is_blog_author: bool,
+    pub id: i32,
+    pub author_name: String,
+    pub content: String,
+    pub parent_id: Option<i32>,
+    pub created_at: chrono::NaiveDateTime,
+    pub children: Option<Vec<CommentTree>>,
+    pub upvote: i64,
+    pub depth: usize,
+    pub is_comment_owner: bool,
+    pub is_blog_author: bool,
 }

@@ -10,7 +10,8 @@
     "build": "turbo run build",
     "dev": "wireit",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "lint": "turbo run lint"
+    "lint": "turbo run lint",
+    "prisma:push": "npx prisma db push --schema api/schema.prisma"
   },
   "wireit": {
     "dev": {

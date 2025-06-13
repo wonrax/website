@@ -27,8 +27,10 @@ const MESSAGE_CONTEXT_SIZE: usize = 30;
 const LAYER1_MODEL: &str = "gpt-4.1-mini";
 const LAYER2_MODEL: &str = "o4-mini";
 const LAYER1_TEMPERATURE: f32 = 0.3;
+#[allow(dead_code)]
 const LAYER2_TEMPERATURE: f32 = 0.75;
 const LAYER1_MAX_TOKENS: u16 = 300;
+#[allow(dead_code)]
 const LAYER2_MAX_TOKENS: u16 = 4096;
 const RESPONSE_THRESHOLD: i32 = 8;
 const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
@@ -271,7 +273,7 @@ async fn build_history_messages(
             if attachment
                 .content_type
                 .as_ref()
-                .map_or(false, |ct| ct.starts_with("image/"))
+                .is_some_and(|ct| ct.starts_with("image/"))
             {
                 if !current_text.is_empty() {
                     content_parts.push(ChatCompletionRequestUserMessageContentPart::Text(
@@ -649,7 +651,7 @@ impl EventHandler for Handler {
             return;
         }
 
-        let chan_id = msg.channel_id.clone();
+        let chan_id = msg.channel_id;
 
         if let Err(why) = handle_message(&self.openai_client, ctx.clone(), msg).await {
             tracing::error!(error = ?why, "Error handling Discord message");
@@ -657,7 +659,7 @@ impl EventHandler for Handler {
             if !self.error_acked.load(std::sync::atomic::Ordering::Relaxed) {
                 self.error_acked
                     .store(true, std::sync::atomic::Ordering::Relaxed);
-                chan_id
+                let _ = chan_id
                     .send_message(
                         &ctx.http,
                         CreateMessage::new().content(format!(

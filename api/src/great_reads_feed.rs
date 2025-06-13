@@ -8,6 +8,7 @@ use std::time::Duration;
 const CACHE_DURATION: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct RaindropHighlight {
     #[serde(rename = "_id")]
     id: String,

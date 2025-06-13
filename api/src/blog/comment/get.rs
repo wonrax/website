@@ -1,11 +1,13 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     Json,
 };
 use chrono::NaiveDateTime;
+use diesel::prelude::*;
+use diesel::sql_types::*;
+use diesel_async::RunQueryDsl;
 use serde::Deserialize;
 
 use crate::{error::AppError, identity::MaybeAuthUser, App};
@@ -38,6 +40,26 @@ impl<'de> Deserialize<'de> for SortType {
     }
 }
 
+#[derive(QueryableByName, Debug)]
+struct CommentQueryResult {
+    #[diesel(sql_type = Nullable<Integer>)]
+    id: Option<i32>,
+    #[diesel(sql_type = Nullable<Integer>)]
+    identity_id: Option<i32>,
+    #[diesel(sql_type = Nullable<Text>)]
+    author_name: Option<String>,
+    #[diesel(sql_type = Nullable<Text>)]
+    content: Option<String>,
+    #[diesel(sql_type = Nullable<Integer>)]
+    parent_id: Option<i32>,
+    #[diesel(sql_type = Nullable<Timestamp>)]
+    created_at: Option<NaiveDateTime>,
+    #[diesel(sql_type = Nullable<BigInt>)]
+    votes: Option<i64>,
+    #[diesel(sql_type = Nullable<Integer>)]
+    depth: Option<i32>,
+}
+
 pub async fn get_comments(
     State(ctx): State<App>,
     Path(slug): Path<String>,
@@ -46,62 +68,63 @@ pub async fn get_comments(
 ) -> Result<Json<Vec<CommentTree>>, AppError> {
     let sort = q.sort.as_ref().unwrap_or(&SortType::Best);
 
-    struct Query {
-        id: Option<i32>,
-        identity_id: Option<i32>,
-        author_name: Option<String>,
-        content: Option<String>,
-        parent_id: Option<i32>,
-        created_at: Option<NaiveDateTime>,
-        votes: Option<i64>,
-        depth: Option<i32>,
-    }
+    let mut conn = ctx.diesel.get().await?;
 
-    let rows;
-    match sort {
-        SortType::Best => {
-            // TODO sort by a separate metrics called ranking_score which
-            // down-weights the down-votes (e.g. 0.9) so that the comments with
-            // equal up and down-votes appear above the comments with no votes.
-            let q = sqlx::query_as!(
-                Query,
-                "
-                ----------------------------------------------------------------
-                -- First we get the root comments by sorting by upvote and
-                -- created_at
-                ----------------------------------------------------------------
-                WITH RECURSIVE root_comments AS (
-                    SELECT
-                        NULL::integer as parent_id,
-                        comments.id,
-                        comments.author_name,
-                        comments.identity_id,
-                        comments.content,
-                        0 depth,
-                        comments.created_at,
-                        SUM(CASE WHEN votes.score IS NOT NULL
-                            THEN votes.score ELSE 0 END) votes
-                    FROM blog_comments as comments
-                    LEFT JOIN blog_comment_votes votes
-                    ON comments.id = votes.comment_id
-                    WHERE comments.post_id = (
-                        SELECT id FROM blog_posts
-                        WHERE category = 'blog' AND slug = $1
-                    )
-                    AND comments.parent_id IS NULL
-                    GROUP BY
-                        comments.id,
-                        comments.author_name,
-                        comments.identity_id,
-                        comments.content,
-                        depth,
-                        comments.created_at
-                    ORDER BY votes DESC, comments.created_at
-                    LIMIT $2 OFFSET $3
-                ----------------------------------------------------------------
-                -- Then we recursively get the children comments of those roots
-                ----------------------------------------------------------------
-                ), t(
+    // Determine the ORDER BY clause based on sort type
+    let order_by_clause = match sort {
+        SortType::Best => "ORDER BY votes DESC, comments.created_at",
+        SortType::New => "ORDER BY comments.created_at DESC",
+    };
+
+    // Single SQL template with dynamic ORDER BY
+    let sql = format!(
+        "
+        ----------------------------------------------------------------
+        -- First we get the root comments by sorting based on type
+        ----------------------------------------------------------------
+        WITH RECURSIVE root_comments AS (
+            SELECT
+                NULL::integer as parent_id,
+                comments.id,
+                comments.author_name,
+                comments.identity_id,
+                comments.content,
+                0 depth,
+                comments.created_at,
+                SUM(CASE WHEN votes.score IS NOT NULL
+                    THEN votes.score ELSE 0 END) votes
+            FROM blog_comments as comments
+            LEFT JOIN blog_comment_votes votes
+            ON comments.id = votes.comment_id
+            WHERE comments.post_id = (
+                SELECT id FROM blog_posts
+                WHERE category = 'blog' AND slug = $1
+            )
+            AND comments.parent_id IS NULL
+            GROUP BY
+                comments.id,
+                comments.author_name,
+                comments.identity_id,
+                comments.content,
+                depth,
+                comments.created_at
+            {}
+            LIMIT $2 OFFSET $3
+        ----------------------------------------------------------------
+        -- Then we recursively get the children comments of those roots
+        ----------------------------------------------------------------
+        ), t(
+            parent_id,
+            id,
+            author_name,
+            identity_id,
+            content,
+            depth,
+            created_at
+        )
+        AS (
+            (
+                SELECT
                     parent_id,
                     id,
                     author_name,
@@ -109,182 +132,57 @@ pub async fn get_comments(
                     content,
                     depth,
                     created_at
-                    )
-                AS (
-                    (
-                        SELECT
-                            parent_id,
-                            id,
-                            author_name,
-                            identity_id,
-                            content,
-                            depth,
-                            created_at
-                        FROM root_comments
-                    )
-                    UNION ALL
-                    SELECT
-                        comments.parent_id,
-                        comments.id,
-                        comments.author_name,
-                        comments.identity_id,
-                        comments.content,
-                        t.depth + 1,
-                        comments.created_at
-                    FROM t
-                        JOIN blog_comments as comments
-                        ON (comments.parent_id = t.id)
-                )
-                ----------------------------------------------------------------
-                -- Finally we get the vote count for each comment because
-                -- we can't do it in the recursive query
-                ----------------------------------------------------------------
-                SELECT
-                    t.parent_id,
-                    t.id,
-                    COALESCE(t.author_name, i.traits->>'name') as author_name,
-                    t.identity_id,
-                    t.content,
-                    t.depth,
-                    t.created_at,
-                    SUM(CASE WHEN votes.score IS NOT NULL
-                        THEN votes.score ELSE 0 END) votes
-                FROM t LEFT JOIN blog_comment_votes votes
-                ON t.id = votes.comment_id
-                LEFT JOIN identities i
-                ON t.identity_id IS NOT NULL AND t.identity_id = i.id
-                GROUP BY
-                    t.parent_id,
-                    t.id,
-                    COALESCE(t.author_name, i.traits->>'name'),
-                    t.identity_id,
-                    t.content,
-                    t.depth,
-                    t.created_at;
-                ",
-                slug,
-                q.page_size as i64,
-                q.page_offset as i64,
+                FROM root_comments
             )
-            .fetch_all(&ctx.pool)
-            .await;
+            UNION ALL
+            SELECT
+                comments.parent_id,
+                comments.id,
+                comments.author_name,
+                comments.identity_id,
+                comments.content,
+                t.depth + 1,
+                comments.created_at
+            FROM t
+                JOIN blog_comments as comments
+                ON (comments.parent_id = t.id)
+        )
+        ----------------------------------------------------------------
+        -- Finally we get the vote count for each comment because
+        -- we can't do it in the recursive query
+        ----------------------------------------------------------------
+        SELECT
+            t.parent_id,
+            t.id,
+            COALESCE(t.author_name, i.traits->>'name') as author_name,
+            t.identity_id,
+            t.content,
+            t.depth,
+            t.created_at,
+            SUM(CASE WHEN votes.score IS NOT NULL
+                THEN votes.score ELSE 0 END) votes
+        FROM t LEFT JOIN blog_comment_votes votes
+        ON t.id = votes.comment_id
+        LEFT JOIN identities i
+        ON t.identity_id IS NOT NULL AND t.identity_id = i.id
+        GROUP BY
+            t.parent_id,
+            t.id,
+            COALESCE(t.author_name, i.traits->>'name'),
+            t.identity_id,
+            t.content,
+            t.depth,
+            t.created_at;
+        ",
+        order_by_clause
+    );
 
-            match q {
-                Err(e) => return Err(e.into()),
-                Ok(_rows) => {
-                    rows = _rows;
-                }
-            };
-        }
-        SortType::New => {
-            let q = sqlx::query_as!(
-                Query,
-                "
-                WITH RECURSIVE root_comments AS (
-                    SELECT
-                        NULL::integer as parent_id,
-                        comments.id,
-                        comments.author_name,
-                        comments.identity_id,
-                        comments.content,
-                        0 depth,
-                        comments.created_at,
-                        SUM(CASE WHEN votes.score IS NOT NULL
-                            THEN votes.score ELSE 0 END) votes
-                    FROM blog_comments as comments
-                    LEFT JOIN blog_comment_votes votes
-                    ON comments.id = votes.comment_id
-                    WHERE comments.post_id = (
-                        SELECT id FROM blog_posts
-                        WHERE category = 'blog' AND slug = $1
-                    )
-                    AND comments.parent_id IS NULL
-                    GROUP BY
-                        comments.id,
-                        comments.author_name,
-                        comments.identity_id,
-                        comments.content,
-                        depth,
-                        comments.created_at
-                    ORDER BY comments.created_at DESC
-                    LIMIT $2 OFFSET $3
-                ----------------------------------------------------------------
-                -- Then we recursively get the children comments of those roots
-                ----------------------------------------------------------------
-                ), t(
-                    parent_id,
-                    id,
-                    author_name,
-                    identity_id,
-                    content,
-                    depth,
-                    created_at
-                    )
-                AS (
-                    (
-                        SELECT
-                            parent_id,
-                            id,
-                            author_name,
-                            identity_id,
-                            content,
-                            depth,
-                            created_at
-                        FROM root_comments
-                    )
-                    UNION ALL
-                    SELECT
-                        comments.parent_id,
-                        comments.id,
-                        comments.author_name,
-                        comments.identity_id,
-                        comments.content,
-                        t.depth + 1,
-                        comments.created_at
-                    FROM t
-                        JOIN blog_comments as comments
-                        ON (comments.parent_id = t.id)
-                )
-                ----------------------------------------------------------------
-                -- Finally we get the vote count for each comment because
-                -- we can't do it in the recursive query
-                ----------------------------------------------------------------
-                SELECT
-                    t.parent_id,
-                    t.id,
-                    COALESCE(t.author_name, i.traits->>'name') as author_name,
-                    t.identity_id,
-                    t.content,
-                    t.depth,
-                    t.created_at,
-                    SUM(CASE WHEN votes.score IS NOT NULL
-                        THEN votes.score ELSE 0 END) votes
-                FROM t LEFT JOIN blog_comment_votes votes
-                ON t.id = votes.comment_id
-                LEFT JOIN identities i
-                ON t.identity_id IS NOT NULL AND t.identity_id = i.id
-                GROUP BY
-                    t.parent_id,
-                    t.id,
-                    COALESCE(t.author_name, i.traits->>'name'),
-                    t.identity_id,
-                    t.content,
-                    t.depth,
-                    t.created_at;
-                ",
-                slug,
-                q.page_size as i64,
-                q.page_offset as i64,
-            )
-            .fetch_all(&ctx.pool)
-            .await;
-
-            match q {
-                Err(e) => return Err(e.into()),
-                Ok(_rows) => rows = _rows,
-            }
-        }
-    }
+    let rows = diesel::sql_query(&sql)
+        .bind::<Text, _>(&slug)
+        .bind::<BigInt, _>(q.page_size as i64)
+        .bind::<BigInt, _>(q.page_offset as i64)
+        .load::<CommentQueryResult>(&mut conn)
+        .await?;
 
     let final_comments = rows
         .into_iter()
@@ -318,99 +216,75 @@ pub async fn get_comments(
     Ok(Json(result))
 }
 
-fn intermediate_tree_sort(mut comments: Vec<CommentTree>, sort: &SortType) -> Vec<CommentTree> {
-    // This is needed so that the conversion from flat comments to nested
-    // comments is O(n) instead of O(n^2)
-    comments.sort_unstable_by_key(|k| (k.id));
-
-    let mut nested = flat_comments_to_tree(comments);
-
-    match sort {
-        SortType::New => sort_new(&mut nested),
-        SortType::Best => {
-            sort_best(&mut nested);
-        }
-    }
-
-    nested
-        .into_iter()
-        .map(|c| c.borrow_mut().to_owned())
-        .collect()
-}
-
-fn flat_comments_to_tree(comments: Vec<CommentTree>) -> Vec<Rc<RefCell<CommentTree>>> {
-    let mut tree = HashMap::<i32, Rc<RefCell<CommentTree>>>::with_capacity(comments.len());
-    let mut final_comments: Vec<Rc<RefCell<CommentTree>>> = vec![];
+fn intermediate_tree_sort(comments: Vec<CommentTree>, sort: &SortType) -> Vec<CommentTree> {
+    // Create a map of parent_id -> children
+    let mut parent_children_map: HashMap<Option<i32>, Vec<CommentTree>> = HashMap::new();
 
     for comment in comments {
-        let c = Rc::new(RefCell::new(comment));
+        parent_children_map
+            .entry(comment.parent_id)
+            .or_default()
+            .push(comment);
+    }
 
-        tree.insert(c.borrow().id, c.clone());
-
-        if let Some(parent_id) = c.borrow().parent_id {
-            // If this is a child comment, add it to its parent's children
-            let parent = tree.get(&parent_id);
-            if let Some(parent) = parent {
-                let mut mut_parent = parent.borrow_mut();
-                if let Some(children) = mut_parent.children.as_mut() {
-                    children.push(c.clone());
-                } else {
-                    let children = vec![c.clone()];
-                    mut_parent.children = Some(children);
+    // Function to recursively build the tree and sort children
+    fn build_tree_recursive(
+        parent_id: Option<i32>,
+        parent_children_map: &mut HashMap<Option<i32>, Vec<CommentTree>>,
+        sort: &SortType,
+    ) -> Vec<CommentTree> {
+        if let Some(mut children) = parent_children_map.remove(&parent_id) {
+            // Sort children based on the sort type
+            match sort {
+                SortType::Best => {
+                    children.sort_by(|a, b| {
+                        b.upvote
+                            .cmp(&a.upvote)
+                            .then_with(|| a.created_at.cmp(&b.created_at))
+                    });
+                }
+                SortType::New => {
+                    children.sort_by(|a, b| b.created_at.cmp(&a.created_at));
                 }
             }
-        };
 
-        if c.borrow().parent_id.is_none() {
-            final_comments.push(c.clone());
+            // Recursively build children for each comment
+            for child in &mut children {
+                let grandchildren = build_tree_recursive(Some(child.id), parent_children_map, sort);
+                if !grandchildren.is_empty() {
+                    child.children = Some(grandchildren);
+                }
+            }
+
+            children
+        } else {
+            Vec::new()
         }
     }
 
-    final_comments
-}
-
-fn sort_best(comments: &mut Vec<Rc<RefCell<CommentTree>>>) {
-    // sort the top level comments
-    comments.sort_unstable_by_key(|k| (-k.borrow().upvote, k.borrow().created_at));
-
-    // sort the children recursively
-    for comment in comments {
-        if let Some(children) = comment.borrow_mut().children.as_mut() {
-            sort_best(children);
-        }
-    }
-}
-
-fn sort_new(comments: &mut Vec<Rc<RefCell<CommentTree>>>) {
-    // sort the top level comments
-    comments.sort_by(|a, b| {
-        b.borrow()
-            .created_at
-            .partial_cmp(&a.borrow().created_at)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
-
-    // sort the children recursively
-    for comment in comments {
-        if let Some(children) = comment.borrow_mut().children.as_mut() {
-            sort_best(children);
-        }
-    }
+    build_tree_recursive(None, &mut parent_children_map, sort)
 }
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use chrono::NaiveDate;
 
-    // Helper function to create a mock CommentTree
+    use super::*;
+
+    #[test]
+    fn test_intermediate_tree_sort_with_no_comments() {
+        let comments = vec![];
+        let result = intermediate_tree_sort(comments, &SortType::Best);
+        assert!(result.is_empty(), "Expected no comments in the tree");
+    }
+
     fn create_mock_comment(
         id: i32,
         parent_id: Option<i32>,
         upvote: i64,
         days_ago: i64,
-    ) -> Rc<RefCell<CommentTree>> {
-        Rc::new(RefCell::new(CommentTree {
+    ) -> CommentTree {
+        CommentTree {
             id,
             author_name: format!("Author {}", id),
             content: format!("Content for comment {}", id),
@@ -425,92 +299,73 @@ mod test {
             depth: 0,
             is_comment_owner: false,
             is_blog_author: false,
-        }))
+        }
     }
 
     #[test]
-    fn test_flat_comments_to_tree_with_no_comments() {
-        let comments = vec![];
-        let result = flat_comments_to_tree(comments);
-        assert!(result.is_empty(), "Expected no comments in the tree");
+    fn test_intermediate_tree_sort_best() {
+        let comments = vec![
+            CommentTree {
+                id: 1,
+                author_name: "Author 1".to_string(),
+                content: "Root comment".to_string(),
+                parent_id: None,
+                created_at: NaiveDate::from_ymd_opt(2023, 1, 1)
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap(),
+                children: None,
+                upvote: 5,
+                depth: 0,
+                is_comment_owner: false,
+                is_blog_author: false,
+            },
+            CommentTree {
+                id: 2,
+                author_name: "Author 2".to_string(),
+                content: "Child comment".to_string(),
+                parent_id: Some(1),
+                created_at: NaiveDate::from_ymd_opt(2023, 1, 1)
+                    .unwrap()
+                    .and_hms_opt(1, 0, 0)
+                    .unwrap(),
+                children: None,
+                upvote: 10,
+                depth: 1,
+                is_comment_owner: false,
+                is_blog_author: false,
+            },
+        ];
+
+        let result = intermediate_tree_sort(comments, &SortType::Best);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].id, 1);
+        assert!(result[0].children.is_some());
+        assert_eq!(result[0].children.as_ref().unwrap().len(), 1);
+        assert_eq!(result[0].children.as_ref().unwrap()[0].id, 2);
     }
 
     #[test]
-    fn test_flat_comments_to_tree_with_nested_comments() {
-        let comment1 = create_mock_comment(1, None, 10, 5);
-        let comment2 = create_mock_comment(2, Some(1), 5, 4); // Child of comment1
-        let comments = vec![comment1.clone(), comment2];
+    fn test_intermediate_tree_sort_new() {
+        let older_comment = create_mock_comment(1, None, 5, 5);
+        let newer_comment = create_mock_comment(2, None, 3, 2);
+        let comments = vec![older_comment, newer_comment];
 
-        let result = flat_comments_to_tree(
-            comments
-                .into_iter()
-                .map(|c| c.borrow().to_owned().clone())
-                .collect(),
-        );
-        assert_eq!(result.len(), 1, "Expected one root comment");
-
-        let first_child = result[0].borrow();
-        let root_children = &first_child.children.as_ref().unwrap();
-        assert_eq!(
-            root_children.len(),
-            1,
-            "Expected one child for the root comment"
-        );
+        let result = intermediate_tree_sort(comments, &SortType::New);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].id, 2, "Newer comment should come first");
+        assert_eq!(result[1].id, 1, "Older comment should come second");
     }
 
     #[test]
-    fn test_sort_best() {
-        let comment1 = create_mock_comment(1, None, 5, 5);
-        let comment2 = create_mock_comment(2, None, 10, 4); // Higher votes
-        let mut comments = vec![comment1, comment2];
+    fn test_intermediate_tree_sort_best_by_votes() {
+        let low_vote_comment = create_mock_comment(1, None, 3, 2);
+        let high_vote_comment = create_mock_comment(2, None, 10, 5);
+        let comments = vec![low_vote_comment, high_vote_comment];
 
-        sort_best(&mut comments);
-
-        assert_eq!(
-            comments[0].borrow().id,
-            2,
-            "Comment with higher votes should come first"
-        );
-    }
-
-    #[test]
-    fn test_sort_new() {
-        let comment1 = create_mock_comment(1, None, 5, 5); // Older
-        let comment2 = create_mock_comment(2, None, 5, 4); // Newer
-        let mut comments = vec![comment1, comment2];
-
-        sort_new(&mut comments);
-
-        assert_eq!(
-            comments[0].borrow().id,
-            2,
-            "Newer comment should come first"
-        );
-    }
-
-    #[test]
-    fn test_intermediate_tree_sort_with_sort_new() {
-        let comment1 = create_mock_comment(1, None, 5, 5).borrow().clone(); // Older
-        let comment2 = create_mock_comment(2, None, 5, 4).borrow().clone(); // Newer
-        let comments = vec![comment1, comment2];
-
-        let sorted_comments = intermediate_tree_sort(comments, &SortType::New);
-        assert_eq!(
-            sorted_comments[0].id, 2,
-            "Newer comment should come first in SortType::New"
-        );
-    }
-
-    #[test]
-    fn test_intermediate_tree_sort_with_sort_best() {
-        let comment1 = create_mock_comment(1, None, 5, 5).borrow().clone();
-        let comment2 = create_mock_comment(2, None, 10, 4).borrow().clone(); // Higher votes
-        let comments = vec![comment1, comment2];
-
-        let sorted_comments = intermediate_tree_sort(comments, &SortType::Best);
-        assert_eq!(
-            sorted_comments[0].id, 2,
-            "Comment with higher votes should come first in SortType::Best"
-        );
+        let result = intermediate_tree_sort(comments, &SortType::Best);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].id, 2, "Higher voted comment should come first");
+        assert_eq!(result[1].id, 1, "Lower voted comment should come second");
     }
 }

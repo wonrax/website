@@ -1,4 +1,6 @@
 use axum::http::request::Parts;
+use diesel::prelude::*;
+use diesel_async::RunQueryDsl;
 
 use crate::{error::AppError, App};
 
@@ -44,21 +46,22 @@ impl axum::extract::FromRequestParts<App> for MaybeAuthUser {
             return Ok(MaybeAuthUser(Err(AuthenticationError::NoCookie)));
         };
 
-        let identity = sqlx::query_as!(
-            Identity,
-            "
-            SELECT i.*
-            FROM sessions s JOIN identities i
-            ON s.identity_id = i.id
-            WHERE s.token = $1
-            AND s.active = true
-            AND s.expires_at > CURRENT_TIMESTAMP
-            AND s.issued_at <= CURRENT_TIMESTAMP;
-            ",
-            session_token
-        )
-        .fetch_optional(&state.pool)
-        .await?;
+        let identity = {
+            use crate::schema::{identities, sessions};
+
+            let mut conn = state.diesel.get().await?;
+
+            sessions::table
+                .inner_join(identities::table)
+                .filter(sessions::token.eq(session_token))
+                .filter(sessions::active.eq(true))
+                .filter(sessions::expires_at.gt(diesel::dsl::now))
+                .filter(sessions::issued_at.le(diesel::dsl::now))
+                .select(identities::all_columns)
+                .first::<Identity>(&mut conn)
+                .await
+                .optional()?
+        };
 
         Ok(MaybeAuthUser(
             identity.ok_or(AuthenticationError::Unauthorized),

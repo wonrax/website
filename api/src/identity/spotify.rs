@@ -11,6 +11,8 @@ use axum::{
     Json,
 };
 use diesel::deserialize::Queryable;
+use diesel::prelude::*;
+use diesel_async::RunQueryDsl;
 use eyre::eyre;
 use rspotify::{
     clients::{BaseClient, OAuthClient},
@@ -23,7 +25,7 @@ use tokio::sync::{OnceCell, RwLock};
 use crate::{
     config::SpotifyOauth,
     error::{ApiRequestError, AppError, Error},
-    identity::models::credential::IdentityCredential,
+    identity::models::credential::{IdentityCredential, NewIdentityCredential},
     App,
 };
 
@@ -143,31 +145,30 @@ pub async fn handle_spotify_callback(
             .map_err(|e| eyre!(e).wrap_err("couldn't serialize spotify credentials"))?,
     );
 
-    sqlx::query!(
-        "
-        INSERT INTO identity_credentials (
-            credential,
+    {
+        use crate::schema::{identity_credential_types, identity_credentials};
+
+        let mut conn = ctx.diesel.get().await?;
+
+        let credential_type_id = identity_credential_types::table
+            .filter(identity_credential_types::name.eq("oauth"))
+            .select(identity_credential_types::id)
+            .first::<i32>(&mut conn)
+            .await?;
+
+        let new_credential = NewIdentityCredential {
+            credential: credential.credential,
             credential_type_id,
-            identity_id,
-            created_at,
-            updated_at
-        )
-        VALUES (
-            $1,
-            (SELECT id FROM identity_credential_types WHERE name = $2),
-            $3,
-            $4,
-            $5
-        );
-        ",
-        &credential.credential,
-        Into::<&str>::into(credential.credential_type),
-        i.id,
-        credential.created_at,
-        credential.updated_at,
-    )
-    .execute(&ctx.pool)
-    .await?;
+            identity_id: i.id,
+            created_at: credential.created_at,
+            updated_at: credential.updated_at,
+        };
+
+        diesel::insert_into(identity_credentials::table)
+            .values(&new_credential)
+            .execute(&mut conn)
+            .await?;
+    }
 
     Ok(())
 }
@@ -178,7 +179,7 @@ pub async fn handle_spotify_callback(
 /// every time the client is newly created.
 static SPOTIFY_CLIENT: OnceCell<AuthCodeSpotify> = OnceCell::const_new();
 
-static CURRENTLY_PLAYING_CACHE: OnceCell<RwLock<(Arc<CurrentlyPlaying>, time::Instant)>> =
+static CURRENTLY_PLAYING_CACHE: OnceCell<RwLock<(Arc<CurrentlyPlaying>, std::time::Instant)>> =
     OnceCell::const_new();
 
 #[derive(Clone, Serialize)]
@@ -222,7 +223,7 @@ pub async fn get_currently_playing(State(s): State<App>) -> Result<impl IntoResp
         .get_or_try_init(|| async {
             Ok::<_, AppError>(RwLock::new((
                 Arc::new(fetch_cp(&s).await?),
-                time::Instant::now(),
+                std::time::Instant::now(),
             )))
         })
         .await?;
@@ -232,7 +233,7 @@ pub async fn get_currently_playing(State(s): State<App>) -> Result<impl IntoResp
     let cp = if cache.1.elapsed() > Duration::from_secs(1) {
         drop(cache);
         let mut cache = lock.write().await;
-        *cache = (Arc::new(fetch_cp(&s).await?), time::Instant::now());
+        *cache = (Arc::new(fetch_cp(&s).await?), std::time::Instant::now());
         cache.0.to_owned()
     } else {
         cache.0.to_owned()

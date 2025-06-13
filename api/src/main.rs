@@ -9,11 +9,9 @@ use config::ServerConfig;
 use dotenv::dotenv;
 use mimalloc::MiMalloc;
 use serde_json::json;
-use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use std::{
     net::SocketAddr,
     ops::Deref,
-    process::exit,
     sync::{atomic::AtomicBool, Arc},
     time::Duration,
 };
@@ -34,6 +32,7 @@ mod github;
 mod great_reads_feed;
 mod identity;
 mod json;
+mod models;
 mod real_ip;
 mod schema;
 mod utils;
@@ -52,7 +51,6 @@ impl Deref for App {
 }
 
 pub struct Inner {
-    pool: Pool<Postgres>,
     counters_ttl_cache: retainer::Cache<String, bool>,
     great_reads_cache: retainer::Cache<String, Vec<u8>>,
     config: ServerConfig,
@@ -96,23 +94,12 @@ async fn main() {
 
     let postgres_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
 
-    let pool = PgPoolOptions::new()
-        .max_connections(7)
-        .idle_timeout(Duration::from_secs(120))
-        .acquire_timeout(Duration::from_secs(10))
-        .connect(&postgres_url)
-        .await
-        .unwrap_or_else(|e| {
-            tracing::error!(error = %e, "Failed to connect to database, exiting...");
-            exit(1)
-        });
-
     let diesel_manager = diesel_async::pooled_connection::AsyncDieselConnectionManager::<
         diesel_async::AsyncPgConnection,
     >::new(postgres_url);
     // TODO consider using bb8 pool since it has more features (min_idle, max_lifetime etc.)
     let diesel_pool = diesel_async::pooled_connection::deadpool::Pool::builder(diesel_manager)
-        .max_size(3)
+        .max_size(7)
         .build()
         .expect("could not build Diesel pool");
 
@@ -122,7 +109,6 @@ async fn main() {
         .expect("HTTP client should be correctly constructed");
 
     let shared_state = App(Arc::new(Inner {
-        pool,
         counters_ttl_cache: retainer::Cache::new(),
         great_reads_cache: retainer::Cache::new(),
         config: config.clone(),
