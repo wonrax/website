@@ -17,7 +17,7 @@ src/
 ├── github/routes.rs     # GitHub integration
 └── schema.rs            # Database schema
 ```
-- **Stack**: Rust 2021, Axum, PostgreSQL, SQLx, Prisma
+- **Stack**: Rust 2021, Axum, PostgreSQL, Diesel ORM, Prisma
 - **Auth**: Session-based with GitHub OAuth, HTTP-only cookies
 - **Comments**: Hierarchical (adjacency list), recursive CTEs, sorting by votes/time
 
@@ -40,7 +40,7 @@ src/
 ## Development Guidelines
 
 ### Code Patterns
-- **Rust**: `#[debug_handler]` for Axum, `sqlx::query!` macros, custom `AppError`
+- **Rust**: `#[debug_handler]` for Axum, custom `AppError`
 - **TypeScript**: Strict typing, SolidJS functional patterns
 - **API**: RESTful routes (`/blog/:slug/comments`), `AuthUser`/`MaybeAuthUser` extractors
 - **Frontend**: File-based routing, SCSS modules, global state via `@/state`

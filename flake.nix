@@ -58,8 +58,6 @@
               pkg-config
               rust-bin.stable.latest.default
               nodejs_22
-              # libpq required for sqlx
-              postgresql_17
               # article-scraper rust
               libxml2
               openssl
