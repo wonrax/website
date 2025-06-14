@@ -4,8 +4,8 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-// Cache duration for highlights and RSS feed (5 minutes)
-const CACHE_DURATION: Duration = Duration::from_secs(5 * 60);
+// Cache duration for highlights and RSS feed (1 minute)
+const CACHE_DURATION: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
