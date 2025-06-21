@@ -112,20 +112,21 @@ async fn handle_message_batch(
 
 pub struct Handler {
     pub message_queue: Arc<Mutex<HashMap<ChannelId, Vec<QueuedMessage>>>>,
-    pub openai_api_key: String,
     /// Unified activity tracking for simplified debouncing
     pub channel_activity: Arc<Mutex<HashMap<ChannelId, ChannelActivity>>>,
     /// Persistent agent sessions per channel for multi-turn conversations
     pub agent_sessions: Arc<Mutex<HashMap<ChannelId, AgentSession>>>,
+    /// Server configuration including OpenAI API key, Qdrant and other services
+    pub server_config: crate::config::ServerConfig,
 }
 
 impl Handler {
-    pub fn new(openai_api_key: String) -> Self {
+    pub fn new(server_config: crate::config::ServerConfig) -> Self {
         Self {
             message_queue: Arc::new(Mutex::new(HashMap::new())),
-            openai_api_key,
             channel_activity: Arc::new(Mutex::new(HashMap::new())),
             agent_sessions: Arc::new(Mutex::new(HashMap::new())),
+            server_config,
         }
     }
 
@@ -221,9 +222,9 @@ impl Handler {
     fn clone_for_task(&self) -> Arc<Self> {
         Arc::new(Handler {
             message_queue: self.message_queue.clone(),
-            openai_api_key: self.openai_api_key.clone(),
             channel_activity: self.channel_activity.clone(),
             agent_sessions: self.agent_sessions.clone(),
+            server_config: self.server_config.clone(),
         })
     }
 
@@ -242,8 +243,21 @@ impl Handler {
             .is_none_or(|session| session.is_expired());
 
         if needs_new_session {
-            let session =
-                create_agent_session(ctx, channel_id, context_size, &self.openai_api_key).await?;
+            // Get OpenAI API key from config
+            let openai_api_key = self
+                .server_config
+                .openai_api_key
+                .as_ref()
+                .ok_or_else(|| eyre::eyre!("OpenAI API key not configured"))?;
+
+            let session = create_agent_session(
+                ctx,
+                channel_id,
+                context_size,
+                openai_api_key,
+                &self.server_config,
+            )
+            .await?;
             sessions.insert(channel_id, session);
         } else {
             // Update activity timestamp

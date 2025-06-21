@@ -39,3 +39,5 @@ target/
 .env
 
 .wireit/
+
+.fastembed_cache/

@@ -62,7 +62,10 @@
               libxml2
               openssl
               postgresql
+              clang
             ];
+
+            LIBCLANG_PATH = "${libclang.lib}/lib";
 
             shellHook = if system == "x86_64-linux" then prisma.shellHook else "";
           };

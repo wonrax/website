@@ -217,8 +217,8 @@ async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> 
             | GatewayIntents::DIRECT_MESSAGE_TYPING;
 
         // Create OpenAI client with async-openai
-        let config = OpenAIConfig::new().with_api_key(&openai_api_key);
-        let _openai_client = OpenAIClient::with_config(config).with_http_client(
+        let openai_config = OpenAIConfig::new().with_api_key(&openai_api_key);
+        let _openai_client = OpenAIClient::with_config(openai_config).with_http_client(
             reqwest::Client::builder()
                 .timeout(Duration::from_secs(120))
                 .build()?,
@@ -227,7 +227,7 @@ async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> 
         // Create a new instance of the Client, logging in as a bot. This will automatically prepend
         // your bot token with "Bot ", which is a requirement by Discord for bot users.
         let mut discord_client = serenity::Client::builder(&discord_token, intents)
-            .event_handler(discord::Handler::new(openai_api_key.clone()))
+            .event_handler(discord::Handler::new(config.clone()))
             .await
             .map_err(|e| eyre::eyre!("Error creating Discord client: {e:?}"))?;
 
