@@ -1,7 +1,7 @@
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use serenity::all::{ChannelId, CreateMessage, Context};
+use serenity::all::{ChannelId, Context, CreateMessage};
 use std::sync::Arc;
 use thiserror::Error;
 

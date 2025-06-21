@@ -1,9 +1,12 @@
 use crate::discord::{
     agent::{create_agent_session, execute_agent_interaction, AgentSession},
-    constants::{MESSAGE_CONTEXT_SIZE, MESSAGE_DEBOUNCE_TIMEOUT_MS, WHITELIST_CHANNELS},
+    constants::{
+        MESSAGE_CONTEXT_SIZE, MESSAGE_DEBOUNCE_TIMEOUT_MS, TYPING_DEBOUNCE_TIMEOUT_MS,
+        WHITELIST_CHANNELS,
+    },
     message::{queued_messages_to_rig_messages, QueuedMessage},
 };
-use serenity::all::{ChannelId, Message, Ready};
+use serenity::all::{ChannelId, Message, Ready, TypingStartEvent, UserId};
 use serenity::async_trait;
 use serenity::prelude::*;
 use std::{collections::HashMap, sync::Arc, time::Duration};
@@ -52,6 +55,8 @@ pub struct Handler {
     pub pending_timers: Arc<Mutex<HashMap<ChannelId, tokio::task::JoinHandle<()>>>>,
     /// Persistent agent sessions per channel for multi-turn conversations
     pub agent_sessions: Arc<Mutex<HashMap<ChannelId, AgentSession>>>,
+    /// Track typing users per channel for debouncing
+    pub typing_users: Arc<Mutex<HashMap<ChannelId, HashMap<UserId, tokio::task::JoinHandle<()>>>>>,
 }
 
 impl Handler {
@@ -61,6 +66,7 @@ impl Handler {
             openai_api_key,
             pending_timers: Arc::new(Mutex::new(HashMap::new())),
             agent_sessions: Arc::new(Mutex::new(HashMap::new())),
+            typing_users: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -71,6 +77,7 @@ impl Handler {
             openai_api_key: self.openai_api_key.clone(),
             pending_timers: self.pending_timers.clone(),
             agent_sessions: self.agent_sessions.clone(),
+            typing_users: self.typing_users.clone(),
         })
     }
 
@@ -102,8 +109,73 @@ impl Handler {
         Ok(())
     }
 
+    /// Check if anyone is currently typing in the channel
+    async fn is_anyone_typing(&self, channel_id: ChannelId) -> bool {
+        let typing_users = self.typing_users.lock().await;
+        typing_users
+            .get(&channel_id)
+            .map_or(false, |users| !users.is_empty())
+    }
+
+    /// Handle typing start for a user in a channel
+    async fn handle_typing_start(&self, ctx: Context, channel_id: ChannelId, user_id: UserId) {
+        // Cancel any existing typing timer for this user in this channel
+        {
+            let mut typing_users = self.typing_users.lock().await;
+            let channel_typing = typing_users.entry(channel_id).or_insert_with(HashMap::new);
+
+            if let Some(handle) = channel_typing.remove(&user_id) {
+                handle.abort();
+            }
+        }
+
+        // Create new typing timeout timer
+        let typing_users_clone = self.typing_users.clone();
+        let handler = self.clone_for_task();
+
+        let handle = tokio::spawn(async move {
+            // Wait for typing timeout
+            tokio::time::sleep(Duration::from_millis(TYPING_DEBOUNCE_TIMEOUT_MS)).await;
+
+            // Remove this user from typing list
+            {
+                let mut typing_users = typing_users_clone.lock().await;
+                if let Some(channel_typing) = typing_users.get_mut(&channel_id) {
+                    channel_typing.remove(&user_id);
+
+                    // If no one is typing anymore, schedule message processing
+                    if channel_typing.is_empty() {
+                        // Check if we have messages to process
+                        let has_messages = {
+                            let queue = handler.message_queue.lock().await;
+                            queue
+                                .get(&channel_id)
+                                .map_or(false, |msgs| !msgs.is_empty())
+                        };
+
+                        if has_messages {
+                            handler.schedule_channel_processing(ctx, channel_id).await;
+                        }
+                    }
+                }
+            }
+        });
+
+        // Store the timer handle
+        {
+            let mut typing_users = self.typing_users.lock().await;
+            let channel_typing = typing_users.entry(channel_id).or_insert_with(HashMap::new);
+            channel_typing.insert(user_id, handle);
+        }
+    }
+
     /// Schedule processing for a channel after the debounce timeout
     async fn schedule_channel_processing(&self, ctx: Context, channel_id: ChannelId) {
+        // Don't schedule if someone is still typing
+        if self.is_anyone_typing(channel_id).await {
+            return;
+        }
+
         // Cancel any existing timer for this channel
         {
             let mut timers = self.pending_timers.lock().await;
@@ -120,6 +192,14 @@ impl Handler {
         let handle = tokio::spawn(async move {
             // Wait for the debounce timeout
             tokio::time::sleep(Duration::from_millis(MESSAGE_DEBOUNCE_TIMEOUT_MS)).await;
+
+            // Check again if anyone is typing before processing
+            if handler.is_anyone_typing(channel_id).await {
+                // Someone started typing during our wait, don't process yet
+                let mut timers = pending_timers.lock().await;
+                timers.remove(&channel_id);
+                return;
+            }
 
             // Remove this timer from pending list
             {
@@ -195,6 +275,23 @@ impl EventHandler for Handler {
 
         // Schedule processing for this channel (this will reset the timer if one exists)
         self.schedule_channel_processing(ctx, channel_id).await;
+    }
+
+    async fn typing_start(&self, ctx: Context, event: TypingStartEvent) {
+        if !WHITELIST_CHANNELS.contains(&event.channel_id.get()) {
+            return;
+        }
+
+        // Don't track bot typing
+        let user_id = event.user_id;
+        if let Ok(user) = user_id.to_user(&ctx.http).await {
+            if user.bot {
+                return;
+            }
+        }
+
+        self.handle_typing_start(ctx, event.channel_id, user_id)
+            .await;
     }
 
     async fn ready(&self, _: Context, ready: Ready) {

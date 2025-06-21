@@ -5,9 +5,9 @@ use crate::discord::{
 };
 use rig::{
     agent::Agent,
+    client::CompletionClient,
     completion::{Message as RigMessage, Prompt},
     providers::openai,
-    client::CompletionClient,
 };
 use serde_json::json;
 use serenity::all::{ChannelId, Context};

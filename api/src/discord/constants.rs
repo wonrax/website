@@ -3,7 +3,8 @@ use std::time::Duration;
 
 pub const WHITELIST_CHANNELS: [u64; 2] = [1133997981637554188, 1119652436102086809];
 pub const MESSAGE_CONTEXT_SIZE: usize = 20; // Number of previous messages to load for context
-pub const MESSAGE_DEBOUNCE_TIMEOUT_MS: u64 = 5000; // 5 seconds to collect messages
+pub const MESSAGE_DEBOUNCE_TIMEOUT_MS: u64 = 10000; // 10 seconds to collect messages
+pub const TYPING_DEBOUNCE_TIMEOUT_MS: u64 = 5000; // 5 seconds after typing stops
 pub const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 pub const DISCORD_BOT_NAME: &str = "The Irony Himself";
 pub const MAX_AGENT_TURNS: usize = 10; // Maximum turns for multi-turn reasoning

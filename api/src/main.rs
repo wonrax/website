@@ -212,7 +212,9 @@ async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> 
     {
         let intents = GatewayIntents::GUILD_MESSAGES
             | GatewayIntents::DIRECT_MESSAGES
-            | GatewayIntents::MESSAGE_CONTENT;
+            | GatewayIntents::MESSAGE_CONTENT
+            | GatewayIntents::GUILD_MESSAGE_TYPING
+            | GatewayIntents::DIRECT_MESSAGE_TYPING;
 
         // Create OpenAI client with async-openai
         let config = OpenAIConfig::new().with_api_key(&openai_api_key);
