@@ -9,12 +9,7 @@ use config::ServerConfig;
 use dotenv::dotenv;
 use mimalloc::MiMalloc;
 use serde_json::json;
-use std::{
-    net::SocketAddr,
-    ops::Deref,
-    sync::{atomic::AtomicBool, Arc},
-    time::Duration,
-};
+use std::{net::SocketAddr, ops::Deref, sync::Arc, time::Duration};
 use tower_http::{
     classify::ServerErrorsFailureClass,
     cors::{AllowOrigin, CorsLayer},
@@ -220,8 +215,8 @@ async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> 
             | GatewayIntents::MESSAGE_CONTENT;
 
         // Create OpenAI client with async-openai
-        let config = OpenAIConfig::new().with_api_key(openai_api_key);
-        let openai_client = OpenAIClient::with_config(config).with_http_client(
+        let config = OpenAIConfig::new().with_api_key(&openai_api_key);
+        let _openai_client = OpenAIClient::with_config(config).with_http_client(
             reqwest::Client::builder()
                 .timeout(Duration::from_secs(120))
                 .build()?,
@@ -230,10 +225,7 @@ async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> 
         // Create a new instance of the Client, logging in as a bot. This will automatically prepend
         // your bot token with "Bot ", which is a requirement by Discord for bot users.
         let mut discord_client = serenity::Client::builder(&discord_token, intents)
-            .event_handler(discord::bot::Handler {
-                openai_client,
-                error_acked: AtomicBool::new(false),
-            })
+            .event_handler(discord::bot::Handler::new(openai_api_key.clone()))
             .await
             .map_err(|e| eyre::eyre!("Error creating Discord client: {e:?}"))?;
 

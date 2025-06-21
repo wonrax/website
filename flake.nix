@@ -61,6 +61,7 @@
               # article-scraper rust
               libxml2
               openssl
+              postgresql
             ];
 
             shellHook = if system == "x86_64-linux" then prisma.shellHook else "";
