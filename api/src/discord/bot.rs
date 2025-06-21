@@ -6,11 +6,7 @@ use crate::discord::{
 use serenity::all::{ChannelId, Message, Ready};
 use serenity::async_trait;
 use serenity::prelude::*;
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
 /// The agentic message handler using rig with multi-turn support
@@ -93,7 +89,8 @@ impl Handler {
             .is_none_or(|session| session.is_expired());
 
         if needs_new_session {
-            let session = create_agent_session(ctx, channel_id, context_size, &self.openai_api_key).await?;
+            let session =
+                create_agent_session(ctx, channel_id, context_size, &self.openai_api_key).await?;
             sessions.insert(channel_id, session);
         } else {
             // Update activity timestamp
@@ -162,15 +159,29 @@ impl EventHandler for Handler {
             return;
         }
 
-        // Ignore messages from bots
-        if msg.author.bot {
+        let channel_id = msg.channel_id;
+
+        // If this is our own bot message, add it to conversation history but don't process
+        if msg.author.bot && msg.author.id == ctx.cache.current_user().id {
+            // Ensure we have an agent session for this channel
+            if let Ok(()) = self
+                .get_or_create_agent_session(&ctx, channel_id, MESSAGE_CONTEXT_SIZE)
+                .await
+            {
+                let mut sessions = self.agent_sessions.lock().await;
+                if let Some(session) = sessions.get_mut(&channel_id) {
+                    // Convert bot message to rig format and add to conversation history
+                    let queued_msg = QueuedMessage { message: msg };
+                    let rig_messages = queued_messages_to_rig_messages(&[queued_msg]);
+                    session.add_messages(rig_messages);
+                }
+            }
             return;
         }
 
-        // Add to queue
+        // For human messages: add to queue and schedule processing
         let queued_msg = QueuedMessage { message: msg };
 
-        let channel_id = queued_msg.message.channel_id;
         {
             let mut queue = self.message_queue.lock().await;
             let channel_messages = queue.entry(channel_id).or_insert_with(Vec::new);
