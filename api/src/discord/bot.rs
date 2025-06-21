@@ -70,6 +70,94 @@ impl Handler {
         }
     }
 
+    /// Initialize agent sessions for all whitelisted channels on startup
+    /// This helps recover conversation context after server restarts
+    pub async fn initialize_channels(&self, ctx: &Context) -> Result<(), eyre::Error> {
+        tracing::info!("Initializing agent sessions for whitelisted channels on startup...");
+
+        for &channel_id_u64 in &WHITELIST_CHANNELS {
+            let channel_id = ChannelId::new(channel_id_u64);
+
+            // Check if channel has recent activity (messages in the last hour)
+            match self.has_recent_activity(ctx, channel_id).await {
+                Ok(true) => {
+                    // Initialize agent session for this channel
+                    if let Err(e) = self
+                        .get_or_create_agent_session(ctx, channel_id, MESSAGE_CONTEXT_SIZE)
+                        .await
+                    {
+                        tracing::error!(
+                            "Failed to initialize agent session for channel {}: {}",
+                            channel_id,
+                            e
+                        );
+                    } else {
+                        tracing::info!("Initialized agent session for channel {}", channel_id);
+
+                        // Evaluate the recent conversation and potentially respond
+                        if let Err(e) = self.evaluate_recent_conversation(ctx, channel_id).await {
+                            tracing::error!(
+                                "Failed to evaluate recent conversation for channel {}: {}",
+                                channel_id,
+                                e
+                            );
+                        }
+                    }
+                }
+                Ok(false) => {
+                    tracing::debug!("Skipping channel {} - no recent activity", channel_id);
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to check recent activity for channel {}: {}",
+                        channel_id,
+                        e
+                    );
+                }
+            }
+        }
+
+        tracing::info!("Channel initialization complete");
+        Ok(())
+    }
+
+    /// Check if a channel has recent activity (messages within the last hour)
+    async fn has_recent_activity(
+        &self,
+        ctx: &Context,
+        channel_id: ChannelId,
+    ) -> Result<bool, eyre::Error> {
+        use serenity::futures::StreamExt;
+
+        let one_hour_ago = chrono::Utc::now() - chrono::Duration::hours(1);
+
+        // Check the most recent message
+        let has_recent = channel_id
+            .messages_iter(&ctx.http)
+            .take(1)
+            .any(|msg_result| async move {
+                match msg_result {
+                    Ok(msg) => {
+                        // Convert Discord timestamp to chrono DateTime
+                        let msg_time = chrono::DateTime::from_timestamp(
+                            msg.timestamp.timestamp(),
+                            msg.timestamp.timestamp_subsec_nanos(),
+                        );
+
+                        if let Some(msg_time) = msg_time {
+                            msg_time > one_hour_ago
+                        } else {
+                            false
+                        }
+                    }
+                    Err(_) => false,
+                }
+            })
+            .await;
+
+        Ok(has_recent)
+    }
+
     /// Create a new Handler instance that shares the same underlying data
     fn clone_for_task(&self) -> Arc<Self> {
         Arc::new(Handler {
@@ -226,9 +314,54 @@ impl Handler {
 
         // Store the timer handle
         {
-            let mut timers = self.pending_timers.lock().await;
+            let mut timers = self.pendig_timers.lock().await;
             timers.insert(channel_id, handle);
         }
+    }
+
+    /// Evaluate recent conversation and let the agent decide if it should respond
+    async fn evaluate_recent_conversation(
+        &self,
+        _ctx: &Context,
+        channel_id: ChannelId,
+    ) -> Result<(), eyre::Error> {
+        let mut sessions = self.agent_sessions.lock().await;
+        if let Some(session) = sessions.get_mut(&channel_id) {
+            // Only evaluate if there's actual conversation history
+            if !session.conversation_history.is_empty() {
+                // Check if the last message is from a user (not the bot) and relatively recent
+                // We can determine this by checking if the message was created as a user message
+                let should_evaluate = session
+                    .conversation_history
+                    .last()
+                    .map(|last_msg| {
+                        // Check if this is a user message
+                        match last_msg {
+                            rig::completion::Message::User { .. } => true,
+                            rig::completion::Message::Assistant { .. } => false,
+                        }
+                    })
+                    .unwrap_or(false);
+
+                if should_evaluate {
+                    tracing::info!(
+                        "Evaluating recent conversation for channel {} with {} messages after restart",
+                        channel_id,
+                        session.conversation_history.len()
+                    );
+
+                    // Let the agent analyze the conversation and decide whether to respond
+                    // We pass 0 for messages_count since this is a startup evaluation, not new messages
+                    let _ = execute_agent_interaction(session, 0, channel_id).await;
+                } else {
+                    tracing::debug!(
+                        "Skipping evaluation for channel {} - last message was from bot or no messages",
+                        channel_id
+                    );
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -294,7 +427,12 @@ impl EventHandler for Handler {
             .await;
     }
 
-    async fn ready(&self, _: Context, ready: Ready) {
+    async fn ready(&self, ctx: Context, ready: Ready) {
         tracing::info!("Discord bot {} is connected!", ready.user.name);
+
+        // Initialize agent sessions for active channels after startup
+        if let Err(e) = self.initialize_channels(&ctx).await {
+            tracing::error!("Failed to initialize channels on startup: {}", e);
+        }
     }
 }
