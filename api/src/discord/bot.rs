@@ -314,7 +314,7 @@ impl Handler {
 
         // Store the timer handle
         {
-            let mut timers = self.pendig_timers.lock().await;
+            let mut timers = self.pending_timers.lock().await;
             timers.insert(channel_id, handle);
         }
     }
