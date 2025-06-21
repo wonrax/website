@@ -202,7 +202,7 @@ impl Handler {
         let typing_users = self.typing_users.lock().await;
         typing_users
             .get(&channel_id)
-            .map_or(false, |users| !users.is_empty())
+            .is_some_and(|users| !users.is_empty())
     }
 
     /// Handle typing start for a user in a channel
@@ -236,9 +236,7 @@ impl Handler {
                         // Check if we have messages to process
                         let has_messages = {
                             let queue = handler.message_queue.lock().await;
-                            queue
-                                .get(&channel_id)
-                                .map_or(false, |msgs| !msgs.is_empty())
+                            queue.get(&channel_id).is_some_and(|msgs| !msgs.is_empty())
                         };
 
                         if has_messages {
