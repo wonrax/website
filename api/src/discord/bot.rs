@@ -1,3 +1,23 @@
+// Discord Bot with Unified Activity Debouncing
+//
+// This implementation uses a unified debouncing strategy that treats both new messages
+// and typing indicators as "activity". Instead of having separate timers for messages
+// and typing events, we use a single timer per channel that resets on any activity.
+//
+// Benefits of this approach:
+// 1. Simpler state management - single ChannelActivity struct per channel
+// 2. No race conditions between typing and message timers
+// 3. More predictable behavior - any activity delays processing
+// 4. Reduced memory usage - fewer timer handles and tracking structures
+// 5. Easier to reason about - unified "activity debounce" concept
+//
+// How it works:
+// - Any activity (message or typing) calls record_activity()
+// - record_activity() updates timestamp and resets the debounce timer
+// - Timer expires after MESSAGE_DEBOUNCE_TIMEOUT_MS of inactivity
+// - Before processing, we check if recent activity suggests ongoing typing
+// - Only process messages if no recent activity detected
+
 use crate::discord::{
     agent::{create_agent_session, execute_agent_interaction, AgentSession},
     constants::{
@@ -6,11 +26,53 @@ use crate::discord::{
     },
     message::{queued_messages_to_rig_messages, QueuedMessage},
 };
-use serenity::all::{ChannelId, Message, Ready, TypingStartEvent, UserId};
+use serenity::all::{ChannelId, Message, Ready, TypingStartEvent};
 use serenity::async_trait;
 use serenity::prelude::*;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tokio::sync::Mutex;
+
+/// Simplified activity tracker for unified debouncing
+#[derive(Debug)]
+pub(crate) struct ChannelActivity {
+    /// When the last activity (message or typing) occurred
+    last_activity: Instant,
+    /// Handle to the current debounce timer
+    timer_handle: Option<tokio::task::JoinHandle<()>>,
+}
+
+impl ChannelActivity {
+    fn new() -> Self {
+        Self {
+            last_activity: Instant::now(),
+            timer_handle: None,
+        }
+    }
+
+    fn update_activity(&mut self) {
+        self.last_activity = Instant::now();
+    }
+
+    fn cancel_timer(&mut self) {
+        if let Some(handle) = self.timer_handle.take() {
+            handle.abort();
+        }
+    }
+
+    fn set_timer(&mut self, handle: tokio::task::JoinHandle<()>) {
+        self.cancel_timer();
+        self.timer_handle = Some(handle);
+    }
+
+    /// Check if recent activity (within typing timeout) suggests someone might still be active
+    fn has_recent_activity(&self) -> bool {
+        self.last_activity.elapsed() < Duration::from_millis(TYPING_DEBOUNCE_TIMEOUT_MS)
+    }
+}
 
 /// The agentic message handler using rig with multi-turn support
 async fn handle_message_batch(
@@ -51,12 +113,10 @@ async fn handle_message_batch(
 pub struct Handler {
     pub message_queue: Arc<Mutex<HashMap<ChannelId, Vec<QueuedMessage>>>>,
     pub openai_api_key: String,
-    /// Track pending timers for each channel to avoid duplicate processing
-    pub pending_timers: Arc<Mutex<HashMap<ChannelId, tokio::task::JoinHandle<()>>>>,
+    /// Unified activity tracking for simplified debouncing
+    pub channel_activity: Arc<Mutex<HashMap<ChannelId, ChannelActivity>>>,
     /// Persistent agent sessions per channel for multi-turn conversations
     pub agent_sessions: Arc<Mutex<HashMap<ChannelId, AgentSession>>>,
-    /// Track typing users per channel for debouncing
-    pub typing_users: Arc<Mutex<HashMap<ChannelId, HashMap<UserId, tokio::task::JoinHandle<()>>>>>,
 }
 
 impl Handler {
@@ -64,9 +124,8 @@ impl Handler {
         Self {
             message_queue: Arc::new(Mutex::new(HashMap::new())),
             openai_api_key,
-            pending_timers: Arc::new(Mutex::new(HashMap::new())),
+            channel_activity: Arc::new(Mutex::new(HashMap::new())),
             agent_sessions: Arc::new(Mutex::new(HashMap::new())),
-            typing_users: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -163,9 +222,8 @@ impl Handler {
         Arc::new(Handler {
             message_queue: self.message_queue.clone(),
             openai_api_key: self.openai_api_key.clone(),
-            pending_timers: self.pending_timers.clone(),
+            channel_activity: self.channel_activity.clone(),
             agent_sessions: self.agent_sessions.clone(),
-            typing_users: self.typing_users.clone(),
         })
     }
 
@@ -197,100 +255,47 @@ impl Handler {
         Ok(())
     }
 
-    /// Check if anyone is currently typing in the channel
-    async fn is_anyone_typing(&self, channel_id: ChannelId) -> bool {
-        let typing_users = self.typing_users.lock().await;
-        typing_users
-            .get(&channel_id)
-            .is_some_and(|users| !users.is_empty())
-    }
+    /// Record activity (message or typing) and schedule processing with unified debouncing
+    async fn record_activity(&self, ctx: Context, channel_id: ChannelId) {
+        let mut activities = self.channel_activity.lock().await;
+        let activity = activities
+            .entry(channel_id)
+            .or_insert_with(ChannelActivity::new);
 
-    /// Handle typing start for a user in a channel
-    async fn handle_typing_start(&self, ctx: Context, channel_id: ChannelId, user_id: UserId) {
-        // Cancel any existing typing timer for this user in this channel
-        {
-            let mut typing_users = self.typing_users.lock().await;
-            let channel_typing = typing_users.entry(channel_id).or_insert_with(HashMap::new);
+        // Update activity timestamp and cancel any existing timer
+        activity.update_activity();
+        activity.cancel_timer();
 
-            if let Some(handle) = channel_typing.remove(&user_id) {
-                handle.abort();
-            }
-        }
-
-        // Create new typing timeout timer
-        let typing_users_clone = self.typing_users.clone();
-        let handler = self.clone_for_task();
-
-        let handle = tokio::spawn(async move {
-            // Wait for typing timeout
-            tokio::time::sleep(Duration::from_millis(TYPING_DEBOUNCE_TIMEOUT_MS)).await;
-
-            // Remove this user from typing list
-            {
-                let mut typing_users = typing_users_clone.lock().await;
-                if let Some(channel_typing) = typing_users.get_mut(&channel_id) {
-                    channel_typing.remove(&user_id);
-
-                    // If no one is typing anymore, schedule message processing
-                    if channel_typing.is_empty() {
-                        // Check if we have messages to process
-                        let has_messages = {
-                            let queue = handler.message_queue.lock().await;
-                            queue.get(&channel_id).is_some_and(|msgs| !msgs.is_empty())
-                        };
-
-                        if has_messages {
-                            handler.schedule_channel_processing(ctx, channel_id).await;
-                        }
-                    }
-                }
-            }
-        });
-
-        // Store the timer handle
-        {
-            let mut typing_users = self.typing_users.lock().await;
-            let channel_typing = typing_users.entry(channel_id).or_insert_with(HashMap::new);
-            channel_typing.insert(user_id, handle);
-        }
-    }
-
-    /// Schedule processing for a channel after the debounce timeout
-    async fn schedule_channel_processing(&self, ctx: Context, channel_id: ChannelId) {
-        // Don't schedule if someone is still typing
-        if self.is_anyone_typing(channel_id).await {
-            return;
-        }
-
-        // Cancel any existing timer for this channel
-        {
-            let mut timers = self.pending_timers.lock().await;
-            if let Some(handle) = timers.remove(&channel_id) {
-                handle.abort();
-            }
-        }
-
-        // Create new timer
+        // Create new debounce timer
         let message_queue = self.message_queue.clone();
-        let pending_timers = self.pending_timers.clone();
+        let channel_activity = self.channel_activity.clone();
         let handler = self.clone_for_task();
 
         let handle = tokio::spawn(async move {
             // Wait for the debounce timeout
             tokio::time::sleep(Duration::from_millis(MESSAGE_DEBOUNCE_TIMEOUT_MS)).await;
 
-            // Check again if anyone is typing before processing
-            if handler.is_anyone_typing(channel_id).await {
-                // Someone started typing during our wait, don't process yet
-                let mut timers = pending_timers.lock().await;
-                timers.remove(&channel_id);
+            // Check if there's been recent activity that suggests someone is still active
+            let should_process = {
+                let activities = channel_activity.lock().await;
+                activities
+                    .get(&channel_id)
+                    .map(|activity| !activity.has_recent_activity())
+                    .unwrap_or(true)
+            };
+
+            if !should_process {
+                // Recent activity detected, don't process yet
+                // The timer will be rescheduled by the next activity
                 return;
             }
 
-            // Remove this timer from pending list
+            // Clean up the timer reference
             {
-                let mut timers = pending_timers.lock().await;
-                timers.remove(&channel_id);
+                let mut activities = channel_activity.lock().await;
+                if let Some(activity) = activities.get_mut(&channel_id) {
+                    activity.timer_handle = None;
+                }
             }
 
             // Process the messages for this channel
@@ -311,10 +316,7 @@ impl Handler {
         });
 
         // Store the timer handle
-        {
-            let mut timers = self.pending_timers.lock().await;
-            timers.insert(channel_id, handle);
-        }
+        activity.set_timer(handle);
     }
 
     /// Evaluate recent conversation and let the agent decide if it should respond
@@ -390,7 +392,7 @@ impl EventHandler for Handler {
             return;
         }
 
-        // For human messages: add to queue and schedule processing
+        // For human messages: add to queue and record activity (triggers unified debouncing)
         let queued_msg = QueuedMessage { message: msg };
 
         {
@@ -404,8 +406,8 @@ impl EventHandler for Handler {
             }
         }
 
-        // Schedule processing for this channel (this will reset the timer if one exists)
-        self.schedule_channel_processing(ctx, channel_id).await;
+        // Record activity which will handle unified debouncing
+        self.record_activity(ctx, channel_id).await;
     }
 
     async fn typing_start(&self, ctx: Context, event: TypingStartEvent) {
@@ -421,8 +423,8 @@ impl EventHandler for Handler {
             }
         }
 
-        self.handle_typing_start(ctx, event.channel_id, user_id)
-            .await;
+        // Record typing as activity (triggers unified debouncing)
+        self.record_activity(ctx, event.channel_id).await;
     }
 
     async fn ready(&self, ctx: Context, ready: Ready) {
