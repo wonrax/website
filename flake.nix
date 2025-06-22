@@ -49,6 +49,9 @@
           }).fromNpmLock
             ./package-lock.json;
 
+        rustToolchain = pkgs.rust-bin.stable.latest.default.override {
+          extensions = [ "rust-src" ];
+        };
       in
       {
         devShells.default =
@@ -56,7 +59,8 @@
           mkShell {
             buildInputs = [
               pkg-config
-              rust-bin.stable.latest.default
+              rustToolchain
+              pkgs.rust-analyzer-unwrapped
               nodejs_22
               # article-scraper rust
               libxml2
@@ -66,6 +70,7 @@
             ];
 
             LIBCLANG_PATH = "${libclang.lib}/lib";
+            RUST_SRC_PATH = "${rustToolchain}/lib/rustlib/src/rust/library";
 
             shellHook = if system == "x86_64-linux" then prisma.shellHook else "";
           };

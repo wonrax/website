@@ -1,5 +1,5 @@
 use crate::discord::{
-    constants::{AGENT_SESSION_TIMEOUT_MINS, MAX_AGENT_TURNS, MESSAGE_CONTEXT_SIZE, SYSTEM_PROMPT},
+    constants::{AGENT_SESSION_TIMEOUT, MAX_AGENT_TURNS, MESSAGE_CONTEXT_SIZE, SYSTEM_PROMPT},
     message::build_conversation_history,
     tools::{DiscordSendMessageTool, FetchPageContentTool},
 };
@@ -11,10 +11,7 @@ use rig::{
 };
 use serde_json::json;
 use serenity::all::{ChannelId, Context};
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Instant};
 
 // Agent session for persistent multi-turn conversations
 pub struct AgentSession {
@@ -48,7 +45,7 @@ impl AgentSession {
     }
 
     pub fn is_expired(&self) -> bool {
-        self.last_activity.elapsed() > Duration::from_secs(AGENT_SESSION_TIMEOUT_MINS * 60)
+        self.last_activity.elapsed() > AGENT_SESSION_TIMEOUT
     }
 }
 
@@ -77,7 +74,7 @@ pub async fn create_agent_session(
 
     // Create memory tools if Qdrant is configured
     let mut agent_builder = openai_client
-        .agent("o4-mini")
+        .agent("o3")
         .preamble(SYSTEM_PROMPT)
         .tool(discord_tool)
         .tool(fetch_tool);

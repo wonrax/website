@@ -29,11 +29,7 @@ use crate::discord::{
 use serenity::all::{ChannelId, Message, Ready, TypingStartEvent};
 use serenity::async_trait;
 use serenity::prelude::*;
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 use tokio::sync::Mutex;
 
 /// Simplified activity tracker for unified debouncing
@@ -70,7 +66,7 @@ impl ChannelActivity {
 
     /// Check if recent activity (within typing timeout) suggests someone might still be active
     fn has_recent_activity(&self) -> bool {
-        self.last_activity.elapsed() < Duration::from_millis(TYPING_DEBOUNCE_TIMEOUT_MS)
+        self.last_activity.elapsed() < TYPING_DEBOUNCE_TIMEOUT_MS
     }
 }
 
@@ -287,7 +283,7 @@ impl Handler {
 
         let handle = tokio::spawn(async move {
             // Wait for the debounce timeout
-            tokio::time::sleep(Duration::from_millis(MESSAGE_DEBOUNCE_TIMEOUT_MS)).await;
+            tokio::time::sleep(MESSAGE_DEBOUNCE_TIMEOUT_MS).await;
 
             // Check if there's been recent activity that suggests someone is still active
             let should_process = {
