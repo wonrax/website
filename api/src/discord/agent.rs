@@ -91,17 +91,22 @@ pub async fn create_agent_session(
             channel_id: Some(channel_id.get()), // Add channel ID to config
         };
 
-        let store_tool = crate::discord::tools::QdrantStoreTool::new_from_config(
-            memory_config.clone(),
+        // Create a single shared Qdrant client for this channel
+        let shared_client = crate::discord::tools::QdrantSharedClient::new_shared(memory_config)
+            .await
+            .map_err(|e| eyre::eyre!("Failed to create shared Qdrant client: {}", e))?;
+
+        let store_tool = crate::discord::tools::QdrantStoreTool::new_with_client(
+            shared_client.clone(),
             channel_id.get(),
         );
-        let find_tool = crate::discord::tools::QdrantFindTool::new_from_config(
-            memory_config.clone(),
+        let find_tool = crate::discord::tools::QdrantFindTool::new_with_client(
+            shared_client.clone(),
             channel_id.get(),
             Some(5),
         );
-        let update_tool = crate::discord::tools::QdrantUpdateTool::new_from_config(
-            memory_config,
+        let update_tool = crate::discord::tools::QdrantUpdateTool::new_with_client(
+            shared_client,
             channel_id.get(),
         );
 

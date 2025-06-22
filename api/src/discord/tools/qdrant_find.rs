@@ -1,4 +1,4 @@
-use super::qdrant_shared::{QdrantConfig, QdrantSharedClient, SearchResult};
+use super::qdrant_shared::{SearchResult, SharedQdrantClient};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -6,17 +6,19 @@ use thiserror::Error;
 
 #[derive(Clone)]
 pub struct QdrantFindTool {
-    pub config: QdrantConfig,
+    pub client: SharedQdrantClient,
     pub limit: u64,
     pub channel_id: u64, // Discord channel ID
 }
 
 impl QdrantFindTool {
-    pub fn new_from_config(config: QdrantConfig, channel_id: u64, limit: Option<u64>) -> Self {
-        let mut config_with_channel = config;
-        config_with_channel.channel_id = Some(channel_id);
+    pub fn new_with_client(
+        client: SharedQdrantClient,
+        channel_id: u64,
+        limit: Option<u64>,
+    ) -> Self {
         Self {
-            config: config_with_channel,
+            client,
             limit: limit.unwrap_or(5), // Default to top 5 results
             channel_id,
         }
@@ -102,8 +104,8 @@ impl Tool for QdrantFindTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // Clone config and args for the async operation
-        let config = self.config.clone();
+        // Clone args for the async operation
+        let client = self.client.clone();
         let query = args.query.clone();
         let limit = args.limit.unwrap_or(self.limit);
 
@@ -115,17 +117,6 @@ impl Tool for QdrantFindTool {
 
         // Spawn the async work in a separate task to avoid Sync issues
         let handle = tokio::spawn(async move {
-            // Create client for this call with better error handling
-            let client = match QdrantSharedClient::new(config).await {
-                Ok(client) => client,
-                Err(e) => {
-                    return Err(QdrantFindError(format!(
-                        "Failed to create Qdrant client: {}",
-                        e
-                    )));
-                }
-            };
-
             tracing::debug!("Starting search operation...");
 
             // Use None for collection_name since it's hardcoded via channel_id in the config

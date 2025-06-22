@@ -9,8 +9,12 @@ use qdrant_client::{
 };
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
 use thiserror::Error;
 use uuid::Uuid;
+
+/// Type alias for the shared Qdrant client wrapped in Arc for easy sharing across threads
+pub type SharedQdrantClient = Arc<QdrantSharedClient>;
 
 #[derive(Debug, Error)]
 #[error("Qdrant client error: {0}")]
@@ -91,6 +95,12 @@ impl QdrantSharedClient {
             embedding_model,
             config,
         })
+    }
+
+    /// Create a new shared Qdrant client wrapped in Arc for easy sharing across threads
+    pub async fn new_shared(config: QdrantConfig) -> Result<SharedQdrantClient, QdrantClientError> {
+        let client = Self::new(config).await?;
+        Ok(Arc::new(client))
     }
 
     /// Get the collection name to use, incorporating channel ID if available
