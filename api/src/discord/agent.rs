@@ -148,11 +148,10 @@ pub async fn execute_agent_interaction(
         return Ok(());
     }
 
-    let mut history_clone = session.conversation_history.clone();
     match session
         .agent
         .prompt("")
-        .with_history(&mut history_clone)
+        .with_history(&mut session.conversation_history)
         .multi_turn(MAX_AGENT_TURNS)
         .await
     {
