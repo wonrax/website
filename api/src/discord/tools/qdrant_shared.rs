@@ -57,19 +57,14 @@ impl QdrantSharedClient {
         })
         .await
         {
-            Ok(Ok(model)) => {
-                tracing::info!("Successfully initialized embedding model");
-                model
-            }
+            Ok(Ok(model)) => model,
             Ok(Err(e)) => {
-                tracing::error!("Failed to initialize embedding model: {}", e);
                 return Err(QdrantClientError(format!(
                     "Failed to initialize embedding model: {}",
                     e
                 )));
             }
             Err(e) => {
-                tracing::error!("Embedding model initialization task panicked: {}", e);
                 return Err(QdrantClientError(format!(
                     "Embedding model initialization task failed: {}",
                     e
@@ -79,7 +74,7 @@ impl QdrantSharedClient {
 
         // Test the connection and log any issues but don't fail
         match client.health_check().await {
-            Ok(_) => tracing::info!("Qdrant health check successful at {}", config.url),
+            Ok(_) => {}
             Err(e) => {
                 tracing::warn!(
                     "Qdrant health check failed at {} (this may be normal if server is starting or unavailable): {}",

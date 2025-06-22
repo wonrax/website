@@ -88,16 +88,10 @@ impl Tool for QdrantStoreTool {
 
         // Spawn the async work in a separate task to avoid Sync issues
         let handle = tokio::spawn(async move {
-            tracing::debug!("Creating Qdrant client for store operation...");
-
             // Create client for this call with better error handling
             let client = match QdrantSharedClient::new(config).await {
-                Ok(client) => {
-                    tracing::debug!("Qdrant client created successfully for store");
-                    client
-                }
+                Ok(client) => client,
                 Err(e) => {
-                    tracing::error!("Failed to create Qdrant client for store: {}", e);
                     return Err(QdrantStoreError(format!(
                         "Failed to create Qdrant client: {}",
                         e
@@ -149,10 +143,7 @@ impl Tool for QdrantStoreTool {
         });
 
         match handle.await {
-            Ok(result) => {
-                tracing::debug!("qdrant_store task completed successfully");
-                result
-            }
+            Ok(result) => result,
             Err(e) => {
                 tracing::error!("qdrant_store task panicked or was cancelled: {}", e);
                 Ok(QdrantStoreOutput {

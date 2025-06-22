@@ -115,16 +115,10 @@ impl Tool for QdrantFindTool {
 
         // Spawn the async work in a separate task to avoid Sync issues
         let handle = tokio::spawn(async move {
-            tracing::debug!("Creating Qdrant client...");
-
             // Create client for this call with better error handling
             let client = match QdrantSharedClient::new(config).await {
-                Ok(client) => {
-                    tracing::debug!("Qdrant client created successfully");
-                    client
-                }
+                Ok(client) => client,
                 Err(e) => {
-                    tracing::error!("Failed to create Qdrant client: {}", e);
                     return Err(QdrantFindError(format!(
                         "Failed to create Qdrant client: {}",
                         e
@@ -181,10 +175,7 @@ impl Tool for QdrantFindTool {
         });
 
         match handle.await {
-            Ok(result) => {
-                tracing::debug!("qdrant_find task completed successfully");
-                result
-            }
+            Ok(result) => result,
             Err(e) => {
                 tracing::error!("qdrant_find task panicked or was cancelled: {}", e);
                 Ok(QdrantFindOutput {
