@@ -152,7 +152,7 @@ pub async fn execute_agent_interaction(
 
     match session
         .agent
-        .prompt("")
+        .prompt("New messages are added, respond appropriately.")
         .with_history(&mut session.conversation_history)
         .multi_turn(MAX_AGENT_TURNS)
         .await
@@ -164,19 +164,8 @@ pub async fn execute_agent_interaction(
                 channel_id,
                 response
             );
-
-            // Add the agent's response to the conversation history
-            session
-                .conversation_history
-                .push(RigMessage::assistant(response));
         }
         Err(e) => {
-            tracing::error!(
-                "Agent error processing {} messages for channel {}: {}",
-                messages_count,
-                channel_id,
-                e
-            );
             return Err(e.into());
         }
     }

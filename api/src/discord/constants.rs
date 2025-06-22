@@ -1,13 +1,13 @@
 use const_format::formatcp;
 use std::time::Duration;
 
-pub const WHITELIST_CHANNELS: [u64; 2] = [1133997981637554188, 1119652436102086809];
+pub const WHITELIST_CHANNELS: [u64; 2] = [1366055834412384327, 1];
 pub const MESSAGE_CONTEXT_SIZE: usize = 30; // Number of previous messages to load for context
 pub const MESSAGE_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(5); // 5 seconds to collect messages
 pub const TYPING_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(10); // 10 seconds after typing stops
 pub const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 pub const DISCORD_BOT_NAME: &str = "The Irony Himself";
-pub const MAX_AGENT_TURNS: usize = 10; // Maximum turns for multi-turn reasoning
+pub const MAX_AGENT_TURNS: usize = 20; // Maximum turns for multi-turn reasoning
 pub const AGENT_SESSION_TIMEOUT: Duration = Duration::from_secs(60 * 60 * 24 * 7); // 7 days
 
 /// Create the system prompt for the Discord bot agent
@@ -138,6 +138,8 @@ You can use multi-turn reasoning to:
 
 **IMPORTANT**: Leverage multi-turn reasoning to break down complex tasks into smaller steps, using tools like fetching content or memory operations to build a complete response over multiple messages. The current maximum reasoning turns is {MAX_AGENT_TURNS}.
 
+**IMPORTANT**: When you want to stop, send some thing short like "[END]" so that the tool won't throw error because of the empty message and tool call.
+
 [OUTPUT INSTRUCTIONS]
 - Use tools to send Discord messages - don't output raw text
 - **Be EXTREMELY selective about when to respond** - most messages should be ignored unless they meet the high threshold (8-9/10 urgency)
@@ -159,8 +161,8 @@ Because the users in the Discord channel are not aware of the tools you use, you
 3. **THEN** - if needed, send your main response to the conversation
 
 **REQUIRED TRANSPARENCY MESSAGES** (use these exact patterns):
-- After qdrant_store: "💾 stored that info for future reference"
-- After qdrant_update: "📝 updated my memory with new info"
+- After qdrant_store: "💾 stored info for future reference: [brief description of what was stored]""
+- After qdrant_update: "📝 updated my memory with new info: [brief description of what was updated]""
 - After fetch_page_content: "🔗 fetched content from [site]"
 
 **EXAMPLES OF CORRECT BEHAVIOR:**

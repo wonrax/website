@@ -125,7 +125,7 @@ async fn handle_message_batch(
             session.add_messages(new_messages);
 
             // Execute agent interaction with multi-turn reasoning
-            let _ = execute_agent_interaction(session, messages.len(), channel_id).await;
+            execute_agent_interaction(session, messages.len(), channel_id).await?;
         }
     }
 
@@ -401,7 +401,7 @@ impl Handler {
 
                     // Let the agent analyze the conversation and decide whether to respond
                     // We pass 0 for messages_count since this is a startup evaluation, not new messages
-                    let _ = execute_agent_interaction(session, 0, channel_id).await;
+                    execute_agent_interaction(session, 0, channel_id).await?;
                 } else {
                     tracing::debug!(
                         "Skipping evaluation for channel {} - last message was from bot or no messages",
@@ -421,25 +421,13 @@ impl EventHandler for Handler {
             return;
         }
 
-        let channel_id = msg.channel_id;
-
-        // If this is our own bot message, add it to conversation history but don't process
         if msg.author.bot && msg.author.id == ctx.cache.current_user().id {
-            // Ensure we have an agent session for this channel
-            if let Ok(()) = self
-                .get_or_create_agent_session(&ctx, channel_id, MESSAGE_CONTEXT_SIZE)
-                .await
-            {
-                let mut sessions = self.agent_sessions.lock().await;
-                if let Some(session) = sessions.get_mut(&channel_id) {
-                    // Convert bot message to rig format and add to conversation history
-                    let queued_msg = QueuedMessage { message: msg };
-                    let rig_messages = queued_messages_to_rig_messages(&[queued_msg]);
-                    session.add_messages(rig_messages);
-                }
-            }
+            // No need to process messages from the bot itself, it will be represented as a tool
+            // call in the conversation history, so duplicating it here would be redundant.
             return;
         }
+
+        let channel_id = msg.channel_id;
 
         // For human messages: add to queue and record activity (triggers unified debouncing)
         let queued_msg = QueuedMessage { message: msg };
