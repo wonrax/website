@@ -58,6 +58,7 @@ pub async fn create_agent_session(
     channel_id: ChannelId,
     context_size: usize,
     openai_api_key: &str,
+    server_config: &crate::config::ServerConfig,
 ) -> Result<AgentSession, eyre::Error> {
     // Create OpenAI client and build agent
     let openai_client = openai::Client::new(openai_api_key);
@@ -74,11 +75,54 @@ pub async fn create_agent_session(
     };
     let fetch_tool = FetchPageContentTool;
 
-    let agent = openai_client
+    // Create memory tools if Qdrant is configured
+    let mut agent_builder = openai_client
         .agent("o4-mini")
         .preamble(SYSTEM_PROMPT)
         .tool(discord_tool)
-        .tool(fetch_tool)
+        .tool(fetch_tool);
+
+    // Add memory tools if Qdrant configuration exists
+    if let Some(qdrant_config) = &server_config.qdrant {
+        let memory_config = crate::discord::tools::QdrantConfig {
+            url: qdrant_config.url.clone(),
+            api_key: qdrant_config.api_key.clone(),
+            default_collection: qdrant_config
+                .default_collection
+                .clone()
+                .or_else(|| Some("discord_memory".to_string())),
+            channel_id: Some(channel_id.get()), // Add channel ID to config
+        };
+
+        let store_tool = crate::discord::tools::QdrantStoreTool::new_from_config(
+            memory_config.clone(),
+            channel_id.get(),
+        );
+        let find_tool = crate::discord::tools::QdrantFindTool::new_from_config(
+            memory_config.clone(),
+            channel_id.get(),
+            Some(5),
+        );
+        let update_tool = crate::discord::tools::QdrantUpdateTool::new_from_config(
+            memory_config,
+            channel_id.get(),
+        );
+
+        agent_builder = agent_builder
+            .tool(store_tool)
+            .tool(find_tool)
+            .tool(update_tool);
+
+        tracing::info!(
+            "Memory tools enabled for channel {} with Qdrant at {}",
+            channel_id,
+            qdrant_config.url
+        );
+    } else {
+        tracing::debug!("Memory tools not configured - Qdrant settings missing");
+    }
+
+    let agent = agent_builder
         .additional_params(json!({
             "max_completion_tokens": 4096,
             "reasoning_effort": "high"

@@ -22,6 +22,7 @@ pub struct ServerConfig {
     pub discord_token: Option<String>,
     pub openai_api_key: Option<String>,
     pub raindrop_api_token: Option<String>,
+    pub qdrant: Option<QdrantConfig>,
 }
 
 #[derive(Clone)]
@@ -34,6 +35,13 @@ pub struct GitHubOauth {
 pub struct SpotifyOauth {
     pub client_id: String,
     pub client_secret: String,
+}
+
+#[derive(Clone)]
+pub struct QdrantConfig {
+    pub url: String,
+    pub api_key: Option<String>,
+    pub default_collection: Option<String>,
 }
 
 fn var(key: &str) -> Result<Option<String>, String> {
@@ -128,6 +136,12 @@ impl ServerConfig {
             .unwrap_or(Some("http://localhost:4321".to_string()))
             .unwrap_or("http://localhost:4321".to_string());
 
+        let qdrant = var("QDRANT_URL").unwrap_or(None).map(|url| QdrantConfig {
+            url,
+            api_key: var("QDRANT_API_KEY").unwrap_or(None),
+            default_collection: var("QDRANT_DEFAULT_COLLECTION").unwrap_or(None),
+        });
+
         ServerConfig {
             env,
             site_url,
@@ -137,6 +151,7 @@ impl ServerConfig {
             discord_token: var("DISCORD_TOKEN").unwrap_or(None),
             openai_api_key: var("OPENAI_API_KEY").unwrap_or(None),
             raindrop_api_token: var("RAINDROP_API_TOKEN").unwrap_or(None),
+            qdrant,
         }
     }
 }
