@@ -68,11 +68,8 @@ async fn perform_web_search(query: &str) -> Result<String, eyre::Error> {
     use reqwest::Client;
     use url::Url;
 
-    let search_url = format!(
-        "https://duckduckgo.com/html?q={}",
-        urlencoding::encode(query)
-    );
-    let url = Url::parse(&search_url)?;
+    let mut url = Url::parse("https://duckduckgo.com/html")?;
+    url.query_pairs_mut().append_pair("q", query);
 
     let scraper = ArticleScraper::new(None).await;
     let client = Client::builder()
