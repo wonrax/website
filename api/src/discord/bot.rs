@@ -140,6 +140,7 @@ pub struct Handler {
     pub agent_sessions: Arc<Mutex<HashMap<ChannelId, AgentSession>>>,
     /// Server configuration including OpenAI API key, Qdrant and other services
     pub server_config: crate::config::ServerConfig,
+    pub whitelist_channels: Vec<ChannelId>,
 }
 
 impl Handler {
@@ -148,6 +149,11 @@ impl Handler {
             message_queue: Arc::new(Mutex::new(HashMap::new())),
             channel_activity: Arc::new(Mutex::new(HashMap::new())),
             agent_sessions: Arc::new(Mutex::new(HashMap::new())),
+            whitelist_channels: (server_config.discord_whitelist_channels.as_ref())
+                .unwrap_or(&WHITELIST_CHANNELS.to_vec())
+                .iter()
+                .map(|id| ChannelId::new(*id))
+                .collect(),
             server_config,
         }
     }
@@ -157,9 +163,8 @@ impl Handler {
     pub async fn initialize_channels(&self, ctx: &Context) -> Result<(), eyre::Error> {
         tracing::info!("Initializing agent sessions for whitelisted channels on startup...");
 
-        for &channel_id_u64 in &WHITELIST_CHANNELS {
-            let channel_id = ChannelId::new(channel_id_u64);
-
+        for channel_id in &self.whitelist_channels {
+            let channel_id = *channel_id;
             // Check if channel has recent activity (messages in the last hour)
             match self.has_recent_activity(ctx, channel_id).await {
                 Ok(true) => {
@@ -334,6 +339,7 @@ impl Handler {
             channel_activity: self.channel_activity.clone(),
             agent_sessions: self.agent_sessions.clone(),
             server_config: self.server_config.clone(),
+            whitelist_channels: self.whitelist_channels.clone(),
         });
 
         let handle = tokio::spawn(async move {
@@ -417,7 +423,7 @@ impl Handler {
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
-        if !WHITELIST_CHANNELS.contains(&msg.channel_id.get()) {
+        if !self.whitelist_channels.contains(&msg.channel_id) {
             return;
         }
 
@@ -448,7 +454,7 @@ impl EventHandler for Handler {
     }
 
     async fn typing_start(&self, ctx: Context, event: TypingStartEvent) {
-        if !WHITELIST_CHANNELS.contains(&event.channel_id.get()) {
+        if !self.whitelist_channels.contains(&event.channel_id) {
             return;
         }
 

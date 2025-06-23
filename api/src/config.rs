@@ -20,6 +20,7 @@ pub struct ServerConfig {
     pub owner_identity_id: i32,
 
     pub discord_token: Option<String>,
+    pub discord_whitelist_channels: Option<Vec<u64>>,
     pub openai_api_key: Option<String>,
     pub raindrop_api_token: Option<String>,
     pub qdrant: Option<QdrantConfig>,
@@ -151,6 +152,14 @@ impl ServerConfig {
             discord_token: var("DISCORD_TOKEN").unwrap_or(None),
             openai_api_key: var("OPENAI_API_KEY").unwrap_or(None),
             raindrop_api_token: var("RAINDROP_API_TOKEN").unwrap_or(None),
+            discord_whitelist_channels: var("DISCORD_WHITELIST_CHANNELS").unwrap_or(None).and_then(
+                |s| {
+                    s.split(',')
+                        .map(|s| s.trim().parse::<u64>())
+                        .collect::<Result<Vec<_>, _>>()
+                        .ok()
+                },
+            ),
             qdrant,
         }
     }

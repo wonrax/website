@@ -1,7 +1,7 @@
 use crate::discord::{
     constants::{AGENT_SESSION_TIMEOUT, MAX_AGENT_TURNS, MESSAGE_CONTEXT_SIZE, SYSTEM_PROMPT},
     message::build_conversation_history,
-    tools::{DiscordSendMessageTool, FetchPageContentTool},
+    tools::{DiscordSendMessageTool, FetchPageContentTool, WebSearchTool},
 };
 use rig::{
     agent::Agent,
@@ -36,8 +36,9 @@ impl AgentSession {
     pub fn add_messages(&mut self, messages: Vec<RigMessage>) {
         self.conversation_history.extend(messages);
 
-        // Keep conversation history manageable - limit to 2x MESSAGE_CONTEXT_SIZE
-        let max_history = MESSAGE_CONTEXT_SIZE * 2;
+        // TODO: leverage prompt caching to reduce cost
+        // https://platform.openai.com/docs/guides/prompt-caching
+        let max_history = MESSAGE_CONTEXT_SIZE;
         if self.conversation_history.len() > max_history {
             let excess = self.conversation_history.len() - max_history;
             self.conversation_history.drain(0..excess);
@@ -71,13 +72,15 @@ pub async fn create_agent_session(
         reply_to_message_id: None, // Will be set per interaction
     };
     let fetch_tool = FetchPageContentTool;
+    let web_search_tool = WebSearchTool;
 
     // Create memory tools if Qdrant is configured
     let mut agent_builder = openai_client
-        .agent("o3")
+        .agent("o4-mini")
         .preamble(SYSTEM_PROMPT)
         .tool(discord_tool)
-        .tool(fetch_tool);
+        .tool(fetch_tool)
+        .tool(web_search_tool);
 
     // Add memory tools if Qdrant configuration exists
     if let Some(qdrant_config) = &server_config.qdrant {
@@ -127,7 +130,7 @@ pub async fn create_agent_session(
     let agent = agent_builder
         .additional_params(json!({
             "max_completion_tokens": 4096,
-            "reasoning_effort": "high"
+            "reasoning_effort": "medium"
         }))
         .build();
 
