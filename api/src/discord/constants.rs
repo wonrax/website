@@ -9,7 +9,9 @@ pub const TYPING_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(10); // 10 sec
 pub const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 pub const DISCORD_BOT_NAME: &str = "The Irony Himself";
 pub const MAX_AGENT_TURNS: usize = 20; // Maximum turns for multi-turn reasoning
-pub const AGENT_SESSION_TIMEOUT: Duration = Duration::from_secs(60 * 60 * 24 * 7); // 7 days
+                                       //
+/// Expires after 10 minutes so that we don't remember tool uses that can contain large context size
+pub const AGENT_SESSION_TIMEOUT: Duration = Duration::from_secs(60 * 10);
 
 /// Create the system prompt for the Discord bot agent
 pub const SYSTEM_PROMPT: &str = formatcp!(
