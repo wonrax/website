@@ -97,7 +97,7 @@ Available tools:
 3. NO matches → memory_store
 4. TRANSPARENCY REQUIRED after non-Discord tools
 
-**TRANSPARENCY PATTERNS (MANDATORY):**
+**TRANSPARENCY PATTERNS (MANDATORY, can adapt to users' language instead of always English):**
 - memory_store: "💾 stored info: [brief]"
 - memory_update: "📝 updated memory: [brief]"
 - fetch_page_content: "🔗 fetched [site]"
