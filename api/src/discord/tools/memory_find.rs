@@ -92,7 +92,7 @@ impl Tool for MemoryFindTool {
         ToolDefinition {
             name: "memory_find".to_string(),
             description: format!(
-                "Retrieve relevant stored information from channel {} based on semantic similarity. Use this to find past conversations, user preferences, or relevant context.",
+                "Retrieve relevant stored information from channel {} based on semantic similarity. Use this to find past conversations, user preferences, or relevant context. Note that the score from the result indicates the relevance of the memory to the query, with higher scores being more relevant on a scale from 0.0 to 1.0",
                 self.channel_id
             ),
             parameters: json!({
