@@ -1,19 +1,19 @@
-use super::qdrant_shared::{SearchResult, SharedQdrantClient};
+use super::vector_client::{SearchResult, SharedVectorClient};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use thiserror::Error;
 
 #[derive(Clone)]
-pub struct QdrantFindTool {
-    pub client: SharedQdrantClient,
+pub struct MemoryFindTool {
+    pub client: SharedVectorClient,
     pub limit: u64,
     pub channel_id: u64, // Discord channel ID
 }
 
-impl QdrantFindTool {
+impl MemoryFindTool {
     pub fn new_with_client(
-        client: SharedQdrantClient,
+        client: SharedVectorClient,
         channel_id: u64,
         limit: Option<u64>,
     ) -> Self {
@@ -26,14 +26,14 @@ impl QdrantFindTool {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QdrantFindArgs {
+pub struct MemoryFindArgs {
     pub query: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QdrantResult {
+pub struct MemoryResult {
     pub point_id: String,
     pub content: String,
     pub score: f32,
@@ -41,7 +41,7 @@ pub struct QdrantResult {
     pub timestamp: Option<String>,
 }
 
-impl From<SearchResult> for QdrantResult {
+impl From<SearchResult> for MemoryResult {
     fn from(result: SearchResult) -> Self {
         Self {
             point_id: result.point_id,
@@ -54,9 +54,9 @@ impl From<SearchResult> for QdrantResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QdrantFindOutput {
+pub struct MemoryFindOutput {
     pub success: bool,
-    pub results: Vec<QdrantResult>,
+    pub results: Vec<MemoryResult>,
     pub total_found: usize,
     pub query: String,
     pub collection: String,
@@ -64,14 +64,14 @@ pub struct QdrantFindOutput {
 }
 
 #[derive(Debug, Error)]
-#[error("Qdrant find error: {0}")]
-pub struct QdrantFindError(String);
+#[error("Memory find error: {0}")]
+pub struct MemoryFindError(String);
 
-impl Tool for QdrantFindTool {
-    const NAME: &'static str = "qdrant_find";
-    type Error = QdrantFindError;
-    type Args = QdrantFindArgs;
-    type Output = QdrantFindOutput;
+impl Tool for MemoryFindTool {
+    const NAME: &'static str = "memory_find";
+    type Error = MemoryFindError;
+    type Args = MemoryFindArgs;
+    type Output = MemoryFindOutput;
 
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         let properties = json!({
@@ -90,7 +90,7 @@ impl Tool for QdrantFindTool {
         let required = vec!["query"];
 
         ToolDefinition {
-            name: "qdrant_find".to_string(),
+            name: "memory_find".to_string(),
             description: format!(
                 "Retrieve relevant stored information from channel {} based on semantic similarity. Use this to find past conversations, user preferences, or relevant context.",
                 self.channel_id
@@ -104,60 +104,49 @@ impl Tool for QdrantFindTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // Clone args for the async operation
         let client = self.client.clone();
         let query = args.query.clone();
         let limit = args.limit.unwrap_or(self.limit);
-
-        tracing::info!(
-            "Starting qdrant_find for query: '{}' with limit: {}",
-            query,
-            limit
-        );
+        let channel_id = self.channel_id;
+        let collection_used = client.get_collection_name(self.channel_id);
 
         // Spawn the async work in a separate task to avoid Sync issues
         let handle = tokio::spawn(async move {
-            tracing::debug!("Starting search operation...");
-
             // Use None for collection_name since it's hardcoded via channel_id in the config
-            let results = match client.search(&query, None, limit).await {
+            let results = match client.search(&query, channel_id, limit).await {
                 Ok(results) => {
                     tracing::debug!(
-                        "Search completed successfully, found {} results",
-                        results.len()
+                        "Search completed successfully, found {} results: {:?}",
+                        results.len(),
+                        results
                     );
                     results
                 }
                 Err(e) => {
-                    tracing::error!("Search operation failed (Qdrant may be unavailable): {}", e);
-                    return Ok(QdrantFindOutput {
+                    return Ok(MemoryFindOutput {
                         success: false,
                         results: vec![],
                         total_found: 0,
                         query: query.clone(),
                         collection: "unknown".to_string(),
-                        error: Some(format!("Qdrant unavailable: {}", e)),
+                        error: Some(format!("Vector database unavailable: {}", e)),
                     });
                 }
             };
 
-            let collection_used = client
-                .get_collection_name(None)
-                .unwrap_or_else(|_| "unknown".to_string());
-
-            let qdrant_results: Vec<QdrantResult> =
-                results.into_iter().map(QdrantResult::from).collect();
-            let total_found = qdrant_results.len();
+            let memory_results: Vec<MemoryResult> =
+                results.into_iter().map(MemoryResult::from).collect();
+            let total_found = memory_results.len();
 
             tracing::info!(
-                "qdrant_find completed: found {} results in collection '{}'",
+                "memory_find completed: found {} results in collection '{}'",
                 total_found,
                 collection_used
             );
 
-            Ok::<QdrantFindOutput, QdrantFindError>(QdrantFindOutput {
+            Ok::<MemoryFindOutput, MemoryFindError>(MemoryFindOutput {
                 success: true,
-                results: qdrant_results,
+                results: memory_results,
                 total_found,
                 query: query.clone(),
                 collection: collection_used,
@@ -167,17 +156,14 @@ impl Tool for QdrantFindTool {
 
         match handle.await {
             Ok(result) => result,
-            Err(e) => {
-                tracing::error!("qdrant_find task panicked or was cancelled: {}", e);
-                Ok(QdrantFindOutput {
-                    success: false,
-                    results: vec![],
-                    total_found: 0,
-                    query: args.query,
-                    collection: "unknown".to_string(),
-                    error: Some(format!("Task execution error: {}", e)),
-                })
-            }
+            Err(e) => Ok(MemoryFindOutput {
+                success: false,
+                results: vec![],
+                total_found: 0,
+                query: args.query,
+                collection: "unknown".to_string(),
+                error: Some(format!("Task execution error: {}", e)),
+            }),
         }
     }
 }

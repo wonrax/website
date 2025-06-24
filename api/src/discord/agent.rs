@@ -13,6 +13,8 @@ use serde_json::json;
 use serenity::all::{ChannelId, Context};
 use std::{sync::Arc, time::Instant};
 
+use super::tools::SharedVectorClient;
+
 // Agent session for persistent multi-turn conversations
 pub struct AgentSession {
     pub agent: Agent<openai::CompletionModel>,
@@ -56,7 +58,7 @@ pub async fn create_agent_session(
     channel_id: ChannelId,
     context_size: usize,
     openai_api_key: &str,
-    server_config: &crate::config::ServerConfig,
+    shared_vectordb_client: Option<SharedVectorClient>,
 ) -> Result<AgentSession, eyre::Error> {
     // Create OpenAI client and build agent
     let openai_client = openai::Client::new(openai_api_key);
@@ -82,34 +84,18 @@ pub async fn create_agent_session(
         .tool(fetch_tool)
         .tool(web_search_tool);
 
-    // Add memory tools if Qdrant configuration exists
-    if let Some(qdrant_config) = &server_config.qdrant {
-        let memory_config = crate::discord::tools::QdrantConfig {
-            url: qdrant_config.url.clone(),
-            api_key: qdrant_config.api_key.clone(),
-            default_collection: qdrant_config
-                .default_collection
-                .clone()
-                .or_else(|| Some("discord_memory".to_string())),
-            channel_id: Some(channel_id.get()), // Add channel ID to config
-        };
-
-        // Create a single shared Qdrant client for this channel
-        let shared_client = crate::discord::tools::QdrantSharedClient::new_shared(memory_config)
-            .await
-            .map_err(|e| eyre::eyre!("Failed to create shared Qdrant client: {}", e))?;
-
-        let store_tool = crate::discord::tools::QdrantStoreTool::new_with_client(
-            shared_client.clone(),
+    if let Some(shared_vectordb_client) = shared_vectordb_client {
+        let store_tool = crate::discord::tools::MemoryStoreTool::new_with_client(
+            shared_vectordb_client.clone(),
             channel_id.get(),
         );
-        let find_tool = crate::discord::tools::QdrantFindTool::new_with_client(
-            shared_client.clone(),
+        let find_tool = crate::discord::tools::MemoryFindTool::new_with_client(
+            shared_vectordb_client.clone(),
             channel_id.get(),
             Some(5),
         );
-        let update_tool = crate::discord::tools::QdrantUpdateTool::new_with_client(
-            shared_client,
+        let update_tool = crate::discord::tools::MemoryUpdateTool::new_with_client(
+            shared_vectordb_client,
             channel_id.get(),
         );
 
@@ -118,14 +104,8 @@ pub async fn create_agent_session(
             .tool(find_tool)
             .tool(update_tool);
 
-        tracing::info!(
-            "Memory tools enabled for channel {} with Qdrant at {}",
-            channel_id,
-            qdrant_config.url
-        );
-    } else {
-        tracing::debug!("Memory tools not configured - Qdrant settings missing");
-    }
+        tracing::info!("Memory tools enabled for channel {}", channel_id,);
+    };
 
     let agent = agent_builder
         .additional_params(json!({

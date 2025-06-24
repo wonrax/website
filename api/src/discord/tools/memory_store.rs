@@ -1,30 +1,31 @@
-use super::qdrant_shared::SharedQdrantClient;
+use super::vector_client::SharedVectorClient;
+use chrono;
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use thiserror::Error;
 
 #[derive(Clone)]
-pub struct QdrantStoreTool {
-    pub client: SharedQdrantClient,
+pub struct MemoryStoreTool {
+    pub client: SharedVectorClient,
     pub channel_id: u64, // Discord channel ID
 }
 
-impl QdrantStoreTool {
-    pub fn new_with_client(client: SharedQdrantClient, channel_id: u64) -> Self {
+impl MemoryStoreTool {
+    pub fn new_with_client(client: SharedVectorClient, channel_id: u64) -> Self {
         Self { client, channel_id }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QdrantStoreArgs {
+pub struct MemoryStoreArgs {
     pub information: String,
     #[serde(default)]
     pub metadata: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QdrantStoreOutput {
+pub struct MemoryStoreOutput {
     pub success: bool,
     pub point_id: Option<String>,
     pub message: String,
@@ -32,14 +33,14 @@ pub struct QdrantStoreOutput {
 }
 
 #[derive(Debug, Error)]
-#[error("Qdrant store error: {0}")]
-pub struct QdrantStoreError(String);
+#[error("Memory store error: {0}")]
+pub struct MemoryStoreError(String);
 
-impl Tool for QdrantStoreTool {
-    const NAME: &'static str = "qdrant_store";
-    type Error = QdrantStoreError;
-    type Args = QdrantStoreArgs;
-    type Output = QdrantStoreOutput;
+impl Tool for MemoryStoreTool {
+    const NAME: &'static str = "memory_store";
+    type Error = MemoryStoreError;
+    type Args = MemoryStoreArgs;
+    type Output = MemoryStoreOutput;
 
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         let properties = json!({
@@ -57,7 +58,7 @@ impl Tool for QdrantStoreTool {
         let required = vec!["information"];
 
         ToolDefinition {
-            name: "qdrant_store".to_string(),
+            name: "memory_store".to_string(),
             description: format!(
                 "Store information in the vector database for channel {}. Use this to save important details about users, conversations, preferences, or interesting facts for future reference in this channel.",
                 self.channel_id
@@ -71,22 +72,25 @@ impl Tool for QdrantStoreTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // Clone args for the async operation
         let client = self.client.clone();
         let information = args.information.clone();
-        let metadata = args.metadata.clone();
+        let mut metadata = args.metadata.unwrap_or_else(|| serde_json::json!({}));
+        let channel_id = self.channel_id;
+        let collection_used = client.get_collection_name(self.channel_id);
 
-        tracing::info!(
-            "Starting qdrant_store for: '{}'",
-            information.chars().take(50).collect::<String>()
-        );
+        // Add timestamp to metadata
+        if let serde_json::Value::Object(ref mut obj) = metadata {
+            obj.insert(
+                "timestamp".to_string(),
+                serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
+            );
+        }
+        let metadata = Some(metadata);
 
         // Spawn the async work in a separate task to avoid Sync issues
         let handle = tokio::spawn(async move {
-            tracing::debug!("Starting store operation...");
-
             // Use None for collection_name since it's hardcoded via channel_id in the config
-            let point_id = match client.store(&information, None, metadata).await {
+            let point_id = match client.store(&information, channel_id, metadata).await {
                 Ok(point_id) => {
                     tracing::debug!(
                         "Store operation completed successfully, point_id: {}",
@@ -95,27 +99,26 @@ impl Tool for QdrantStoreTool {
                     point_id
                 }
                 Err(e) => {
-                    tracing::error!("Store operation failed (Qdrant may be unavailable): {}", e);
-                    return Ok(QdrantStoreOutput {
+                    tracing::error!(
+                        "Store operation failed (vector database may be unavailable): {}",
+                        e
+                    );
+                    return Ok(MemoryStoreOutput {
                         success: false,
                         point_id: None,
-                        message: "Failed to store information - Qdrant server unavailable"
+                        message: "Failed to store information - vector database server unavailable"
                             .to_string(),
-                        error: Some(format!("Qdrant unavailable: {}", e)),
+                        error: Some(format!("Vector database unavailable: {}", e)),
                     });
                 }
             };
 
-            let collection_used = client
-                .get_collection_name(None)
-                .unwrap_or_else(|_| "unknown".to_string());
-
             tracing::info!(
-                "qdrant_store completed successfully: stored in collection '{}'",
+                "memory_store completed successfully: stored in collection '{}'",
                 collection_used
             );
 
-            Ok::<QdrantStoreOutput, QdrantStoreError>(QdrantStoreOutput {
+            Ok::<MemoryStoreOutput, MemoryStoreError>(MemoryStoreOutput {
                 success: true,
                 point_id: Some(point_id),
                 message: format!(
@@ -128,15 +131,12 @@ impl Tool for QdrantStoreTool {
 
         match handle.await {
             Ok(result) => result,
-            Err(e) => {
-                tracing::error!("qdrant_store task panicked or was cancelled: {}", e);
-                Ok(QdrantStoreOutput {
-                    success: false,
-                    point_id: None,
-                    message: "Failed to store information".to_string(),
-                    error: Some(format!("Task execution error: {}", e)),
-                })
-            }
+            Err(e) => Ok(MemoryStoreOutput {
+                success: false,
+                point_id: None,
+                message: "Failed to store information".to_string(),
+                error: Some(format!("Task execution error: {}", e)),
+            }),
         }
     }
 }

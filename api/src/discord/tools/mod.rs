@@ -1,15 +1,15 @@
 pub mod discord_message;
 pub mod fetch_content;
-pub mod qdrant_find;
-pub mod qdrant_shared;
-pub mod qdrant_store;
-pub mod qdrant_update;
+pub mod memory_find;
+pub mod memory_store;
+pub mod memory_update;
+pub mod vector_client;
 pub mod web_search;
 
 pub use discord_message::*;
 pub use fetch_content::*;
-pub use qdrant_find::*;
-pub use qdrant_shared::*;
-pub use qdrant_store::*;
-pub use qdrant_update::*;
+pub use memory_find::*;
+pub use memory_store::*;
+pub use memory_update::*;
+pub use vector_client::*;
 pub use web_search::*;

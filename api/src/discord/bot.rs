@@ -40,6 +40,8 @@ use std::{
 };
 use tokio::sync::Mutex;
 
+use super::tools::SharedVectorClient;
+
 /// Dual-timestamp activity tracker for proper debouncing
 #[derive(Debug)]
 pub(crate) struct ChannelActivity {
@@ -143,10 +145,24 @@ pub struct Handler {
     /// Server configuration including OpenAI API key, Qdrant and other services
     pub server_config: crate::config::ServerConfig,
     pub whitelist_channels: Vec<ChannelId>,
+    pub shared_vectordb_client: Option<SharedVectorClient>,
 }
 
 impl Handler {
-    pub fn new(server_config: crate::config::ServerConfig) -> Self {
+    pub async fn new(server_config: crate::config::ServerConfig) -> Self {
+        let shared_vectordb_client = match &server_config.vector_db {
+            Some(conf) => SharedVectorClient::new(conf.clone())
+                .await
+                .inspect_err(|e| {
+                    tracing::error!(
+                        "Failed to create shared vector client, defaulting to None: {}",
+                        e
+                    );
+                })
+                .ok(),
+            None => None,
+        };
+
         Self {
             message_queue: Arc::new(Mutex::new(HashMap::new())),
             channel_activity: Arc::new(Mutex::new(HashMap::new())),
@@ -156,6 +172,7 @@ impl Handler {
                 .iter()
                 .map(|id| ChannelId::new(*id))
                 .collect(),
+            shared_vectordb_client,
             server_config,
         }
     }
@@ -274,7 +291,7 @@ impl Handler {
                 channel_id,
                 context_size,
                 openai_api_key,
-                &self.server_config,
+                self.shared_vectordb_client.clone(),
             )
             .await?;
             sessions.insert(channel_id, session);
@@ -317,6 +334,18 @@ impl Handler {
         channel_id: ChannelId,
         activity: &mut ChannelActivity,
     ) {
+        // Do nothing if message queue is empty
+        let message_queue = self.message_queue.lock().await;
+        match message_queue.get(&channel_id) {
+            Some(messages) if messages.is_empty() => {
+                return;
+            }
+            None => {
+                return;
+            }
+            _ => {}
+        }
+
         // Cancel any existing timer
         activity.cancel_timer();
 
@@ -342,6 +371,7 @@ impl Handler {
             agent_sessions: self.agent_sessions.clone(),
             server_config: self.server_config.clone(),
             whitelist_channels: self.whitelist_channels.clone(),
+            shared_vectordb_client: self.shared_vectordb_client.clone(),
         });
 
         let handle = tokio::spawn(async move {

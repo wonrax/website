@@ -1,23 +1,24 @@
-use super::qdrant_shared::SharedQdrantClient;
+use super::vector_client::SharedVectorClient;
+use chrono;
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use thiserror::Error;
 
 #[derive(Clone)]
-pub struct QdrantUpdateTool {
-    pub client: SharedQdrantClient,
+pub struct MemoryUpdateTool {
+    pub client: SharedVectorClient,
     pub channel_id: u64, // Discord channel ID
 }
 
-impl QdrantUpdateTool {
-    pub fn new_with_client(client: SharedQdrantClient, channel_id: u64) -> Self {
+impl MemoryUpdateTool {
+    pub fn new_with_client(client: SharedVectorClient, channel_id: u64) -> Self {
         Self { client, channel_id }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QdrantUpdateArgs {
+pub struct MemoryUpdateArgs {
     pub point_id: String,
     pub information: String,
     #[serde(default)]
@@ -25,7 +26,7 @@ pub struct QdrantUpdateArgs {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QdrantUpdateOutput {
+pub struct MemoryUpdateOutput {
     pub success: bool,
     pub point_id: String,
     pub message: String,
@@ -33,20 +34,20 @@ pub struct QdrantUpdateOutput {
 }
 
 #[derive(Debug, Error)]
-#[error("Qdrant update error: {0}")]
-pub struct QdrantUpdateError(String);
+#[error("Memory update error: {0}")]
+pub struct MemoryUpdateError(String);
 
-impl Tool for QdrantUpdateTool {
-    const NAME: &'static str = "qdrant_update";
-    type Error = QdrantUpdateError;
-    type Args = QdrantUpdateArgs;
-    type Output = QdrantUpdateOutput;
+impl Tool for MemoryUpdateTool {
+    const NAME: &'static str = "memory_update";
+    type Error = MemoryUpdateError;
+    type Args = MemoryUpdateArgs;
+    type Output = MemoryUpdateOutput;
 
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         let properties = json!({
             "point_id": {
                 "type": "string",
-                "description": "The point ID of the existing memory to update (obtained from qdrant_find results)"
+                "description": "The point ID of the existing memory to update (obtained from memory_find results)"
             },
             "information": {
                 "type": "string",
@@ -62,7 +63,7 @@ impl Tool for QdrantUpdateTool {
         let required = vec!["point_id", "information"];
 
         ToolDefinition {
-            name: "qdrant_update".to_string(),
+            name: "memory_update".to_string(),
             description: format!(
                 "Update existing information in the vector database for channel {}. Use this to modify or correct previously stored memories based on new information or corrections.",
                 self.channel_id
@@ -76,25 +77,37 @@ impl Tool for QdrantUpdateTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // Clone args for the async operation
         let client = self.client.clone();
         let point_id = args.point_id.clone();
         let information = args.information.clone();
-        let metadata = args.metadata.clone();
+        let mut metadata = args.metadata.unwrap_or_else(|| serde_json::json!({}));
+        let channel_id = self.channel_id;
+        let collection_used = client.get_collection_name(self.channel_id);
+
+        // Add timestamp to metadata
+        if let serde_json::Value::Object(ref mut obj) = metadata {
+            obj.insert(
+                "timestamp".to_string(),
+                serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
+            );
+        }
+        let metadata = Some(metadata);
 
         // Spawn the async work in a separate task to avoid Sync issues
         let handle = tokio::spawn(async move {
             // Use None for collection_name since it's hardcoded via channel_id in the config
-            client
-                .update(&point_id, &information, None, metadata)
+            let result = client
+                .update(&point_id, &information, channel_id, metadata)
                 .await
-                .map_err(|e| QdrantUpdateError(format!("Failed to update information: {}", e)))?;
+                .map_err(|e| MemoryUpdateError(format!("Failed to update information: {}", e)))?;
 
-            let collection_used = client
-                .get_collection_name(None)
-                .unwrap_or_else(|_| "unknown".to_string());
+            tracing::debug!(
+                "Update operation completed successfully, point_id: {}, result: {:?}",
+                point_id,
+                result
+            );
 
-            Ok::<QdrantUpdateOutput, QdrantUpdateError>(QdrantUpdateOutput {
+            Ok::<MemoryUpdateOutput, MemoryUpdateError>(MemoryUpdateOutput {
                 success: true,
                 point_id: point_id.clone(),
                 message: format!(
@@ -107,7 +120,7 @@ impl Tool for QdrantUpdateTool {
 
         match handle.await {
             Ok(result) => result,
-            Err(e) => Ok(QdrantUpdateOutput {
+            Err(e) => Ok(MemoryUpdateOutput {
                 success: false,
                 point_id: args.point_id,
                 message: "Failed to update information".to_string(),

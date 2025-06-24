@@ -23,7 +23,7 @@ pub struct ServerConfig {
     pub discord_whitelist_channels: Option<Vec<u64>>,
     pub openai_api_key: Option<String>,
     pub raindrop_api_token: Option<String>,
-    pub qdrant: Option<QdrantConfig>,
+    pub vector_db: Option<VectorDbConfig>,
 }
 
 #[derive(Clone)]
@@ -39,9 +39,10 @@ pub struct SpotifyOauth {
 }
 
 #[derive(Clone)]
-pub struct QdrantConfig {
+pub struct VectorDbConfig {
     pub url: String,
-    pub api_key: Option<String>,
+    pub token: String,
+    pub database: String,
     pub default_collection: Option<String>,
 }
 
@@ -137,11 +138,18 @@ impl ServerConfig {
             .unwrap_or(Some("http://localhost:4321".to_string()))
             .unwrap_or("http://localhost:4321".to_string());
 
-        let qdrant = var("QDRANT_URL").unwrap_or(None).map(|url| QdrantConfig {
-            url,
-            api_key: var("QDRANT_API_KEY").unwrap_or(None),
-            default_collection: var("QDRANT_DEFAULT_COLLECTION").unwrap_or(None),
-        });
+        let vector_db = var("CHROMADB_URL")
+            .unwrap_or(None)
+            .map(|url| VectorDbConfig {
+                url,
+                token: var("CHROMADB_API_TOKEN")
+                    .unwrap_or(None)
+                    .unwrap_or("".to_string()),
+                database: var("CHROMADB_DATABASE")
+                    .unwrap_or(Some("wrx-sh-discord-memory".to_string()))
+                    .unwrap_or("wrx-sh".to_string()),
+                default_collection: var("CHROMADB_DEFAULT_COLLECTION").unwrap_or(None),
+            });
 
         ServerConfig {
             env,
@@ -160,7 +168,7 @@ impl ServerConfig {
                         .ok()
                 },
             ),
-            qdrant,
+            vector_db,
         }
     }
 }

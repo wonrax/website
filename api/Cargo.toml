@@ -39,7 +39,7 @@ futures = "0.3.31"
 article_scraper = "2.1.2"
 url = "2.5.4"
 rig-core = "0.13.0"
-qdrant-client = "1.14.0"
+chromadb = "2.2.2"
 fastembed = "4.9.1"
 uuid = { version = "1.17.0", features = ["v4"] }
 
