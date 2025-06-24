@@ -96,15 +96,14 @@ impl Tool for MemoryUpdateTool {
         // Spawn the async work in a separate task to avoid Sync issues
         let handle = tokio::spawn(async move {
             // Use None for collection_name since it's hardcoded via channel_id in the config
-            let result = client
+            client
                 .update(&point_id, &information, channel_id, metadata)
                 .await
                 .map_err(|e| MemoryUpdateError(format!("Failed to update information: {}", e)))?;
 
             tracing::debug!(
-                "Update operation completed successfully, point_id: {}, result: {:?}",
+                "Update operation completed successfully, point_id: {}",
                 point_id,
-                result
             );
 
             Ok::<MemoryUpdateOutput, MemoryUpdateError>(MemoryUpdateOutput {

@@ -224,54 +224,44 @@ impl VectorClient {
             .await
             .map_err(|e| VectorClientError(format!("Failed to search points: {}", e)))?;
 
-        let mut results = Vec::new();
-
-        // Process query results
-        if let (Some(ids), Some(documents), Some(distances), metadatas) = (
-            query_result.ids.into_iter().next(),
-            query_result
-                .documents
-                .take()
-                .and_then(|docs| docs.into_iter().next()),
-            query_result
-                .distances
-                .take()
-                .and_then(|dists| dists.into_iter().next()),
-            query_result
-                .metadatas
-                .take()
-                .and_then(|metas| metas.into_iter().next()),
+        let results = if let (Some(ids), Some(documents), Some(distances)) = (
+            query_result.ids.pop(),
+            query_result.documents.take().and_then(|mut v| v.pop()),
+            query_result.distances.take().and_then(|mut v| v.pop()),
         ) {
-            for (id, (doc, (distance, meta))) in ids.into_iter().zip(
-                documents.into_iter().zip(
-                    distances.into_iter().zip(
-                        metadatas
-                            .map(|m| {
-                                Box::new(m.into_iter())
-                                    as Box<dyn Iterator<Item = Option<serde_json::Map<_, _>>>>
-                            })
-                            .unwrap_or_else(|| Box::new(std::iter::repeat(None))),
-                    ),
-                ),
-            ) {
-                // Convert distance to similarity score (ChromaDB returns distances, we want similarity)
-                let score = 1.0 - distance.clamp(0.0, 1.0); // Convert distance to similarity score
+            ids.into_iter()
+                .zip(documents.into_iter())
+                .zip(distances.into_iter())
+                .zip(
+                    query_result
+                        .metadatas
+                        .take()
+                        .and_then(|mut v| v.pop())
+                        .unwrap_or_else(std::vec::Vec::new)
+                        .into_iter()
+                        .chain(std::iter::repeat(None)),
+                )
+                .map(|(((id, content), distance), metadata)| {
+                    // Convert distance to similarity score (ChromaDB returns distances, we want similarity)
+                    let score = 1.0 - distance.clamp(0.0, 1.0);
+                    let timestamp = metadata
+                        .as_ref()
+                        .and_then(|m| m.get("timestamp"))
+                        .and_then(|t| t.as_str())
+                        .map(str::to_string);
 
-                let timestamp = meta
-                    .as_ref()
-                    .and_then(|m| m.get("timestamp"))
-                    .and_then(|t| t.as_str())
-                    .map(|s| s.to_string());
-
-                results.push(SearchResult {
-                    point_id: id.clone(),
-                    content: doc,
-                    score,
-                    metadata: meta.map(serde_json::Value::Object),
-                    timestamp,
-                });
-            }
-        }
+                    SearchResult {
+                        point_id: id.clone(),
+                        content,
+                        score,
+                        metadata: metadata.map(serde_json::Value::Object),
+                        timestamp,
+                    }
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
 
         Ok(results)
     }
