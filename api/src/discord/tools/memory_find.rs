@@ -114,14 +114,7 @@ impl Tool for MemoryFindTool {
         let handle = tokio::spawn(async move {
             // Use None for collection_name since it's hardcoded via channel_id in the config
             let results = match client.search(&query, channel_id, limit).await {
-                Ok(results) => {
-                    tracing::debug!(
-                        "Search completed successfully, found {} results: {:?}",
-                        results.len(),
-                        results
-                    );
-                    results
-                }
+                Ok(results) => results,
                 Err(e) => {
                     return Ok(MemoryFindOutput {
                         success: false,
@@ -139,9 +132,10 @@ impl Tool for MemoryFindTool {
             let total_found = memory_results.len();
 
             tracing::info!(
-                "memory_find completed: found {} results in collection '{}'",
+                "memory_find completed: found {} results in collection '{}' for query '{}'",
                 total_found,
-                collection_used
+                collection_used,
+                query
             );
 
             Ok::<MemoryFindOutput, MemoryFindError>(MemoryFindOutput {
