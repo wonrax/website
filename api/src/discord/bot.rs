@@ -110,7 +110,7 @@ async fn handle_message_batch(
 
     let channel_id = messages[0].message.channel_id;
 
-    let _typing = Typing::start(ctx.http.clone(), channel_id);
+    let typing = Typing::start(ctx.http.clone(), channel_id);
 
     // Ensure we have an agent session for this channel with enough context to include recent messages
     let context_size = std::cmp::max(MESSAGE_CONTEXT_SIZE, messages.len());
@@ -131,6 +131,8 @@ async fn handle_message_batch(
             // Execute agent interaction with multi-turn reasoning
             execute_agent_interaction(session, messages.len(), channel_id).await?;
         }
+
+        typing.stop();
     }
 
     Ok(())
