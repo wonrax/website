@@ -133,23 +133,20 @@ pub async fn execute_agent_interaction(
         return Ok(());
     }
 
-    match session
-        .agent
-        .prompt("New messages are added, respond appropriately.")
-        .with_history(&mut session.conversation_history)
-        .multi_turn(MAX_AGENT_TURNS)
-        .await
-    {
-        Ok(response) => {
-            tracing::debug!(
-                "Agent processed {} new messages for channel {}: {}",
-                messages_count,
-                channel_id,
-                response
-            );
-        }
-        Err(e) => {
-            return Err(e.into());
+    for i in 0..MAX_AGENT_TURNS {
+        let response = session
+            .agent
+            .prompt(if i == 0 {
+                "New messages are added, respond appropriately."
+            } else {
+                "Continue processing the conversation."
+            })
+            .with_history(&mut session.conversation_history)
+            .multi_turn(MAX_AGENT_TURNS)
+            .await?;
+
+        if response.trim().ends_with("[END]") {
+            break;
         }
     }
 
