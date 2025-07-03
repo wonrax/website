@@ -95,6 +95,10 @@ pub async fn create_agent_session(
             Some(5),
         );
         let update_tool = crate::discord::tools::MemoryUpdateTool::new_with_client(
+            shared_vectordb_client.clone(),
+            channel_id.get(),
+        );
+        let delete_tool = crate::discord::tools::MemoryDeleteTool::new_with_client(
             shared_vectordb_client,
             channel_id.get(),
         );
@@ -102,7 +106,8 @@ pub async fn create_agent_session(
         agent_builder = agent_builder
             .tool(store_tool)
             .tool(find_tool)
-            .tool(update_tool);
+            .tool(update_tool)
+            .tool(delete_tool);
 
         tracing::info!("Memory tools enabled for channel {}", channel_id,);
     };

@@ -184,6 +184,36 @@ impl VectorClient {
         Ok(())
     }
 
+    /// Delete information from the vector database
+    pub async fn delete(
+        &self,
+        channel_id: u64,
+        ids: Option<Vec<&str>>,
+        where_metadata: Option<Value>,
+        where_document: Option<Value>,
+    ) -> Result<(), VectorClientError> {
+        let collection_name = self.get_collection_name(channel_id);
+
+        // Try to get the collection, return error if it doesn't exist
+        let collection = match self.client.get_collection(&collection_name).await {
+            Ok(collection) => collection,
+            Err(e) => {
+                return Err(VectorClientError(format!(
+                    "Failed to get collection {}: {}",
+                    collection_name, e
+                )));
+            }
+        };
+
+        // Call ChromaDB delete method
+        collection
+            .delete(ids, where_metadata, where_document)
+            .await
+            .map_err(|e| VectorClientError(format!("Failed to delete entries: {}", e)))?;
+
+        Ok(())
+    }
+
     /// Search for information in the vector database
     pub async fn search(
         &self,
