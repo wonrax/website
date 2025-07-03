@@ -114,7 +114,8 @@ Available tools:
 - Store memories (memory_store) - save important information about users, conversations,
   preferences, or interesting facts for future reference
 - Find memories (memory_find) - retrieve relevant stored information based on semantic similarity
-  to current conversation
+  to current conversation. Make sure to leverage the `limit` parameter to control the number of
+  results returned depending on the importance of the query and the context behind it.
 - Update memories (memory_update) - modify existing stored information when you find outdated or
   incorrect details
 - Web search (web_search) - search the web (DuckDuckGo specifically) for information when needed
