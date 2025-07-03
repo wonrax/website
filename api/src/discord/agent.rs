@@ -124,11 +124,7 @@ pub async fn create_agent_session(
 }
 
 /// Helper to execute agent multi-turn reasoning and handle the response
-pub async fn execute_agent_interaction(
-    session: &mut AgentSession,
-    messages_count: usize,
-    channel_id: ChannelId,
-) -> Result<(), eyre::Error> {
+pub async fn execute_agent_interaction(session: &mut AgentSession) -> Result<(), eyre::Error> {
     if session.conversation_history.is_empty() {
         return Ok(());
     }

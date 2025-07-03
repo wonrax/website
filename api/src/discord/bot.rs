@@ -129,7 +129,7 @@ async fn handle_message_batch(
             session.add_messages(new_messages);
 
             // Execute agent interaction with multi-turn reasoning
-            execute_agent_interaction(session, messages.len(), channel_id).await?;
+            execute_agent_interaction(session).await?;
         }
 
         typing.stop();
@@ -441,7 +441,7 @@ impl Handler {
 
                     // Let the agent analyze the conversation and decide whether to respond
                     // We pass 0 for messages_count since this is a startup evaluation, not new messages
-                    execute_agent_interaction(session, 0, channel_id).await?;
+                    execute_agent_interaction(session).await?;
                 } else {
                     tracing::debug!(
                         "Skipping evaluation for channel {} - last message was from bot or no messages",

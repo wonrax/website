@@ -77,10 +77,17 @@ pub fn format_message_content(msg: &Message) -> String {
         })
         .unwrap_or_else(|| "None".to_string());
 
+    let user_mentions: String = msg
+        .mentions
+        .iter()
+        .map(|user| format!("@{}: {}", user.id, user.name))
+        .collect::<Vec<_>>()
+        .join("; ");
+
     // Build context block
     let context_block = format!(
-        "\n\n<<context>>\n* Replied To: [{}]\n* Mentions/Replies Bot: [{}]\n<</context>>",
-        referenced_message_preview, mentions_bot
+        "\n\n<<context>>\n* Replied To: [{}]\n* Mentions/Replies Bot: [{}]* Users mentioned in message: [{}]\n<</context>>",
+        referenced_message_preview, mentions_bot, user_mentions
     );
 
     let base_message = if msg.content.is_empty() && !msg.attachments.is_empty() {
