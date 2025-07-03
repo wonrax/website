@@ -93,7 +93,7 @@ pub async fn create_agent_session(
         let find_tool = crate::discord::tools::MemoryFindTool::new_with_client(
             shared_vectordb_client.clone(),
             channel_id.get(),
-            Some(5),
+            None,
         );
         let update_tool = crate::discord::tools::MemoryUpdateTool::new_with_client(
             shared_vectordb_client.clone(),

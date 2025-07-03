@@ -19,7 +19,7 @@ impl MemoryFindTool {
     ) -> Self {
         Self {
             client,
-            limit: limit.unwrap_or(5), // Default to top 5 results
+            limit: limit.unwrap_or(10),
             channel_id,
         }
     }
@@ -81,7 +81,7 @@ impl Tool for MemoryFindTool {
             },
             "limit": {
                 "type": "integer",
-                "description": "Maximum number of results to return (default: 5)",
+                "description": "Maximum number of results to return (default: 10, max: 20)",
                 "minimum": 1,
                 "maximum": 20
             }

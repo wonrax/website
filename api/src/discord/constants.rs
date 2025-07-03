@@ -115,7 +115,10 @@ Available tools:
   preferences, or interesting facts for future reference
 - Find memories (memory_find) - retrieve relevant stored information based on semantic similarity
   to current conversation. Make sure to leverage the `limit` parameter to control the number of
-  results returned depending on the importance of the query and the context behind it.
+  results returned depending on the importance of the query and the context behind it. NEVER
+  use the default limit of 10, always set it to a suitable value based on the context. If you
+  feel like there can be more relevant memories after the first query, feel free to issue
+  more tool calls to increase the limit.
 - Update memories (memory_update) - modify existing stored information when you find outdated or
   incorrect details
 - Delete memories (memory_delete) - permanently remove outdated, incorrect, or no longer relevant
