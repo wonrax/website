@@ -36,11 +36,12 @@ impl AgentSession {
     }
 
     pub fn add_messages(&mut self, messages: Vec<RigMessage>) {
+        let max_history = (MESSAGE_CONTEXT_SIZE * 2).max(messages.len());
+
         self.conversation_history.extend(messages);
 
         // TODO: leverage prompt caching to reduce cost
         // https://platform.openai.com/docs/guides/prompt-caching
-        let max_history = MESSAGE_CONTEXT_SIZE;
         if self.conversation_history.len() > max_history {
             let excess = self.conversation_history.len() - max_history;
             self.conversation_history.drain(0..excess);
@@ -138,9 +139,9 @@ pub async fn execute_agent_interaction(session: &mut AgentSession) -> Result<(),
         let response = session
             .agent
             .prompt(if i == 0 {
-                "New messages are added, respond appropriately."
+                "[SYSTEM]: New messages are added, respond appropriately."
             } else {
-                "Continue processing the conversation."
+                "[SYSTEM]: Continue processing the conversation."
             })
             .with_history(&mut session.conversation_history)
             .multi_turn(MAX_AGENT_TURNS)
