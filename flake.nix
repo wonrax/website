@@ -50,7 +50,11 @@
             ./package-lock.json;
 
         rustToolchain = pkgs.rust-bin.stable.latest.default.override {
-          extensions = [ "rust-src" ];
+          extensions = [
+            "rust-src"
+            "clippy"
+            "rust-analyzer"
+          ];
         };
       in
       {
