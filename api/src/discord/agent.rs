@@ -79,7 +79,7 @@ pub async fn create_agent_session(
 
     // Create memory tools if Qdrant is configured
     let mut agent_builder = openai_client
-        .agent("o4-mini")
+        .agent("gpt-5-mini")
         .preamble(SYSTEM_PROMPT)
         .tool(discord_tool)
         .tool(fetch_tool)
@@ -116,7 +116,8 @@ pub async fn create_agent_session(
     let agent = agent_builder
         .additional_params(json!({
             "max_completion_tokens": 4096,
-            "reasoning_effort": "medium"
+            "reasoning_effort": "medium",
+            "verbosity": "low"
         }))
         .build();
 
