@@ -28,7 +28,7 @@ pub struct CompileArgs {
     pub execute: bool,
     /// Return assembly output
     #[serde(default)]
-    pub asm: bool,
+    pub asm: Option<bool>,
     /// Optional tools list
     #[serde(default)]
     pub tools: Option<serde_json::Value>,
@@ -210,15 +210,11 @@ impl Tool for Godbolt {
                 .get("buildResult")
                 .cloned()
                 .unwrap_or_else(|| json!({}));
-            let build_stdout = build.get("stdout").cloned().unwrap_or_else(|| json!([]));
-            let build_stderr = build.get("stderr").cloned().unwrap_or_else(|| json!([]));
             // Exec part
             let did_execute = data
                 .get("didExecute")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
-            let exec_stdout = data.get("stdout").cloned().unwrap_or_else(|| json!([]));
-            let exec_stderr = data.get("stderr").cloned().unwrap_or_else(|| json!([]));
 
             // Helper to join
             fn join_text(arr: &serde_json::Value) -> String {
@@ -247,8 +243,6 @@ impl Tool for Godbolt {
                 "build": {
                     "code": build.get("code").and_then(|v| v.as_i64()).unwrap_or(-1),
                     "execTimeMs": build.get("execTime").and_then(|v| v.as_i64()),
-                    "stdout": build_stdout,
-                    "stderr": build_stderr,
                     "stdoutText": join_text(&build.get("stdout").cloned().unwrap_or_else(|| json!([]))),
                     "stderrText": join_text(&build.get("stderr").cloned().unwrap_or_else(|| json!([]))),
                     "timedOut": build.get("timedOut").and_then(|v| v.as_bool()).unwrap_or(false),
@@ -263,8 +257,6 @@ impl Tool for Godbolt {
                 "exec": if did_execute { Some(json!({
                     "code": data.get("code").and_then(|v| v.as_i64()).unwrap_or(-1),
                     "execTimeMs": data.get("execTime").and_then(|v| v.as_i64()),
-                    "stdout": exec_stdout,
-                    "stderr": exec_stderr,
                     "stdoutText": join_text(&data.get("stdout").cloned().unwrap_or_else(|| json!([]))),
                     "stderrText": join_text(&data.get("stderr").cloned().unwrap_or_else(|| json!([]))),
                     "timedOut": data.get("timedOut").and_then(|v| v.as_bool()).unwrap_or(false),
@@ -286,8 +278,6 @@ impl Tool for Godbolt {
                 "build": {
                     "code": -1,
                     "execTimeMs": null,
-                    "stdout": [],
-                    "stderr": [{"text": text}],
                     "stdoutText": "",
                     "stderrText": text,
                     "timedOut": false,
