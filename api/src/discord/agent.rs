@@ -5,7 +5,6 @@ use crate::discord::{
 };
 use rig::{
     agent::Agent,
-    client::CompletionClient,
     completion::{Message as RigMessage, Prompt},
     providers::openai,
 };
@@ -63,6 +62,7 @@ pub async fn create_agent_session(
 ) -> Result<AgentSession, eyre::Error> {
     // Create OpenAI client and build agent
     let openai_client = openai::Client::new(openai_api_key);
+    let completion_model = openai::CompletionModel::new(openai_client, "gpt-5-mini");
 
     // Build conversation history for context
     let history = build_conversation_history(ctx, channel_id, context_size).await?;
@@ -88,8 +88,8 @@ pub async fn create_agent_session(
     let gb_ver = crate::discord::tools::GodboltVersion;
 
     // Create memory tools if Qdrant is configured
-    let mut agent_builder = openai_client
-        .agent("gpt-5-mini")
+    let mut agent_builder = completion_model
+        .into_agent_builder()
         .preamble(SYSTEM_PROMPT)
         .tool(discord_tool)
         .tool(fetch_tool)
