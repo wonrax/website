@@ -5,28 +5,28 @@ use std::{
 };
 
 use axum::{
-    extract::{Query, State},
-    http::{header, StatusCode},
-    response::IntoResponse,
     Json,
+    extract::{Query, State},
+    http::{StatusCode, header},
+    response::IntoResponse,
 };
 use diesel::deserialize::Queryable;
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 use eyre::eyre;
 use rspotify::{
+    AuthCodeSpotify, Token,
     clients::{BaseClient, OAuthClient},
     model::Id,
-    AuthCodeSpotify, Token,
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::{OnceCell, RwLock};
 
 use crate::{
+    App,
     config::SpotifyOauth,
     error::{ApiRequestError, AppError, Error},
     identity::models::credential::{IdentityCredential, NewIdentityCredential},
-    App,
 };
 
 use super::AuthUser;

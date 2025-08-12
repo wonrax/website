@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use axum::{http::StatusCode, response::IntoResponse, Json};
+use axum::{Json, http::StatusCode, response::IntoResponse};
 use eyre::eyre;
 use serde::Serialize;
 use serde_json::Value;
@@ -148,7 +148,7 @@ impl From<(ErrorCode, &'static str, StatusCode)> for AppError {
         AppError {
             error: Inner::ApiError(Box::new(
                 ErrorResponseBuilder::new(value.1)
-                    .with_code(value.0 .0)
+                    .with_code(value.0.0)
                     .with_status_code(value.2),
             )),
             reason: None,

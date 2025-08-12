@@ -24,11 +24,11 @@
 // 5. No race conditions - unified reschedule logic handles all cases
 
 use crate::discord::{
-    agent::{create_agent_session, execute_agent_interaction, AgentSession},
+    agent::{AgentSession, create_agent_session, execute_agent_interaction},
     constants::{
         MESSAGE_CONTEXT_SIZE, MESSAGE_DEBOUNCE_TIMEOUT, TYPING_DEBOUNCE_TIMEOUT, WHITELIST_CHANNELS,
     },
-    message::{queued_messages_to_rig_messages, QueuedMessage},
+    message::{QueuedMessage, queued_messages_to_rig_messages},
 };
 use serenity::all::{ChannelId, Message, Ready, Typing, TypingStartEvent};
 use serenity::async_trait;

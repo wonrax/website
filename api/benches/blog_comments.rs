@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use rand::Rng;
 
 pub fn criterion_benchmark(c: &mut Criterion) {
@@ -135,12 +135,12 @@ fn sort_tree(comments: &mut Vec<Rc<RefCell<CommentView>>>) {
 
 fn depth_first_search(
     comment: &Rc<RefCell<CommentView>>,
-    mut result: &mut Vec<Rc<RefCell<CommentView>>>,
+    result: &mut Vec<Rc<RefCell<CommentView>>>,
 ) {
     result.push(comment.clone());
     if let Some(children) = comment.borrow().children.as_ref() {
         for child in children {
-            depth_first_search(child, &mut result);
+            depth_first_search(child, result);
         }
     }
 }
@@ -164,7 +164,7 @@ fn iterative_recursive_sort(comments: Vec<Comment>) -> Vec<CommentView> {
 }
 
 fn sort_vec(comments: Vec<Rc<Comment>>) -> Vec<Rc<Comment>> {
-    if comments.len() == 0 {
+    if comments.is_empty() {
         return vec![];
     }
 

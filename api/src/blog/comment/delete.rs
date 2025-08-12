@@ -6,7 +6,7 @@ use axum::{
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 
-use crate::{error::AppError, identity::AuthUser, schema::blog_comments, App};
+use crate::{App, error::AppError, identity::AuthUser, schema::blog_comments};
 
 #[debug_handler]
 pub async fn delete_comment(

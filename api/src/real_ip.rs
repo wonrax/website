@@ -8,7 +8,7 @@ use std::{
     sync::OnceLock,
 };
 
-use crate::{error::AppError, App};
+use crate::{App, error::AppError};
 
 static CLOUDFRONT_PREFIXES: OnceLock<Vec<IpNetwork>> = OnceLock::new();
 

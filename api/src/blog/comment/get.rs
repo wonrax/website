@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
@@ -10,7 +10,7 @@ use diesel::sql_types::*;
 use diesel_async::RunQueryDsl;
 use serde::Deserialize;
 
-use crate::{error::AppError, identity::MaybeAuthUser, App};
+use crate::{App, error::AppError, identity::MaybeAuthUser};
 
 use super::CommentTree;
 

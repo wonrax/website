@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use axum::{
+    Json, Router,
     extract::{Query, State},
-    http::{header, StatusCode},
+    http::{StatusCode, header},
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
 };
 use axum_extra::extract::CookieJar;
 use diesel::prelude::*;
@@ -15,6 +15,7 @@ use serde_json::json;
 use time::Duration;
 
 use crate::{
+    App,
     config::GitHubOauth,
     error::{ApiRequestError, AppError},
     identity::models::{
@@ -22,13 +23,12 @@ use crate::{
         identity::{Identity, NewIdentity, Traits},
         session::{NewSession, Session},
     },
-    App,
 };
 
 use super::{
+    AuthenticationError, COOKIE_NAME, MaybeAuthUser,
     connected_apps::get_connected_apps,
     spotify::{get_currently_playing, handle_spotify_callback, handle_spotify_connect_request},
-    AuthenticationError, MaybeAuthUser, COOKIE_NAME,
 };
 
 pub fn route() -> Router<App> {

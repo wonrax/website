@@ -2,7 +2,7 @@ use super::vector_client::SharedVectorClient;
 use chrono;
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use thiserror::Error;
 
 #[derive(Clone)]

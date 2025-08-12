@@ -85,13 +85,11 @@ impl Tool for DiscordSendMessageTool {
         let handle = tokio::spawn(async move {
             let mut message_builder = CreateMessage::new().content(&content);
 
-            if reply && target_message_id.is_some() {
-                if let Ok(original_msg) = channel_id
-                    .message(&ctx.http, target_message_id.unwrap())
-                    .await
-                {
-                    message_builder = message_builder.reference_message(&original_msg);
-                }
+            if reply
+                && let Some(msg_id) = target_message_id
+                && let Ok(original_msg) = channel_id.message(&ctx.http, msg_id).await
+            {
+                message_builder = message_builder.reference_message(&original_msg);
             }
 
             channel_id.send_message(&ctx.http, message_builder).await

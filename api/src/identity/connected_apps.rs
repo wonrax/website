@@ -1,4 +1,4 @@
-use axum::{extract::State, response::IntoResponse, Json};
+use axum::{Json, extract::State, response::IntoResponse};
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
@@ -27,9 +27,9 @@ struct IdentityCredentialTypes {
     created_at: chrono::NaiveDateTime,
 }
 
-use crate::{error::AppError, App};
+use crate::{App, error::AppError};
 
-use super::{routes::GitHubCredentials, spotify::SpotifyCredentials, AuthUser};
+use super::{AuthUser, routes::GitHubCredentials, spotify::SpotifyCredentials};
 
 #[derive(Serialize)]
 struct ConnectedApps {

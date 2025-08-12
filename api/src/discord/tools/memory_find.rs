@@ -1,7 +1,7 @@
 use super::vector_client::{SearchResult, SharedVectorClient};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use thiserror::Error;
 
 #[derive(Clone)]

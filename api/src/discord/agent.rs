@@ -77,13 +77,31 @@ pub async fn create_agent_session(
     let fetch_tool = FetchPageContentTool;
     let web_search_tool = WebSearchTool;
 
+    // Godbolt tools
+    let gb_compile = crate::discord::tools::Godbolt;
+    let gb_langs = crate::discord::tools::GodboltLanguages;
+    let gb_compilers = crate::discord::tools::GodboltCompilers;
+    let gb_libs = crate::discord::tools::GodboltLibraries;
+    let gb_formats = crate::discord::tools::GodboltFormats;
+    let gb_format = crate::discord::tools::GodboltFormat;
+    let gb_asm = crate::discord::tools::GodboltAsmDoc;
+    let gb_ver = crate::discord::tools::GodboltVersion;
+
     // Create memory tools if Qdrant is configured
     let mut agent_builder = openai_client
         .agent("gpt-5-mini")
         .preamble(SYSTEM_PROMPT)
         .tool(discord_tool)
         .tool(fetch_tool)
-        .tool(web_search_tool);
+        .tool(web_search_tool)
+        .tool(gb_compile)
+        .tool(gb_langs)
+        .tool(gb_compilers)
+        .tool(gb_libs)
+        .tool(gb_formats)
+        .tool(gb_format)
+        .tool(gb_asm)
+        .tool(gb_ver);
 
     if let Some(shared_vectordb_client) = shared_vectordb_client {
         let store_tool = crate::discord::tools::MemoryStoreTool::new_with_client(

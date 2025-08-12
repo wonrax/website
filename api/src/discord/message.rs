@@ -1,8 +1,8 @@
 use crate::discord::constants::DISCORD_BOT_NAME;
 use rig::{
+    OneOrMany,
     completion::Message as RigMessage,
     message::{ImageDetail, UserContent},
-    OneOrMany,
 };
 use serenity::all::{ChannelId, Context, Message};
 use serenity::futures::StreamExt;

@@ -2,7 +2,7 @@ use axum::http::request::Parts;
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 
-use crate::{error::AppError, App};
+use crate::{App, error::AppError};
 
 use self::models::identity::Identity;
 

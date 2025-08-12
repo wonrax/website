@@ -1,21 +1,21 @@
 use std::{net::SocketAddr, time::Duration};
 
 use axum::{
+    Router,
     extract::{ConnectInfo, State},
     http::{
-        header::{self, USER_AGENT},
         HeaderMap,
+        header::{self, USER_AGENT},
     },
     response::{IntoResponse, Response},
     routing::get,
-    Router,
 };
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 
 use crate::{
-    utils::{readable_uint, render_template},
     App,
+    utils::{readable_uint, render_template},
 };
 
 const GITHUB_VIEWS_HTML_TEMPLATE: &str = include_str!("github.html");

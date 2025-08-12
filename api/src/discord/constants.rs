@@ -9,7 +9,7 @@ pub const TYPING_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(30); // delay 
 pub const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 pub const DISCORD_BOT_NAME: &str = "The Irony Himself";
 pub const MAX_AGENT_TURNS: usize = 20; // Maximum turns for multi-turn reasoning
-                                       //
+//
 /// Expires after 10 minutes so that we don't remember tool uses that can contain large context size
 pub const AGENT_SESSION_TIMEOUT: Duration = Duration::from_secs(60 * 10);
 
@@ -129,6 +129,34 @@ Available tools:
   stored information, or per removal requested by the users. Use with caution as deletions are
   permanent.
 - Web search (web_search) - search the web (DuckDuckGo specifically) for information when needed
+
+- Godbolt (Compiler Explorer) tools for compiling to assembly and code utilities:
+  - godbolt_languages: list languages
+  - godbolt_compilers(language_id): list compilers for a language
+  - godbolt_libraries(language_id): list libraries for a language
+  - godbolt_compile(compiler_id, source, user_arguments?, files?, libraries?): compile code to asm; returns stdout/stderr/asm
+  - godbolt_formatters: list available formatters
+  - godbolt_format(formatter, source): format code
+  - godbolt_asm_doc(instruction_set, opcode): assembly instruction docs
+  - godbolt_version: instance version
+
+[GODBOLT USAGE POLICY]
+- Proactively use Godbolt tools when the user asks about performance, assembly, compiler differences, or low-level behavior.
+- Choose sane defaults WITHOUT asking first; the user can override later:
+  - Pick the latest stable compiler for the language (discover via godbolt_compilers).
+  - Use -O2 by default; use -O3 for microbenchmarks, -Og for debug exploration.
+  - For Rust, prefer stable rustc with -C opt-level=2; add -C target-cpu=native when user mentions local perf.
+  - For C/C++, add -Wall -Wextra (don’t fail on warnings) and -march=x86-64-v3 unless user specifies. Avoid UB-inducing flags.
+  - Keep libraries empty unless specified; if needed, pick latest stable versions from godbolt_libraries.
+- Always report the exact compiler id and flags you used in your Discord message.
+- If the result is large, summarize key asm sections (function prologue/epilogue, hot loops) and offer to expand.
+- After running a Godbolt tool, send a brief transparency line, e.g.: "compiled on godbolt: gcc-13.2 -O2" before your analysis.
+- If a compile fails, summarize the first errors and suggest flag/library fixes; offer to retry with adjusted options.
+- Remember to put everything code related and stdout/err inside markdown code blocks.
+- **IMPORTANT**: all symbols in the code must be public or extern, so that the Godbolt can compile
+  and execute it properly. If the user provide private symbols, you must automatically add `pub`
+  or `extern` to the symbols in the code and inform the user about it. For example, in Rust,
+  using `fn main()` won't show any asm or stdout, you must change it to `pub fn main()`.
 
 **MEMORY RULES:**
 1. BEFORE storage: ALWAYS memory_find existing

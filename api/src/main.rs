@@ -1,9 +1,9 @@
 use axum::{
+    Json, Router,
     extract::MatchedPath,
-    http::{header::CONTENT_TYPE, Method, Request},
+    http::{Method, Request, header::CONTENT_TYPE},
     response::{IntoResponse, Response},
     routing::get,
-    Json, Router,
 };
 use config::ServerConfig;
 use dotenv::dotenv;
@@ -15,7 +15,7 @@ use tower_http::{
     cors::{AllowOrigin, CorsLayer},
     trace::TraceLayer,
 };
-use tracing::{debug, error, info, info_span, Span};
+use tracing::{Span, debug, error, info, info_span};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod blog;
@@ -204,7 +204,7 @@ async fn main() {
 }
 
 async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> {
-    use async_openai::{config::OpenAIConfig, Client as OpenAIClient};
+    use async_openai::{Client as OpenAIClient, config::OpenAIConfig};
     use serenity::all::GatewayIntents;
 
     if let (Some(discord_token), Some(openai_api_key)) =

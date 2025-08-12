@@ -1,19 +1,18 @@
 use axum::{
-    debug_handler,
+    Json, debug_handler,
     extract::{Path, State},
-    Json,
 };
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    App,
     blog::models::{NewBlogComment, NewBlogPost},
     error::AppError,
-    identity::{self, models::identity::Traits, MaybeAuthUser},
+    identity::{self, MaybeAuthUser, models::identity::Traits},
     real_ip::ClientIp,
     schema::{blog_comments, blog_posts, identities},
-    App,
 };
 
 use crate::blog::comment::Comment;
