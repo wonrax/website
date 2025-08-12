@@ -135,7 +135,7 @@ pub async fn create_agent_session(
         .additional_params(json!({
             "max_completion_tokens": 4096,
             "reasoning_effort": "medium",
-            "verbosity": "high"
+            "verbosity": "low"
         }))
         .build();
 
