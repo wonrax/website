@@ -25,11 +25,10 @@ pub struct CompileArgs {
     #[serde(default)]
     pub lang: Option<String>,
     /// Enable execution of the compiled program
+    pub execute: bool,
+    /// Return assembly output
     #[serde(default)]
-    pub execute: Option<bool>,
-    /// Optional filters map
-    #[serde(default)]
-    pub filters: Option<serde_json::Value>,
+    pub asm: bool,
     /// Optional tools list
     #[serde(default)]
     pub tools: Option<serde_json::Value>,
@@ -143,40 +142,34 @@ impl Tool for Godbolt {
                     "files": {"type": "array", "items": {"type": "object", "properties": {"filename": {"type": "string"}, "contents": {"type": "string"}}, "required": ["filename", "contents"]}},
                     "libraries": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "version": {"type": "string"}}, "required": ["id", "version"]}},
                     "lang": {"type": "string", "nullable": true},
-                    "execute": {"type": "boolean", "nullable": true, "description": "Run the program and capture output"},
-                    "filters": {"type": "object", "nullable": true},
+                    "execute": {"type": "boolean", "nullable": false, "description": "Whether to run the program and capture output"},
+                    "asm": {"type": "boolean", "nullable": true, "description": "Whether to return assembly output"},
                     "tools": {"type": "array", "items": {"type": "object"}, "nullable": true},
                     "compiler_options": {"type": "object", "nullable": true},
                     "execute_parameters": {"type": "object", "nullable": true},
                     "allow_store_code_debug": {"type": "boolean", "nullable": true}
                 },
-                "required": ["compiler_id", "source"]
+                "required": ["compiler_id", "source", "execute"]
             }),
         }
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let client = Self::client();
-        let execute = args.execute.unwrap_or(false);
+        let execute = args.execute;
         let default_filters = json!({
-            "binary": false,
-            "binaryObject": false,
-            "commentOnly": true,
-            "demangle": true,
-            "directives": false,
+            "commentOnly": args.asm,
+            "demangle": args.asm,
             "execute": execute,
-            "intel": true,
-            "labels": true,
-            "libraryCode": false,
-            "trim": false,
-            "debugCalls": false
+            "intel": args.asm,
+            "labels": args.asm
         });
         let payload = json!({
             "source": args.source,
             "options": {
                 "userArguments": args.user_arguments.clone().unwrap_or_default(),
                 "compilerOptions": args.compiler_options.clone().unwrap_or_else(|| json!({"skipAsm": false, "executorRequest": execute, "overrides": []})),
-                "filters": args.filters.clone().unwrap_or(default_filters),
+                "filters": default_filters,
                 "tools": args.tools.clone().unwrap_or_else(|| json!([])),
                 "libraries": args.libraries.clone().unwrap_or_default(),
                 "executeParameters": args.execute_parameters.clone().unwrap_or_else(|| json!({"args": [], "stdin": "", "runtimeTools": []})),
@@ -250,7 +243,7 @@ impl Tool for Godbolt {
             }
 
             let structured = json!({
-                "asm": data.get("asm").cloned().unwrap_or_else(|| json!([])),
+                "asm": join_text(&data.get("asm").cloned().unwrap_or_else(|| json!([]))),
                 "build": {
                     "code": build.get("code").and_then(|v| v.as_i64()).unwrap_or(-1),
                     "execTimeMs": build.get("execTime").and_then(|v| v.as_i64()),
