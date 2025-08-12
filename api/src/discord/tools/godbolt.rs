@@ -21,9 +21,8 @@ pub struct CompileArgs {
     /// Libraries: [{ id, version }]
     #[serde(default)]
     pub libraries: Option<Vec<LibrarySpec>>,
-    /// Optional CE language id (e.g., c++, rust)
-    #[serde(default)]
-    pub lang: Option<String>,
+    /// CE language id (e.g., c++, rust)
+    pub lang: String,
     /// Enable execution of the compiled program
     pub execute: bool,
     /// Return assembly output
@@ -38,9 +37,6 @@ pub struct CompileArgs {
     /// Optional executeParameters
     #[serde(default)]
     pub execute_parameters: Option<serde_json::Value>,
-    /// Optional allowStoreCodeDebug
-    #[serde(default)]
-    pub allow_store_code_debug: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -141,15 +137,14 @@ impl Tool for Godbolt {
                     "user_arguments": {"type": "string", "description": "Compiler flags", "nullable": true},
                     "files": {"type": "array", "items": {"type": "object", "properties": {"filename": {"type": "string"}, "contents": {"type": "string"}}, "required": ["filename", "contents"]}},
                     "libraries": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "version": {"type": "string"}}, "required": ["id", "version"]}},
-                    "lang": {"type": "string", "nullable": true},
+                    "lang": {"type": "string", "nullable": false, "description": "Language id (e.g., rust)"},
                     "execute": {"type": "boolean", "nullable": false, "description": "Whether to run the program and capture output"},
                     "asm": {"type": "boolean", "nullable": true, "description": "Whether to return assembly output"},
                     "tools": {"type": "array", "items": {"type": "object"}, "nullable": true},
                     "compiler_options": {"type": "object", "nullable": true},
                     "execute_parameters": {"type": "object", "nullable": true},
-                    "allow_store_code_debug": {"type": "boolean", "nullable": true}
                 },
-                "required": ["compiler_id", "source", "execute"]
+                "required": ["compiler_id", "lang", "source", "execute"]
             }),
         }
     }
@@ -158,25 +153,31 @@ impl Tool for Godbolt {
         let client = Self::client();
         let execute = args.execute;
         let default_filters = json!({
+            "binary": false,
+            "binaryObject": false,
             "commentOnly": args.asm,
+            "debugCalls": false,
             "demangle": args.asm,
+            "directives": false,
             "execute": execute,
             "intel": args.asm,
-            "labels": args.asm
+            "labels": args.asm,
+            "trim": false,
+            "verboseDemangling": true,
         });
         let payload = json!({
             "source": args.source,
+            "allowStoreCodeDebug": true,
             "options": {
-                "userArguments": args.user_arguments.clone().unwrap_or_default(),
-                "compilerOptions": args.compiler_options.clone().unwrap_or_else(|| json!({"skipAsm": false, "executorRequest": execute, "overrides": []})),
+                "compilerOptions": args.compiler_options.clone().unwrap_or_else(|| json!({})),
                 "filters": default_filters,
                 "tools": args.tools.clone().unwrap_or_else(|| json!([])),
                 "libraries": args.libraries.clone().unwrap_or_default(),
                 "executeParameters": args.execute_parameters.clone().unwrap_or_else(|| json!({"args": [], "stdin": "", "runtimeTools": []})),
             },
             "lang": args.lang,
-            "allowStoreCodeDebug": args.allow_store_code_debug.unwrap_or(false),
-            "files": args.files.clone().unwrap_or_default()
+            "files": args.files.clone().unwrap_or_default(),
+            "userArguments": args.user_arguments.clone().unwrap_or_default()
         });
 
         let url = format!("{BASE_URL}/api/compiler/{}/compile", args.compiler_id);
@@ -237,6 +238,7 @@ impl Tool for Godbolt {
                     _ => String::new(),
                 }
             }
+
 
             let structured = json!({
                 "asm": join_text(&data.get("asm").cloned().unwrap_or_else(|| json!([]))),
