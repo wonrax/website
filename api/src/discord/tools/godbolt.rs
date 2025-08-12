@@ -163,7 +163,7 @@ impl Tool for Godbolt {
             "binaryObject": false,
             "commentOnly": true,
             "demangle": true,
-            "directives": true,
+            "directives": false,
             "execute": execute,
             "intel": true,
             "labels": true,
@@ -250,6 +250,7 @@ impl Tool for Godbolt {
             }
 
             let structured = json!({
+                "asm": data.get("asm").cloned().unwrap_or_else(|| json!([])),
                 "build": {
                     "code": build.get("code").and_then(|v| v.as_i64()).unwrap_or(-1),
                     "execTimeMs": build.get("execTime").and_then(|v| v.as_i64()),

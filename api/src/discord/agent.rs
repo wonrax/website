@@ -4,7 +4,6 @@ use crate::discord::{
     tools::{DiscordSendMessageTool, FetchPageContentTool, WebSearchTool},
 };
 use rig::{
-    OneOrMany,
     agent::Agent,
     completion::{Message as RigMessage, Prompt},
     providers::openai,
@@ -136,7 +135,7 @@ pub async fn create_agent_session(
         .additional_params(json!({
             "max_completion_tokens": 4096,
             "reasoning_effort": "medium",
-            "verbosity": "low"
+            "verbosity": "high"
         }))
         .build();
 
