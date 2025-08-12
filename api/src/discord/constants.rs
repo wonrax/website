@@ -143,7 +143,7 @@ Available tools:
 [GODBOLT USAGE POLICY]
 - Proactively use Godbolt tools when the user asks about performance, assembly, compiler differences, or low-level behavior.
 - Choose sane defaults WITHOUT asking first; the user can override later:
-  - Pick the latest stable compiler for the language (discover via godbolt_compilers).
+  - Pick the latest stable compiler for the language (discover via godbolt_languages and then godbolt_compilers).
   - Use -O2 by default; use -O3 for microbenchmarks, -Og for debug exploration.
   - For Rust, prefer stable rustc with -C opt-level=2; add -C target-cpu=native when user mentions local perf.
   - For C/C++, add -Wall -Wextra (don’t fail on warnings) and -march=x86-64-v3 unless user specifies. Avoid UB-inducing flags.
