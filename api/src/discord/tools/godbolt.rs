@@ -114,7 +114,7 @@ impl Godbolt {
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         headers.insert(
             USER_AGENT,
-            HeaderValue::from_static("hhaidev-bot/1.0 (+https://hhaidev)"),
+            HeaderValue::from_static("wrxsh-bot/1.0 (+https://wrx.sh)"),
         );
         reqwest::Client::builder()
             .default_headers(headers)
@@ -318,7 +318,7 @@ pub struct GodboltFormats;
 impl Tool for GodboltFormats {
     const NAME: &'static str = "godbolt_formatters";
     type Error = GodboltError;
-    type Args = ();
+    type Args = serde_json::Value; // No arguments needed for this tool
     type Output = serde_json::Value;
 
     async fn definition(&self, _prompt: String) -> ToolDefinition {
@@ -391,7 +391,7 @@ pub struct GodboltLanguages;
 impl Tool for GodboltLanguages {
     const NAME: &'static str = "godbolt_languages";
     type Error = GodboltError;
-    type Args = ();
+    type Args = serde_json::Value; // No arguments needed for this tool
     type Output = LangsOutput;
 
     async fn definition(&self, _prompt: String) -> ToolDefinition {
@@ -509,7 +509,7 @@ pub struct GodboltVersion;
 impl Tool for GodboltVersion {
     const NAME: &'static str = "godbolt_version";
     type Error = GodboltError;
-    type Args = ();
+    type Args = serde_json::Value; // No arguments needed for this tool
     type Output = String;
 
     async fn definition(&self, _prompt: String) -> ToolDefinition {

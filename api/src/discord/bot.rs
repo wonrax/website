@@ -385,14 +385,14 @@ impl Handler {
                 queue.remove(&channel_id).unwrap_or_default()
             };
 
-            if !messages.is_empty() {
-                if let Err(e) = handle_message_batch(ctx, messages, handler).await {
-                    tracing::error!(
-                        "Error processing message batch for channel {}: {}",
-                        channel_id,
-                        e
-                    );
-                }
+            if !messages.is_empty()
+                && let Err(e) = handle_message_batch(ctx, messages, handler).await
+            {
+                tracing::error!(
+                    "Error processing message batch for channel {}: {}",
+                    channel_id,
+                    e
+                );
             }
 
             // Clean up timer reference
