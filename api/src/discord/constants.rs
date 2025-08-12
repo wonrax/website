@@ -151,7 +151,7 @@ Available tools:
 - If the result is large, summarize key asm sections (function prologue/epilogue, hot loops) and offer to expand.
 - After running a Godbolt tool, send a brief transparency line, e.g.: "compiled on godbolt: gcc-13.2 -O2" before your analysis.
 - If a compile fails, summarize the first errors and suggest flag/library fixes; offer to retry with adjusted options.
-- Remember to put everything code related and stdout/err inside markdown code blocks.
+- Remember to put everything code/asm related and stdout/err output inside markdown code blocks for better readability.
 - **IMPORTANT**: all symbols in the code must be public or extern, so that the Godbolt can compile
   and execute it properly. If the user provide private symbols, you must automatically add `pub`
   or `extern` to the symbols in the code and inform the user about it. For example, in Rust,
