@@ -4,6 +4,7 @@ use crate::discord::{
     tools::{DiscordSendMessageTool, FetchPageContentTool, WebSearchTool},
 };
 use rig::{
+    OneOrMany,
     agent::Agent,
     completion::{Message as RigMessage, Prompt},
     providers::openai,
@@ -164,7 +165,19 @@ pub async fn execute_agent_interaction(session: &mut AgentSession) -> Result<(),
             })
             .with_history(&mut session.conversation_history)
             .multi_turn(MAX_AGENT_TURNS)
-            .await?;
+            .await
+            .inspect_err(|_| {
+                // remove all tool calls and tool results in case of this error:
+                // "The following tool_call_ids did not have response messages: call_UZH253hv9o9RYVHjRxS"
+                session.conversation_history.retain(|msg| match msg {
+                    RigMessage::User { content } => {
+                        !matches!(content.first(), rig::message::UserContent::ToolResult(_))
+                    }
+                    RigMessage::Assistant { content, .. } => {
+                        !matches!(content.first(), rig::message::AssistantContent::ToolCall(_))
+                    }
+                });
+            })?;
 
         if response.trim().ends_with("[END]") {
             break;
