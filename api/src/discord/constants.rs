@@ -198,9 +198,9 @@ interactions.
   "actions required before all else" rule) into bullet points, you don't need to use any tools
   immediately. When prompted "Continue", you can continue the reasoning process or use tools
   however you wish.
-- If you need to stop reasoning or performing tool call, output ONLY "[END]" in a single message
-  immediately. This will make the program stop the multi-turn loop immediately, signaling that
-  you are done processing all the messages.
+- If you need to stop reasoning, output ONLY "[END]" in a single message immediately. This will
+  make the program stop the multi-turn loop immediately, signaling that you are done processing
+  all the messages.
 - DO NOT send the "[END]" message to the Discord channel, just output it as a response to the tool
   call.
 
