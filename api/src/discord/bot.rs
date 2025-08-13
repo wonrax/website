@@ -418,36 +418,15 @@ impl Handler {
         if let Some(session) = sessions.get_mut(&channel_id) {
             // Only evaluate if there's actual conversation history
             if !session.conversation_history.is_empty() {
-                // Check if the last message is from a user (not the bot) and relatively recent
-                // We can determine this by checking if the message was created as a user message
-                let should_evaluate = session
-                    .conversation_history
-                    .last()
-                    .map(|last_msg| {
-                        // Check if this is a user message
-                        match last_msg {
-                            rig::completion::Message::User { .. } => true,
-                            rig::completion::Message::Assistant { .. } => false,
-                        }
-                    })
-                    .unwrap_or(false);
+                tracing::info!(
+                    "Evaluating recent conversation for channel {} with {} messages after restart",
+                    channel_id,
+                    session.conversation_history.len()
+                );
 
-                if should_evaluate {
-                    tracing::info!(
-                        "Evaluating recent conversation for channel {} with {} messages after restart",
-                        channel_id,
-                        session.conversation_history.len()
-                    );
-
-                    // Let the agent analyze the conversation and decide whether to respond
-                    // We pass 0 for messages_count since this is a startup evaluation, not new messages
-                    execute_agent_interaction(session).await?;
-                } else {
-                    tracing::debug!(
-                        "Skipping evaluation for channel {} - last message was from bot or no messages",
-                        channel_id
-                    );
-                }
+                // Let the agent analyze the conversation and decide whether to respond
+                // We pass 0 for messages_count since this is a startup evaluation, not new messages
+                execute_agent_interaction(session).await?;
             }
         }
         Ok(())
