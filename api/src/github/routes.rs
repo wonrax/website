@@ -1,8 +1,8 @@
-use std::{net::SocketAddr, time::Duration};
+use std::time::Duration;
 
 use axum::{
     Router,
-    extract::{ConnectInfo, State},
+    extract::State,
     http::{
         HeaderMap,
         header::{self, USER_AGENT},
@@ -15,6 +15,8 @@ use diesel_async::RunQueryDsl;
 
 use crate::{
     App,
+    github::is_github_ip,
+    real_ip::ClientIp,
     utils::{readable_uint, render_template},
 };
 
@@ -30,18 +32,9 @@ pub fn route() -> Router<App> {
 async fn handle_fetch_git_hub_profile_views(
     State(ctx): State<App>,
     headers: HeaderMap,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    ClientIp(ip): ClientIp,
 ) -> Response {
-    let mut _ip: String = "".into();
-    // Trusted proxy from cloudflare so we can use x-forwarded-for
-    if headers.contains_key("x-forwarded-for") {
-        _ip = headers["x-forwarded-for"]
-            .to_str()
-            .unwrap_or_default()
-            .into();
-    } else {
-        _ip = addr.ip().to_string();
-    }
+    let _ip = ip.to_string();
 
     let cache = &ctx.counters_ttl_cache;
 
@@ -52,14 +45,15 @@ async fn handle_fetch_git_hub_profile_views(
     let user_agent_from_github = headers
         .get(USER_AGENT)
         .map(|ua| ua.to_str().unwrap_or_default().contains("github-camo"))
-        .unwrap_or(false);
+        .unwrap_or(false)
+        && is_github_ip(&ip).await;
 
     // NOTE: that currently the badge is behind GitHub's proxy since it's hosted on GitHub markdown
     // renderer, so the IP address will always be GitHub's IP address. It means we're assuming that
-    // there should not be more than one person viewing the badge within a second.
+    // there should not be more than one person viewing the badge within 100ms.
     if cache.get(&_ip).await.is_none() && user_agent_from_github {
         cache
-            .insert(_ip.clone(), true, Duration::from_secs(1))
+            .insert(_ip.clone(), true, Duration::from_millis(100))
             .await;
 
         use crate::schema::counters;

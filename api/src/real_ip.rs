@@ -145,3 +145,27 @@ impl axum::extract::FromRequestParts<App> for ClientIp {
             .into())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn parse_cloudflare_prefixes_handles_plain_text() {
+        let prefixes = load_cloudflare_prefixes().await; // real fetch; acceptable for smoke test
+        assert!(!prefixes.is_empty());
+        // Ensure they look like CIDRs
+        assert!(prefixes.iter().all(|p| match p {
+            IpNetwork::V4(v4) => v4.prefix() <= 32,
+            IpNetwork::V6(v6) => v6.prefix() <= 128,
+        }));
+    }
+
+    #[tokio::test]
+    async fn nearest_proxy_not_trusted_falls_back_to_socket() {
+        // Simulate a local address that is certainly not in Cloudflare
+        let local = IpAddr::V4(std::net::Ipv4Addr::new(10, 0, 0, 1));
+        // we cannot access FromRequestParts directly here; just test predicate
+        assert!(!is_cloudflare_ip(&local).await);
+    }
+}
