@@ -103,6 +103,8 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/magic-nix-cache-action@main
       - name: Build API Docker image with Nix
+        # ort-sys (build.rs) fetches libraries from the internet 😱, thus
+        # sandbox is disabled
         run: nix build .#dockerApi --option sandbox false
       - name: Load and push API image
         run: docker load < ./result && docker push ghcr.io/wonrax/wrx-sh-api:latest

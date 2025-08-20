@@ -66,6 +66,7 @@
         nativeBuildInputs = with pkgs; [
           pkg-config
           libpq
+          clang # rust-bindgen
         ];
       in
       rec {
