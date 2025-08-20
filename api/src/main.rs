@@ -18,6 +18,7 @@ use tower_http::{
 use tracing::{Span, debug, error, info, info_span};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+#[cfg(debug_assertions)]
 use crate::real_ip::ClientIp;
 
 mod blog;

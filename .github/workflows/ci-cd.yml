@@ -8,7 +8,7 @@ concurrency:
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
     paths:
       - "web/**"
       - "api/**"
@@ -22,7 +22,6 @@ on:
   workflow_dispatch:
 
 jobs:
-
   files-changed:
     name: Detect which files' changed
     runs-on: ubuntu-latest
@@ -85,15 +84,24 @@ jobs:
     secrets: inherit
 
   build-and-push-backend:
-    name: Build API
-    # needs: [files-changed, test-backend]
+    name: Build API (Nix)
     needs: [files-changed]
     if: ${{ needs.files-changed.outputs.backend == 'true' }}
-    uses: ./.github/workflows/container-ci.yml
-    with:
-      name: wrx.sh api
-      tags: ghcr.io/wonrax/wrx-sh-api:latest
-      dockerfile: docker/api.Dockerfile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Build API Docker image with Nix
+        run: nix build .#dockerApi
+      - name: Load and push API image
+        run: docker load < ./result && docker push ghcr.io/wonrax/wrx-sh-api:latest
     secrets: inherit
 
   build-and-push-migrate:
@@ -128,4 +136,3 @@ jobs:
       needs.build-and-push-migrate.result == 'success' ||
       needs.files-changed.outputs.deploy == 'true' ) }}
     secrets: inherit
-
