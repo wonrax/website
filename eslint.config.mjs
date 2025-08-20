@@ -18,7 +18,7 @@ const compat = new FlatCompat({
 
 export default [
   gitignore({
-    files: [".gitignore", "apps/hhai.dev/.gitignore"],
+    files: [".gitignore", "web/.gitignore"],
   }),
   {
     ignores: [".prettierrc.js"],

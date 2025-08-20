@@ -5,7 +5,7 @@ WORKDIR /src
 # Dependencies
 COPY package.json .
 COPY package-lock.json .
-COPY apps/hhai.dev/package.json ./apps/hhai.dev/package.json
+COPY web/package.json ./web/package.json
 
 RUN npm i
 
@@ -13,17 +13,17 @@ RUN npm i
 # COPY packages/. ./packages
 COPY turbo.json .
 
-# Build 'hhai.dev's dependencies, but not 'hhai.dev' itself
+# Build frontend's dependencies, but not the frontend itself
 # This enable caching for the dependencies build layer
 ENV PUBLIC_SITE_URL=https://wrx.sh
-RUN npx turbo build --filter=hhai.dev^...
+RUN npx turbo build --filter=web^...
 
-COPY apps/. ./apps
+COPY web/. ./web
 COPY .git/. ./.git
-RUN npx turbo build --filter=hhai.dev
+RUN npx turbo build --filter=web
 
 FROM busybox:latest
 
-COPY --from=build-step /src/apps/hhai.dev/dist /build
+COPY --from=build-step /src/web/dist /build
 
 ENTRYPOINT ["sh", "-c", "rm -rf /.mount/* && cp -r /build/* /.mount"]

@@ -1,4 +1,4 @@
-name: hhai.dev container CI/CD
+name: Website container CI/CD
 # Build apps into Docker images, push to
 # GitHub container registry and deploy
 # on host machine.
@@ -10,7 +10,7 @@ on:
   push:
     branches: [ "main" ]
     paths:
-      - "apps/**"
+      - "web/**"
       - "api/**"
       - "docker/**"
       - "package.json"
@@ -44,19 +44,19 @@ jobs:
           token: ${{ github.token }}
           filters: |
             www:
-              - "apps/hhai.dev/**"
-              - "docker/hhai-dev-www.Dockerfile"
+              - "web/**"
+              - "docker/www.Dockerfile"
               - "package.json"
               - "package-lock.json"
             api:
               - "api/src/**"
               - "api/Cargo.toml"
               - "Cargo.lock"
-              - "docker/hhai-dev-api.Dockerfile"
+              - "docker/api.Dockerfile"
             migrate:
               - "api/migrations/**"
               - "api/schema.prisma"
-              - "docker/hhai-dev-migrator.Dockerfile"
+              - "docker/schema-migrator.Dockerfile"
             deploy:
               - "docker/Caddyfile"
               - "docker/docker-compose*.yml"
@@ -79,9 +79,9 @@ jobs:
     if: ${{ needs.files-changed.outputs.www == 'true' }}
     uses: ./.github/workflows/container-ci.yml
     with:
-      name: hhai.dev www
-      tags: ghcr.io/wonrax/hhai-dev-www:latest
-      dockerfile: docker/hhai-dev-www.Dockerfile
+      name: Website frontend
+      tags: ghcr.io/wonrax/wrx-sh-www:latest
+      dockerfile: docker/www.Dockerfile
     secrets: inherit
 
   build-and-push-backend:
@@ -91,9 +91,9 @@ jobs:
     if: ${{ needs.files-changed.outputs.backend == 'true' }}
     uses: ./.github/workflows/container-ci.yml
     with:
-      name: hhai.dev api
-      tags: ghcr.io/wonrax/hhai-dev-api:latest
-      dockerfile: docker/hhai-dev-api.Dockerfile
+      name: wrx.sh api
+      tags: ghcr.io/wonrax/wrx-sh-api:latest
+      dockerfile: docker/api.Dockerfile
     secrets: inherit
 
   build-and-push-migrate:
@@ -102,9 +102,9 @@ jobs:
     if: ${{ needs.files-changed.outputs.migrate == 'true' }}
     uses: ./.github/workflows/container-ci.yml
     with:
-      name: hhai.dev migrate
-      tags: ghcr.io/wonrax/hhai-dev-migrator:latest
-      dockerfile: docker/hhai-dev-migrator.Dockerfile
+      name: Database migrator
+      tags: ghcr.io/wonrax/wrx-sh-migrator:latest
+      dockerfile: docker/schema-migrator.Dockerfile
     secrets: inherit
 
   deploy:
@@ -129,22 +129,3 @@ jobs:
       needs.files-changed.outputs.deploy == 'true' ) }}
     secrets: inherit
 
-  invalidate-cdn-cache:
-    name: Invalidate CloudFront cache
-    needs: [build-and-push-www, deploy]
-    # always() is needed otherwise the job will be skipped
-    # even if needs jobs succeed
-    if: ${{ always() &&
-            needs.build-and-push-www.result == 'success' &&
-            needs.deploy.result == 'success' }}
-    runs-on: ubuntu-latest
-    environment: deploy
-    steps:
-    - name: Invalidate CloudFront
-      uses: chetan/invalidate-cloudfront-action@v2
-      env:
-        DISTRIBUTION: ${{ vars.CLOUDFRONT_DISTRIBUTION }}
-        PATHS: "/*"
-        AWS_REGION: "us-east-1"
-        AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

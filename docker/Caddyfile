@@ -36,7 +36,7 @@ wrx.sh {
 	}
 
 	handle {
-		root * /www/hhai.dev
+		root * /www/wrx.sh
 		try_files {path}.html
 
 		file_server {
@@ -60,7 +60,7 @@ c.wrx.sh {
 }
 
 files.wrx.sh {
-	root * /www/files.hhai.dev
+	root * /www/files.wrx.sh
 	file_server {
 		browse
 	}

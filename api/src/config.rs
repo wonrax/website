@@ -10,7 +10,7 @@ pub struct ServerConfig {
     pub env: Env,
 
     /// Website URL (i.e. frontend) in full form without trailing slash
-    /// e.g. https://hhai.dev
+    /// e.g. https://example.com
     pub site_url: String,
 
     pub github_oauth: Option<GitHubOauth>,

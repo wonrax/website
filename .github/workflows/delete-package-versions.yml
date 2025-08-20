@@ -29,3 +29,24 @@ jobs:
           package-type: 'container'
           min-versions-to-keep: 5
           delete-only-untagged-versions: 'true'
+
+      - uses: actions/delete-package-versions@v5
+        with:
+          package-name: 'wrx-sh-www'
+          package-type: 'container'
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: 'true'
+
+      - uses: actions/delete-package-versions@v5
+        with:
+          package-name: 'wrx-sh-api'
+          package-type: 'container'
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: 'true'
+
+      - uses: actions/delete-package-versions@v5
+        with:
+          package-name: 'wrx-sh-migrator'
+          package-type: 'container'
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: 'true'

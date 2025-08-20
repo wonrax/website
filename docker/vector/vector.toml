@@ -1,18 +1,18 @@
-[sources.hhai_dev_api]
+[sources.api]
 type = "docker_logs"
-include_containers = ["hhai-dev-api"]
+include_containers = ["wrx-sh-api"]
 
-    [sources.hhai_dev_api.multiline]
+    [sources.api.multiline]
     start_pattern = "^[^\\s]"
     mode = "continue_through"
     condition_pattern = "^[\\s]+"
     timeout_ms = 50
 
-[sources.hhai_dev_caddy]
+[sources.caddy]
 type = "docker_logs"
-include_containers = ["hhai-dev-caddy"]
+include_containers = ["wrx-sh-caddy"]
 
-    [sources.hhai_dev_caddy.multiline]
+    [sources.caddy.multiline]
     start_pattern = "^[^\\s]"
     mode = "continue_through"
     condition_pattern = "^[\\s]+"
@@ -20,7 +20,7 @@ include_containers = ["hhai-dev-caddy"]
 
 # [sinks.grafana_loki]
 # type = "loki"
-# inputs = [ "hhai_dev_api" ]
+# inputs = [ "api" ]
 # endpoint = "${GRAFANA_LOKI_URL}"
 # encoding.codec = "json"
 #
@@ -36,7 +36,7 @@ include_containers = ["hhai-dev-caddy"]
 
 [sinks.new_relic]
 type = "new_relic"
-inputs = ["hhai_dev_api", "hhai_dev_caddy"]
+inputs = ["api", "caddy"]
 account_id = "${NEW_RELIC_ACCOUNT_ID}"
 license_key = "${NEW_RELIC_LICENSE_KEY}"
 api = "logs"

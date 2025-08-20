@@ -1,7 +1,7 @@
 services:
   database:
     image: postgres:15
-    container_name: hhai-dev-pg
+    container_name: wrx-sh-pg
     restart: unless-stopped
     env_file:
       - ../.env
@@ -12,7 +12,7 @@ services:
 
   vector:
     image: timberio/vector:0.36.1-distroless-libc
-    container_name: hhai-dev-vector
+    container_name: wrx-sh-vector
     restart: unless-stopped
     env_file:
       - ../.env
@@ -23,7 +23,7 @@ services:
 
   caddy:
     image: caddy:2
-    container_name: hhai-dev-caddy
+    container_name: wrx-sh-caddy
     restart: unless-stopped
     ports:
       - 80:80
@@ -42,32 +42,32 @@ services:
         max-size: 1g
 
   migrator:
-    image: ghcr.io/wonrax/hhai-dev-migrator:latest
-    container_name: hhai-dev-migrator
+    image: ghcr.io/wonrax/wrx-sh-migrator:latest
+    container_name: schema-migrator
     build:
       context: ..
-      dockerfile: docker/hhai-dev-migrator.Dockerfile
+      dockerfile: docker/schema-migrator.Dockerfile
     env_file:
       - ../.env
 
   api:
-    image: ghcr.io/wonrax/hhai-dev-api:latest
-    container_name: hhai-dev-api
+    image: ghcr.io/wonrax/wrx-sh-api:latest
+    container_name: wrx-sh-api
     restart: unless-stopped
     build:
       context: ..
-      dockerfile: docker/hhai-dev-api.Dockerfile
+      dockerfile: docker/api.Dockerfile
     env_file:
       - ../.env
 
   www:
-    image: ghcr.io/wonrax/hhai-dev-www:latest
-    container_name: hhai-dev-www
+    image: ghcr.io/wonrax/wrx-sh-www:latest
+    container_name: wrx-sh-www
     build:
       context: ..
-      dockerfile: docker/hhai-dev-www.Dockerfile
+      dockerfile: docker/www.Dockerfile
     volumes:
-      - ./.mount/www/hhai.dev:/.mount
+      - ./.mount/www/wrx.sh:/.mount
 
   open-webui:
     image: ghcr.io/open-webui/open-webui:main

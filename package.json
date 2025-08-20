@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "workspaces": [
-    "apps/hhai.dev",
+    "web",
     "api"
   ],
   "scripts": {
@@ -16,7 +16,7 @@
   "wireit": {
     "dev": {
       "dependencies": [
-        "./apps/hhai.dev:dev",
+        "./web:dev",
         "./api:dev"
       ]
     }

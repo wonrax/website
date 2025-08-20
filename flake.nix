@@ -1,5 +1,5 @@
 {
-  description = "Development environment for hhai.dev monorepo";
+  description = "Development environment for wrx.sh monorepo";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/release-25.05";

@@ -1,4 +1,4 @@
-## hhai.dev monorepo
+## wrx.sh monorepo
 
 ### getting things running
 
@@ -10,7 +10,7 @@ These lines will spin up database and run both backend and frontend in
 development
 ```bash
 npm i
-docker compose -f docker/docker-compose.dev.yml -p hhai-dev up -d
+docker compose -f docker/docker-compose.dev.yml -p wrx-sh up -d
 npm run dev
 ```
 
