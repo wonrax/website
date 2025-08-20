@@ -18,6 +18,8 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "turbo.json"
+      - "flake.nix"
+      - "flake.lock"
 
   workflow_dispatch:
 
@@ -52,6 +54,8 @@ jobs:
               - "api/Cargo.toml"
               - "Cargo.lock"
               - "docker/api.Dockerfile"
+              - "flake.nix"
+              - "flake.lock"
             migrate:
               - "api/migrations/**"
               - "api/schema.prisma"
@@ -99,7 +103,7 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/magic-nix-cache-action@main
       - name: Build API Docker image with Nix
-        run: nix build .#dockerApi
+        run: nix build .#dockerApi --option sandbox false
       - name: Load and push API image
         run: docker load < ./result && docker push ghcr.io/wonrax/wrx-sh-api:latest
 
