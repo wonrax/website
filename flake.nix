@@ -68,6 +68,8 @@
           libpq
           clang # rust-bindgen
         ];
+
+        LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
       in
       rec {
         # Build the Rust API with crane (workspace root). The bin is "api" crate.
@@ -85,6 +87,7 @@
               strictDeps = true;
               doCheck = false; # TODO: enable when tests are green
               inherit buildInputs nativeBuildInputs;
+              inherit LIBCLANG_PATH;
             };
           in
           craneLib.buildPackage (
@@ -117,6 +120,7 @@
             ++ nativeBuildInputs;
 
             RUST_SRC_PATH = "${rustToolchain}/lib/rustlib/src/rust/library";
+            inherit LIBCLANG_PATH;
 
             # Only needed on NixOS
             shellHook = if system == "x86_64-linux" then prisma.shellHook else "";
