@@ -473,10 +473,10 @@ impl EventHandler for Handler {
 
         // Don't track bot typing
         let user_id = event.user_id;
-        if let Ok(user) = user_id.to_user(&ctx.http).await {
-            if user.bot {
-                return;
-            }
+        if let Ok(user) = user_id.to_user(&ctx.http).await
+            && user.bot
+        {
+            return;
         }
 
         // Record typing as activity (triggers proper debouncing)

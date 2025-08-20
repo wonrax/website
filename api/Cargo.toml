@@ -25,7 +25,6 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
 backtrace = "0.3.74"
 thiserror = "1.0.63"
-aws-ip-ranges = "0.817.0"
 ipnetwork = "0.20.0"
 rspotify = "0.13.3"
 diesel = { version = "2.2.4", features = ["postgres", "serde_json", "chrono"] }

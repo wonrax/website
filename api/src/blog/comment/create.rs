@@ -25,10 +25,10 @@ pub async fn create_comment(
     MaybeAuthUser(auth_user): MaybeAuthUser,
     crate::json::Json(mut comment): crate::json::Json<CommentSubmission>,
 ) -> Result<Json<Comment>, AppError> {
-    if let Err(ref e) = auth_user {
-        if matches!(e, identity::AuthenticationError::Unauthorized) {
-            return Err(identity::AuthenticationError::Unauthorized.into());
-        }
+    if let Err(ref e) = auth_user
+        && matches!(e, identity::AuthenticationError::Unauthorized)
+    {
+        return Err(identity::AuthenticationError::Unauthorized.into());
     }
 
     comment

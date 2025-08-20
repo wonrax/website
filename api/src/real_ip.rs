@@ -3,46 +3,70 @@
 
 use axum::{extract::ConnectInfo, http::request::Parts};
 use ipnetwork::IpNetwork;
-use std::{
-    net::{IpAddr, SocketAddr},
-    sync::OnceLock,
-};
+use std::net::{IpAddr, SocketAddr};
+use tokio::sync::OnceCell;
 
 use crate::{App, error::AppError};
 
-static CLOUDFRONT_PREFIXES: OnceLock<Vec<IpNetwork>> = OnceLock::new();
+static CLOUDFLARE_PREFIXES: OnceCell<Vec<IpNetwork>> = OnceCell::const_new();
 
-fn get_cloudfront_prefixes<'a>() -> &'a Vec<IpNetwork> {
-    CLOUDFRONT_PREFIXES.get_or_init(|| {
-        let ipv4_prefixes = aws_ip_ranges::IP_RANGES
-            .prefixes
-            .iter()
-            .filter(|prefix| prefix.service == "CLOUDFRONT")
-            .map(|prefix| prefix.ip_prefix);
-
-        let ipv6_prefixes = aws_ip_ranges::IP_RANGES
-            .ipv6_prefixes
-            .iter()
-            .filter(|prefix| prefix.service == "CLOUDFRONT")
-            .map(|prefix| prefix.ipv6_prefix);
-
-        ipv4_prefixes
-            .chain(ipv6_prefixes)
-            .filter_map(|prefix| match prefix.parse() {
-                Ok(ip_network) => Some(ip_network),
-                Err(error) => {
-                    tracing::warn!(%error, "Failed to parse AWS CloudFront CIDR");
-                    None
+async fn load_cloudflare_prefixes() -> Vec<IpNetwork> {
+    // Fetch Cloudflare IPv4 and IPv6 prefix lists and parse them
+    async fn fetch_list(url: &str) -> Vec<IpNetwork> {
+        match reqwest::get(url).await {
+            Ok(resp) => {
+                // Accept text/plain with any charset
+                if let Some(ct) = resp.headers().get(reqwest::header::CONTENT_TYPE)
+                    && let Ok(ct) = ct.to_str()
+                    && !ct.to_ascii_lowercase().starts_with("text/plain")
+                {
+                    tracing::warn!(content_type = %ct, "Unexpected content type from Cloudflare IP list");
                 }
-            })
-            .collect()
-    })
+                match resp.text().await {
+                    Ok(body) => body
+                        .lines()
+                        .filter_map(|line| {
+                            let s = line.trim();
+                            if s.is_empty() { return None; }
+                            match s.parse::<IpNetwork>() {
+                                Ok(n) => Some(n),
+                                Err(e) => {
+                                    tracing::warn!(line = %s, error = ?e, "Failed to parse Cloudflare CIDR line");
+                                    None
+                                }
+                            }
+                        })
+                        .collect(),
+                    Err(e) => {
+                        tracing::warn!(url = %url, error = %e, "Failed reading Cloudflare IP list body");
+                        Vec::new()
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(url = %url, error = %e, "Failed fetching Cloudflare IP list");
+                Vec::new()
+            }
+        }
+    }
+
+    let (v4, v6) = tokio::join!(
+        fetch_list("https://www.cloudflare.com/ips-v4"),
+        fetch_list("https://www.cloudflare.com/ips-v6"),
+    );
+
+    v4.into_iter().chain(v6.into_iter()).collect()
 }
 
-pub fn is_cloudfront_ip(ip: &IpAddr) -> bool {
-    CLOUDFRONT_PREFIXES
-        .get()
-        .unwrap_or_else(|| get_cloudfront_prefixes())
+async fn get_cloudflare_prefixes() -> &'static Vec<IpNetwork> {
+    CLOUDFLARE_PREFIXES
+        .get_or_init(|| async { load_cloudflare_prefixes().await })
+        .await
+}
+
+async fn is_cloudflare_ip(ip: &IpAddr) -> bool {
+    get_cloudflare_prefixes()
+        .await
         .iter()
         .any(|trusted_proxy| trusted_proxy.contains(*ip))
 }
@@ -54,7 +78,28 @@ impl axum::extract::FromRequestParts<App> for ClientIp {
     type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, _state: &App) -> Result<Self, Self::Rejection> {
-        let mut x_forwarded_for_ips = parts
+        // Prefer Cloudflare headers first
+        let cf_connecting_ip = parts
+            .headers
+            .get("cf-connecting-ip")
+            .and_then(|h| h.to_str().ok())
+            .and_then(|s| s.trim().parse::<IpAddr>().ok())
+            .filter(|ip| match ip {
+                IpAddr::V4(ip) => !ip.is_private() && !ip.is_loopback(),
+                IpAddr::V6(_) => true,
+            });
+
+        let true_client_ip = parts
+            .headers
+            .get("true-client-ip")
+            .and_then(|h| h.to_str().ok())
+            .and_then(|s| s.trim().parse::<IpAddr>().ok())
+            .filter(|ip| match ip {
+                IpAddr::V4(ip) => !ip.is_private() && !ip.is_loopback(),
+                IpAddr::V6(_) => true,
+            });
+
+        let x_forwarded_for_ips = parts
             .headers
             .get_all("x-forwarded-for")
             .iter()
@@ -64,40 +109,39 @@ impl axum::extract::FromRequestParts<App> for ClientIp {
             .filter(|ip| match ip {
                 IpAddr::V4(ip) => !ip.is_private() && !ip.is_loopback(),
                 IpAddr::V6(_) => true,
-            });
+            })
+            .collect::<Vec<_>>();
 
-        // Get the originating client IP address from the headers, which is the
-        // left-most non-private IP address in the X-Forwarded-For header.
-        let client_ip = x_forwarded_for_ips.next();
+        // left-most = origin, right-most = nearest
+        let client_ip_from_xff = x_forwarded_for_ips.first().cloned();
+        let nearest_proxy_ip_from_xff = x_forwarded_for_ips.last().cloned();
 
-        // Get the CloudFront IP address from the headers, which is the right-most
-        // IP address that was appended by the Caddy reverse proxy
-        let supposedly_cloudfront_ip = x_forwarded_for_ips.next_back();
+        let socket_ip: IpAddr = parts
+            .extensions
+            .get::<ConnectInfo<SocketAddr>>()
+            .ok_or("couldn't get connecting socket IP")?
+            .0
+            .ip();
 
-        Ok(ClientIp(match (client_ip, supposedly_cloudfront_ip) {
-            (Some(client_ip), Some(cf_ip)) if is_cloudfront_ip(&cf_ip) => client_ip,
-            (Some(client_ip), cf_ip) => {
-                tracing::warn!(
-                    ?client_ip,
-                    ?cf_ip,
-                    "Request from non-CloudFront proxy, using the untrusted client IP"
-                );
-                client_ip
-            }
-            (None, _) => {
-                let socket_ip: IpAddr = parts
-                    .extensions
-                    .get::<ConnectInfo<SocketAddr>>()
-                    .ok_or("couldn't get connecting socket IP")?
-                    .0
-                    .ip();
+        let nearest_proxy_ip = nearest_proxy_ip_from_xff.or(Some(socket_ip));
 
-                tracing::warn!(
-                    ?socket_ip,
-                    "No client IP found in X-Forwarded-For headers, using socket IP"
-                );
-                socket_ip
-            }
-        }))
+        if let Some(npi) = nearest_proxy_ip
+            && is_cloudflare_ip(&npi).await
+            && let Some(ip) = cf_connecting_ip.or(true_client_ip).or(client_ip_from_xff)
+        {
+            return Ok(ClientIp(ip));
+        }
+
+        // If we reach here, either nearest proxy isn't Cloudflare, or no valid header IP.
+        // Fallback to socket IP, or error if headers present but untrusted proxy
+        if cf_connecting_ip.is_none() && true_client_ip.is_none() && client_ip_from_xff.is_none() {
+            return Ok(ClientIp(socket_ip));
+        }
+
+        Err((
+            "couldn't determine client IP address",
+            axum::http::StatusCode::BAD_REQUEST,
+        )
+            .into())
     }
 }

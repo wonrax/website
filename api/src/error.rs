@@ -414,13 +414,12 @@ fn filter_backtrace(backtrace: Option<&backtrace::Backtrace>) -> Vec<BacktraceFr
                         symbol.name().map(|n| n.to_string()),
                         symbol.filename().map(|f| f.to_owned()),
                         symbol.lineno(),
-                    ) {
-                        if name.contains(MODULE_PREFIX) {
-                            frames_info.push(BacktraceFrame {
-                                name,
-                                loc: format!("{}:{}", filename.to_str().unwrap(), lineno),
-                            });
-                        }
+                    ) && name.contains(MODULE_PREFIX)
+                    {
+                        frames_info.push(BacktraceFrame {
+                            name,
+                            loc: format!("{}:{}", filename.to_str().unwrap(), lineno),
+                        });
                     }
                 }
             }

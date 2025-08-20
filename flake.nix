@@ -8,13 +8,12 @@
       url = "github:oxalica/rust-overlay";
       inputs = {
         nixpkgs.follows = "nixpkgs";
-        flake-utils.follows = "flake-utils";
       };
     };
     prisma-utils = {
       url = "github:VanCoding/nix-prisma-utils";
       inputs = {
-        pkgs.follows = "nixpkgs";
+        nixpkgs.follows = "nixpkgs";
         flake-utils.follows = "flake-utils";
       };
     };

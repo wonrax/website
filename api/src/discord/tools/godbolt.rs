@@ -239,7 +239,6 @@ impl Tool for Godbolt {
                 }
             }
 
-
             let structured = json!({
                 "asm": join_text(&data.get("asm").cloned().unwrap_or_else(|| json!([]))),
                 "build": {

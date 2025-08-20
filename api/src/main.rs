@@ -18,6 +18,8 @@ use tower_http::{
 use tracing::{Span, debug, error, info, info_span};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use crate::real_ip::ClientIp;
+
 mod blog;
 mod config;
 mod crypto;
@@ -242,7 +244,10 @@ async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> 
     }
 }
 
-async fn heath() -> impl IntoResponse {
+async fn heath(#[cfg(debug_assertions)] ClientIp(ip): ClientIp) -> impl IntoResponse {
+    #[cfg(debug_assertions)]
+    tracing::debug!(ip = %ip, "Health check request received");
+
     Json(json!({
         "status": 200,
         "msg": "OK",

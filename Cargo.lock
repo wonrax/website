@@ -71,7 +71,6 @@ version = "0.1.0"
 dependencies = [
  "article_scraper",
  "async-openai",
- "aws-ip-ranges",
  "axum",
  "axum-extra",
  "backtrace",
@@ -287,16 +286,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98922d6a4cfbcb08820c69d8eeccc05bb1f29bfa06b4f5b1dbfe9a868bd7608e"
 dependencies = [
  "arrayvec",
-]
-
-[[package]]
-name = "aws-ip-ranges"
-version = "0.817.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1967d9648fed63b50aefb0b1093df4470304e508035e6b8d351a97bb3ca224bd"
-dependencies = [
- "serde",
- "serde_json",
 ]
 
 [[package]]
