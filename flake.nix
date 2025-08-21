@@ -141,6 +141,30 @@
           };
         };
 
+        packages.schemaMigrator = pkgs.stdenv.mkDerivation {
+          name = "schema-migrator";
+          src = ./.;
+
+          installPhase = ''
+            mkdir -p $out
+            cp -r prisma $out
+          '';
+        };
+
+        packages.dockerSchemaMigrator = pkgs.dockerTools.buildLayeredImage {
+          name = "ghcr.io/wonrax/wrx-sh-migrator";
+          tag = "latest";
+          contents = with pkgs; [ nodejs_22 ];
+          config = {
+            Cmd = [
+              "${pkgs.lib.getExe pkgs.prisma}"
+              "migrate"
+              "deploy"
+            ];
+            WorkingDir = "${packages.schemaMigrator}";
+          };
+        };
+
         devShells.default =
           with pkgs;
           mkShell {

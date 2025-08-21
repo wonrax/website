@@ -12,7 +12,6 @@ on:
     paths:
       - "web/**"
       - "api/**"
-      - "docker/**"
       - "package.json"
       - "package-lock.json"
       - "Cargo.toml"
@@ -57,14 +56,9 @@ jobs:
               - "flake.nix"
               - "flake.lock"
             migrate:
-              - "api/migrations/**"
-              - "api/schema.prisma"
-              - "docker/schema-migrator.Dockerfile"
-            deploy:
-              - "docker/Caddyfile"
-              - "docker/docker-compose*.yml"
-              - "docker/*.Dockerfile"
-              - "docker/vector/vector.toml"
+              - "prisma/**"
+              - "flake.nix"
+              - "flake.lock"
 
   # test-backend:
   #   name: Test backend API
@@ -120,15 +114,24 @@ jobs:
         run: docker load < ./result && docker push ghcr.io/wonrax/wrx-sh-api:latest
 
   build-and-push-migrate:
-    name: Build database migrator
+    name: Build database migrator (Nix)
     needs: files-changed
     if: ${{ needs.files-changed.outputs.migrate == 'true' }}
-    uses: ./.github/workflows/container-ci.yml
-    with:
-      name: Database migrator
-      tags: ghcr.io/wonrax/wrx-sh-migrator:latest
-      dockerfile: docker/schema-migrator.Dockerfile
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Build schema migrator Docker image with Nix
+        run: nix build .#dockerSchemaMigrator -L
+      - name: Load and push migrator image
+        run: docker load < ./result && docker push ghcr.io/wonrax/wrx-sh-migrator:latest
 
   deploy:
     name: Deploy
@@ -148,6 +151,5 @@ jobs:
     if: ${{ !failure() && (
       needs.build-and-push-backend.result == 'success' ||
       needs.build-and-push-www.result == 'success' ||
-      needs.build-and-push-migrate.result == 'success' ||
-      needs.files-changed.outputs.deploy == 'true' ) }}
+      needs.build-and-push-migrate.result == 'success' ) }}
     secrets: inherit

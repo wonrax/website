@@ -11,7 +11,7 @@
     "dev": "wireit",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "lint": "turbo run lint",
-    "prisma:push": "npx prisma db push --schema api/schema.prisma"
+    "prisma:push": "npx prisma db push"
   },
   "wireit": {
     "dev": {
