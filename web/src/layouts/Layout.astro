@@ -25,10 +25,18 @@ const ogImageUrl =
 
 const title = seoProps.title;
 
-const commitHash = childProcess
-  .execSync("git rev-parse --short HEAD")
-  .toString()
-  .trim();
+let commitHash: string | null = null;
+
+console.log(import.meta.env);
+
+try {
+  commitHash = childProcess
+    .execSync("git rev-parse --short HEAD")
+    .toString()
+    .trim();
+} catch {
+  commitHash = import.meta.env.PUBLIC_GIT_REV || null;
+}
 ---
 
 <!doctype html>

@@ -15,7 +15,6 @@ COPY turbo.json .
 
 # Build frontend's dependencies, but not the frontend itself
 # This enable caching for the dependencies build layer
-ENV PUBLIC_SITE_URL=https://wrx.sh
 RUN npx turbo build --filter=web^...
 
 COPY web/. ./web

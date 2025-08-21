@@ -1,6 +1,7 @@
 const config = {
-  API_URL: (import.meta.env.PUBLIC_SITE_URL as string | undefined)
-    ? (import.meta.env.PUBLIC_SITE_URL as string) + "/api"
+  // env.SITE is configured in astro.config.mts
+  API_URL: (import.meta.env.SITE as string | undefined)
+    ? (import.meta.env.SITE as string) + "/api"
     : import.meta.env.PROD
       ? ("https://wrx.sh" as const) + "/api"
       : ("http://localhost:3000" as const),

@@ -23,6 +23,7 @@
 
   outputs =
     {
+      self,
       nixpkgs,
       rust-overlay,
       flake-utils,
@@ -104,6 +105,39 @@
           config = {
             Env = [ "RUST_LOG=info" ];
             Cmd = [ "${packages.api}/bin/api" ];
+          };
+        };
+
+        packages.www = pkgs.buildNpmPackage {
+          name = "www";
+          src = ./.;
+
+          npmDeps = pkgs.importNpmLock { npmRoot = ./.; };
+          npmConfigHook = pkgs.importNpmLock.npmConfigHook;
+          npmWorkspace = ./.;
+
+          env.PUBLIC_GIT_REV = self.dirtyShortRev;
+
+          buildPhase = ''
+            npx turbo build --filter=web
+          '';
+
+          installPhase = ''
+            mkdir -p $out
+            cp -r web/dist/* $out/
+          '';
+        };
+
+        packages.dockerWww = pkgs.dockerTools.buildLayeredImage {
+          name = "ghcr.io/wonrax/wrx-sh-www";
+          tag = "latest";
+          contents = with pkgs; [ busybox ];
+          config = {
+            Entrypoint = [
+              "sh"
+              "-c"
+              "rm -rf /.mount/* && cp -r ${packages.www}/* /.mount"
+            ];
           };
         };
 
