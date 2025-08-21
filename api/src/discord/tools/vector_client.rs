@@ -58,9 +58,10 @@ impl VectorClient {
 
         // Initialize embedding model with better error handling
         tracing::info!("Initializing FastEmbed model (this may download files on first run)...");
-        let embedding_model = TextEmbedding::try_new(InitOptions::new(
-            EmbeddingModel::AllMiniLML12V2,
-        ))
+        let embedding_model = TextEmbedding::try_new(
+            InitOptions::new(EmbeddingModel::AllMiniLML12V2)
+                .with_cache_dir("./.fastembed_cache".parse().unwrap()),
+        )
         .map_err(|e| VectorClientError(format!("Failed to initialize embedding model: {}", e)))?;
 
         Ok(Self {
