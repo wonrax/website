@@ -192,7 +192,17 @@ export function CommentEditorBase(props: {
         name: "content",
         autocomplete: "false",
       },
+      theme: window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "cave"
+        : "solar",
     });
+
+    // TODO: this does not work because .setTheme has been removed in 1.2.0
+    // window
+    //   .matchMedia("(prefers-color-scheme: dark)")
+    //   .addEventListener("change", function (e) {
+    //     editor.setTheme(e.matches ? "cave" : "solar");
+    //   });
   });
 
   onCleanup(() => {
