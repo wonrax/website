@@ -21,7 +21,8 @@ html {
 // TODO do the same thing for monospace fonts
 @font-face {
   font-family: "Inter fallback";
-  src: local("BlinkMacSystemFont"), local("Segoe UI"), local("Helvetica Neue"),
+  src:
+    local("BlinkMacSystemFont"), local("Segoe UI"), local("Helvetica Neue"),
     local("Arial"), local("Noto Sans");
   ascent-override: 96.875%;
   descent-override: 24.14772727%;

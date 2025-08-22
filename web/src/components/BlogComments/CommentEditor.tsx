@@ -7,6 +7,8 @@ import {
   useContext,
   type Setter,
   type JSXElement,
+  createEffect,
+  onCleanup,
 } from "solid-js";
 import CommentContext from "./CommentSectionContext";
 import { type Comment } from "./CommentSection";
@@ -15,6 +17,9 @@ import "./CommentEditor.scss";
 import { AppState, SetAppState, checkAuthUser } from "@/state";
 import { createFetch, fetchAny } from "@/rpc";
 import { z } from "zod/v4";
+
+// @ts-expect-error Overtype has not been typed yet
+import { OverType } from "overtype";
 
 type FormEvent = Event & {
   target: EventTarget & {
@@ -154,7 +159,7 @@ export function CommentEditing(props: {
         }
       }}
       content={props.content}
-      showAuthInfo={false}
+      showAuthInfo={true}
       buttonCta="Save"
     />
   );
@@ -172,6 +177,30 @@ export function CommentEditorBase(props: {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<Error>();
 
+  const editorId = "editor-" + Math.random().toString(36).substring(2, 15);
+
+  let editor: OverType;
+
+  createEffect(() => {
+    [editor] = new OverType(`#${editorId}`, {
+      showStats: true,
+      autoResize: true,
+      placeholder: props.placeholder ?? "Start writing markdown...",
+      value: props.content,
+      textareaProps: {
+        id: "content",
+        name: "content",
+        autocomplete: "false",
+      },
+    });
+  });
+
+  onCleanup(() => {
+    if (editor != null) {
+      editor.destroy();
+    }
+  });
+
   if (AppState.authUser === undefined) {
     void checkAuthUser();
   }
@@ -180,6 +209,7 @@ export function CommentEditorBase(props: {
     try {
       setLoading(true);
       await props.onSubmit(e);
+      editor.setValue(""); // clear the editor after submission
     } catch (e) {
       setError(e as Error);
     }
@@ -275,19 +305,7 @@ export function CommentEditorBase(props: {
           ))}
       </div>
       <hr />
-      <div class="comment-editor">
-        <textarea
-          class="content"
-          id="content"
-          placeholder={props.placeholder ?? "Write a comment..."}
-          onKeyUp={(e) => {
-            if (e.currentTarget.scrollHeight > e.currentTarget.clientHeight)
-              e.currentTarget.style.height =
-                e.currentTarget.scrollHeight + "px";
-          }}
-          value={props.content ?? ""}
-        />
-      </div>
+      <div id={editorId} />
       {error() != null && <div class="error">{error()?.message}</div>}
       <div class="action-row">
         <div class="markdown-hint">

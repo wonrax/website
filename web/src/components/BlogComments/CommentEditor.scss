@@ -42,10 +42,6 @@
     }
   }
 
-  .comment-editor {
-    padding: 6px;
-  }
-
   hr {
     border: none;
     border-top: solid 1px var(--bg-additive-medium);
@@ -139,7 +135,7 @@
   .error {
     color: var(--error-medium);
     font-size: 14px;
-    margin: 0 8px 8px 8px;
+    margin: 8px;
     // border: solid 1px var(--error-medium);
     border-radius: 8px;
     background-color: var(--error-light);
