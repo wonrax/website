@@ -19,14 +19,9 @@ jobs:
 
       - name: Run ssh deploy command
         run: |
-          ssh -o StrictHostKeyChecking=no github-actions@hetzner-server "
-            cd ~/wrx.sh
-            git fetch origin main
-            git reset --hard origin/main
-            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker compose -f docker/docker-compose.prod.yml -p wrx-sh pull
-            docker compose -f docker/docker-compose.prod.yml -p wrx-sh --env-file=./.env up --detach --no-build --remove-orphans
-            docker compose -f docker/docker-compose.prod.yml -p wrx-sh restart caddy
-            docker compose -f docker/docker-compose.prod.yml -p wrx-sh restart vector
-            docker system prune --all --volumes --force
+          ssh -o StrictHostKeyChecking=no root@yorgos "
+            podman pull ghcr.io/wonrax/wrx-sh-api:latest \
+                        ghcr.io/wonrax/wrx-sh-www:latest \
+                        ghcr.io/wonrax/wrx-sh-migrator:latest
+            systemctl restart podman-compose-wrx-sh-root.target
           "
