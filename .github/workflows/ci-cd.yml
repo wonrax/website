@@ -92,7 +92,8 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/magic-nix-cache-action@main
       - name: Build www Docker image with Nix
-        run: nix build .#dockerWww -L
+        # Disable sandbox to fetch blog images and precompress them at build time
+        run: nix build .#dockerWww -L --option sandbox false
       - name: Load and push www image
         run: docker load < ./result && docker push ghcr.io/wonrax/wrx-sh-www:latest
 
