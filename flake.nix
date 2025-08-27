@@ -163,11 +163,9 @@
             ];
             WorkingDir = "${packages.schemaMigrator}";
           };
-          runAsRoot = ''
-            # dockerTools image does not have /tmp by default, prisma needs this
-            mkdir -p /tmp
-            chmod 1777 /tmp
-          '';
+          # dockerTools image does not have /tmp by default, prisma needs this
+          # https://discourse.nixos.org/t/dockertools-buildimage-and-user-writable-tmp/5397/9
+          extraCommands = "mkdir -m 0777 tmp";
         };
 
         devShells.default =
