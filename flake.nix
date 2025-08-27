@@ -163,6 +163,10 @@
             ];
             WorkingDir = "${packages.schemaMigrator}";
           };
+          extraCommands = ''
+            # dockerTools image does not have /tmp by default
+            mkdir -m 1777 /tmp
+          '';
         };
 
         devShells.default =
