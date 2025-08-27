@@ -116,7 +116,7 @@
           npmConfigHook = pkgs.importNpmLock.npmConfigHook;
           npmWorkspace = ./.;
 
-          env.PUBLIC_GIT_REV = self.dirtyShortRev;
+          env.PUBLIC_GIT_REV = builtins.substring 0 7 (self.rev or self.dirtyRev or "unknown");
 
           buildPhase = ''
             npx turbo build --filter=web

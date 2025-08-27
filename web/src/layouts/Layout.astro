@@ -27,8 +27,6 @@ const title = seoProps.title;
 
 let commitHash: string | null = null;
 
-console.log(import.meta.env);
-
 try {
   commitHash = childProcess
     .execSync("git rev-parse --short HEAD")
