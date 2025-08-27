@@ -164,8 +164,9 @@
             WorkingDir = "${packages.schemaMigrator}";
           };
           extraCommands = ''
-            # dockerTools image does not have /tmp by default
-            mkdir -m 1777 /tmp
+            # dockerTools image does not have /tmp by default, prisma needs this
+            mkdir -p /tmp
+            chmod 1777 /tmp
           '';
         };
 
