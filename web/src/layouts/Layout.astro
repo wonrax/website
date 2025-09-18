@@ -110,22 +110,21 @@ you use more additional fonts, check which fonts are being used in Chrome devtoo
           ui_host: "https://us.posthog.com",
           person_profiles: "always",
           loaded: async (posthog) => {
-            if (sessionStorage.getItem("posthog_identified") === "true") {
-              return;
-            }
-            try {
-              const authInfo = await checkAuthUser();
-              if (authInfo != null)
-                posthog.identify(authInfo.id.toString(), {
-                  email: authInfo.email,
-                  name: authInfo.name,
-                });
-              sessionStorage.setItem("posthog_identified", "true");
-            } catch (e) {
-              console.error("Could not identify user", e);
+            // Handle user identification (only once per session)
+            if (sessionStorage.getItem("posthog_identified") !== "true") {
+              try {
+                const authInfo = await checkAuthUser();
+                if (authInfo != null)
+                  posthog.identify(authInfo.id.toString(), {
+                    email: authInfo.email,
+                    name: authInfo.name,
+                  });
+                sessionStorage.setItem("posthog_identified", "true");
+              } catch (e) {
+                console.error("Could not identify user", e);
+              }
             }
 
-            // Check for global banner feature flag
             const flagKey = "global-banner";
             if (posthog.isFeatureEnabled(flagKey)) {
               const payload = posthog.getFeatureFlagPayload(
