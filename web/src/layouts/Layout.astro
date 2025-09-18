@@ -7,6 +7,7 @@ import "./global.scss";
 import { SEO, type Props as SeoProps } from "astro-seo";
 import childProcess from "child_process";
 import { version } from "../../package.json";
+import GlobalBanner from "@/components/GlobalBanner";
 
 export type Props = {
   seoProps: SeoProps & {
@@ -96,7 +97,9 @@ you use more additional fonts, check which fonts are being used in Chrome devtoo
   <body>
     <slot />
     <script>
-      if (process.env.NODE_ENV === "production") {
+      import type { BannerPayload } from "@/components/GlobalBanner/GlobalBanner";
+
+      if (import.meta.env.PROD) {
         const [{ posthog }, { checkAuthUser }] = await Promise.all([
           import("posthog-js"),
           import("@/state"),
@@ -121,6 +124,24 @@ you use more additional fonts, check which fonts are being used in Chrome devtoo
             } catch (e) {
               console.error("Could not identify user", e);
             }
+
+            // Check for global banner feature flag
+            const flagKey = "global-banner";
+            if (posthog.isFeatureEnabled(flagKey)) {
+              const payload = posthog.getFeatureFlagPayload(
+                flagKey
+              ) as unknown as BannerPayload;
+              if (payload && payload.content && payload.type) {
+                // Store banner data on window for component to access
+                window.__bannerData = payload;
+                // Also dispatch event in case component is already loaded
+                window.dispatchEvent(
+                  new CustomEvent("banner-data", {
+                    detail: payload,
+                  })
+                );
+              }
+            }
           },
         });
       }
@@ -135,6 +156,7 @@ you use more additional fonts, check which fonts are being used in Chrome devtoo
         Commit: {commitHash} - Version: {version}
       </span>
     </footer>
+    <GlobalBanner client:load />
   </body>
 </html>
 

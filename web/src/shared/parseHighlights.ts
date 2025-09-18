@@ -22,7 +22,7 @@ export function formatHighlightDate(dateStr: string): string {
   try {
     return new Date(dateStr).toLocaleDateString(undefined, {
       year: "numeric",
-      month: "long", 
+      month: "long",
       day: "numeric",
     });
   } catch {
@@ -43,7 +43,7 @@ export function getWebsiteUrl(link: string | undefined): string {
 
 // Convert highlights to RSS-like items for backwards compatibility during migration
 export function highlightsToRSSItems(highlights: HighlightItem[]): RSSItem[] {
-  return highlights.map(highlight => ({
+  return highlights.map((highlight) => ({
     title: highlight.title,
     link: highlight.link,
     pubDate: highlight.created_at,
