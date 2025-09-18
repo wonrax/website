@@ -29,7 +29,7 @@
     "astro-seo": "^0.8.4",
     "lucide-solid": "^0.513.0",
     "overtype": "^1.2.3",
-    "posthog-js": "^1.249.5",
+    "posthog-js": "^1.266.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "rehype-katex": "^7.0.1",
