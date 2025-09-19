@@ -94,7 +94,7 @@ export default defineConfig({
   ],
   image: {
     service: sharpImageService(),
-    domains: ["files.wrx.sh", "res.cloudinary.com"],
+    domains: ["files.wrx.sh", "res.cloudinary.com", "images.unsplash.com"],
   },
   vite: {
     resolve: {

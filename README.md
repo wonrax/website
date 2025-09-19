@@ -17,19 +17,15 @@ npm run dev
 ```
 
 ### blog todo
-
+- photography posts download button
 - Astro image has now supported remote image optimization, maybe use that instead?
 - Do not stretch small images to full width in blog posts
 - markdown auto external link
 - headings anchor clickable
 - right padding in code block (or white space)
-- fix featuretype=lg width in multiple screen sizes
-- fix timeout when optimize large remote image
 - use a different, more optimized image format when original image is downloadable
 - custom image tranformation to allow image sharpening
 - hide the ToC when featuretype=lg element presents
-  - Maybe remove the large feature type for regular blog post and create another
-    dedicated layout for photography
 
 - custom json deserialize error in axum handlers
 - Share logout logic to handle side effects like posthog.reset()

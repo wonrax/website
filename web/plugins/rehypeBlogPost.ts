@@ -64,10 +64,15 @@ export default function rehypeBlogPost() {
       }
 
       if (node.type === "mdxJsxFlowElement") {
-        // code group is a special case and is feature by default
         if (node.name === "CodeGroup") {
           flushWrapper();
           finalChildren.push(h("div", { class: "feature-code" }, node));
+          continue;
+        }
+
+        if (node.name === "PortraitGallery") {
+          flushWrapper();
+          finalChildren.push(node);
           continue;
         }
       }

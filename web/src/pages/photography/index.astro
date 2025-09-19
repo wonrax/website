@@ -1,0 +1,147 @@
+---
+import PhotographyRouteLayout from "@/layouts/PhotographyRouteLayout.astro";
+import type { PhotographyFrontmatter } from "@/layouts/PhotographyPostLayout.astro";
+import "@/layouts/layout.scss";
+import type { MarkdownInstance } from "astro";
+
+const allPhotographyCollections = Object.values(
+  import.meta.glob<MarkdownInstance<PhotographyFrontmatter>>("./**/*.mdx", {
+    eager: true,
+  })
+);
+---
+
+<PhotographyRouteLayout seoProps={{ title: "Photography", description: "Photo collections and visual stories" }}>
+  <div class="photography-content">
+    <main class="photography-main">
+      <p style={{ color: "var(--text-body-light)" }}>Latest collections</p>
+    <ul class="collection-list">
+      {
+        allPhotographyCollections
+          .filter((collection) => {
+            return (
+              process.env.NODE_ENV !== "production" ||
+              (collection.frontmatter.isDraft !== true &&
+                collection.frontmatter.hidden !== true)
+            );
+          })
+          .sort((a, b) => {
+            return (
+              new Date(b.frontmatter.published).getTime() -
+              new Date(a.frontmatter.published).getTime()
+            );
+          })
+          .map((collection) => {
+            return (
+              <li
+                class={`collection-entry${
+                  collection.frontmatter.isDraft === true ||
+                  collection.frontmatter.hidden === true
+                    ? " hidden"
+                    : ""
+                }`}
+              >
+                <div>
+                  <div
+                    style={{
+                      display: "flex",
+                      "flex-direction": "row",
+                      "align-items": "center",
+                      gap: "12px",
+                    }}
+                  >
+                    <a href={collection.url}>{collection.frontmatter.title}</a>
+                    <hr
+                      style={{
+                        height: "1px",
+                        flex: 1,
+                        "background-color": "var(--bg-additive-medium)",
+                        border: "none",
+                      }}
+                    />
+                    <p class="collection-date">
+                      {new Date(collection.frontmatter.published).toLocaleDateString(
+                        "en-UK",
+                        {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        }
+                      )}
+                    </p>
+                  </div>
+                  {
+                    collection.frontmatter.location && (
+                      <p class="collection-location">
+                        📍 {collection.frontmatter.location}
+                      </p>
+                    )
+                  }
+                </div>
+                <p class="collection-description">
+                  {collection.frontmatter.description}
+                </p>
+              </li>
+            );
+          })
+      }
+    </ul>
+    </main>
+  </div>
+</PhotographyRouteLayout>
+
+<style lang="scss" is:global>
+  .photography-main {
+    .collection-list {
+      list-style-type: decimal;
+      padding-inline-start: 0;
+
+      .collection-entry {
+        margin-bottom: 20px;
+        display: flex;
+        flex-direction: column;
+        max-width: 700px;
+
+        &.hidden {
+          a {
+            color: var(--text-body-light);
+          }
+        }
+
+        & > div {
+          width: 100%;
+        }
+
+        a {
+          font-size: 16px;
+          letter-spacing: -0.01em;
+          line-height: 1.45em;
+        }
+
+        p {
+          margin: 2px 0;
+        }
+
+        .collection-date {
+          color: var(--text-body-light);
+          font-size: 14px;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+
+        .collection-location {
+          color: var(--text-body-medium);
+          font-size: 14px;
+          margin-top: 4px;
+          font-weight: var(--font-weight-medium);
+        }
+
+        .collection-description {
+          color: var(--text-body-light);
+          font-size: 14px;
+          line-height: 1.45em;
+        }
+      }
+    }
+  }
+</style>

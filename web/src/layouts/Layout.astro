@@ -99,7 +99,10 @@ you use more additional fonts, check which fonts are being used in Chrome devtoo
     <script>
       import type { BannerPayload } from "@/components/GlobalBanner/GlobalBanner";
 
-      if (import.meta.env.PROD) {
+      if (
+        !(import.meta.env.DISABLE_POSTHOG === "true") &&
+        import.meta.env.PROD
+      ) {
         const [{ posthog }, { checkAuthUser }] = await Promise.all([
           import("posthog-js"),
           import("@/state"),
@@ -152,7 +155,10 @@ you use more additional fonts, check which fonts are being used in Chrome devtoo
         <a href="/great-reads" class="footer-link-item">Bookmarks</a>
       </div>
       <span>
-        Commit: {commitHash} - Version: {version}
+        Commit: <a
+          href={`https://github.com/wonrax/website/commit/${commitHash}`}
+          >{commitHash}</a
+        > - Version: {version}
       </span>
     </footer>
     <GlobalBanner client:load />

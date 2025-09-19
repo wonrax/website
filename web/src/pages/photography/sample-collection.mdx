@@ -1,0 +1,72 @@
+---
+layout: "../../layouts/PhotographyPostLayout.astro"
+title: "Sample Photography Collection"
+description: "A demonstration of the photography layout with portrait and landscape images."
+published: "19 Sep 2025"
+location: "Sample Location"
+---
+
+import PortraitGallery from "../../components/PortraitGallery.astro";
+
+This is a sample photography collection demonstrating the new photography layout. You can write basic prose here to introduce your photo collection or tell a story.
+
+## Portrait Gallery
+
+Here's how you can display multiple portrait images side by side with horizontal scrolling:
+
+<PortraitGallery
+  images={[
+    {
+      src: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=2400&h=3600&fit=crop",
+      alt: "Sample portrait 1",
+      caption: "Mountain landscape in portrait orientation",
+      width: 2400,
+      height: 3600,
+    },
+    {
+      src: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=2400&h=3600&fit=crop",
+      alt: "Sample portrait 2",
+      caption: "Forest scene in portrait orientation",
+      width: 2400,
+      height: 3600,
+    },
+    {
+      src: "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=2400&h=3600&fit=crop",
+      alt: "Sample portrait 3",
+      caption: "Seascape in portrait orientation",
+      width: 2400,
+      height: 3600,
+    },
+    {
+      src: "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=2400&h=3600&fit=crop",
+      alt: "Sample portrait 3",
+      caption: "Seascape in portrait orientation",
+      width: 2400,
+      height: 3600,
+    },
+  ]}
+/>
+
+## Another Portrait Section
+
+<PortraitGallery
+  images={[
+    {
+      src: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=600&h=900&fit=crop",
+      alt: "Forest portrait",
+      caption: "Deep forest trail",
+    },
+    {
+      src: "https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=500&h=1200&fit=crop",
+      alt: "Mountain portrait",
+      caption: "Rocky mountain peaks",
+    },
+  ]}
+/>
+
+This layout provides a clean, photo-focused experience while maintaining the navigation and overall design consistency with your blog.
+
+![Remote image with
+featuretype=lg](https://res.cloudinary.com/dmdgv6qrg/image/upload/v1737782228/hhai.dev%20blog/authoring%20in%20markdown/DSCF2194_s5m7rt.jpg
+'#width=4096;height=1743;featuretype=lg')
+Remote image with `featuretype=lg`

@@ -1,0 +1,135 @@
+---
+import type { ImageMetadata } from "astro";
+import { Picture } from "astro:assets";
+
+export interface Props {
+  images: Array<{
+    src: ImageMetadata | string;
+    alt: string;
+    caption?: string;
+    width?: number;
+    height?: number;
+  }>;
+  className?: string;
+}
+
+const { images, className = "" } = Astro.props;
+---
+
+<div class={`portrait-gallery ${className}`}>
+  <div class="gallery-container">
+    {
+      images.map((image) => (
+        <div class="portrait-item">
+          <Picture
+            src={image.src}
+            alt={image.alt}
+            width={image.width}
+            height={image.height}
+            layout="full-width"
+            quality={95}
+            inferSize={true}
+          />
+          {image.caption && <div class="portrait-caption">{image.caption}</div>}
+        </div>
+      ))
+    }
+  </div>
+</div>
+
+<style lang="scss">
+  .portrait-gallery {
+    display: flex;
+    justify-content: center;
+    margin: 32px 0;
+    width: 100%;
+
+    .gallery-container {
+      display: flex;
+      justify-content: flex-start;
+      gap: 16px;
+      overflow-x: auto;
+      overflow-y: hidden; /* Prevent vertical scrolling */
+      padding: 16px;
+      scroll-snap-type: x proximity;
+      scroll-padding: 0 16px; /* Padding for snap alignment */
+      scrollbar-width: none;
+
+      /* Custom scrollbar styling */
+      &::-webkit-scrollbar {
+        height: 8px;
+      }
+
+      &::-webkit-scrollbar-track {
+        background: var(--bg-additive-light);
+        border-radius: 4px;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background: var(--bg-additive-medium);
+        border-radius: 4px;
+
+        &:hover {
+          background: var(--bg-additive-heavy);
+        }
+      }
+    }
+
+    .portrait-item {
+      flex: none;
+      scroll-snap-align: center;
+      display: flex;
+      flex-direction: column;
+
+      picture {
+        height: 85vh;
+        align-items: center;
+
+        img {
+          height: 100%;
+          width: auto;
+          object-fit: contain;
+          border-radius: 12px;
+        }
+
+        .image-caption {
+          display: none; /* Hide the download button caption in gallery view */
+        }
+      }
+    }
+
+    .portrait-caption {
+      margin-top: 8px;
+      font-size: 14px;
+      color: var(--text-body-medium);
+      text-align: center;
+      font-weight: var(--font-weight-medium);
+      flex-shrink: 0;
+    }
+  }
+
+  /* Mobile adjustments */
+  @media (max-width: 768px) {
+    .portrait-gallery {
+      margin: 24px 0;
+
+      .gallery-container {
+        padding: 12px 16px;
+        gap: 12px;
+
+        picture {
+          height: unset;
+          width: 85vw;
+          align-items: center;
+
+          img {
+            height: auto;
+            width: 100%;
+            object-fit: contain;
+            border-radius: 12px;
+          }
+        }
+      }
+    }
+  }
+</style>

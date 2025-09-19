@@ -1,0 +1,181 @@
+---
+import PhotographyRouteLayout from "./PhotographyRouteLayout.astro";
+
+export type PhotographyFrontmatter = {
+  title: string;
+  description: string;
+  published: string;
+  updated?: string;
+  location?: string;
+  isDraft?: boolean;
+  hidden?: boolean;
+  ogImageUrl?: string;
+};
+
+type Props = {
+  frontmatter: PhotographyFrontmatter;
+};
+
+const post = Astro.props.frontmatter;
+---
+
+<PhotographyRouteLayout
+  seoProps={{ title: post.title, description: post.description }}
+>
+  <div class="photography-content">
+    <div class="photography-header">
+      <h1>{post.title}</h1>
+      <div class="separator">
+        <span class="article-date">
+          {
+            new Date(post.published).toLocaleDateString("en-UK", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })
+          }
+        </span>
+        <span class="separator-line"></span>
+        {post.location && <span class="location">📍 {post.location}</span>}
+      </div>
+    </div>
+    {
+      post.isDraft ? (
+        <div class="feature-callout">
+          <warning class="callout callout-warning">
+            <>
+              <div class="callout-indicator">
+                <div class="callout-title">Warning</div>
+              </div>
+              <div class="callout-content">
+                <p>
+                  This photography collection is a draft and is not yet ready
+                  for public viewing.
+                </p>
+              </div>
+            </>
+          </warning>
+        </div>
+      ) : null
+    }
+  </div>
+  <slot />
+</PhotographyRouteLayout>
+
+<style lang="scss" is:global>
+  .reading-line-width {
+    max-width: 680px;
+  }
+
+  .photography-content {
+    font-size: 16px;
+    word-wrap: break-word;
+
+    .location {
+      font-size: 14px;
+      font-weight: var(--font-weight-medium);
+      color: var(--text-body-medium);
+      white-space: nowrap;
+      margin-left: 8px;
+    }
+
+    .article-date {
+      font-size: 14px;
+      font-weight: var(--font-weight-medium);
+      color: var(--text-body-medium);
+      white-space: nowrap;
+      margin-right: 8px;
+    }
+
+    figure {
+      margin: 0 auto;
+    }
+
+    p {
+      margin: 16px 0;
+      line-height: 1.65em;
+      color: var(--text-body-heavy);
+      letter-spacing: -0.01em;
+      font-weight: var(--font-weight-normal);
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: var(--font-weight-medium);
+      margin: 24px 0 16px 0;
+      line-height: 1.35em;
+      letter-spacing: -0.02em;
+      color: var(--text-heading);
+    }
+
+    h2 {
+      font-size: 24px;
+      font-weight: var(--font-weight-medium);
+      margin: 24px 0 16px 0;
+      line-height: 1.35em;
+      letter-spacing: -0.02em;
+      color: var(--text-heading);
+    }
+
+    h3 {
+      font-size: 20px;
+      font-weight: var(--font-weight-medium);
+      margin: 24px 0 16px 0;
+      line-height: 1.35em;
+      letter-spacing: -0.02em;
+      color: var(--text-heading);
+    }
+
+    .photography-header {
+      box-sizing: border-box;
+      margin-left: 0;
+      margin-top: 16px;
+      margin-bottom: 32px;
+
+      h1 {
+        font-size: 28px;
+        font-weight: var(--font-weight-medium);
+        margin: 16px 0;
+        color: var(--text-heading);
+        letter-spacing: -0.02em;
+      }
+
+      .separator {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        margin-top: 16px;
+
+        .separator-line {
+          height: 1px;
+          background-color: var(--text-body-medium);
+          width: 12px;
+          display: inline-block;
+        }
+      }
+    }
+  }
+
+  /* Full-width images using feature-lg class */
+  .feature-lg {
+    width: 100%;
+    margin-left: calc(-50vw + 50%);
+    margin-right: calc(-50vw + 50%);
+
+    img {
+      width: 100%;
+      height: auto;
+      border-radius: 0;
+    }
+  }
+
+  .image-caption {
+    margin: 12px;
+    font-weight: var(--font-weight-medium);
+    color: var(--text-body-medium);
+    font-size: 14px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+</style>
