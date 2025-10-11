@@ -25,7 +25,7 @@
     "@microflash/remark-callout-directives": "^4.4.0",
     "@resvg/resvg-js": "^2.6.0",
     "@types/hast": "^3.0.4",
-    "astro": "^5.9.2",
+    "astro": "^5.14.3",
     "astro-seo": "^0.8.4",
     "lucide-solid": "^0.513.0",
     "overtype": "^1.2.3",
