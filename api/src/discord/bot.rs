@@ -453,6 +453,24 @@ impl EventHandler for Handler {
             return;
         }
 
+        let channel_id = msg.channel_id;
+
+        // For human messages: add to queue and record activity (triggers unified debouncing)
+        let queued_msg = QueuedMessage {
+            message: msg.clone(),
+        };
+
+        {
+            let mut queue = self.message_queue.lock().await;
+            let channel_messages = queue.entry(channel_id).or_insert_with(Vec::new);
+            channel_messages.push(queued_msg);
+
+            // Limit queue size per channel
+            if channel_messages.len() > 10 {
+                channel_messages.remove(0);
+            }
+        }
+
         // If mention-only mode is enabled, check if the bot is mentioned
         if self.server_config.discord_mention_only {
             let bot_user_id = self.bot_user_id.lock().await;
@@ -463,22 +481,6 @@ impl EventHandler for Handler {
                 }
             } else {
                 return;
-            }
-        }
-
-        let channel_id = msg.channel_id;
-
-        // For human messages: add to queue and record activity (triggers unified debouncing)
-        let queued_msg = QueuedMessage { message: msg };
-
-        {
-            let mut queue = self.message_queue.lock().await;
-            let channel_messages = queue.entry(channel_id).or_insert_with(Vec::new);
-            channel_messages.push(queued_msg);
-
-            // Limit queue size per channel
-            if channel_messages.len() > 10 {
-                channel_messages.remove(0);
             }
         }
 
