@@ -70,10 +70,13 @@ impl ChannelActivity {
         self.last_typing = Some(Instant::now());
     }
 
-    fn cancel_timer(&mut self) {
+    fn cancel_timer(&mut self) -> bool {
         if let Some(handle) = self.timer_handle.take() {
             handle.abort();
+            return true;
         }
+
+        false
     }
 
     fn set_timer(&mut self, handle: tokio::task::JoinHandle<()>) {
@@ -355,7 +358,11 @@ impl Handler {
         }
 
         // Cancel any existing timer
-        activity.cancel_timer();
+        // If no timer was active, we can skip scheduling to avoid processing messages even when
+        // bot mention-only mode is enabled and bot is not mentioned.
+        if !activity.cancel_timer() {
+            return;
+        }
 
         // Calculate when we should process next
         let next_wake = match activity.next_processing_time() {
