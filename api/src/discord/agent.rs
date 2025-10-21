@@ -62,7 +62,7 @@ pub async fn create_agent_session(
 ) -> Result<AgentSession, eyre::Error> {
     // Create OpenAI client and build agent
     let openai_client = openai::Client::new(openai_api_key);
-    let completion_model = openai::CompletionModel::new(openai_client, "gpt-5-nano");
+    let completion_model = openai::CompletionModel::new(openai_client, "gpt-5-mini");
 
     // Build conversation history for context
     let history = build_conversation_history(ctx, channel_id, context_size).await?;
