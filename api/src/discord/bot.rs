@@ -120,10 +120,14 @@ async fn handle_message_batch(
 
     // Add the new messages to the agent's conversation and let it naturally respond
     {
+        let bot_user_id = handler.bot_user_id.lock().await;
+        let bot_id = *bot_user_id;
+        drop(bot_user_id);
+
         let mut sessions = handler.agent_sessions.lock().await;
         if let Some(session) = sessions.get_mut(&channel_id) {
             // Convert the batch of new messages to RigMessage format
-            let new_messages = queued_messages_to_rig_messages(&messages);
+            let new_messages = queued_messages_to_rig_messages(&messages, bot_id);
 
             // Add new messages to the conversation history
             session.add_messages(new_messages);
@@ -148,6 +152,7 @@ pub struct Handler {
     pub server_config: crate::config::ServerConfig,
     pub whitelist_channels: Vec<ChannelId>,
     pub shared_vectordb_client: Option<SharedVectorClient>,
+    pub bot_user_id: Arc<Mutex<Option<serenity::model::id::UserId>>>,
 }
 
 impl Handler {
@@ -175,6 +180,7 @@ impl Handler {
                 .map(|id| ChannelId::new(*id))
                 .collect(),
             shared_vectordb_client,
+            bot_user_id: Arc::new(Mutex::new(None)),
             server_config,
         }
     }
@@ -374,6 +380,7 @@ impl Handler {
             server_config: self.server_config.clone(),
             whitelist_channels: self.whitelist_channels.clone(),
             shared_vectordb_client: self.shared_vectordb_client.clone(),
+            bot_user_id: self.bot_user_id.clone(),
         });
 
         let handle = tokio::spawn(async move {
@@ -446,6 +453,19 @@ impl EventHandler for Handler {
             return;
         }
 
+        // If mention-only mode is enabled, check if the bot is mentioned
+        if self.server_config.discord_mention_only {
+            let bot_user_id = self.bot_user_id.lock().await;
+            if let Some(bot_id) = *bot_user_id {
+                let is_mentioned = msg.mentions.iter().any(|u| u.id == bot_id);
+                if !is_mentioned {
+                    return;
+                }
+            } else {
+                return;
+            }
+        }
+
         let channel_id = msg.channel_id;
 
         // For human messages: add to queue and record activity (triggers unified debouncing)
@@ -485,6 +505,15 @@ impl EventHandler for Handler {
 
     async fn ready(&self, ctx: Context, ready: Ready) {
         tracing::info!("Discord bot {} is connected!", ready.user.name);
+
+        // Store bot user ID for mention detection
+        *self.bot_user_id.lock().await = Some(ready.user.id);
+
+        if self.server_config.discord_mention_only {
+            tracing::info!("Bot is in mention-only mode - will only respond to mentions");
+        } else {
+            tracing::info!("Bot is in auto mode - will process all messages");
+        }
 
         // Initialize agent sessions for active channels after startup
         if let Err(e) = self.initialize_channels(&ctx).await {

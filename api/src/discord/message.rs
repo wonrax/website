@@ -1,4 +1,3 @@
-use crate::discord::constants::DISCORD_BOT_NAME;
 use rig::{
     OneOrMany,
     completion::Message as RigMessage,
@@ -43,17 +42,21 @@ pub async fn build_conversation_history(
 }
 
 /// Helper function to format Discord message content with message ID, timestamp, and username
-pub fn format_message_content(msg: &Message) -> String {
+/// with optional bot user ID for accurate mention detection
+pub fn format_message_content_with_bot_id(
+    msg: &Message,
+    bot_user_id: Option<serenity::model::id::UserId>,
+) -> String {
     const MAX_REF_MSG_LEN: usize = 100; // Maximum length for referenced message preview
 
     let timestamp_str = msg.timestamp.to_rfc3339();
     let author_name = &msg.author.name;
     let message_id = msg.id.get();
 
-    // Check if message mentions the bot (we'll need the bot user ID for this)
-    // For now, we'll check if the message content contains the bot name
-    let mentions_bot = msg.content.contains(DISCORD_BOT_NAME)
-        || msg.content.contains("@") && msg.content.to_lowercase().contains("irony");
+    // Check if message mentions the bot
+    let mentions_bot = bot_user_id
+        .map(|bot_id| msg.mentions.iter().any(|u| u.id == bot_id))
+        .unwrap_or(false);
 
     // Get referenced message preview
     let referenced_message_preview = msg
@@ -125,7 +128,7 @@ pub fn discord_message_to_rig_message(
 
     if is_bot_message {
         // For bot messages, just use text content
-        let content = format_message_content(msg);
+        let content = format_message_content_with_bot_id(msg, Some(bot_user_id));
         RigMessage::assistant(content)
     } else {
         // For user messages, handle both text and images
@@ -133,7 +136,7 @@ pub fn discord_message_to_rig_message(
         let mut content_parts = Vec::new();
 
         // Add text content first
-        let text_content = format_message_content(msg);
+        let text_content = format_message_content_with_bot_id(msg, Some(bot_user_id));
         content_parts.push(UserContent::text(text_content.clone()));
 
         // Process attachments for images
@@ -166,11 +169,14 @@ pub fn discord_message_to_rig_message(
 }
 
 /// Helper function to convert a batch of QueuedMessages to RigMessages (all as user messages)
-pub fn queued_messages_to_rig_messages(messages: &[QueuedMessage]) -> Vec<RigMessage> {
+pub fn queued_messages_to_rig_messages(
+    messages: &[QueuedMessage],
+    bot_user_id: Option<serenity::model::id::UserId>,
+) -> Vec<RigMessage> {
     messages
         .iter()
         .map(|queued_msg| {
-            let content = format_message_content(&queued_msg.message);
+            let content = format_message_content_with_bot_id(&queued_msg.message, bot_user_id);
             RigMessage::user(content)
         })
         .collect()

@@ -21,6 +21,7 @@ pub struct ServerConfig {
 
     pub discord_token: Option<String>,
     pub discord_whitelist_channels: Option<Vec<u64>>,
+    pub discord_mention_only: bool,
     pub openai_api_key: Option<String>,
     pub raindrop_api_token: Option<String>,
     pub vector_db: Option<VectorDbConfig>,
@@ -158,6 +159,10 @@ impl ServerConfig {
             spotify_oauth,
             owner_identity_id: 1,
             discord_token: var("DISCORD_TOKEN").unwrap_or(None),
+            discord_mention_only: var("DISCORD_MENTION_ONLY")
+                .unwrap_or(None)
+                .and_then(|s| s.parse::<bool>().ok())
+                .unwrap_or(true),
             openai_api_key: var("OPENAI_API_KEY").unwrap_or(None),
             raindrop_api_token: var("RAINDROP_API_TOKEN").unwrap_or(None),
             discord_whitelist_channels: var("DISCORD_WHITELIST_CHANNELS").unwrap_or(None).and_then(
