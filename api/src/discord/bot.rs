@@ -324,7 +324,8 @@ impl Handler {
             .or_insert_with(ChannelActivity::new);
 
         activity.update_message();
-        self.reschedule_processing(ctx, channel_id, activity).await;
+        self.reschedule_processing(ctx, channel_id, activity, false)
+            .await;
     }
 
     /// Record typing activity and schedule processing with proper debouncing
@@ -335,7 +336,8 @@ impl Handler {
             .or_insert_with(ChannelActivity::new);
 
         activity.update_typing();
-        self.reschedule_processing(ctx, channel_id, activity).await;
+        self.reschedule_processing(ctx, channel_id, activity, true)
+            .await;
     }
 
     /// Reschedule processing timer based on current activity timestamps
@@ -344,23 +346,24 @@ impl Handler {
         ctx: Context,
         channel_id: ChannelId,
         activity: &mut ChannelActivity,
+        is_typing_activity: bool,
     ) {
-        // Do nothing if message queue is empty
+        // Do nothing if message queue is empty AND this is typing activity since typing alone
+        // should not trigger processing
         let message_queue = self.message_queue.lock().await;
         match message_queue.get(&channel_id) {
-            Some(messages) if messages.is_empty() => {
+            Some(messages) if messages.is_empty() && is_typing_activity => {
                 return;
             }
-            None => {
+            None if is_typing_activity => {
                 return;
             }
             _ => {}
         }
 
-        // Cancel any existing timer
-        // If no timer was active, we can skip scheduling to avoid processing messages even when
-        // bot mention-only mode is enabled and bot is not mentioned.
-        if !activity.cancel_timer() {
+        // Cancel any existing timer. Return early if it was a typing activity and the timer was
+        // not active (no need to reschedule)
+        if !activity.cancel_timer() && is_typing_activity {
             return;
         }
 
