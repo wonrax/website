@@ -402,22 +402,25 @@ impl Handler {
                 queue.remove(&channel_id).unwrap_or_default()
             };
 
-            if !messages.is_empty()
-                && let Err(e) = handle_message_batch(ctx, messages, handler).await
-            {
-                tracing::error!(
-                    "Error processing message batch for channel {}: {}",
-                    channel_id,
-                    e
-                );
-            }
+            // Spawn a task to handle the message batch so we don't get cancelled mid-processing by
+            // the timer task. The concurrent processing is safe due to the locking over
+            // [AgentSession].
+            tokio::spawn(async move {
+                if !messages.is_empty()
+                    && let Err(e) = handle_message_batch(ctx, messages, handler).await
+                {
+                    tracing::error!(
+                        "Error processing message batch for channel {}: {}",
+                        channel_id,
+                        e
+                    );
+                }
+            });
 
             // Clean up timer reference
-            {
-                let mut activities = channel_activity.lock().await;
-                if let Some(activity) = activities.get_mut(&channel_id) {
-                    activity.timer_handle = None;
-                }
+            let mut activities = channel_activity.lock().await;
+            if let Some(activity) = activities.get_mut(&channel_id) {
+                activity.timer_handle = None;
             }
         });
 
