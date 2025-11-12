@@ -119,8 +119,11 @@ impl DiscordEventHandler {
 
                         if let Some(msg_time) = msg_time {
                             msg_time > one_hour_ago
-                                && msg.author.id
-                                    != self.bot_user_id.load().as_ref().unwrap_or_default()
+                                && self
+                                    .bot_user_id
+                                    .load()
+                                    .as_ref()
+                                    .is_none_or(|id| msg.author.id != id)
                         } else {
                             false
                         }

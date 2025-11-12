@@ -44,8 +44,8 @@ impl ChannelActivity {
 
     /// Calculate when we can next process messages
     /// We need both conditions satisfied:
-    /// 1. Enough time passed since last message (MESSAGE_DEBOUNCE_TIMEOUT_MS)
-    /// 2. Enough time passed since last typing (TYPING_DEBOUNCE_TIMEOUT_MS)
+    /// 1. Enough time passed since last message (`MESSAGE_DEBOUNCE_TIMEOUT`)
+    /// 2. Enough time passed since last typing (`TYPING_DEBOUNCE_TIMEOUT`)
     fn next_processing_time(&self) -> Option<Instant> {
         let message_deadline = self.last_message.map(|t| t + MESSAGE_DEBOUNCE_TIMEOUT);
         let typing_deadline = self.last_typing.map(|t| t + TYPING_DEBOUNCE_TIMEOUT);
@@ -89,7 +89,7 @@ struct ChannelState {
     agent: Option<AgentSession>,
 
     // The latest discord context received from the event handler.
-    // Note that each discord context is binded to a specific event and is destroyed after event
+    // Note that each discord context is bound to a specific event and is destroyed after event
     // handler completes, so we should not rely on it being valid forever.
     discord_ctx: Context,
     bot_user_id: serenity::model::id::UserId,
@@ -100,7 +100,7 @@ struct ChannelState {
     discord_bot_mention_only: bool,
 
     // Queue the incoming messages and only add them to the agent when debounced. This is because
-    // the AgentSession::add_messages handle context trimming which retains at most N new messages.
+    // the AgentSession::add_messages handles context trimming which retains at most N new messages.
     // We want to avoid trimming unhandled messages if called repeatedly.
     message_queue: Vec<QueuedMessage>,
 }
@@ -213,7 +213,7 @@ impl ChannelHandle {
                         else {
                             tracing::info!(
                                 ?channel_id,
-                                "Channel event receiver closed, exiting main loop"
+                                "Channel event receiver closed unexpectedly, channel handler will stop processing events and exit main loop"
                             );
                             break;
                         }

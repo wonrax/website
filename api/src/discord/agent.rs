@@ -64,10 +64,10 @@ impl AgentSession {
                 // "The following tool_call_ids did not have response messages: call_UZH253hv9o9RYVHjRxS"
                 self.conversation_history.retain(|msg| match msg {
                     RigMessage::User { content } => {
-                        !matches!(content.first(), rig::message::UserContent::ToolResult(_))
+                        !content.iter().any(|c| matches!(c, rig::message::UserContent::ToolResult(_)))
                     }
                     RigMessage::Assistant { content, .. } => {
-                        !matches!(content.first(), rig::message::AssistantContent::ToolCall(_))
+                        !content.iter().any(|c| matches!(c, rig::message::AssistantContent::ToolCall(_)))
                     }
                 });
             })?;
