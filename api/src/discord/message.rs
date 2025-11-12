@@ -3,7 +3,10 @@ use rig::{
     completion::Message as RigMessage,
     message::{ImageDetail, UserContent},
 };
-use serenity::all::Message;
+use scc::hash_map::OccupiedEntry;
+use serenity::all::{GuildId, Message};
+
+use crate::discord::bot::Guild;
 
 // Message queue item for debouncing
 #[derive(Debug, Clone)]
@@ -16,6 +19,7 @@ pub struct QueuedMessage {
 pub fn format_message_content_with_bot_id(
     msg: &Message,
     bot_user_id: Option<serenity::model::id::UserId>,
+    guild: &Option<OccupiedEntry<'_, GuildId, Guild>>,
 ) -> String {
     const MAX_REF_MSG_LEN: usize = 100; // Maximum length for referenced message preview
 
@@ -57,10 +61,39 @@ pub fn format_message_content_with_bot_id(
         .collect::<Vec<_>>()
         .join("; ");
 
+    let user_presence = if let Some(entry) = guild {
+        let guild_data = entry.get();
+        let presence_info = guild_data.presences.get_sync(&msg.author.id);
+        match presence_info {
+            Some(activities) if !activities.is_empty() => activities
+                .iter()
+                .map(|act| {
+                    format!(
+                        "{:?} {} ({}--{})",
+                        act.kind,
+                        act.name,
+                        act.details.as_ref().map_or("No details", |d| d.as_str()),
+                        act.state.as_ref().map_or("No state", |s| s.as_str())
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", "),
+            _ => "None".to_string(),
+        }
+    } else {
+        "None".to_string()
+    };
+
     // Build context block
     let context_block = format!(
-        "\n\n<<context>>\n* Replied To: [{}]\n* Mentions/Replies Bot: [{}]* Users mentioned in message: [{}]\n<</context>>",
-        referenced_message_preview, mentions_bot, user_mentions
+        "\n
+<<context>>
+    * Replied To: [{}]
+    * Mentions/Replies Bot: [{}]
+    * Users mentioned in message: [{}]
+    * User presence info: [{}]
+<</context>>",
+        referenced_message_preview, mentions_bot, user_mentions, user_presence
     );
 
     let base_message = if msg.content.is_empty() && !msg.attachments.is_empty() {
@@ -93,12 +126,13 @@ pub fn format_message_content_with_bot_id(
 pub fn discord_message_to_rig_message(
     msg: &Message,
     bot_user_id: serenity::model::id::UserId,
+    guild: &Option<OccupiedEntry<'_, GuildId, Guild>>,
 ) -> RigMessage {
     let is_bot_message = msg.author.id == bot_user_id;
 
     if is_bot_message {
         // For bot messages, just use text content
-        let content = format_message_content_with_bot_id(msg, Some(bot_user_id));
+        let content = format_message_content_with_bot_id(msg, Some(bot_user_id), guild);
         RigMessage::assistant(content)
     } else {
         // For user messages, handle both text and images
@@ -106,7 +140,7 @@ pub fn discord_message_to_rig_message(
         let mut content_parts = Vec::new();
 
         // Add text content first
-        let text_content = format_message_content_with_bot_id(msg, Some(bot_user_id));
+        let text_content = format_message_content_with_bot_id(msg, Some(bot_user_id), guild);
         content_parts.push(UserContent::text(text_content.clone()));
 
         // Process attachments for images
@@ -136,18 +170,4 @@ pub fn discord_message_to_rig_message(
             RigMessage::user(text_content)
         }
     }
-}
-
-/// Helper function to convert a batch of QueuedMessages to RigMessages (all as user messages)
-pub fn queued_messages_to_rig_messages(
-    messages: &[QueuedMessage],
-    bot_user_id: Option<serenity::model::id::UserId>,
-) -> Vec<RigMessage> {
-    messages
-        .iter()
-        .map(|queued_msg| {
-            let content = format_message_content_with_bot_id(&queued_msg.message, bot_user_id);
-            RigMessage::user(content)
-        })
-        .collect()
 }

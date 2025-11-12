@@ -4,16 +4,23 @@ use crate::discord::{
     message::QueuedMessage,
 };
 use arc_swap::ArcSwap;
-use serenity::all::{ChannelId, Message, Ready, TypingStartEvent};
+use scc::hash_map::OccupiedEntry;
+use serenity::all::{
+    Activity, ChannelId, GuildId, Message, Presence, Ready, TypingStartEvent, UserId,
+};
 use serenity::async_trait;
 use serenity::prelude::*;
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{Mutex, MutexGuard};
+use std::sync::Arc;
 
 use super::tools::SharedVectorClient;
 
+pub(crate) struct Guild {
+    pub presences: scc::HashMap<UserId, Vec<Activity>>,
+}
+
 pub struct DiscordEventHandler {
-    channel_handles: Arc<Mutex<HashMap<ChannelId, ChannelHandle>>>,
+    channel_handles: Arc<scc::HashMap<ChannelId, ChannelHandle>>,
+    guilds: Arc<scc::HashMap<GuildId, Guild>>,
 
     shared_vectordb_client: Option<SharedVectorClient>,
     openai_api_key: String,
@@ -38,14 +45,15 @@ impl DiscordEventHandler {
         };
 
         Self {
-            channel_handles: Arc::new(Mutex::new(HashMap::new())),
+            channel_handles: Arc::new(scc::HashMap::new()),
+            guilds: Arc::new(scc::HashMap::new()),
             whitelist_channels: (server_config.discord_whitelist_channels.as_ref())
                 .unwrap_or(&WHITELIST_CHANNELS.to_vec())
                 .iter()
                 .map(|id| ChannelId::new(*id))
                 .collect(),
             shared_vectordb_client,
-            bot_user_id: ArcSwap::new(Arc::new(None)),
+            bot_user_id: ArcSwap::from_pointee(None),
             openai_api_key: server_config.openai_api_key.clone().unwrap_or_default(),
             discord_bot_mention_only: server_config.discord_mention_only,
         }
@@ -61,21 +69,17 @@ impl DiscordEventHandler {
             // Check if channel has recent activity (messages in the last hour)
             match self.has_recent_activity(ctx, channel_id).await {
                 Ok(true) => {
-                    self.get_or_create_channel_handle(
-                        &mut self.channel_handles.lock().await,
-                        channel_id,
-                        ctx.clone(),
-                    )
-                    .send_event(ChannelEvent::ForceProcess)
-                    .await
-                    .inspect_err(|e| {
-                        tracing::error!(
-                            "Failed to send ForceProcess event to channel {} upon \
+                    self.get_or_create_channel(channel_id, ctx.clone())
+                        .send_event(ChannelEvent::ForceProcess)
+                        .await
+                        .inspect_err(|e| {
+                            tracing::error!(
+                                "Failed to send ForceProcess event to channel {} upon \
                                 reevaluating recent conversation on service startup: {}",
-                            channel_id,
-                            e
-                        );
-                    })?;
+                                channel_id,
+                                e
+                            );
+                        })?;
                 }
                 Ok(false) => {
                     tracing::debug!("Skipping channel {} - no recent activity", channel_id);
@@ -136,21 +140,23 @@ impl DiscordEventHandler {
         Ok(has_recent)
     }
 
-    fn get_or_create_channel_handle<'a>(
-        &self,
-        lock: &'a mut MutexGuard<'_, HashMap<ChannelId, ChannelHandle>>,
+    fn get_or_create_channel<'a>(
+        &'a self,
         channel_id: ChannelId,
         discord_ctx: Context,
-    ) -> &'a mut ChannelHandle {
-        lock.entry(channel_id).or_insert_with(|| {
-            ChannelHandle::new(
-                discord_ctx,
-                channel_id,
-                self.openai_api_key.clone(),
-                self.shared_vectordb_client.clone(),
-                self.discord_bot_mention_only,
-            )
-        })
+    ) -> OccupiedEntry<'a, ChannelId, ChannelHandle> {
+        self.channel_handles
+            .entry_sync(channel_id)
+            .or_insert_with(|| {
+                ChannelHandle::new(
+                    discord_ctx,
+                    channel_id,
+                    self.openai_api_key.clone(),
+                    self.shared_vectordb_client.clone(),
+                    self.discord_bot_mention_only,
+                    self.guilds.clone(),
+                )
+            })
     }
 }
 
@@ -162,12 +168,8 @@ impl EventHandler for DiscordEventHandler {
         }
 
         let _ = self
-            .get_or_create_channel_handle(
-                &mut self.channel_handles.lock().await,
-                msg.channel_id,
-                ctx.clone(),
-            )
-            .send_event(ChannelEvent::Message(QueuedMessage { message: msg }))
+            .get_or_create_channel(msg.channel_id, ctx.clone())
+            .send_event(ChannelEvent::Message(QueuedMessage { message: msg }, ctx))
             .await
             .inspect_err(|e| {
                 tracing::error!(?e, "Failed to send Message event");
@@ -180,12 +182,8 @@ impl EventHandler for DiscordEventHandler {
         }
 
         let _ = self
-            .get_or_create_channel_handle(
-                &mut self.channel_handles.lock().await,
-                event.channel_id,
-                ctx.clone(),
-            )
-            .send_event(ChannelEvent::Typing(event.user_id))
+            .get_or_create_channel(event.channel_id, ctx.clone())
+            .send_event(ChannelEvent::Typing(event.user_id, ctx))
             .await
             .inspect_err(|e| {
                 tracing::error!(
@@ -194,6 +192,29 @@ impl EventHandler for DiscordEventHandler {
                     e
                 );
             });
+    }
+
+    async fn presence_update(&self, _ctx: Context, new_presence: Presence) {
+        // TODO: add whitelist guild config and check here
+
+        let guild_id = if let Some(guild_id) = new_presence.guild_id {
+            guild_id
+        } else {
+            tracing::warn!(
+                user_id = new_presence.user.id.get(),
+                "Received presence update without guild ID",
+            );
+            return;
+        };
+
+        let _ = self
+            .guilds
+            .entry_sync(guild_id)
+            .or_insert_with(|| Guild {
+                presences: scc::HashMap::new(),
+            })
+            .presences
+            .upsert_sync(new_presence.user.id, new_presence.activities);
     }
 
     async fn ready(&self, ctx: Context, ready: Ready) {
