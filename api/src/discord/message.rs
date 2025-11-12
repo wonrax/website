@@ -3,42 +3,12 @@ use rig::{
     completion::Message as RigMessage,
     message::{ImageDetail, UserContent},
 };
-use serenity::all::{ChannelId, Context, Message};
-use serenity::futures::StreamExt;
+use serenity::all::Message;
 
 // Message queue item for debouncing
 #[derive(Debug, Clone)]
 pub struct QueuedMessage {
     pub message: Message,
-}
-
-/// Build conversation history for agent context
-pub async fn build_conversation_history(
-    ctx: &Context,
-    channel_id: ChannelId,
-    message_context_size: usize,
-) -> Result<Vec<RigMessage>, eyre::Error> {
-    let bot_user_id = ctx.cache.current_user().id;
-
-    let fetched_messages: Vec<Message> = channel_id
-        .messages_iter(&ctx.http)
-        .filter_map(|m| async {
-            m.ok()
-                .filter(|msg| !msg.content.trim().is_empty() || !msg.attachments.is_empty())
-        })
-        .take(message_context_size)
-        .collect()
-        .await;
-
-    let mut rig_messages = Vec::new();
-
-    // Process messages chronologically (oldest first)
-    for msg in fetched_messages.into_iter().rev() {
-        let rig_message = discord_message_to_rig_message(&msg, bot_user_id);
-        rig_messages.push(rig_message);
-    }
-
-    Ok(rig_messages)
 }
 
 /// Helper function to format Discord message content with message ID, timestamp, and username

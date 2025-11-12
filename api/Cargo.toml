@@ -41,6 +41,7 @@ rig-core = "0.17.1"
 chromadb = "2.2.2"
 fastembed = "4.9.1"
 uuid = { version = "1.17.0", features = ["v4"] }
+arc-swap = "1.7.1"
 
 [dev-dependencies]
 criterion = "0.5.1"

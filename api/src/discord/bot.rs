@@ -1,164 +1,28 @@
-// Discord Bot with Dual-Timestamp Activity Debouncing
-//
-// This implementation uses dual timestamp tracking to properly handle both message
-// and typing debounce requirements with optimal timing.
-//
-// Requirements:
-// 1. Message Debounce: Wait X ms after last message
-// 2. Typing Debounce: Wait Y ms after last typing
-// 3. Priority Handling: Always wait until BOTH conditions are satisfied
-// 4. Efficiency: Sleep only as long as necessary
-//
-// How it works:
-// - Messages call record_message_activity() which updates last_message timestamp
-// - Typing calls record_typing_activity() which updates last_typing timestamp
-// - Each activity reschedules the timer to wake at max(message_deadline, typing_deadline)
-// - Timer sleeps exactly until both debounce conditions are satisfied
-// - No premature wake-ups, no permanent skips, optimal efficiency
-//
-// Benefits:
-// 1. Correct dual-timeout handling - respects both message and typing requirements
-// 2. Dynamic sleep calculation - never waits longer than necessary
-// 3. Proper priority handling - later events extend timeouts appropriately
-// 4. Single timer per channel - maintains efficiency and simplicity
-// 5. No race conditions - unified reschedule logic handles all cases
-
 use crate::discord::{
-    agent::{AgentSession, create_agent_session, execute_agent_interaction},
-    constants::{
-        MESSAGE_CONTEXT_SIZE, MESSAGE_DEBOUNCE_TIMEOUT, TYPING_DEBOUNCE_TIMEOUT, WHITELIST_CHANNELS,
-    },
-    message::{QueuedMessage, queued_messages_to_rig_messages},
+    channel::{ChannelEvent, ChannelHandle},
+    constants::WHITELIST_CHANNELS,
+    message::QueuedMessage,
 };
-use serenity::all::{ChannelId, Message, Ready, Typing, TypingStartEvent};
+use arc_swap::ArcSwap;
+use serenity::all::{ChannelId, Message, Ready, TypingStartEvent};
 use serenity::async_trait;
 use serenity::prelude::*;
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::{Duration, Instant},
-};
-use tokio::sync::Mutex;
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::{Mutex, MutexGuard};
 
 use super::tools::SharedVectorClient;
 
-/// Dual-timestamp activity tracker for proper debouncing
-#[derive(Debug)]
-pub(crate) struct ChannelActivity {
-    /// When the last message occurred
-    last_message: Option<Instant>,
-    /// When the last typing event occurred
-    last_typing: Option<Instant>,
-    /// Handle to the current debounce timer
-    timer_handle: Option<tokio::task::JoinHandle<()>>,
+pub struct DiscordEventHandler {
+    channel_handles: Arc<Mutex<HashMap<ChannelId, ChannelHandle>>>,
+
+    shared_vectordb_client: Option<SharedVectorClient>,
+    openai_api_key: String,
+    whitelist_channels: Vec<ChannelId>,
+    bot_user_id: ArcSwap<Option<serenity::model::id::UserId>>,
+    discord_bot_mention_only: bool,
 }
 
-impl ChannelActivity {
-    fn new() -> Self {
-        Self {
-            last_message: None,
-            last_typing: None,
-            timer_handle: None,
-        }
-    }
-
-    fn update_message(&mut self) {
-        self.last_message = Some(Instant::now());
-    }
-
-    fn update_typing(&mut self) {
-        self.last_typing = Some(Instant::now());
-    }
-
-    fn cancel_timer(&mut self) -> bool {
-        if let Some(handle) = self.timer_handle.take() {
-            handle.abort();
-            return true;
-        }
-
-        false
-    }
-
-    fn set_timer(&mut self, handle: tokio::task::JoinHandle<()>) {
-        self.cancel_timer();
-        self.timer_handle = Some(handle);
-    }
-
-    /// Calculate when we can next process messages
-    /// We need both conditions satisfied:
-    /// 1. Enough time passed since last message (MESSAGE_DEBOUNCE_TIMEOUT_MS)
-    /// 2. Enough time passed since last typing (TYPING_DEBOUNCE_TIMEOUT_MS)
-    fn next_processing_time(&self) -> Option<Instant> {
-        let message_deadline = self.last_message.map(|t| t + MESSAGE_DEBOUNCE_TIMEOUT);
-        let typing_deadline = self.last_typing.map(|t| t + TYPING_DEBOUNCE_TIMEOUT);
-
-        match (message_deadline, typing_deadline) {
-            (Some(m), Some(t)) => Some(m.max(t)),
-            (Some(m), None) => Some(m),
-            (None, Some(t)) => Some(t),
-            (None, None) => None,
-        }
-    }
-}
-
-/// The agentic message handler using rig with multi-turn support
-async fn handle_message_batch(
-    ctx: Context,
-    messages: Vec<QueuedMessage>,
-    handler: Arc<Handler>,
-) -> Result<(), eyre::Error> {
-    if messages.is_empty() {
-        return Ok(());
-    }
-
-    let channel_id = messages[0].message.channel_id;
-
-    let typing = Typing::start(ctx.http.clone(), channel_id);
-
-    // Ensure we have an agent session for this channel with enough context to include recent messages
-    let context_size = std::cmp::max(MESSAGE_CONTEXT_SIZE, messages.len());
-    handler
-        .get_or_create_agent_session(&ctx, channel_id, context_size)
-        .await?;
-
-    // Add the new messages to the agent's conversation and let it naturally respond
-    {
-        let bot_user_id = handler.bot_user_id.lock().await;
-        let bot_id = *bot_user_id;
-        drop(bot_user_id);
-
-        let mut sessions = handler.agent_sessions.lock().await;
-        if let Some(session) = sessions.get_mut(&channel_id) {
-            // Convert the batch of new messages to RigMessage format
-            let new_messages = queued_messages_to_rig_messages(&messages, bot_id);
-
-            // Add new messages to the conversation history
-            session.add_messages(new_messages);
-
-            // Execute agent interaction with multi-turn reasoning
-            execute_agent_interaction(session).await?;
-        }
-
-        typing.stop();
-    }
-
-    Ok(())
-}
-
-pub struct Handler {
-    pub message_queue: Arc<Mutex<HashMap<ChannelId, Vec<QueuedMessage>>>>,
-    /// Unified activity tracking for simplified debouncing
-    pub channel_activity: Arc<Mutex<HashMap<ChannelId, ChannelActivity>>>,
-    /// Persistent agent sessions per channel for multi-turn conversations
-    pub agent_sessions: Arc<Mutex<HashMap<ChannelId, AgentSession>>>,
-    /// Server configuration including OpenAI API key, Qdrant and other services
-    pub server_config: crate::config::ServerConfig,
-    pub whitelist_channels: Vec<ChannelId>,
-    pub shared_vectordb_client: Option<SharedVectorClient>,
-    pub bot_user_id: Arc<Mutex<Option<serenity::model::id::UserId>>>,
-}
-
-impl Handler {
+impl DiscordEventHandler {
     pub async fn new(server_config: crate::config::ServerConfig) -> Self {
         let shared_vectordb_client = match &server_config.vector_db {
             Some(conf) => SharedVectorClient::new(conf.clone())
@@ -174,17 +38,16 @@ impl Handler {
         };
 
         Self {
-            message_queue: Arc::new(Mutex::new(HashMap::new())),
-            channel_activity: Arc::new(Mutex::new(HashMap::new())),
-            agent_sessions: Arc::new(Mutex::new(HashMap::new())),
+            channel_handles: Arc::new(Mutex::new(HashMap::new())),
             whitelist_channels: (server_config.discord_whitelist_channels.as_ref())
                 .unwrap_or(&WHITELIST_CHANNELS.to_vec())
                 .iter()
                 .map(|id| ChannelId::new(*id))
                 .collect(),
             shared_vectordb_client,
-            bot_user_id: Arc::new(Mutex::new(None)),
-            server_config,
+            bot_user_id: ArcSwap::new(Arc::new(None)),
+            openai_api_key: server_config.openai_api_key.clone().unwrap_or_default(),
+            discord_bot_mention_only: server_config.discord_mention_only,
         }
     }
 
@@ -198,28 +61,21 @@ impl Handler {
             // Check if channel has recent activity (messages in the last hour)
             match self.has_recent_activity(ctx, channel_id).await {
                 Ok(true) => {
-                    // Initialize agent session for this channel
-                    if let Err(e) = self
-                        .get_or_create_agent_session(ctx, channel_id, MESSAGE_CONTEXT_SIZE)
-                        .await
-                    {
+                    self.get_or_create_channel_handle(
+                        &mut self.channel_handles.lock().await,
+                        channel_id,
+                        ctx.clone(),
+                    )
+                    .send_event(ChannelEvent::ForceProcess)
+                    .await
+                    .inspect_err(|e| {
                         tracing::error!(
-                            "Failed to initialize agent session for channel {}: {}",
+                            "Failed to send ForceProcess event to channel {} upon \
+                                reevaluating recent conversation on service startup: {}",
                             channel_id,
                             e
                         );
-                    } else {
-                        tracing::info!("Initialized agent session for channel {}", channel_id);
-
-                        // Evaluate the recent conversation and potentially respond
-                        if let Err(e) = self.evaluate_recent_conversation(ctx, channel_id).await {
-                            tracing::error!(
-                                "Failed to evaluate recent conversation for channel {}: {}",
-                                channel_id,
-                                e
-                            );
-                        }
-                    }
+                    })?;
                 }
                 Ok(false) => {
                     tracing::debug!("Skipping channel {} - no recent activity", channel_id);
@@ -263,6 +119,11 @@ impl Handler {
 
                         if let Some(msg_time) = msg_time {
                             msg_time > one_hour_ago
+                                && self
+                                    .bot_user_id
+                                    .load()
+                                    .as_ref()
+                                    .is_none_or(|id| msg.author.id != id)
                         } else {
                             false
                         }
@@ -275,230 +136,42 @@ impl Handler {
         Ok(has_recent)
     }
 
-    /// Get or create an agent session for a channel
-    async fn get_or_create_agent_session(
+    fn get_or_create_channel_handle<'a>(
         &self,
-        ctx: &Context,
+        lock: &'a mut MutexGuard<'_, HashMap<ChannelId, ChannelHandle>>,
         channel_id: ChannelId,
-        context_size: usize,
-    ) -> Result<(), eyre::Error> {
-        let mut sessions = self.agent_sessions.lock().await;
-
-        // Check if session exists and is not expired
-        let needs_new_session = sessions
-            .get(&channel_id)
-            .is_none_or(|session| session.is_expired());
-
-        if needs_new_session {
-            // Get OpenAI API key from config
-            let openai_api_key = self
-                .server_config
-                .openai_api_key
-                .as_ref()
-                .ok_or_else(|| eyre::eyre!("OpenAI API key not configured"))?;
-
-            let session = create_agent_session(
-                ctx,
+        discord_ctx: Context,
+    ) -> &'a mut ChannelHandle {
+        lock.entry(channel_id).or_insert_with(|| {
+            ChannelHandle::new(
+                discord_ctx,
                 channel_id,
-                context_size,
-                openai_api_key,
+                self.openai_api_key.clone(),
                 self.shared_vectordb_client.clone(),
+                self.discord_bot_mention_only,
             )
-            .await?;
-            sessions.insert(channel_id, session);
-        } else {
-            // Update activity timestamp
-            if let Some(session) = sessions.get_mut(&channel_id) {
-                session.update_activity();
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Record message activity and schedule processing with proper debouncing
-    async fn record_message_activity(&self, ctx: Context, channel_id: ChannelId) {
-        let mut activities = self.channel_activity.lock().await;
-        let activity = activities
-            .entry(channel_id)
-            .or_insert_with(ChannelActivity::new);
-
-        activity.update_message();
-        self.reschedule_processing(ctx, channel_id, activity, false)
-            .await;
-    }
-
-    /// Record typing activity and schedule processing with proper debouncing
-    async fn record_typing_activity(&self, ctx: Context, channel_id: ChannelId) {
-        let mut activities = self.channel_activity.lock().await;
-        let activity = activities
-            .entry(channel_id)
-            .or_insert_with(ChannelActivity::new);
-
-        activity.update_typing();
-        self.reschedule_processing(ctx, channel_id, activity, true)
-            .await;
-    }
-
-    /// Reschedule processing timer based on current activity timestamps
-    async fn reschedule_processing(
-        &self,
-        ctx: Context,
-        channel_id: ChannelId,
-        activity: &mut ChannelActivity,
-        is_typing_activity: bool,
-    ) {
-        // Do nothing if message queue is empty AND this is typing activity since typing alone
-        // should not trigger processing
-        let message_queue = self.message_queue.lock().await;
-        match message_queue.get(&channel_id) {
-            Some(messages) if messages.is_empty() && is_typing_activity => {
-                return;
-            }
-            None if is_typing_activity => {
-                return;
-            }
-            _ => {}
-        }
-
-        // Cancel any existing timer. Return early if it was a typing activity and the timer was
-        // not active (no need to reschedule)
-        if !activity.cancel_timer() && is_typing_activity {
-            return;
-        }
-
-        // Calculate when we should process next
-        let next_wake = match activity.next_processing_time() {
-            Some(t) => t,
-            None => return, // No activity to debounce
-        };
-
-        let now = Instant::now();
-        let sleep_duration = if next_wake > now {
-            next_wake - now
-        } else {
-            Duration::ZERO
-        };
-
-        // Clone necessary state for the async task
-        let message_queue = self.message_queue.clone();
-        let channel_activity = self.channel_activity.clone();
-        let handler = Arc::new(Handler {
-            message_queue: self.message_queue.clone(),
-            channel_activity: self.channel_activity.clone(),
-            agent_sessions: self.agent_sessions.clone(),
-            server_config: self.server_config.clone(),
-            whitelist_channels: self.whitelist_channels.clone(),
-            shared_vectordb_client: self.shared_vectordb_client.clone(),
-            bot_user_id: self.bot_user_id.clone(),
-        });
-
-        let handle = tokio::spawn(async move {
-            tokio::time::sleep(sleep_duration).await;
-
-            // Process messages if queue not empty
-            let messages = {
-                let mut queue = message_queue.lock().await;
-                queue.remove(&channel_id).unwrap_or_default()
-            };
-
-            // Spawn a task to handle the message batch so we don't get cancelled mid-processing by
-            // the timer task. The concurrent processing is safe due to the locking over
-            // [AgentSession].
-            tokio::spawn(async move {
-                if !messages.is_empty()
-                    && let Err(e) = handle_message_batch(ctx, messages, handler).await
-                {
-                    tracing::error!(
-                        "Error processing message batch for channel {}: {}",
-                        channel_id,
-                        e
-                    );
-                }
-            });
-
-            // Clean up timer reference
-            let mut activities = channel_activity.lock().await;
-            if let Some(activity) = activities.get_mut(&channel_id) {
-                activity.timer_handle = None;
-            }
-        });
-
-        activity.set_timer(handle);
-    }
-
-    /// Evaluate recent conversation on server startup and let the agent decide if it should
-    /// respond
-    async fn evaluate_recent_conversation(
-        &self,
-        _ctx: &Context,
-        channel_id: ChannelId,
-    ) -> Result<(), eyre::Error> {
-        let mut sessions = self.agent_sessions.lock().await;
-        if let Some(session) = sessions.get_mut(&channel_id) {
-            // Only evaluate if there's actual conversation history
-            if !session.conversation_history.is_empty() {
-                tracing::info!(
-                    "Evaluating recent conversation for channel {} with {} messages after restart",
-                    channel_id,
-                    session.conversation_history.len()
-                );
-
-                // Let the agent analyze the conversation and decide whether to respond
-                // We pass 0 for messages_count since this is a startup evaluation, not new messages
-                execute_agent_interaction(session).await?;
-            }
-        }
-        Ok(())
+        })
     }
 }
 
 #[async_trait]
-impl EventHandler for Handler {
+impl EventHandler for DiscordEventHandler {
     async fn message(&self, ctx: Context, msg: Message) {
         if !self.whitelist_channels.contains(&msg.channel_id) {
             return;
         }
 
-        if msg.author.bot && msg.author.id == ctx.cache.current_user().id {
-            // No need to process messages from the bot itself, it will be represented as a tool
-            // call in the conversation history, so duplicating it here would be redundant.
-            return;
-        }
-
-        let channel_id = msg.channel_id;
-
-        // For human messages: add to queue and record activity (triggers unified debouncing)
-        let queued_msg = QueuedMessage {
-            message: msg.clone(),
-        };
-
-        {
-            let mut queue = self.message_queue.lock().await;
-            let channel_messages = queue.entry(channel_id).or_insert_with(Vec::new);
-            channel_messages.push(queued_msg);
-
-            // Limit queue size per channel
-            if channel_messages.len() > 10 {
-                channel_messages.remove(0);
-            }
-        }
-
-        // If mention-only mode is enabled, check if the bot is mentioned
-        if self.server_config.discord_mention_only {
-            let bot_user_id = self.bot_user_id.lock().await;
-            if let Some(bot_id) = *bot_user_id {
-                let is_mentioned = msg.mentions.iter().any(|u| u.id == bot_id);
-                if !is_mentioned {
-                    return;
-                }
-            } else {
-                return;
-            }
-        }
-
-        // Record activity which will handle proper debouncing
-        self.record_message_activity(ctx, channel_id).await;
+        let _ = self
+            .get_or_create_channel_handle(
+                &mut self.channel_handles.lock().await,
+                msg.channel_id,
+                ctx.clone(),
+            )
+            .send_event(ChannelEvent::Message(QueuedMessage { message: msg }))
+            .await
+            .inspect_err(|e| {
+                tracing::error!(?e, "Failed to send Message event");
+            });
     }
 
     async fn typing_start(&self, ctx: Context, event: TypingStartEvent) {
@@ -506,25 +179,30 @@ impl EventHandler for Handler {
             return;
         }
 
-        // Don't track bot typing
-        let user_id = event.user_id;
-        if let Ok(user) = user_id.to_user(&ctx.http).await
-            && user.bot
-        {
-            return;
-        }
-
-        // Record typing as activity (triggers proper debouncing)
-        self.record_typing_activity(ctx, event.channel_id).await;
+        let _ = self
+            .get_or_create_channel_handle(
+                &mut self.channel_handles.lock().await,
+                event.channel_id,
+                ctx.clone(),
+            )
+            .send_event(ChannelEvent::Typing(event.user_id))
+            .await
+            .inspect_err(|e| {
+                tracing::error!(
+                    "Failed to send Typing event to channel {}: {}",
+                    event.channel_id,
+                    e
+                );
+            });
     }
 
     async fn ready(&self, ctx: Context, ready: Ready) {
         tracing::info!("Discord bot {} is connected!", ready.user.name);
 
         // Store bot user ID for mention detection
-        *self.bot_user_id.lock().await = Some(ready.user.id);
+        self.bot_user_id.store(Arc::new(Some(ready.user.id)));
 
-        if self.server_config.discord_mention_only {
+        if self.discord_bot_mention_only {
             tracing::info!("Bot is in mention-only mode - will only respond to mentions");
         } else {
             tracing::info!("Bot is in auto mode - will process all messages");
