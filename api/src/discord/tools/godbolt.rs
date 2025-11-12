@@ -40,19 +40,6 @@ pub struct CompileArgs {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CompileOutput {
-    pub ok: bool,
-    pub code: i32,
-    pub stdout: serde_json::Value,
-    pub stderr: serde_json::Value,
-    pub asm: serde_json::Value,
-    pub compiler: String,
-    pub flags: String,
-    pub libraries: Vec<LibrarySpec>,
-    pub error: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtraFile {
     pub filename: String,
     pub contents: String,

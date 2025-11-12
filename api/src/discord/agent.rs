@@ -1,6 +1,5 @@
 use crate::discord::{
-    constants::{AGENT_SESSION_TIMEOUT, MAX_AGENT_TURNS, MESSAGE_CONTEXT_SIZE, SYSTEM_PROMPT},
-    message::build_conversation_history,
+    constants::{MAX_AGENT_TURNS, MESSAGE_CONTEXT_SIZE, SYSTEM_PROMPT},
     tools::{DiscordSendMessageTool, FetchPageContentTool, WebSearchTool},
 };
 use rig::{
@@ -10,15 +9,14 @@ use rig::{
 };
 use serde_json::json;
 use serenity::all::{ChannelId, Context};
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
 use super::tools::SharedVectorClient;
 
-// Agent session for persistent multi-turn conversations
+/// Agent session for persistent multi-turn conversations
 pub struct AgentSession {
     pub agent: Agent<openai::CompletionModel>,
     pub conversation_history: Vec<RigMessage>,
-    pub last_activity: Instant,
 }
 
 impl AgentSession {
@@ -26,14 +24,11 @@ impl AgentSession {
         Self {
             agent,
             conversation_history: initial_history,
-            last_activity: Instant::now(),
         }
     }
 
-    pub fn update_activity(&mut self) {
-        self.last_activity = Instant::now();
-    }
-
+    /// Add messages to the conversation history, trimming excess if needed but new messages are
+    /// always kept
     pub fn add_messages(&mut self, messages: Vec<RigMessage>) {
         let max_history = (MESSAGE_CONTEXT_SIZE * 2).max(messages.len());
 
@@ -47,28 +42,59 @@ impl AgentSession {
         }
     }
 
-    pub fn is_expired(&self) -> bool {
-        self.last_activity.elapsed() > AGENT_SESSION_TIMEOUT
+    /// Execute agent multi-turn conversation
+    pub async fn execute_agent_multi_turn(&mut self) -> Result<(), eyre::Error> {
+        if self.conversation_history.is_empty() {
+            return Err(eyre::eyre!("Empty conversation history"));
+        }
+
+        for i in 0..MAX_AGENT_TURNS {
+            let response = self
+            .agent
+            .prompt(if i == 0 {
+                "[SYSTEM]: New messages are added, respond appropriately. Output [END] if no further action is needed."
+            } else {
+                "[SYSTEM]: Continue processing the conversation. Output [END] if no further action is needed."
+            })
+            .with_history(&mut self.conversation_history)
+            .multi_turn(MAX_AGENT_TURNS)
+            .await
+            .inspect_err(|_| {
+                // remove all tool calls and tool results in case of this error:
+                // "The following tool_call_ids did not have response messages: call_UZH253hv9o9RYVHjRxS"
+                self.conversation_history.retain(|msg| match msg {
+                    RigMessage::User { content } => {
+                        !matches!(content.first(), rig::message::UserContent::ToolResult(_))
+                    }
+                    RigMessage::Assistant { content, .. } => {
+                        !matches!(content.first(), rig::message::AssistantContent::ToolCall(_))
+                    }
+                });
+            })?;
+
+            if response.trim().ends_with("[END]") {
+                break;
+            }
+        }
+
+        Ok(())
     }
 }
 
 /// Create a new agent session for a channel
-pub async fn create_agent_session(
-    ctx: &Context,
+pub fn create_agent_session(
+    discord_ctx: &Context,
     channel_id: ChannelId,
-    context_size: usize,
     openai_api_key: &str,
     shared_vectordb_client: Option<SharedVectorClient>,
-) -> Result<AgentSession, eyre::Error> {
+    initial_history: Vec<RigMessage>,
+) -> AgentSession {
     // Create OpenAI client and build agent
     let openai_client = openai::Client::new(openai_api_key);
     let completion_model = openai::CompletionModel::new(openai_client, "gpt-5-mini");
 
-    // Build conversation history for context
-    let history = build_conversation_history(ctx, channel_id, context_size).await?;
-
     // Create tools with shared context
-    let ctx_arc = Arc::new(ctx.clone());
+    let ctx_arc = Arc::new(discord_ctx.clone());
     let discord_tool = DiscordSendMessageTool {
         ctx: ctx_arc.clone(),
         channel_id,
@@ -142,47 +168,8 @@ pub async fn create_agent_session(
     // Store the history in the session rather than initializing the agent with it
     tracing::debug!(
         "Creating new agent session with {} messages of context",
-        history.len()
+        initial_history.len()
     );
 
-    Ok(AgentSession::new(agent, history))
-}
-
-/// Helper to execute agent multi-turn reasoning and handle the response
-pub async fn execute_agent_interaction(session: &mut AgentSession) -> Result<(), eyre::Error> {
-    if session.conversation_history.is_empty() {
-        return Ok(());
-    }
-
-    for i in 0..MAX_AGENT_TURNS {
-        let response = session
-            .agent
-            .prompt(if i == 0 {
-                "[SYSTEM]: New messages are added, respond appropriately."
-            } else {
-                "[SYSTEM]: Continue processing the conversation."
-            })
-            .with_history(&mut session.conversation_history)
-            .multi_turn(MAX_AGENT_TURNS)
-            .await
-            .inspect_err(|_| {
-                // remove all tool calls and tool results in case of this error:
-                // "The following tool_call_ids did not have response messages: call_UZH253hv9o9RYVHjRxS"
-                session.conversation_history.retain(|msg| match msg {
-                    RigMessage::User { content } => {
-                        !matches!(content.first(), rig::message::UserContent::ToolResult(_))
-                    }
-                    RigMessage::Assistant { content, .. } => {
-                        !matches!(content.first(), rig::message::AssistantContent::ToolCall(_))
-                    }
-                });
-            })?;
-
-        if response.trim().ends_with("[END]") {
-            break;
-        }
-    }
-
-    session.update_activity();
-    Ok(())
+    AgentSession::new(agent, initial_history)
 }
