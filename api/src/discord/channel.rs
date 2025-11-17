@@ -190,7 +190,7 @@ impl ChannelState {
                         }
                     }
                     else {
-                        tracing::info!("Channel event receiver closed, exitting main loop");
+                        tracing::info!("Channel event receiver closed, exiting main loop");
                         break;
                     }
                 }
