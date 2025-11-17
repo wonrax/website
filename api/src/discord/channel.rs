@@ -1,4 +1,7 @@
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use futures::{
     SinkExt as _, StreamExt,
@@ -6,14 +9,16 @@ use futures::{
 };
 use rig::message::Message as RigMessage;
 use serenity::all::{ChannelId, Context, Message, Typing, UserId};
+use tracing::Instrument as _;
 
 use crate::discord::{
     agent::{self, AgentSession},
+    bot::Guild,
     constants::{
         AGENT_SESSION_TIMEOUT, MESSAGE_CONTEXT_SIZE, MESSAGE_DEBOUNCE_TIMEOUT,
         TYPING_DEBOUNCE_TIMEOUT,
     },
-    message::{QueuedMessage, discord_message_to_rig_message, queued_messages_to_rig_messages},
+    message::{QueuedMessage, discord_message_to_rig_message, format_message_content_with_bot_id},
     tools,
 };
 
@@ -72,10 +77,10 @@ impl ChannelActivity {
 #[derive(Debug)]
 pub enum ChannelEvent {
     /// A new message has been received in the channel
-    Message(QueuedMessage),
+    Message(QueuedMessage, Context),
 
     /// A typing event has been received in the channel
-    Typing(UserId),
+    Typing(UserId, Context),
 
     /// Request to immediately run the agent loop even if debounce timers haven't expired or there
     /// are no new messages. Useful for service startup when we want to process any awaiting
@@ -94,6 +99,8 @@ struct ChannelState {
     discord_ctx: Context,
     bot_user_id: serenity::model::id::UserId,
     channel_id: ChannelId,
+    // All guilds the bot is in
+    guilds: Arc<scc::HashMap<serenity::model::id::GuildId, Guild>>,
 
     // Only process messages when a message mentions the bot, otherwise still queue incoming
     // messages.
@@ -119,15 +126,148 @@ impl ChannelState {
             .collect()
             .await;
 
-        let mut rig_messages = Vec::new();
+        fetched_messages
+            .into_iter()
+            .rev()
+            .map(|m| discord_message_to_rig_message(&m, self.bot_user_id, &None))
+            .collect()
+    }
 
-        // Process messages chronologically (oldest first)
-        for msg in fetched_messages.into_iter().rev() {
-            let rig_message = discord_message_to_rig_message(&msg, self.bot_user_id);
-            rig_messages.push(rig_message);
+    async fn main_loop(
+        mut self,
+        shared_vectordb_client: Option<tools::SharedVectorClient>,
+        openai_api_key: String,
+    ) {
+        loop {
+            let timer = if !self.message_queue.is_empty()
+                && (!self.discord_bot_mention_only
+                    || self
+                        .message_queue
+                        .iter()
+                        // Check if any queued message mentions the bot and not just the last
+                        // one because the user can send immediate subsequent messages after mentioning
+                        // the bot
+                        .any(|m| m.message.mentions_user_id(self.bot_user_id)))
+            {
+                tokio::time::sleep_until(
+                    self.activity
+                        .next_processing_time()
+                        .unwrap_or_else(Instant::now)
+                        .into(),
+                )
+            } else {
+                tokio::time::sleep(Duration::from_secs(u64::MAX))
+            };
+
+            let (timer_expired, force_process) = tokio::select! {
+                event = self.event_recv.next() => {
+                    if let Some(event) = event {
+                        match event {
+                            ChannelEvent::Message(msg, ctx) => {
+                                self.discord_ctx = ctx;
+                                if msg.message.author.id == self.bot_user_id {
+                                    // No need to process messages from the bot itself, it will
+                                    // be represented as a tool call in the conversation
+                                    // history, so duplicating it here would be redundant.
+                                    continue;
+                                }
+                                self.activity.update_message();
+                                self.message_queue.push(msg);
+                                (false, false)
+                            }
+                            ChannelEvent::Typing(uid, ctx) => {
+                                self.discord_ctx = ctx;
+                                if uid == self.bot_user_id {
+                                    // Ignore typing events from the bot itself
+                                    continue;
+                                }
+                                self.activity.update_typing();
+                                (false, false)
+                            }
+                            ChannelEvent::ForceProcess => {
+                                (false, true)
+                            }
+                        }
+                    }
+                    else {
+                        tracing::info!("Channel event receiver closed, exiting main loop");
+                        break;
+                    }
+                }
+                _ = timer => (true, false),
+            };
+
+            if !force_process {
+                if !timer_expired {
+                    continue;
+                }
+
+                if self.message_queue.is_empty() {
+                    continue;
+                }
+            }
+
+            let _typing = Typing::start(self.discord_ctx.http.clone(), self.channel_id);
+
+            if self
+                .activity
+                .last_activity()
+                .is_some_and(|t| t.elapsed() > AGENT_SESSION_TIMEOUT)
+            {
+                self.agent = None;
+            }
+
+            if self.agent.is_none() {
+                self.agent = Some(agent::create_agent_session(
+                    &self.discord_ctx,
+                    self.channel_id,
+                    &openai_api_key,
+                    shared_vectordb_client.clone(),
+                    self.build_conversation_history().await,
+                ));
+            }
+
+            let agent = self.agent.as_mut().unwrap();
+
+            let guild = self
+                .channel_id
+                .to_channel(self.discord_ctx.http.clone())
+                .await
+                .inspect_err(|e| {
+                    tracing::error!(?e, "Failed to fetch channel for guild ID lookup");
+                })
+                .ok()
+                .and_then(|c| c.guild())
+                .and_then(|g| self.guilds.get_sync(&g.guild_id));
+
+            agent.add_messages(
+                self.message_queue
+                    // Cap to MESSAGE_CONTEXT_SIZE most recent messages because if
+                    // discord_bot_mention_only is true, we may have a large backlog
+                    .split_at(if self.message_queue.len() > MESSAGE_CONTEXT_SIZE {
+                        self.message_queue.len() - MESSAGE_CONTEXT_SIZE
+                    } else {
+                        0
+                    })
+                    .1
+                    .iter()
+                    .map(|queued_msg| {
+                        let content = format_message_content_with_bot_id(
+                            &queued_msg.message,
+                            Some(self.bot_user_id),
+                            &guild,
+                        );
+                        RigMessage::user(content)
+                    })
+                    .collect(),
+            );
+
+            self.message_queue.clear();
+
+            let _ = agent.execute_agent_multi_turn().await.inspect_err(|e| {
+                tracing::error!(?e, "Error executing agent session in channel main loop",);
+            });
         }
-
-        rig_messages
     }
 }
 
@@ -143,12 +283,13 @@ impl ChannelHandle {
         openai_api_key: String,
         shared_vectordb_client: Option<tools::SharedVectorClient>,
         discord_bot_mention_only: bool,
+        guilds: Arc<scc::HashMap<serenity::model::id::GuildId, Guild>>,
     ) -> Self {
         let (event_send, event_recv) = futures::channel::mpsc::unbounded();
 
         let bot_user_id = discord_ctx.cache.current_user().id;
 
-        let mut state = ChannelState {
+        let state = ChannelState {
             activity: ChannelActivity::new(),
             event_recv,
             agent: None,
@@ -157,123 +298,18 @@ impl ChannelHandle {
             message_queue: vec![],
             channel_id,
             discord_bot_mention_only,
+            guilds,
         };
 
-        let main_loop_handle = tokio::spawn(async move {
-            loop {
-                let timer = if !state.message_queue.is_empty()
-                    && (!state.discord_bot_mention_only
-                        || state
-                            .message_queue
-                            .iter()
-                            // Check if any queued message mentions the bot and not just the last
-                            // one because the user can send immediate subsequent messages after mentioning
-                            // the bot
-                            .any(|m| m.message.mentions_user_id(state.bot_user_id)))
-                {
-                    tokio::time::sleep_until(
-                        state
-                            .activity
-                            .next_processing_time()
-                            .unwrap_or_else(Instant::now)
-                            .into(),
-                    )
-                } else {
-                    tokio::time::sleep(Duration::from_secs(u64::MAX))
-                };
-
-                let (timer_expired, force_process) = tokio::select! {
-                    event = state.event_recv.next() => {
-                        if let Some(event) = event {
-                            match event {
-                                ChannelEvent::Message(msg) => {
-                                    if msg.message.author.id == state.bot_user_id {
-                                        // No need to process messages from the bot itself, it will
-                                        // be represented as a tool call in the conversation
-                                        // history, so duplicating it here would be redundant.
-                                        continue;
-                                    }
-                                    state.activity.update_message();
-                                    state.message_queue.push(msg);
-                                    (false, false)
-                                }
-                                ChannelEvent::Typing(uid) => {
-                                    if uid == state.bot_user_id {
-                                        // Ignore typing events from the bot itself
-                                        continue;
-                                    }
-                                    state.activity.update_typing();
-                                    (false, false)
-                                }
-                                ChannelEvent::ForceProcess => {
-                                    (false, true)
-                                }
-                            }
-                        }
-                        else {
-                            tracing::info!(
-                                ?channel_id,
-                                "Channel event receiver closed unexpectedly, channel handler will stop processing events and exit main loop"
-                            );
-                            break;
-                        }
-                    }
-                    _ = timer => (true, false),
-                };
-
-                if !force_process {
-                    if !timer_expired {
-                        continue;
-                    }
-
-                    if state.message_queue.is_empty() {
-                        continue;
-                    }
-                }
-
-                let _typing = Typing::start(state.discord_ctx.http.clone(), channel_id);
-
-                if state
-                    .activity
-                    .last_activity()
-                    .is_some_and(|t| t.elapsed() > AGENT_SESSION_TIMEOUT)
-                {
-                    state.agent = None;
-                }
-
-                if state.agent.is_none() {
-                    state.agent = Some(agent::create_agent_session(
-                        &state.discord_ctx,
-                        channel_id,
-                        &openai_api_key,
-                        shared_vectordb_client.clone(),
-                        state.build_conversation_history().await,
-                    ));
-                }
-
-                let agent = state.agent.as_mut().unwrap();
-
-                agent.add_messages(queued_messages_to_rig_messages(
-                    state
-                        .message_queue
-                        // Cap to MESSAGE_CONTEXT_SIZE most recent messages because if
-                        // discord_bot_mention_only is true, we may have a large backlog
-                        .split_at(if state.message_queue.len() > MESSAGE_CONTEXT_SIZE {
-                            state.message_queue.len() - MESSAGE_CONTEXT_SIZE
-                        } else {
-                            0
-                        })
-                        .1,
-                    Some(state.bot_user_id),
-                ));
-
-                state.message_queue.clear();
-
-                let _ = agent.execute_agent_multi_turn().await.inspect_err(|e| {
-                    tracing::error!(?e, "Error executing agent session in channel main loop",);
-                });
-            }
-        });
+        let main_loop_handle = tokio::spawn(
+            state
+                .main_loop(shared_vectordb_client, openai_api_key)
+                .instrument(tracing::info_span!(
+                    "channel_main_loop",
+                    channel_id = channel_id.get(),
+                    discord_bot_mention_only
+                )),
+        );
 
         Self {
             event_send,

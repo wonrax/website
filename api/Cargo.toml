@@ -42,6 +42,7 @@ chromadb = "2.2.2"
 fastembed = "4.9.1"
 uuid = { version = "1.17.0", features = ["v4"] }
 arc-swap = "1.7.1"
+scc = "3.4.2"
 
 [dev-dependencies]
 criterion = "0.5.1"
