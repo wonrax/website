@@ -175,7 +175,7 @@ impl ChannelState {
                                 self.message_queue.push(msg);
                                 (false, false)
                             }
-                            ChannelEvent::Typing(uid,ctx) => {
+                            ChannelEvent::Typing(uid, ctx) => {
                                 self.discord_ctx = ctx;
                                 if uid == self.bot_user_id {
                                     // Ignore typing events from the bot itself
