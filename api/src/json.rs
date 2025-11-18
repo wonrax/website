@@ -1,5 +1,4 @@
 use axum::{
-    async_trait,
     extract::{FromRequest, Request, rejection::JsonRejection},
     http::StatusCode,
 };
@@ -9,7 +8,6 @@ use crate::error::AppError;
 // We define our own `Json` extractor that customizes the error from `axum::Json`
 pub struct Json<T>(pub T);
 
-#[async_trait]
 impl<S, T> FromRequest<S> for Json<T>
 where
     axum::Json<T>: FromRequest<S, Rejection = JsonRejection>,

@@ -28,7 +28,6 @@ pub enum AuthenticationError {
 
 pub struct MaybeAuthUser(pub Result<Identity, AuthenticationError>);
 
-#[axum::async_trait]
 impl axum::extract::FromRequestParts<App> for MaybeAuthUser {
     type Rejection = AppError;
 
@@ -71,7 +70,6 @@ impl axum::extract::FromRequestParts<App> for MaybeAuthUser {
 
 pub struct AuthUser(pub Identity);
 
-#[axum::async_trait]
 impl axum::extract::FromRequestParts<App> for AuthUser {
     type Rejection = AppError;
 

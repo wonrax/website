@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    ops::Deref,
     sync::Arc,
     time::Duration,
 };
@@ -234,9 +235,9 @@ pub async fn get_currently_playing(State(s): State<App>) -> Result<impl IntoResp
         drop(cache);
         let mut cache = lock.write().await;
         *cache = (Arc::new(fetch_cp(&s).await?), std::time::Instant::now());
-        cache.0.to_owned()
+        cache.0.deref().clone()
     } else {
-        cache.0.to_owned()
+        cache.0.deref().clone()
     };
 
     Ok(Json(cp))

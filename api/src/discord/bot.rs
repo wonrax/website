@@ -4,11 +4,11 @@ use crate::discord::{
     message::QueuedMessage,
 };
 use arc_swap::ArcSwap;
+use async_trait::async_trait;
 use scc::hash_map::OccupiedEntry;
 use serenity::all::{
     Activity, ChannelId, GuildId, Message, Presence, Ready, TypingStartEvent, UserId,
 };
-use serenity::async_trait;
 use serenity::prelude::*;
 use std::sync::Arc;
 

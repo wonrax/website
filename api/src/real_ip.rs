@@ -73,7 +73,6 @@ async fn is_cloudflare_ip(ip: &IpAddr) -> bool {
 
 pub struct ClientIp(pub IpAddr);
 
-#[axum::async_trait]
 impl axum::extract::FromRequestParts<App> for ClientIp {
     type Rejection = AppError;
 

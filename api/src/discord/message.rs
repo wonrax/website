@@ -150,9 +150,8 @@ pub fn discord_message_to_rig_message(
                 .as_ref()
                 .is_some_and(|ct| ct.starts_with("image/"))
             {
-                content_parts.push(UserContent::image(
+                content_parts.push(UserContent::image_url(
                     attachment.proxy_url.clone(),
-                    None,                    // format
                     None,                    // media_type
                     Some(ImageDetail::Auto), // detail level
                 ));

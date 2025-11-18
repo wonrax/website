@@ -144,7 +144,7 @@ async fn main() {
         .route("/health", get(heath))
         .nest("/blog", blog::routes::route())
         .nest("/public", github::routes::route())
-        .nest("/", identity::routes::route())
+        .merge(identity::routes::route())
         .route("/great-reads-feed", get(great_reads_feed::proxy_rss))
         .route(
             "/great-reads-highlights",
@@ -207,26 +207,15 @@ async fn main() {
 }
 
 async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> {
-    use async_openai::{Client as OpenAIClient, config::OpenAIConfig};
     use serenity::all::GatewayIntents;
 
-    if let (Some(discord_token), Some(openai_api_key)) =
-        (config.discord_token.clone(), config.openai_api_key.clone())
-    {
+    if let Some(discord_token) = config.discord_token.clone() {
         let intents = GatewayIntents::GUILD_MESSAGES
             | GatewayIntents::DIRECT_MESSAGES
             | GatewayIntents::MESSAGE_CONTENT
             | GatewayIntents::GUILD_MESSAGE_TYPING
             | GatewayIntents::DIRECT_MESSAGE_TYPING
             | GatewayIntents::GUILD_PRESENCES;
-
-        // Create OpenAI client with async-openai
-        let openai_config = OpenAIConfig::new().with_api_key(&openai_api_key);
-        let _openai_client = OpenAIClient::with_config(openai_config).with_http_client(
-            reqwest::Client::builder()
-                .timeout(Duration::from_secs(120))
-                .build()?,
-        );
 
         // Create a new instance of the Client, logging in as a bot. This will automatically prepend
         // your bot token with "Bot ", which is a requirement by Discord for bot users.
