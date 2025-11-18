@@ -44,10 +44,10 @@
         prisma =
           (prisma-utils.lib.prisma-factory {
             inherit pkgs;
-            prisma-fmt-hash = "sha256-ggfTlnrRle8HorCCPHa23OO3YBQE1A3yPPAvkq4Ki8M=";
-            query-engine-hash = "sha256-VuFWwhnNXlAPDrVM+BD9vj2tJdrSVLBofFLph5LBaR4=";
-            libquery-engine-hash = "sha256-PeZ1cfNzzlVGy8y6mqpeXWj7KCPQmaW+5EzsVcX+XG0=";
-            schema-engine-hash = "sha256-58Dw7bZGxQ9jeWU6yeBl+BZQagke1079cIAHvYL01Cg=";
+            prisma-fmt-hash = "sha256-CRxh1NftBvR6mRl9DugLkCvOSqQ3jdcpPw3HUXpJi6I=";
+            query-engine-hash = "sha256-64AcHjA07mSFQJ4ZbazorXCOzlK6TIlYXPABj/Wu4Ck=";
+            libquery-engine-hash = "sha256-vJcVAP+RWOIh7fgeHSL8Zq33IgrTLZlOggku+QnKT2E=";
+            schema-engine-hash = "sha256-0cCQsDinecDuvVRxdXEMo+yZWbJBsXpTeZl3i3yI4Cc=";
           }).fromNpmLock
             ./package-lock.json;
 
