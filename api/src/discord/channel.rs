@@ -216,9 +216,6 @@ impl ChannelState {
                 _ = timer => (true, false),
             };
 
-            let span = tracing::span!(tracing::Level::INFO, "process_discord_message");
-            let _ = span.enter();
-
             if !force_process {
                 if !timer_expired {
                     continue;
@@ -228,6 +225,9 @@ impl ChannelState {
                     continue;
                 }
             }
+
+            let span = tracing::span!(tracing::Level::INFO, "process_discord_message");
+            let _ = span.enter();
 
             let _typing = Typing::start(self.discord_ctx.http.clone(), self.channel_id);
 

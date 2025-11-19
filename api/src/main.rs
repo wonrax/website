@@ -82,7 +82,7 @@ async fn main() {
                 tracing_subscriber::fmt::layer()
                     .json()
                     .flatten_event(true)
-                    .with_current_span(false)
+                    .with_current_span(true)
                     .with_file(true)
                     .with_line_number(true)
                     .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
