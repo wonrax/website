@@ -10,6 +10,7 @@ use rig::{
 use serde_json::json;
 use serenity::all::{ChannelId, Context};
 use std::sync::Arc;
+use tracing::instrument;
 
 use super::tools::SharedVectorClient;
 
@@ -43,6 +44,7 @@ impl AgentSession {
     }
 
     /// Execute agent multi-turn conversation
+    #[instrument(skip(self))]
     pub async fn execute_agent_multi_turn(&mut self) -> Result<(), eyre::Error> {
         if self.conversation_history.is_empty() {
             return Err(eyre::eyre!("Empty conversation history"));

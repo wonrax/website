@@ -69,7 +69,14 @@ async fn main() {
     let config = tracing::subscriber::with_default(d, ServerConfig::new_from_env);
 
     let (json, pretty) = match config.env {
-        config::Env::Dev => (None, Some(tracing_subscriber::fmt::layer().pretty())),
+        config::Env::Dev => (
+            None,
+            Some(
+                tracing_subscriber::fmt::layer()
+                    .pretty()
+                    .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE),
+            ),
+        ),
         _ => (
             Some(
                 tracing_subscriber::fmt::layer()
@@ -78,6 +85,7 @@ async fn main() {
                     .with_current_span(false)
                     .with_file(true)
                     .with_line_number(true)
+                    .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
                     .with_span_list(true),
             ),
             None,

@@ -11,6 +11,7 @@ use serenity::all::{
 };
 use serenity::prelude::*;
 use std::sync::Arc;
+use tracing::instrument;
 
 use super::tools::SharedVectorClient;
 
@@ -61,6 +62,7 @@ impl DiscordEventHandler {
 
     /// Initialize agent sessions for all whitelisted channels on startup
     /// This helps recover conversation context after server restarts
+    #[instrument(skip(self, ctx))]
     pub async fn initialize_channels(&self, ctx: &Context) -> Result<(), eyre::Error> {
         tracing::info!("Initializing agent sessions for whitelisted channels on startup...");
 
@@ -99,6 +101,7 @@ impl DiscordEventHandler {
     }
 
     /// Check if a channel has recent activity (messages within the last hour)
+    #[instrument(skip(self, ctx))]
     async fn has_recent_activity(
         &self,
         ctx: &Context,

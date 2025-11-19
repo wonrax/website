@@ -16,7 +16,7 @@ pub struct QueuedMessage {
 
 /// Helper function to format Discord message content with message ID, timestamp, and username
 /// with optional bot user ID for accurate mention detection
-pub fn format_message_content_with_bot_id(
+fn format_message_content_with_bot_id(
     msg: &Message,
     bot_user_id: Option<serenity::model::id::UserId>,
     guild: &Option<OccupiedEntry<'_, GuildId, Guild>>,

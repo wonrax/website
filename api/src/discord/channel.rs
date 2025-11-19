@@ -8,8 +8,8 @@ use futures::{
     channel::mpsc::{UnboundedReceiver, UnboundedSender},
 };
 use rig::message::Message as RigMessage;
-use serenity::all::{ChannelId, Context, Message, Typing, UserId};
-use tracing::Instrument as _;
+use serenity::all::{ChannelId, Context, Typing, UserId};
+use tracing::{Instrument as _, instrument};
 
 use crate::discord::{
     agent::{self, AgentSession},
@@ -18,7 +18,7 @@ use crate::discord::{
         AGENT_SESSION_TIMEOUT, MESSAGE_CONTEXT_SIZE, MESSAGE_DEBOUNCE_TIMEOUT,
         TYPING_DEBOUNCE_TIMEOUT,
     },
-    message::{QueuedMessage, discord_message_to_rig_message, format_message_content_with_bot_id},
+    message::{QueuedMessage, discord_message_to_rig_message},
     tools,
 };
 
@@ -109,27 +109,25 @@ struct ChannelState {
     // Queue the incoming messages and only add them to the agent when debounced. This is because
     // the AgentSession::add_messages handles context trimming which retains at most N new messages.
     // We want to avoid trimming unhandled messages if called repeatedly.
-    message_queue: Vec<QueuedMessage>,
+    message_queue: Vec<(RigMessage, bool)>,
 }
 
 impl ChannelState {
     /// Build conversation history for agent context
+    #[instrument(skip(self))]
     async fn build_conversation_history(&self) -> Vec<RigMessage> {
-        let fetched_messages: Vec<Message> = self
-            .channel_id
+        self.channel_id
             .messages_iter(&self.discord_ctx.http)
             .filter_map(|m| async {
                 m.ok()
                     .filter(|msg| !msg.content.trim().is_empty() || !msg.attachments.is_empty())
             })
             .take(MESSAGE_CONTEXT_SIZE)
-            .collect()
-            .await;
-
-        fetched_messages
-            .into_iter()
+            .collect::<Vec<_>>()
+            .await
+            .iter()
             .rev()
-            .map(|m| discord_message_to_rig_message(&m, self.bot_user_id, &None))
+            .map(|m| discord_message_to_rig_message(m, self.bot_user_id, &None))
             .collect()
     }
 
@@ -147,7 +145,7 @@ impl ChannelState {
                         // Check if any queued message mentions the bot and not just the last
                         // one because the user can send immediate subsequent messages after mentioning
                         // the bot
-                        .any(|m| m.message.mentions_user_id(self.bot_user_id)))
+                        .any(|m| m.1))
             {
                 tokio::time::sleep_until(
                     self.activity
@@ -172,7 +170,28 @@ impl ChannelState {
                                     continue;
                                 }
                                 self.activity.update_message();
-                                self.message_queue.push(msg);
+
+                                let guild = self
+                                    .channel_id
+                                    .to_channel(self.discord_ctx.http.clone())
+                                    .await
+                                    .inspect_err(|e| {
+                                        tracing::error!(?e, "Failed to fetch channel for guild ID lookup");
+                                    })
+                                    .ok()
+                                    .and_then(|c| c.guild())
+                                    .and_then(|g| self.guilds.get_sync(&g.guild_id));
+
+                                let mentions_bot = msg.message.mentions_user_id(self.bot_user_id);
+
+                                let msg = discord_message_to_rig_message(
+                                    &msg.message,
+                                    self.bot_user_id,
+                                    &guild,
+                                );
+
+
+                                self.message_queue.push((msg, mentions_bot));
                                 (false, false)
                             }
                             ChannelEvent::Typing(uid, ctx) => {
@@ -196,6 +215,9 @@ impl ChannelState {
                 }
                 _ = timer => (true, false),
             };
+
+            let span = tracing::span!(tracing::Level::INFO, "process_discord_message");
+            let _ = span.enter();
 
             if !force_process {
                 if !timer_expired {
@@ -229,17 +251,6 @@ impl ChannelState {
 
             let agent = self.agent.as_mut().unwrap();
 
-            let guild = self
-                .channel_id
-                .to_channel(self.discord_ctx.http.clone())
-                .await
-                .inspect_err(|e| {
-                    tracing::error!(?e, "Failed to fetch channel for guild ID lookup");
-                })
-                .ok()
-                .and_then(|c| c.guild())
-                .and_then(|g| self.guilds.get_sync(&g.guild_id));
-
             agent.add_messages(
                 self.message_queue
                     // Cap to MESSAGE_CONTEXT_SIZE most recent messages because if
@@ -251,14 +262,7 @@ impl ChannelState {
                     })
                     .1
                     .iter()
-                    .map(|queued_msg| {
-                        let content = format_message_content_with_bot_id(
-                            &queued_msg.message,
-                            Some(self.bot_user_id),
-                            &guild,
-                        );
-                        RigMessage::user(content)
-                    })
+                    .map(|(m, _)| m.to_owned())
                     .collect(),
             );
 
@@ -273,6 +277,8 @@ impl ChannelState {
 
 pub struct ChannelHandle {
     event_send: UnboundedSender<ChannelEvent>,
+
+    #[allow(dead_code, reason = "TODO: handle shutdown, restarts, etc.")]
     main_loop_handle: tokio::task::JoinHandle<()>,
 }
 
