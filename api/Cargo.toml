@@ -22,7 +22,7 @@ reqwest = { version = "0.12.24", features = ["json"] }
 axum-extra = { version = "0.12.2", features = ["cookie"] }
 time = "0.3.36"
 tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json", "registry"] }
 backtrace = "0.3.74"
 thiserror = "2.0.17"
 ipnetwork = "0.21.1"

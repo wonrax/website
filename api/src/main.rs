@@ -16,7 +16,7 @@ use tower_http::{
     trace::TraceLayer,
 };
 use tracing::{Span, debug, error, info, info_span};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{Layer, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[cfg(debug_assertions)]
 use crate::real_ip::ClientIp;
@@ -68,13 +68,20 @@ async fn main() {
 
     let config = tracing::subscriber::with_default(d, ServerConfig::new_from_env);
 
-    let (json, pretty) = match config.env {
+    const HTTP_REQUEST_SPAN: &str = "http_request";
+    let (json, pretty, json_span, pretty_span) = match config.env {
         config::Env::Dev => (
             None,
             Some(
                 tracing_subscriber::fmt::layer()
                     .pretty()
-                    .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE),
+                    .with_span_events(tracing_subscriber::fmt::format::FmtSpan::NONE),
+            ),
+            None,
+            Some(
+                tracing_subscriber::fmt::layer()
+                    .pretty()
+                    .with_span_events(tracing_subscriber::fmt::format::FmtSpan::EXIT),
             ),
         ),
         _ => (
@@ -85,8 +92,29 @@ async fn main() {
                     .with_current_span(true)
                     .with_file(true)
                     .with_line_number(true)
-                    .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
-                    .with_span_list(true),
+                    .with_span_list(true)
+                    .with_span_events(tracing_subscriber::fmt::format::FmtSpan::NONE),
+            ),
+            None,
+            Some(
+                tracing_subscriber::fmt::layer()
+                    .json()
+                    .flatten_event(true)
+                    .with_current_span(true)
+                    .with_file(true)
+                    .with_line_number(true)
+                    .with_span_list(true)
+                    .with_span_events(tracing_subscriber::fmt::format::FmtSpan::EXIT)
+                    .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+                        // If it's a span, only enable it if it's NOT "http_request"
+                        if metadata.is_span() {
+                            metadata.name() != HTTP_REQUEST_SPAN
+                        } else {
+                            // If it's a log event (info!, etc.), ignore it
+                            // (because log_layer already handles these)
+                            false
+                        }
+                    })),
             ),
             None,
         ),
@@ -96,6 +124,8 @@ async fn main() {
         .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or("info".into()))
         .with(json)
         .with(pretty)
+        .with(json_span)
+        .with(pretty_span)
         .init();
 
     let postgres_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
@@ -171,7 +201,7 @@ async fn main() {
                         .map(MatchedPath::as_str);
 
                     info_span!(
-                        "http_request",
+                        HTTP_REQUEST_SPAN,
                         method = ?request.method(),
                         matched_path,
                     )
