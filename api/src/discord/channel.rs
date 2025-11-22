@@ -123,11 +123,11 @@ impl ChannelState {
                     .filter(|msg| !msg.content.trim().is_empty() || !msg.attachments.is_empty())
             })
             .take(MESSAGE_CONTEXT_SIZE)
+            .then(async |m| discord_message_to_rig_message(&m, self.bot_user_id, &None).await)
             .collect::<Vec<_>>()
             .await
-            .iter()
+            .into_iter()
             .rev()
-            .map(|m| discord_message_to_rig_message(m, self.bot_user_id, &None))
             .collect()
     }
 
@@ -188,7 +188,7 @@ impl ChannelState {
                                     &msg.message,
                                     self.bot_user_id,
                                     &guild,
-                                );
+                                ).await;
 
 
                                 self.message_queue.push((msg, mentions_bot));

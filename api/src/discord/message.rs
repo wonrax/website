@@ -1,7 +1,11 @@
+use std::iter::zip;
+
+use base64::Engine as _;
+use futures::StreamExt;
 use rig::{
     OneOrMany,
     completion::Message as RigMessage,
-    message::{ImageDetail, UserContent},
+    message::{ImageDetail, ImageMediaType, MimeType, UserContent},
 };
 use scc::hash_map::OccupiedEntry;
 use serenity::all::{GuildId, Message};
@@ -123,7 +127,7 @@ fn format_message_content_with_bot_id(
 }
 
 /// Helper function to convert a Discord message to a RigMessage
-pub fn discord_message_to_rig_message(
+pub async fn discord_message_to_rig_message(
     msg: &Message,
     bot_user_id: serenity::model::id::UserId,
     guild: &Option<OccupiedEntry<'_, GuildId, Guild>>,
@@ -136,37 +140,69 @@ pub fn discord_message_to_rig_message(
         RigMessage::assistant(content)
     } else {
         // For user messages, handle both text and images
-        let mut has_images = false;
         let mut content_parts = Vec::new();
 
         // Add text content first
         let text_content = format_message_content_with_bot_id(msg, Some(bot_user_id), guild);
         content_parts.push(UserContent::text(text_content.clone()));
 
-        // Process attachments for images
-        for attachment in &msg.attachments {
-            if attachment
+        // fetch images in batch
+        let images_iter = msg.attachments.iter().filter_map(|attachment| {
+            attachment
                 .content_type
                 .as_ref()
-                .is_some_and(|ct| ct.starts_with("image/"))
-            {
-                content_parts.push(UserContent::image_url(
-                    attachment.proxy_url.clone(),
-                    None,                    // media_type
-                    Some(ImageDetail::Auto), // detail level
-                ));
-                has_images = true;
-            }
-        }
+                .and_then(|ct| ImageMediaType::from_mime_type(ct))
+                .map(|media_type| (&attachment.proxy_url, media_type))
+        });
 
-        if has_images {
-            match OneOrMany::many(content_parts) {
-                Ok(content) => RigMessage::from(content),
-                Err(_) => RigMessage::user(text_content), // Fallback to text-only if content list is empty
-            }
-        } else {
-            // If no images, just use the text content
-            RigMessage::user(text_content)
+        let images: Vec<_> = futures::stream::iter(images_iter.clone())
+            .then(|(url, _)| reqwest::get(url))
+            .filter_map(async |resp| match resp {
+                Ok(r) if r.status().is_success() => Some(r.bytes()),
+                Ok(r) => {
+                    tracing::error!(
+                        status = r.status().as_u16(),
+                        "Failed to fetch image from Discord attachment due to non-success status"
+                    );
+
+                    None
+                }
+                Err(error) => {
+                    tracing::error!(
+                        ?error,
+                        "Failed to fetch image from Discord attachment due to HTTP error"
+                    );
+
+                    None
+                }
+            })
+            .filter_map(async |bytes_result| match bytes_result.await {
+                Ok(bytes) => Some(bytes),
+                Err(error) => {
+                    tracing::error!(
+                        ?error,
+                        "Failed to read image bytes from Discord attachment response"
+                    );
+
+                    None
+                }
+            })
+            .collect()
+            .await;
+
+        content_parts.extend(
+            zip(images, images_iter).map(|(image_bytes, (_, media_type))| {
+                UserContent::image_base64(
+                    base64::prelude::BASE64_STANDARD.encode(&image_bytes),
+                    Some(media_type),
+                    Some(ImageDetail::Auto),
+                )
+            }),
+        );
+
+        match OneOrMany::many(content_parts) {
+            Ok(content) => RigMessage::from(content),
+            Err(_) => RigMessage::user(text_content), // Fallback to text-only if content list is empty
         }
     }
 }
