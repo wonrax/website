@@ -57,6 +57,8 @@ jobs:
               - "flake.lock"
             migrate:
               - "prisma/**"
+              - "package.json"
+              - "package-lock.json"
               - "flake.nix"
               - "flake.lock"
 
