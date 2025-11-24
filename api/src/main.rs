@@ -1,15 +1,15 @@
 use axum::{
     Json, Router,
-    extract::MatchedPath,
+    extract::{MatchedPath, Query},
     http::{Method, Request, header::CONTENT_TYPE},
-    response::{IntoResponse, Response},
+    response::Response,
     routing::get,
 };
 use config::ServerConfig;
 use dotenv::dotenv;
 use mimalloc::MiMalloc;
 use serde_json::json;
-use std::{net::SocketAddr, ops::Deref, sync::Arc, time::Duration};
+use std::{collections::HashMap, net::SocketAddr, ops::Deref, sync::Arc, time::Duration};
 use tower_http::{
     classify::ServerErrorsFailureClass,
     cors::{AllowOrigin, CorsLayer},
@@ -18,6 +18,7 @@ use tower_http::{
 use tracing::{Span, debug, error, info, info_span};
 use tracing_subscriber::{Layer, layer::SubscriberExt, util::SubscriberInitExt};
 
+use crate::error::AppError;
 #[cfg(debug_assertions)]
 use crate::real_ip::ClientIp;
 
@@ -81,7 +82,17 @@ async fn main() {
             Some(
                 tracing_subscriber::fmt::layer()
                     .pretty()
-                    .with_span_events(tracing_subscriber::fmt::format::FmtSpan::EXIT),
+                    .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
+                    .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+                        // If it's a span, only enable it if it's NOT "http_request"
+                        if metadata.is_span() {
+                            metadata.name() != HTTP_REQUEST_SPAN
+                        } else {
+                            // If it's a log event (info!, etc.), ignore it
+                            // (because log_layer already handles these)
+                            false
+                        }
+                    })),
             ),
         ),
         _ => (
@@ -104,7 +115,7 @@ async fn main() {
                     .with_file(true)
                     .with_line_number(true)
                     .with_span_list(true)
-                    .with_span_events(tracing_subscriber::fmt::format::FmtSpan::EXIT)
+                    .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
                     .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
                         // If it's a span, only enable it if it's NOT "http_request"
                         if metadata.is_span() {
@@ -273,13 +284,22 @@ async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> 
     }
 }
 
-async fn heath(#[cfg(debug_assertions)] ClientIp(ip): ClientIp) -> impl IntoResponse {
+async fn heath(
+    #[cfg(debug_assertions)] ClientIp(ip): ClientIp,
+    Query(query): Query<HashMap<String, String>>,
+) -> Result<Json<serde_json::Value>, AppError> {
     #[cfg(debug_assertions)]
     tracing::debug!(ip = %ip, "Health check request received");
 
-    Json(json!({
+    if query.contains_key("fail") {
+        return Err(AppError::from(eyre::eyre!(
+            "Simulated failure for health check"
+        )));
+    }
+
+    Ok(Json(json!({
         "status": 200,
         "msg": "OK",
         "detail": None::<String>,
-    }))
+    })))
 }

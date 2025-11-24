@@ -87,6 +87,7 @@
               };
               strictDeps = true;
               doCheck = false; # TODO: enable when tests are green
+              dontStrip = true; # preserve backtrace
               inherit buildInputs nativeBuildInputs;
               inherit LIBCLANG_PATH;
             };
