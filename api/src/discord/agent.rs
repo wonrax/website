@@ -95,7 +95,8 @@ pub fn create_agent_session(
     initial_history: Vec<RigMessage>,
 ) -> AgentSession {
     // Create OpenAI client and build agent using the Responses API (default)
-    let openai_client = openai::Client::new(openai_api_key);
+    let openai_client =
+        openai::Client::new(openai_api_key).expect("Failed to create OpenAI client");
     let completion_model = openai_client.completion_model("gpt-5-mini");
 
     // Create tools with shared context
