@@ -16,12 +16,15 @@ use super::tools::SharedVectorClient;
 
 /// Agent session for persistent multi-turn conversations
 pub struct AgentSession {
-    pub agent: Agent<openai::CompletionModel>,
+    pub agent: Agent<openai::responses_api::ResponsesCompletionModel>,
     pub conversation_history: Vec<RigMessage>,
 }
 
 impl AgentSession {
-    pub fn new(agent: Agent<openai::CompletionModel>, initial_history: Vec<RigMessage>) -> Self {
+    pub fn new(
+        agent: Agent<openai::responses_api::ResponsesCompletionModel>,
+        initial_history: Vec<RigMessage>,
+    ) -> Self {
         Self {
             agent,
             conversation_history: initial_history,
@@ -91,9 +94,9 @@ pub fn create_agent_session(
     shared_vectordb_client: Option<SharedVectorClient>,
     initial_history: Vec<RigMessage>,
 ) -> AgentSession {
-    // Create OpenAI client and build agent
+    // Create OpenAI client and build agent using the Responses API (default)
     let openai_client = openai::Client::new(openai_api_key);
-    let completion_model = openai::CompletionModel::new(openai_client, "gpt-5-mini");
+    let completion_model = openai_client.completion_model("gpt-5-mini");
 
     // Create tools with shared context
     let ctx_arc = Arc::new(discord_ctx.clone());
