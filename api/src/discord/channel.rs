@@ -240,13 +240,21 @@ impl ChannelState {
             }
 
             if self.agent.is_none() {
-                self.agent = Some(agent::create_agent_session(
+                match agent::create_agent_session(
                     &self.discord_ctx,
                     self.channel_id,
                     &openai_api_key,
                     shared_vectordb_client.clone(),
                     self.build_conversation_history().await,
-                ));
+                ) {
+                    Ok(session) => {
+                        self.agent = Some(session);
+                    }
+                    Err(e) => {
+                        tracing::error!(?e, "Failed to create agent session for channel");
+                        continue;
+                    }
+                }
             }
 
             let agent = self.agent.as_mut().unwrap();

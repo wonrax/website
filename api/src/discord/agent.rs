@@ -2,10 +2,12 @@ use crate::discord::{
     constants::{MAX_AGENT_TURNS, MESSAGE_CONTEXT_SIZE, SYSTEM_PROMPT},
     tools::{DiscordSendMessageTool, FetchPageContentTool, WebSearchTool},
 };
+use eyre::Context as _;
 use rig::{
     agent::Agent,
+    client::CompletionClient,
     completion::{Message as RigMessage, Prompt},
-    providers::openai,
+    providers::gemini::{Client, completion::CompletionModel},
 };
 use serde_json::json;
 use serenity::all::{ChannelId, Context};
@@ -16,12 +18,12 @@ use super::tools::SharedVectorClient;
 
 /// Agent session for persistent multi-turn conversations
 pub struct AgentSession {
-    pub agent: Agent<openai::CompletionModel>,
+    pub agent: Agent<CompletionModel>,
     pub conversation_history: Vec<RigMessage>,
 }
 
 impl AgentSession {
-    pub fn new(agent: Agent<openai::CompletionModel>, initial_history: Vec<RigMessage>) -> Self {
+    pub fn new(agent: Agent<CompletionModel>, initial_history: Vec<RigMessage>) -> Self {
         Self {
             agent,
             conversation_history: initial_history,
@@ -90,10 +92,9 @@ pub fn create_agent_session(
     openai_api_key: &str,
     shared_vectordb_client: Option<SharedVectorClient>,
     initial_history: Vec<RigMessage>,
-) -> AgentSession {
+) -> Result<AgentSession, eyre::Error> {
     // Create OpenAI client and build agent
-    let openai_client = openai::Client::new(openai_api_key);
-    let completion_model = openai::CompletionModel::new(openai_client, "gpt-5-mini");
+    let llm_client = Client::new(openai_api_key).context("Failed to create Gemini client")?;
 
     // Create tools with shared context
     let ctx_arc = Arc::new(discord_ctx.clone());
@@ -116,8 +117,8 @@ pub fn create_agent_session(
     let gb_ver = crate::discord::tools::GodboltVersion;
 
     // Create memory tools if Qdrant is configured
-    let mut agent_builder = completion_model
-        .into_agent_builder()
+    let mut agent_builder = llm_client
+        .agent("gemini-3-flash-preview")
         .preamble(SYSTEM_PROMPT)
         .tool(discord_tool)
         .tool(fetch_tool)
@@ -160,10 +161,20 @@ pub fn create_agent_session(
     };
 
     let agent = agent_builder
+        // OpenAI params
+        // .additional_params(json!({
+        //     "max_completion_tokens": 4096,
+        //     "reasoning_effort": "medium",
+        //     "verbosity": "low"
+        // }))
+        // Gemini params
         .additional_params(json!({
-            "max_completion_tokens": 4096,
-            "reasoning_effort": "medium",
-            "verbosity": "low"
+            "generationConfig": {
+                "thinkingConfig": {
+                    "thinkingLevel": "MEDIUM",
+                    "thinkingBudget": 4096
+                }
+            }
         }))
         .build();
 
@@ -173,5 +184,5 @@ pub fn create_agent_session(
         initial_history.len()
     );
 
-    AgentSession::new(agent, initial_history)
+    Ok(AgentSession::new(agent, initial_history))
 }

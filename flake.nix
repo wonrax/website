@@ -2,7 +2,7 @@
   description = "Development and build environment for wrx.sh monorepo";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/release-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/release-25.11";
     flake-utils.url = "github:numtide/flake-utils";
 
     rust-overlay = {
@@ -18,7 +18,7 @@
       };
     };
 
-    crane.url = "github:ipetkov/crane";
+    crane.url = "github:ipetkov/crane/refs/tags/v0.21.2";
   };
 
   outputs =
