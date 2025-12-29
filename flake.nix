@@ -18,7 +18,7 @@
       };
     };
 
-    crane.url = "github:ipetkov/crane/refs/tags/v0.21.2";
+    crane.url = "github:ipetkov/crane/refs/tags/v0.22.0";
   };
 
   outputs =
@@ -59,17 +59,6 @@
           ];
         };
 
-        # Common deps for the Rust API crate
-        buildInputs = with pkgs; [
-          openssl
-          libxml2
-        ];
-        nativeBuildInputs = with pkgs; [
-          pkg-config
-          libpq
-          clang # rust-bindgen
-        ];
-
         LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
       in
       rec {
@@ -77,6 +66,8 @@
         packages.api =
           let
             commonArgs = {
+              pname = (craneLib.crateNameFromCargoToml { cargoToml = ./api/Cargo.toml; }).pname;
+              version = (craneLib.crateNameFromCargoToml { cargoToml = ./api/Cargo.toml; }).version;
               src = nixpkgs.lib.cleanSourceWith {
                 src = ./.;
                 filter =
@@ -88,7 +79,15 @@
               strictDeps = true;
               doCheck = false; # TODO: enable when tests are green
               dontStrip = true; # preserve backtrace
-              inherit buildInputs nativeBuildInputs;
+              buildInputs = with pkgs; [
+                openssl
+                libxml2
+              ];
+              nativeBuildInputs = with pkgs; [
+                pkg-config
+                libpq
+                clang # rust-bindgen
+              ];
               inherit LIBCLANG_PATH;
             };
           in
@@ -172,14 +171,16 @@
         devShells.default =
           with pkgs;
           mkShell {
-            buildInputs = [
-              nodejs_22
-              rustToolchain
-              rust-analyzer-unwrapped
+            nativeBuildInputs = [
               diesel-cli
-            ]
-            ++ buildInputs
-            ++ nativeBuildInputs;
+              rustToolchain
+            ];
+
+            inputsFrom = [
+              packages.api
+              packages.www
+              packages.schemaMigrator
+            ];
 
             RUST_SRC_PATH = "${rustToolchain}/lib/rustlib/src/rust/library";
             inherit LIBCLANG_PATH;

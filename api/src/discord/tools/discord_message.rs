@@ -9,14 +9,11 @@ use thiserror::Error;
 pub struct DiscordSendMessageTool {
     pub ctx: Arc<Context>,
     pub channel_id: ChannelId,
-    pub reply_to_message_id: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiscordSendMessageArgs {
     pub content: String,
-    #[serde(default)]
-    pub reply: bool,
     /// Message ID to reply to (if reply is true). If not provided, replies to the most recent message.
     #[serde(default)]
     pub reply_to_message_id: Option<u64>,
@@ -51,14 +48,9 @@ impl Tool for DiscordSendMessageTool {
                         "type": "string",
                         "description": "The message content to send"
                     },
-                    "reply": {
-                        "type": "boolean",
-                        "description": "Whether to reply to a specific message (true) or send a standalone message (false)",
-                        "default": false
-                    },
                     "reply_to_message_id": {
                         "type": "number",
-                        "description": "The Discord message ID to reply to (only used when reply=true). If not provided when reply=true, will reply to the most recent message."
+                        "description": "The Discord message ID to reply to."
                     }
                 },
                 "required": ["content"]
@@ -70,24 +62,14 @@ impl Tool for DiscordSendMessageTool {
         // Clone values to move into the spawned task
         let ctx = self.ctx.clone();
         let channel_id = self.channel_id;
-        let default_reply_to_message_id = self.reply_to_message_id;
         let content = args.content.clone();
-        let reply = args.reply;
-
-        // Use the message ID from args if provided, otherwise fall back to default
-        let target_message_id = if reply {
-            args.reply_to_message_id.or(default_reply_to_message_id)
-        } else {
-            None
-        };
 
         // Spawn the Discord API operations in a separate task to avoid Sync issues
         let handle = tokio::spawn(async move {
             let mut message_builder = CreateMessage::new().content(&content);
 
-            if reply
-                && let Some(msg_id) = target_message_id
-                && let Ok(original_msg) = channel_id.message(&ctx.http, msg_id).await
+            if let Some(target_message_id) = args.reply_to_message_id
+                && let Ok(original_msg) = channel_id.message(&ctx.http, target_message_id).await
             {
                 message_builder = message_builder.reference_message(&original_msg);
             }

@@ -101,7 +101,6 @@ pub fn create_agent_session(
     let discord_tool = DiscordSendMessageTool {
         ctx: ctx_arc.clone(),
         channel_id,
-        reply_to_message_id: None, // Will be set per interaction
     };
     let fetch_tool = FetchPageContentTool;
     let web_search_tool = WebSearchTool;
