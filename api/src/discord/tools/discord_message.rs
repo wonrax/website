@@ -15,8 +15,11 @@ pub struct DiscordSendMessageTool {
 pub struct DiscordSendMessageArgs {
     pub content: String,
     /// Message ID to reply to (if reply is true). If not provided, replies to the most recent message.
+    /// Uses float to accommodate JSON number type to side-step this error:
+    /// Toolset error: ToolCallError: ToolCallError: JsonError: invalid type: floating point
+    /// `1.4601911394024858e+18`, expected u64 at line 1 column 691
     #[serde(default)]
-    pub reply_to_message_id: Option<u64>,
+    pub reply_to_message_id: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,7 +72,9 @@ impl Tool for DiscordSendMessageTool {
             let mut message_builder = CreateMessage::new().content(&content);
 
             if let Some(target_message_id) = args.reply_to_message_id
-                && let Ok(original_msg) = channel_id.message(&ctx.http, target_message_id).await
+                && let Ok(original_msg) = channel_id
+                    .message(&ctx.http, target_message_id as u64)
+                    .await
             {
                 message_builder = message_builder.reference_message(&original_msg);
             }
