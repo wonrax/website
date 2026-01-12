@@ -18,7 +18,7 @@
       };
     };
 
-    crane.url = "github:ipetkov/crane/refs/tags/v0.22.0";
+    crane.url = "github:ipetkov/crane";
   };
 
   outputs =
