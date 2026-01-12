@@ -33,14 +33,33 @@ impl AgentSession {
     /// Add messages to the conversation history, trimming excess if needed but new messages are
     /// always kept
     pub fn add_messages(&mut self, messages: Vec<RigMessage>) {
-        let max_history = (MESSAGE_CONTEXT_SIZE * 2).max(messages.len());
+        let max_history =
+            ((MESSAGE_CONTEXT_SIZE as f32 * 1.5f32).floor() as usize).max(messages.len());
 
         self.conversation_history.extend(messages);
 
         // TODO: leverage prompt caching to reduce cost
         // https://platform.openai.com/docs/guides/prompt-caching
         if self.conversation_history.len() > max_history {
-            let excess = self.conversation_history.len() - max_history;
+            let mut excess = self.conversation_history.len() - max_history;
+
+            // Ensure we don't start the history with a ToolResult message,
+            // as it must be preceded by an Assistant message with ToolCalls.
+            while excess < self.conversation_history.len() {
+                let is_tool_result = match &self.conversation_history[excess] {
+                    RigMessage::User { content } => content
+                        .iter()
+                        .any(|c| matches!(c, rig::message::UserContent::ToolResult(_))),
+                    _ => false,
+                };
+
+                if is_tool_result {
+                    excess += 1;
+                } else {
+                    break;
+                }
+            }
+
             self.conversation_history.drain(0..excess);
         }
     }
