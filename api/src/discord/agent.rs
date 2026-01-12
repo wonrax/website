@@ -43,21 +43,24 @@ impl AgentSession {
         if self.conversation_history.len() > max_history {
             let mut excess = self.conversation_history.len() - max_history;
 
-            // Ensure we don't start the history with a ToolResult message,
-            // as it must be preceded by an Assistant message with ToolCalls.
+            // Gemini API requires:
+            // 1. The conversation MUST start with a "user" role.
+            // 2. Tool results (function role) are treated as "user" messages in Rig's Gemini provider.
             while excess < self.conversation_history.len() {
-                let is_tool_result = match &self.conversation_history[excess] {
-                    RigMessage::User { content } => content
+                // Must start with User (non-tool-result)
+                let is_valid_start = match &self.conversation_history[excess] {
+                    RigMessage::User { content } => !content
                         .iter()
                         .any(|c| matches!(c, rig::message::UserContent::ToolResult(_))),
                     _ => false,
                 };
 
-                if is_tool_result {
+                if !is_valid_start {
                     excess += 1;
-                } else {
-                    break;
+                    continue;
                 }
+
+                break;
             }
 
             self.conversation_history.drain(0..excess);
