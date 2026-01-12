@@ -92,10 +92,10 @@ fn format_message_content_with_bot_id(
     let context_block = format!(
         "\n
 <<context>>
-    * Replied To: [{}]
-    * Mentions/Replies Bot: [{}]
-    * Users mentioned in message: [{}]
-    * User presence info: [{}]
+* Replied To: [{}]
+* Mentions/Replies Bot: [{}]
+* Users mentioned in message: [{}]
+* User presence info: [{}]
 <</context>>",
         referenced_message_preview, mentions_bot, user_mentions, user_presence
     );
@@ -106,7 +106,7 @@ fn format_message_content_with_bot_id(
             "[Message ID: {}] [{}] {}: [Attachment: {}]",
             message_id,
             timestamp_str.unwrap_or_else(|| "N/A".to_string()),
-            author_name,
+            format!("{} (@{})", author_name, msg.author.id),
             msg.attachments
                 .iter()
                 .map(|a| a.filename.as_str())
