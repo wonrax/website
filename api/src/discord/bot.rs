@@ -1,6 +1,6 @@
 use crate::discord::{
     channel::{ChannelEvent, ChannelHandle},
-    constants::WHITELIST_CHANNELS,
+    constants::{MESSAGE_CONTEXT_SIZE, WHITELIST_CHANNELS},
     message::QueuedMessage,
 };
 use arc_swap::ArcSwap;
@@ -68,8 +68,16 @@ impl DiscordEventHandler {
 
         for channel_id in &self.whitelist_channels {
             let channel_id = *channel_id;
-            // Check if channel has recent activity (messages in the last hour)
-            match self.has_recent_activity(ctx, channel_id).await {
+
+            // In mention-only mode, check if bot was mentioned in recent messages
+            // In auto mode, check if channel has recent activity (messages in the last hour)
+            let should_process = if self.discord_bot_mention_only {
+                self.has_recent_mention(ctx, channel_id).await
+            } else {
+                self.has_recent_activity(ctx, channel_id).await
+            };
+
+            match should_process {
                 Ok(true) => {
                     self.get_or_create_channel(channel_id, ctx.clone())
                         .send_event(ChannelEvent::ForceProcess)
@@ -84,11 +92,24 @@ impl DiscordEventHandler {
                         })?;
                 }
                 Ok(false) => {
-                    tracing::debug!("Skipping channel {} - no recent activity", channel_id);
+                    tracing::debug!(
+                        "Skipping channel {} - no recent {}",
+                        channel_id,
+                        if self.discord_bot_mention_only {
+                            "mentions"
+                        } else {
+                            "activity"
+                        }
+                    );
                 }
                 Err(e) => {
                     tracing::error!(
-                        "Failed to check recent activity for channel {}: {}",
+                        "Failed to check recent {} for channel {}: {}",
+                        if self.discord_bot_mention_only {
+                            "mentions"
+                        } else {
+                            "activity"
+                        },
                         channel_id,
                         e
                     );
@@ -98,6 +119,47 @@ impl DiscordEventHandler {
 
         tracing::info!("Channel initialization complete");
         Ok(())
+    }
+
+    /// Check if a channel has a recent mention of the bot or a reply to the bot
+    /// in the last MESSAGE_CONTEXT_SIZE messages
+    #[instrument(skip(self, ctx))]
+    async fn has_recent_mention(
+        &self,
+        ctx: &Context,
+        channel_id: ChannelId,
+    ) -> Result<bool, eyre::Error> {
+        use serenity::futures::StreamExt;
+
+        let bot_user_id = self.bot_user_id.load();
+        let bot_id = match bot_user_id.as_ref() {
+            Some(id) => *id,
+            None => return Ok(false),
+        };
+
+        let has_mention = channel_id
+            .messages_iter(&ctx.http)
+            .take(MESSAGE_CONTEXT_SIZE)
+            .any(|msg_result| async move {
+                match msg_result {
+                    Ok(msg) => {
+                        // Check if message mentions the bot
+                        let mentions_bot = msg.mentions.iter().any(|user| user.id == bot_id);
+
+                        // Check if message is replying to a bot message
+                        let replying_to_bot = msg
+                            .referenced_message
+                            .as_ref()
+                            .is_some_and(|replied_msg| replied_msg.author.id == bot_id);
+
+                        mentions_bot || replying_to_bot
+                    }
+                    Err(_) => false,
+                }
+            })
+            .await;
+
+        Ok(has_mention)
     }
 
     /// Check if a channel has recent activity (messages within the last hour)
