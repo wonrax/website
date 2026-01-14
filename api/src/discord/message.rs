@@ -118,7 +118,7 @@ fn format_message_content_with_bot_id(
             "[Message ID: {}] [{}] {}: {}",
             message_id,
             timestamp_str.unwrap_or_else(|| "N/A".to_string()),
-            author_name,
+            format!("{} (@{})", author_name, msg.author.id),
             msg.content
         )
     };

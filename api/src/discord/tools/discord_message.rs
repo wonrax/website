@@ -1,7 +1,7 @@
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use serenity::all::{ChannelId, Context, CreateMessage};
+use serenity::all::{ChannelId, Context, CreateMessage, MessageId};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -14,12 +14,9 @@ pub struct DiscordSendMessageTool {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiscordSendMessageArgs {
     pub content: String,
-    /// Message ID to reply to (if reply is true). If not provided, replies to the most recent message.
-    /// Uses float to accommodate JSON number type to side-step this error:
-    /// Toolset error: ToolCallError: ToolCallError: JsonError: invalid type: floating point
-    /// `1.4601911394024858e+18`, expected u64 at line 1 column 691
+
     #[serde(default)]
-    pub reply_to_message_id: Option<f64>,
+    pub reply_to_message_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,7 +49,7 @@ impl Tool for DiscordSendMessageTool {
                         "description": "The message content to send"
                     },
                     "reply_to_message_id": {
-                        "type": "number",
+                        "type": "string",
                         "description": "The Discord message ID to reply to."
                     }
                 },
@@ -71,10 +68,18 @@ impl Tool for DiscordSendMessageTool {
         let handle = tokio::spawn(async move {
             let mut message_builder = CreateMessage::new().content(&content);
 
-            if let Some(target_message_id) = args.reply_to_message_id
+            if let Some(reply_to_message_id) = args.reply_to_message_id
+                && let Some(target_message_id) = reply_to_message_id.parse::<u64>().ok()
                 && let Ok(original_msg) = channel_id
-                    .message(&ctx.http, target_message_id as u64)
+                    .message(&ctx.http, MessageId::new(target_message_id))
                     .await
+                    .inspect_err(|e| {
+                        tracing::error!(
+                            "Failed to fetch original message with ID {}: {}",
+                            target_message_id,
+                            e
+                        )
+                    })
             {
                 message_builder = message_builder.reference_message(&original_msg);
             }
