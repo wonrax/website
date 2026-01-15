@@ -11,7 +11,6 @@ const blog = defineCollection({
     updated: z.string().optional(),
     tags: z.array(z.string()),
     slug: z.string().optional(),
-    legacyPath: z.string().optional(),
     isDraft: z.boolean().optional(),
     hidden: z.boolean().optional(),
     ogImageUrl: z.string().optional(),
