@@ -38,7 +38,7 @@
     "remark-math": "^6.0.0",
     "remarkable": "^2.0.1",
     "sass": "^1.89.2",
-    "satori": "^0.15.2",
+    "satori": "^0.18.3",
     "sharp": "^0.34.2",
     "solid-js": "^1.9.7",
     "solid-sonner": "^0.2.8",

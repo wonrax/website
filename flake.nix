@@ -40,16 +40,15 @@
         # Use crane with the latest stable toolchain for reproducible builds
         craneLib = (crane.mkLib pkgs).overrideToolchain (p: p.rust-bin.stable.latest.default);
 
-        # Prisma engines for NixOS (no upstream binaries). On non-NixOS, prisma will download engines.
-        prisma =
-          (prisma-utils.lib.prisma-factory {
-            inherit pkgs;
-            prisma-fmt-hash = "sha256-CRxh1NftBvR6mRl9DugLkCvOSqQ3jdcpPw3HUXpJi6I=";
-            query-engine-hash = "sha256-64AcHjA07mSFQJ4ZbazorXCOzlK6TIlYXPABj/Wu4Ck=";
-            libquery-engine-hash = "sha256-vJcVAP+RWOIh7fgeHSL8Zq33IgrTLZlOggku+QnKT2E=";
-            schema-engine-hash = "sha256-0cCQsDinecDuvVRxdXEMo+yZWbJBsXpTeZl3i3yI4Cc=";
-          }).fromNpmLock
-            ./package-lock.json;
+        prisma = prisma-utils.lib.prisma-factory {
+          inherit pkgs;
+          hash =
+            if pkgs.stdenv.hostPlatform.isLinux then
+              "sha256-c3ryuV+IG2iumFPOBdcEgF0waa+KGrn7Ken2CRuupwg="
+            else
+              "sha256-PBsKvHfrF8AuSbRr3gHGPpouEBtThd7rEMLNZmOd0Ts=";
+          npmLock = ./package-lock.json;
+        };
 
         rustToolchain = pkgs.rust-bin.stable.latest.default.override {
           extensions = [
@@ -141,23 +140,62 @@
           };
         };
 
-        packages.schemaMigrator = pkgs.stdenv.mkDerivation {
-          name = "schema-migrator";
-          src = ./.;
+        # FIXME: bloated image due to node_modules inclusion, find a way to
+        # slim it down
+        packages.schemaMigrator =
+          let
+            prismaWrapped = pkgs.writeScriptBin "prisma" ''
+              #!${pkgs.bash}/bin/sh
+              # export every env in prisma.env to environment
+              ${pkgs.lib.concatMapStringsSep "\n" (env: "export ${env}") (
+                pkgs.lib.mapAttrsToList (n: v: "${n}='${v}'") prisma.env
+              )}
+              exec ./node_modules/.bin/prisma "$@"
+            '';
+          in
+          pkgs.buildNpmPackage {
+            name = "schema-migrator";
+            src = pkgs.lib.fileset.toSource {
+              root = ./.;
+              fileset = pkgs.lib.fileset.unions [
+                ./prisma
+                ./prisma.config.ts
+                ./package.json
+                ./package-lock.json
+              ];
+            };
 
-          installPhase = ''
-            mkdir -p $out
-            cp -r prisma $out
-          '';
-        };
+            npmDeps = pkgs.importNpmLock { npmRoot = ./.; };
+            npmConfigHook = pkgs.importNpmLock.npmConfigHook;
+            npmWorkspace = ./.;
+            dontNpmBuild = true;
+            dontCheckForBrokenSymlinks = true;
+
+            buildInputs = [ pkgs.openssl ];
+
+            installPhase = ''
+              mkdir -p $out
+              cp -r prisma $out/
+              cp -r prisma.config.ts $out/
+              cp -r node_modules $out
+              cp -r ${prismaWrapped}/bin $out/
+            '';
+
+            doInstallCheck = true;
+            installCheckPhase = ''
+              cd $out
+              DATABASE_URL=hehe ${prismaWrapped}/bin/prisma validate
+            '';
+          };
 
         packages.dockerSchemaMigrator = pkgs.dockerTools.buildLayeredImage {
           name = "ghcr.io/wonrax/wrx-sh-migrator";
           tag = "latest";
-          contents = with pkgs; [ nodejs_22 ];
+          contents = [ packages.schemaMigrator ];
           config = {
+            Env = (pkgs.lib.mapAttrsToList (n: v: "${n}=${v}") prisma.env);
             Cmd = [
-              "${pkgs.lib.getExe pkgs.prisma}"
+              "prisma"
               "migrate"
               "deploy"
             ];
@@ -171,6 +209,8 @@
         devShells.default =
           with pkgs;
           mkShell {
+            env = prisma.env;
+
             nativeBuildInputs = [
               diesel-cli
               rustToolchain
@@ -184,9 +224,6 @@
 
             RUST_SRC_PATH = "${rustToolchain}/lib/rustlib/src/rust/library";
             inherit LIBCLANG_PATH;
-
-            # Only needed on NixOS
-            shellHook = if system == "x86_64-linux" then prisma.shellHook else "";
           };
       }
     );

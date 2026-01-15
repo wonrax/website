@@ -5,6 +5,8 @@ services:
       service: database
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
+      - POSTGRES_USER=postgres
+    network_mode: host
     volumes:
-      - ./.mount/postgres-db:/var/lib/postgresql/data
+      - ./.mount/postgres-db:/var/lib/postgresql
 
