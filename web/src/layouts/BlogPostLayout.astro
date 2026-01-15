@@ -11,8 +11,9 @@ export type Frontmatter = {
   title: string;
   description: string;
   published: string;
-  updated: string;
+  updated?: string;
   tags: string[];
+  slug?: string;
   isDraft?: boolean;
   hidden?: boolean;
   ogImageUrl?: string;
@@ -24,13 +25,23 @@ export type Heading = {
   depth: number;
 };
 
+export type SeriesInfo = {
+  title: string;
+  description?: string | null;
+  posts: { title: string; slug: string }[];
+  position: number;
+  total: number;
+};
+
 type Props = {
   frontmatter: Frontmatter;
   headings: Heading[];
+  series?: SeriesInfo | null;
 };
 
 const post = Astro.props.frontmatter;
 const headings = Astro.props.headings;
+const series = Astro.props.series;
 ---
 
 <BlogRouteLayout
@@ -69,7 +80,7 @@ const headings = Astro.props.headings;
       {
         post.tags &&
           post.tags.map((tag) => (
-            <a href={`/blog/tag/${tag}`} class="post-tag">
+            <a href={`/tag/${tag}`} class="post-tag">
               #{tag}
             </a>
           ))
@@ -79,6 +90,26 @@ const headings = Astro.props.headings;
       <MessagesSquare size={16} strokeWidth={1.5} />
       View discussions
     </Sheet.Trigger>
+    {
+      series ? (
+        <div class="series-callout">
+          <p class="series-position">
+            Series / Part {series.position} of {series.total}
+          </p>
+          <p class="series-title">{series.title}</p>
+          {series.description ? (
+            <p class="series-description">{series.description}</p>
+          ) : null}
+          <ol class="series-list">
+            {series.posts.map((entry, index) => (
+              <li class={index === series.position - 1 ? "is-current" : ""}>
+                <a href={`/${entry.slug}`}>{entry.title}</a>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null
+    }
   </div>
   {
     post.isDraft ? (
@@ -455,6 +486,70 @@ const headings = Astro.props.headings;
     margin-left: 0;
     margin-top: 16px;
     margin-bottom: 16px;
+
+    .series-callout {
+      margin-top: 16px;
+      padding: 16px 16px 8px 16px;
+      border-radius: 12px;
+      background-color: var(--bg-additive-lighter);
+      border: 1px solid var(--bg-additive-light);
+
+      p {
+        color: var(--text-body-medium);
+        font-size: 13px;
+        margin: 0 0;
+      }
+
+      .series-title {
+        font-weight: var(--font-weight-semibold);
+        color: var(--text-heading);
+        margin: 0 0 4px;
+        font-size: 17px;
+      }
+
+      .series-description {
+        margin: 0 0 8px;
+        color: var(--text-body-medium);
+        font-size: 14px;
+      }
+
+      .series-position {
+        margin: 0 0 2px;
+        color: var(--text-body-medium);
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .series-list {
+        list-style-position: inside;
+        padding: 0;
+        margin: 8px -8px 0 -8px;
+      }
+
+      .series-list li {
+        margin: 0;
+        padding: 6px 8px;
+        border-radius: 8px;
+        font-size: 15px;
+        color: var(--text-body-medium);
+      }
+
+      .series-list li.is-current {
+        background-color: var(--bg-additive-light);
+        color: var(--text-body-heavy);
+        font-weight: var(--font-weight-medium);
+      }
+
+      .series-list a {
+        color: inherit;
+        text-decoration: none;
+
+        &:hover {
+          text-decoration: underline;
+        }
+      }
+    }
 
     h1 {
       font-size: 28px;

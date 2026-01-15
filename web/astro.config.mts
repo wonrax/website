@@ -2,18 +2,14 @@ import mdx from "@astrojs/mdx";
 import react from "@astrojs/react";
 import remarkCalloutDirectives from "@microflash/remark-callout-directives";
 import { defineConfig, sharpImageService } from "astro/config";
-import path, { dirname } from "path";
 import rehypeKatex from "rehype-katex";
 import rehypePrettyCode from "rehype-pretty-code";
 import remarkDirective from "remark-directive";
 import remarkMath from "remark-math";
-import { fileURLToPath } from "url";
 import rehypeBlogPost from "./plugins/rehypeBlogPost";
 import { remarkDirectiveHtml } from "./plugins/remarkDirective";
 import remarkResponsiveImage from "./plugins/remarkResponsiveImage";
 import solid from "@astrojs/solid-js";
-
-const DIR_NAME = dirname(fileURLToPath(import.meta.url));
 
 const codeHighlightOptions = {
   // Use one of Shiki's packaged themes
@@ -97,11 +93,14 @@ export default defineConfig({
     domains: ["files.wrx.sh", "res.cloudinary.com"],
   },
   vite: {
-    resolve: {
-      alias: {
-        "@": path.resolve(DIR_NAME, "./src"),
+    optimizeDeps: { exclude: ["@resvg/resvg-js"] },
+    server: {
+      proxy: {
+        "/api": {
+          target: "http://localhost:3000",
+          rewrite: (path) => path.replace(/^\/api/, ""),
+        },
       },
     },
-    optimizeDeps: { exclude: ["@resvg/resvg-js"] },
   },
 });

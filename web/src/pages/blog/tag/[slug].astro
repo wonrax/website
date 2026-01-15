@@ -1,41 +1,28 @@
 ---
 import BlogRouteLayout from "@/layouts/BlogRouteLayout.astro";
-import type { Frontmatter } from "@/layouts/BlogPostLayout.astro";
 import "@/layouts/layout.scss";
-import type { GetStaticPathsResult, MarkdownInstance } from "astro";
+import { getCollection, type CollectionEntry } from "astro:content";
+import type { GetStaticPathsResult } from "astro";
+import { getPostSlug } from "@/shared/blog";
 
-const allPosts = Object.values(
-  import.meta.glob<MarkdownInstance<Frontmatter>>("../**/*.mdx", {
-    eager: true,
-  })
-);
+type BlogEntry = CollectionEntry<"blog">;
+
+const allPosts = (await getCollection("blog")) as BlogEntry[];
 
 export async function getStaticPaths(): Promise<GetStaticPathsResult> {
-  const allPosts = import.meta.glob<MarkdownInstance<Frontmatter>>(
-    "../**/*.mdx",
-    {
-      eager: true,
-    }
-  );
+  const allPosts = (await getCollection("blog")) as BlogEntry[];
   const tag = new Set<string>();
-  for (const post of Object.values(allPosts)) {
-    if (post.frontmatter.tags) {
-      for (const t of post.frontmatter.tags) {
-        tag.add(t);
-      }
+  for (const post of allPosts) {
+    for (const t of post.data.tags) {
+      tag.add(t);
     }
   }
 
-  return tag
-    .values()
-    .map((t) => {
-      return {
-        params: {
-          slug: t,
-        },
-      };
-    })
-    .toArray();
+  return Array.from(tag.values()).map((t) => ({
+    params: {
+      slug: t,
+    },
+  }));
 }
 
 const { slug } = Astro.params;
@@ -58,26 +45,25 @@ const { slug } = Astro.params;
     <ul class="article-list">
       {
         allPosts
-          .filter((post) => {
+          .filter((post: BlogEntry) => {
             return (
               slug &&
-              post.frontmatter.tags.includes(String(slug)) &&
+              post.data.tags.includes(String(slug)) &&
               (process.env.NODE_ENV !== "production" ||
-                (!post.frontmatter.isDraft && !post.frontmatter.hidden))
+                (!post.data.isDraft && !post.data.hidden))
             );
           })
-          .sort((a, b) => {
+          .sort((a: BlogEntry, b: BlogEntry) => {
             return (
-              new Date(b.frontmatter.published).getTime() -
-              new Date(a.frontmatter.published).getTime()
+              new Date(b.data.published).getTime() -
+              new Date(a.data.published).getTime()
             );
           })
-          .map((post) => {
+          .map((post: BlogEntry) => {
             return (
               <li
                 class={`article-entry${
-                  post.frontmatter.isDraft === true ||
-                  post.frontmatter.hidden === true
+                  post.data.isDraft === true || post.data.hidden === true
                     ? " hidden"
                     : ""
                 }`}
@@ -91,7 +77,7 @@ const { slug } = Astro.params;
                       gap: "12px",
                     }}
                   >
-                    <a href={post.url}>{post.frontmatter.title}</a>
+                    <a href={`/${getPostSlug(post)}`}>{post.data.title}</a>
                     <hr
                       style={{
                         height: "1px",
@@ -102,7 +88,7 @@ const { slug } = Astro.params;
                       }}
                     />
                     <p class="article-date">
-                      {new Date(post.frontmatter.published).toLocaleDateString(
+                      {new Date(post.data.published).toLocaleDateString(
                         "en-UK",
                         {
                           year: "numeric",
@@ -113,9 +99,7 @@ const { slug } = Astro.params;
                     </p>
                   </div>
                 </div>
-                <p class="article-description">
-                  {post.frontmatter.description}
-                </p>
+                <p class="article-description">{post.data.description}</p>
               </li>
             );
           })
@@ -130,13 +114,15 @@ const { slug } = Astro.params;
     >
       Tags:
       {
-        Array.from(
-          new Set(
-            allPosts
-              .map((post) => post.frontmatter.tags)
-              .flat()
-              .filter((tag) => tag)
-          )
+        (
+          Array.from(
+            new Set(
+              allPosts
+                .map((post: BlogEntry) => post.data.tags)
+                .flat()
+                .filter((tag): tag is string => Boolean(tag))
+            )
+          ) as string[]
         ).map((tag) => {
           return <a href={`/blog/tag/${tag}`}>{tag}</a>;
         })

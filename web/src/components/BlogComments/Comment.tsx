@@ -1,10 +1,11 @@
 import { Remarkable } from "remarkable";
-import { createSignal, For, Show, type JSXElement } from "solid-js";
+import { createSignal, For, Show, type JSXElement, useContext } from "solid-js";
 import { CommentSubmission, CommentEditing } from "./CommentEditor";
 import { type Comment } from "./CommentSection";
 import { User } from "lucide-solid";
 import config from "@/config";
 import { fetchAny } from "@/rpc";
+import CommentContext from "./CommentSectionContext";
 
 // https://gist.github.com/mcraz/11349449
 function timeSince(date: Date): string {
@@ -41,6 +42,12 @@ export default function CommentComponent(props: {
 }): JSXElement {
   // TODO read more on the docs to identify security issues
   // TODO use memo to avoid re-rendering if possible
+  const ctx = useContext(CommentContext);
+
+  if (!ctx?.slug) {
+    throw new Error("slug not found");
+  }
+
   const md = new Remarkable({
     html: false, // Enable HTML tags in source
     xhtmlOut: false, // Use '/' to close single tags (<br />)
@@ -139,7 +146,7 @@ export default function CommentComponent(props: {
                     confirm("Are you sure you want to delete this comment?")
                   ) {
                     fetchAny(
-                      `${config.API_URL}/blog/${"TODO"}/comments/${props.comment.id}`,
+                      `${config.API_URL}/blog/${ctx.slug}/comments/${props.comment.id}`,
                       {
                         method: "DELETE",
                         credentials: "include",

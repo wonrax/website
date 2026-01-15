@@ -1,12 +1,13 @@
 ---
-layout: "../../layouts/BlogPostLayout.astro"
 title: "Blog prelude"
 description: "Turning Markdown into a Swiss Army knife for an absurdly customized blog."
-published: '02 April 2023'
+published: "02 April 2023"
 updated: "25 Jan 2025"
 tags:
   - markdown
   - javascript
+slug: "authoring-in-markdown"
+legacyPath: "authoring-in-markdown"
 ---
 
 Markdown is a pleasure to work with, especially for developers. This is why it
@@ -131,9 +132,10 @@ Local image, supports paths relative to the markdown file:
 ![img](./img.jpg)
 
 Remote image, width and height attributes are required:
-![img](https://share.hhai.dev/IMG_1203.png '#width=1920;height=816')
+![img](https://share.hhai.dev/IMG_1203.png "#width=1920;height=816")
 
 Another way to do remote image, same end result as above:
+
 <img src="https://share.hhai.dev/IMG_1203.png" width="1920" height="816" />
 
 ![img](./img.jpg)
@@ -157,18 +159,15 @@ tend to be wide and require ample horizontal space to display properly. You'll
 need to be on desktop to see the examples below in full effect.
 
 ![Remote image with
-featuretype=sm](https://res.cloudinary.com/dmdgv6qrg/image/upload/v1737782404/hhai.dev%20blog/authoring%20in%20markdown/DSCF2218_myzlaz.jpg
-'#width=2731;height=4096;featuretype=sm')
+featuretype=sm](https://res.cloudinary.com/dmdgv6qrg/image/upload/v1737782404/hhai.dev%20blog/authoring%20in%20markdown/DSCF2218_myzlaz.jpg "#width=2731;height=4096;featuretype=sm")
 Remote image with `featuretype=sm`
 
 ![Remote image with
-featuretype=md](https://res.cloudinary.com/dmdgv6qrg/image/upload/v1737782166/hhai.dev%20blog/authoring%20in%20markdown/DSCF8231_oaf24e.jpg
-'#width=2048;height=1365;featuretype=md')
+featuretype=md](https://res.cloudinary.com/dmdgv6qrg/image/upload/v1737782166/hhai.dev%20blog/authoring%20in%20markdown/DSCF8231_oaf24e.jpg "#width=2048;height=1365;featuretype=md")
 Remote image with `featuretype=md`
 
 ![Remote image with
-featuretype=lg](https://res.cloudinary.com/dmdgv6qrg/image/upload/v1737782228/hhai.dev%20blog/authoring%20in%20markdown/DSCF2194_s5m7rt.jpg
-'#width=4096;height=1743;featuretype=lg')
+featuretype=lg](https://res.cloudinary.com/dmdgv6qrg/image/upload/v1737782228/hhai.dev%20blog/authoring%20in%20markdown/DSCF2194_s5m7rt.jpg "#width=4096;height=1743;featuretype=lg")
 Remote image with `featuretype=lg`
 
 ## Math
@@ -192,4 +191,4 @@ features, I'll revisit this space, editing and documenting those additions.
 Here are the features I want to add in the future:
 
 - **Image zoom**: Similar to the functionality on Medium (using something like
-[react-medium-image-zoom](https://github.com/rpearce/react-medium-image-zoom)).
+  [react-medium-image-zoom](https://github.com/rpearce/react-medium-image-zoom)).

@@ -1,0 +1,63 @@
+---
+import { getCollection, render } from "astro:content";
+import {
+  getSeriesInfo,
+  ensureSeriesConsistency,
+  getPostSlug,
+} from "@/shared/blog";
+import BlogPostLayout from "@/layouts/BlogPostLayout.astro";
+import type { Frontmatter } from "@/layouts/BlogPostLayout.astro";
+import "@/layouts/layout.scss";
+import type { GetStaticPathsResult } from "astro";
+import type { CollectionEntry } from "astro:content";
+
+export async function getStaticPaths(): Promise<GetStaticPathsResult> {
+  const posts = await getCollection("blog");
+  return posts.map((post: CollectionEntry<"blog">) => ({
+    params: { slug: getPostSlug(post) },
+  }));
+}
+
+const { slug } = Astro.params;
+if (!slug) {
+  throw new Error("Missing blog slug.");
+}
+
+const posts = await getCollection("blog");
+const post = posts.find(
+  (entry: CollectionEntry<"blog">) => getPostSlug(entry) === slug
+);
+
+if (!post) {
+  throw new Error(`Missing blog post entry for slug: ${slug}`);
+}
+
+const postSlug = getPostSlug(post);
+
+ensureSeriesConsistency(post);
+
+const { Content, headings } = await render(post);
+
+const postFrontmatter = {
+  ...post.data,
+  slug: postSlug,
+} as Frontmatter;
+
+const seriesInfo = await getSeriesInfo(post);
+
+const layoutMap = {
+  BlogPostLayout,
+} as const;
+
+type LayoutName = keyof typeof layoutMap;
+const layoutName = (post.data.layout ?? "BlogPostLayout") as LayoutName;
+const Layout = layoutMap[layoutName];
+
+if (!Layout) {
+  throw new Error(`Unknown layout: ${layoutName}`);
+}
+---
+
+<Layout frontmatter={postFrontmatter} headings={headings} series={seriesInfo}>
+  <Content />
+</Layout>

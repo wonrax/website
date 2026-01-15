@@ -63,8 +63,9 @@ export default async function getOgImageResponse(
   const resvg = new Resvg(svg);
   const pngData = resvg.render();
   const pngBuffer = pngData.asPng();
+  const pngBytes = new Uint8Array(pngBuffer);
 
-  return new Response(pngBuffer, {
+  return new Response(pngBytes, {
     headers: {
       "Content-Type": "image/png",
     },

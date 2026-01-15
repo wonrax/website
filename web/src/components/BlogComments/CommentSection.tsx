@@ -36,8 +36,10 @@ export interface Comment {
 const fetchComments = createFetch(z.custom<Comment[]>());
 
 export function CommentSection(): JSXElement {
-  // parse slug from url in format /blog/:slug
-  const slug = window.location.pathname.split("/")[2];
+  const slug = window.location.pathname.split("/blog").filter(Boolean).at(0);
+  if (slug == null) {
+    throw new Error("Why are we rendering comments on a non-blog page?");
+  }
 
   // TODO remove the open_comments query string when the sheet is closed
 
