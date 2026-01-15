@@ -1,0 +1,15 @@
+---
+title: "Scaling concurrent processing with strict per-tentant job ordering"
+description: "A SaaS architecture using Rust and RabbitMQ to process jobs concurrently while maintaining strict per-tenant ordering."
+published: "18 January 2026"
+tags:
+  - rust
+  - algo
+  - sql
+seriesId: "scaling-multitenant-processing"
+---
+
+[This](/amqp-channel-pool) discussed optimizing RabbitMQ interactions
+using an AMQP channel pool. In this post, we explore how to maintain strict
+per-tenant job ordering while processing jobs concurrently in a multi-tenant
+SaaS application.
