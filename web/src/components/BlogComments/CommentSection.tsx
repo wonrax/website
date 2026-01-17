@@ -36,7 +36,7 @@ export interface Comment {
 const fetchComments = createFetch(z.custom<Comment[]>());
 
 export function CommentSection(): JSXElement {
-  const slug = window.location.pathname.split("/blog").filter(Boolean).at(0);
+  const slug = window.location.pathname.split("/blog/").filter(Boolean).at(0);
   if (slug == null) {
     throw new Error("Why are we rendering comments on a non-blog page?");
   }
