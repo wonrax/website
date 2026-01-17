@@ -1,5 +1,4 @@
 ---
-layout: "@/layouts/BlogPostLayout.astro"
 title: "Adding comments"
 description: "Nerding out on Rust, SQL, and recursive CTE sorting algorithms."
 published: "28 October 2023"
@@ -8,6 +7,8 @@ tags:
   - rust
   - algo
   - sql
+slug: "adding-comments"
+legacyPath: "adding-comments"
 ---
 
 I'd love to hear other people's opinions on my posts. So I'm adding the ability
@@ -185,7 +186,6 @@ comment in the list. The SQL query employs recursive common table expressions
 (CTEs) for this purpose, ensuring comments are ordered based on their
 hierarchical structure.
 
-
 | parent_id | id  | author_name | content  | root        | level | created_at | upvote |
 | --------- | --- | ----------- | -------- | ----------- | ----- | ---------- | ------ |
 | NULL      | 1   | wonrax      | 1.       | \{1\}       | 0     | 2023-10-25 | 0      |
@@ -209,15 +209,15 @@ Our recursive ranking function receives a list of comments as input and outputs
 a sorted list. Firstly, it will loop through:
 
 - Finding all children of the current comment—this is $O(k)$, where k is the
-number of children of the current comment. We do this by incrementing the index
-until we get a node whose level is less than or equal to the current node's
-level. Call this node `next` and set it aside for now.
+  number of children of the current comment. We do this by incrementing the index
+  until we get a node whose level is less than or equal to the current node's
+  level. Call this node `next` and set it aside for now.
 
 - We then recursively call our function with all of its children, which returns
-the sorted children.
+  the sorted children.
 
 - We skip to the `next` node and repeat the process or stop if we reach the end
-of the list.
+  of the list.
 
 After we sort all children of our top-level comments, we need to sort the
 top-level comments themselves. While finding the next top-level nodes, we also
@@ -534,5 +534,5 @@ fn depth_first_search(
     }
 }
 ```
-</CodeGroup>
 
+</CodeGroup>

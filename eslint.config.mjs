@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import js from "@eslint/js";
 import { FlatCompat } from "@eslint/eslintrc";
+import { globalIgnores } from "eslint/config";
 import gitignore from "eslint-config-flat-gitignore";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,10 +20,9 @@ const compat = new FlatCompat({
 export default [
   gitignore({
     files: [".gitignore", "web/.gitignore"],
+    strict: false,
   }),
-  {
-    ignores: [".prettierrc.js"],
-  },
+  globalIgnores([".prettierrc.js"]),
   js.configs.recommended,
   ...compat.extends("plugin:prettier/recommended"),
   ...tseslint.configs.recommended,

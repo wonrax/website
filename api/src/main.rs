@@ -132,7 +132,9 @@ async fn main() {
     };
 
     tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or("info".into()))
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or("warn,api=info".into()),
+        )
         .with(json)
         .with(pretty)
         .with(json_span)
@@ -217,14 +219,16 @@ async fn main() {
                         matched_path,
                     )
                 })
-                .on_response(|_response: &Response, _latency: Duration, _span: &Span| {
-                    if !_response.status().is_server_error() {
-                        debug!(
-                            time = ?_latency,
-                            status = ?_response.status(),
-                            "response",
-                        );
-                    }
+                .on_response(|response: &Response, latency: Duration, _span: &Span| {
+                    debug!(
+                        time = ?latency,
+                        status = ?response.status(),
+                        path = response
+                            .extensions()
+                            .get::<MatchedPath>()
+                            .map(MatchedPath::as_str),
+                        "response",
+                    );
                 })
                 .on_failure(
                     |_error: ServerErrorsFailureClass, _latency: Duration, _span: &Span| {

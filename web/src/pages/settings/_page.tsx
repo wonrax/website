@@ -68,7 +68,6 @@ export default function AccountInfo(): JSXElement {
                 xmlns="http://www.w3.org/2000/svg"
                 height="32px"
                 width="32px"
-                version="1.1"
                 viewBox="0 0 168 168"
               >
                 <path
@@ -111,7 +110,6 @@ export default function AccountInfo(): JSXElement {
               height="32"
               aria-hidden="true"
               viewBox="0 0 16 16"
-              version="1.1"
               width="32"
               data-view-component="true"
               fill="currentcolor"

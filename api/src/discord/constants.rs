@@ -1,7 +1,7 @@
 use const_format::formatcp;
 use std::time::Duration;
 
-pub const WHITELIST_CHANNELS: [u64; 2] = [1133997981637554188, 1119652436102086809];
+pub const WHITELIST_CHANNELS: [u64; 0] = [];
 
 pub const MESSAGE_CONTEXT_SIZE: usize = 20; // Number of previous messages to load for context
 pub const MESSAGE_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(15); // delay to collect messages

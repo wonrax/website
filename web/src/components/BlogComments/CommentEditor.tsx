@@ -182,6 +182,7 @@ export function CommentEditorBase(props: {
   let editor: OverType;
 
   createEffect(() => {
+    // @ts-expect-error Overtype has not been typed yet
     [editor] = new OverType(`#${editorId}`, {
       showStats: true,
       autoResize: true,

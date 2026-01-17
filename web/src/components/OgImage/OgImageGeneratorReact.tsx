@@ -13,7 +13,7 @@ interface Props {
 
 export default async function OgImage(
   props: Props
-): Promise<React.ReactElement<any, string | React.JSXElementConstructor<any>>> {
+): Promise<React.ReactElement> {
   return (
     <div
       style={{
@@ -43,7 +43,7 @@ export default async function OgImage(
             letterSpacing: "-0.035em",
             margin: "0px",
             fontSize: props.description != null ? 64 : 96,
-            lineHeight: 1.4,
+            lineHeight: 1.2,
             color: "#333",
             fontWeight: 500,
           }}
@@ -53,15 +53,30 @@ export default async function OgImage(
         {props.description != null ? (
           <p
             style={{
-              margin: "0",
-              color: "#777",
+              margin: "1em 0 0 0",
+              color: "#999",
               lineHeight: 1.3,
-              fontSize: 48,
+              fontSize: 36,
               letterSpacing: "-0.035em",
               fontWeight: 500,
             }}
           >
             {props.description}
+          </p>
+        ) : null}
+        <div style={{ flexGrow: 1 }}></div>
+        {import.meta.env.SITE ? (
+          <p
+            style={{
+              margin: "0.5em 0 0 0",
+              color: "#333",
+              lineHeight: 1.2,
+              fontSize: 48,
+              letterSpacing: "-0.025em",
+              fontWeight: 500,
+            }}
+          >
+            {import.meta.env.SITE.replace(/^https?:\/\//, "")}
           </p>
         ) : null}
       </div>

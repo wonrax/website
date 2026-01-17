@@ -104,7 +104,7 @@ export default function rehypeBlogPost() {
       ) as MdxJsxAttribute | undefined;
 
       if (featureTypeAttr?.value == null) {
-        wrapQueue.push(h("figure", [imgNodesParent as any]));
+        wrapQueue.push(h("figure", [imgNodesParent]));
         continue;
       }
 
@@ -117,7 +117,7 @@ export default function rehypeBlogPost() {
         h(
           "figure",
           { class: ["feature", "feature-" + featureTypeAttr.value] },
-          [imgNodesParent as any]
+          [imgNodesParent]
         )
       );
     }

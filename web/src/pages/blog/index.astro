@@ -1,14 +1,12 @@
 ---
 import BlogRouteLayout from "@/layouts/BlogRouteLayout.astro";
-import type { Frontmatter } from "@/layouts/BlogPostLayout.astro";
 import "@/layouts/layout.scss";
-import type { MarkdownInstance } from "astro";
+import { getPostSlug } from "@/shared/blog";
+import { getCollection, type CollectionEntry } from "astro:content";
 
-const allPosts = Object.values(
-  import.meta.glob<MarkdownInstance<Frontmatter>>("./**/*.mdx", {
-    eager: true,
-  })
-);
+type BlogEntry = CollectionEntry<"blog">;
+
+const allPosts = (await getCollection("blog")) as BlogEntry[];
 ---
 
 <BlogRouteLayout seoProps={{ title: "blog index", description: "blog index" }}>
@@ -17,25 +15,23 @@ const allPosts = Object.values(
     <ul class="article-list">
       {
         allPosts
-          .filter((post) => {
+          .filter((post: BlogEntry) => {
             return (
               process.env.NODE_ENV !== "production" ||
-              (post.frontmatter.isDraft !== true &&
-                post.frontmatter.hidden !== true)
+              (post.data.isDraft !== true && post.data.hidden !== true)
             );
           })
-          .sort((a, b) => {
+          .sort((a: BlogEntry, b: BlogEntry) => {
             return (
-              new Date(b.frontmatter.published).getTime() -
-              new Date(a.frontmatter.published).getTime()
+              new Date(b.data.published).getTime() -
+              new Date(a.data.published).getTime()
             );
           })
-          .map((post) => {
+          .map((post: BlogEntry) => {
             return (
               <li
                 class={`article-entry${
-                  post.frontmatter.isDraft === true ||
-                  post.frontmatter.hidden === true
+                  post.data.isDraft === true || post.data.hidden === true
                     ? " hidden"
                     : ""
                 }`}
@@ -49,7 +45,7 @@ const allPosts = Object.values(
                       gap: "12px",
                     }}
                   >
-                    <a href={post.url}>{post.frontmatter.title}</a>
+                    <a href={`/blog/${getPostSlug(post)}`}>{post.data.title}</a>
                     <hr
                       style={{
                         height: "1px",
@@ -59,7 +55,7 @@ const allPosts = Object.values(
                       }}
                     />
                     <p class="article-date">
-                      {new Date(post.frontmatter.published).toLocaleDateString(
+                      {new Date(post.data.published).toLocaleDateString(
                         "en-UK",
                         {
                           year: "numeric",
@@ -70,9 +66,7 @@ const allPosts = Object.values(
                     </p>
                   </div>
                 </div>
-                <p class="article-description">
-                  {post.frontmatter.description}
-                </p>
+                <p class="article-description">{post.data.description}</p>
               </li>
             );
           })
@@ -87,13 +81,15 @@ const allPosts = Object.values(
     >
       Tags:
       {
-        Array.from(
-          new Set(
-            allPosts
-              .map((post) => post.frontmatter.tags)
-              .flat()
-              .filter((tag) => tag)
-          )
+        (
+          Array.from(
+            new Set(
+              allPosts
+                .map((post: BlogEntry) => post.data.tags)
+                .flat()
+                .filter((tag): tag is string => Boolean(tag))
+            )
+          ) as string[]
         ).map((tag) => {
           return <a href={`/blog/tag/${tag}`}>{tag}</a>;
         })
