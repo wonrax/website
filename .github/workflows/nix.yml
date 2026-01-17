@@ -56,9 +56,9 @@ jobs:
         uses: nix-community/cache-nix-action@v6
         with:
           # restore and save a cache using this key
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock', '**/Cargo.lock', '**/package-lock.json') }}
+          primary-key: nix-${{ runner.os }}-${{ inputs.build-command }}-${{ hashFiles('**/*.nix', '**/flake.lock', '**/Cargo.lock', '**/package-lock.json') }}
           # if there's no cache hit, restore a cache by this prefix
-          restore-prefixes-first-match: nix-${{ runner.os }}-
+          restore-prefixes-first-match: nix-${{ runner.os }}-${{ inputs.build-command }}-
           # collect garbage until the Nix store size (in bytes) is at most this number
           # before trying to save a new cache
           # 1G = 1073741824
