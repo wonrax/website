@@ -77,7 +77,7 @@ const { slug } = Astro.params;
                       gap: "12px",
                     }}
                   >
-                    <a href={`/${getPostSlug(post)}`}>{post.data.title}</a>
+                    <a href={`/blog/${getPostSlug(post)}`}>{post.data.title}</a>
                     <hr
                       style={{
                         height: "1px",

@@ -143,8 +143,9 @@ function markBannerDismissed(content: string): void {
 }
 
 export default function GlobalBanner(props: Props): JSXElement {
+  const initialBannerData = () => props.bannerData || null;
   const [bannerData, setBannerData] = createSignal<BannerPayload | null>(
-    props.bannerData || null
+    initialBannerData()
   );
   const [isDismissed, setIsDismissed] = createSignal(false);
 
@@ -223,6 +224,7 @@ export default function GlobalBanner(props: Props): JSXElement {
         <div class="global-banner__content">
           <div
             class="global-banner__text"
+            // eslint-disable-next-line solid/no-innerhtml
             innerHTML={md.render(bannerData()!.content)}
           />
           <button

@@ -80,7 +80,7 @@ const series = Astro.props.series;
       {
         post.tags &&
           post.tags.map((tag) => (
-            <a href={`/tag/${tag}`} class="post-tag">
+            <a href={`/blog/tag/${tag}`} class="post-tag">
               #{tag}
             </a>
           ))
@@ -103,7 +103,7 @@ const series = Astro.props.series;
           <ol class="series-list">
             {series.posts.map((entry, index) => (
               <li class={index === series.position - 1 ? "is-current" : ""}>
-                <a href={`/${entry.slug}`}>{entry.title}</a>
+                <a href={`/blog/${entry.slug}`}>{entry.title}</a>
               </li>
             ))}
           </ol>
@@ -514,7 +514,7 @@ const series = Astro.props.series;
       }
 
       .series-position {
-        margin: 0 0 2px;
+        margin: 0;
         color: var(--text-body-medium);
         font-size: 13px;
         text-transform: uppercase;

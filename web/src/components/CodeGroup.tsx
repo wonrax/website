@@ -6,7 +6,7 @@ import {
   Show,
 } from "solid-js";
 
-export default function CodeGroup(props: { children: any }): JSXElement {
+export default function CodeGroup(props: { children: JSXElement }): JSXElement {
   const [hydrated, setHydrated] = createSignal(false);
   const titles: string[] = [];
   const [currentSlide, setCurrentSlide] = createSignal<number>(0);
@@ -44,6 +44,13 @@ export default function CodeGroup(props: { children: any }): JSXElement {
     }
   });
 
+  const hydratedChildren = () => {
+    if (props.children instanceof HTMLElement) {
+      return Array.from(props.children.children);
+    }
+    return [] as Element[];
+  };
+
   return (
     <>
       <Show when={!hydrated()}>{props.children}</Show>
@@ -67,7 +74,7 @@ export default function CodeGroup(props: { children: any }): JSXElement {
             </For>
           </div>
           {/* {...props.children.children} */}
-          <For each={props.children.children}>
+          <For each={hydratedChildren()}>
             {(child, index) => (
               <div
                 style={
@@ -76,7 +83,7 @@ export default function CodeGroup(props: { children: any }): JSXElement {
                     : { display: "none" }
                 }
               >
-                <For each={child.children}>{(child) => child}</For>
+                <For each={Array.from(child.children)}>{(child) => child}</For>
               </div>
             )}
           </For>

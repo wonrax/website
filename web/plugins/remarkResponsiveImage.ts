@@ -1,7 +1,7 @@
 import type { Options as AcornOpts } from "acorn";
 import type { Program } from "estree";
 import { parse } from "acorn";
-import type { Image } from "mdast";
+import type { Image, Root } from "mdast";
 import type {
   MdxJsxFlowElement,
   MdxjsEsm,
@@ -15,7 +15,7 @@ import { visit } from "unist-util-visit";
 // responsive by default. It also allows for custom attributes to be passed
 // to the image component via the title attribute.
 export default function remarkResponsiveImage() {
-  return (tree: any) => {
+  return (tree: Root) => {
     // TODO the logic to handle local images is not updated with remote images
     // e.g. appending the rest of parent's children into this node
     // please fix by code sharing and refactoring, otherwise using local images
@@ -69,10 +69,9 @@ export default function remarkResponsiveImage() {
             value: node.alt ?? "", // TODO if the alt is null, find the nearest text node and use it as alt
           },
         ],
-        children: [
-          // append the rest of parent's children into this node
-          ...(index == null ? [] : parent.children.slice(index + 1)),
-        ],
+        children: (parent?.children
+          ? parent.children.slice(index == null ? 0 : index + 1)
+          : []) as MdxJsxFlowElement["children"],
       };
 
       if (node.title != null) {
@@ -92,8 +91,11 @@ export default function remarkResponsiveImage() {
       // Replace the image node with the new component
       // and ignore the rest of parent's children since they're already appended
       // to the new component
-      if (index != null) parent.children = [componentElement];
-      else console.warn("index is null");
+      if (index != null && parent != null) {
+        parent.children = [componentElement];
+      } else {
+        console.warn("index is null");
+      }
     });
 
     tree.children.unshift(

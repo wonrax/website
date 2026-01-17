@@ -13,7 +13,7 @@ interface Props {
 
 export default async function OgImage(
   props: Props
-): Promise<React.ReactElement<any, string | React.JSXElementConstructor<any>>> {
+): Promise<React.ReactElement> {
   return (
     <div
       style={{

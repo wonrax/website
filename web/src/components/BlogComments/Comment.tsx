@@ -68,11 +68,15 @@ export default function CommentComponent(props: {
     // },
   });
 
+  /* eslint-disable-next-line solid/reactivity --
+   * Initial content only, not used for reactivity */
   const [content, setContent] = createSignal(props.comment.content);
 
   const [isReplying, setIsReplying] = createSignal(false);
   const [isEditing, setIsEditing] = createSignal(false);
 
+  /* eslint-disable-next-line solid/reactivity --
+   * Initial content only, not used for reactivity */
   const [children, setChildren] = createSignal(props.comment.children);
 
   return (
@@ -118,7 +122,7 @@ export default function CommentComponent(props: {
         <div
           class="comment-content"
           // See above for safety concerns
-
+          // eslint-disable-next-line solid/no-innerhtml
           innerHTML={md.render(content())}
         />
       </Show>
@@ -152,6 +156,8 @@ export default function CommentComponent(props: {
                         credentials: "include",
                       }
                     )
+                      /* eslint-disable-next-line solid/reactivity --
+                       * Not used for reactivity, onDelete won't change */
                       .then(async (res) => {
                         if (!res.ok) {
                           const err = await res.error();
