@@ -5,6 +5,7 @@ use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 use serde_json::Value;
 use std::sync::Arc;
 use thiserror::Error;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::config::VectorDbConfig;
@@ -36,7 +37,7 @@ pub struct VectorClientError(String);
 /// Shared vector database client with common functionality
 pub struct VectorClient {
     client: ChromaClient,
-    embedding_model: TextEmbedding,
+    embedding_model: Mutex<TextEmbedding>,
     config: VectorDbConfig,
 }
 
@@ -66,7 +67,7 @@ impl VectorClient {
 
         Ok(Self {
             client,
-            embedding_model,
+            embedding_model: Mutex::new(embedding_model),
             config,
         })
     }
@@ -108,6 +109,8 @@ impl VectorClient {
         // Generate embeddings
         let embeddings = self
             .embedding_model
+            .lock()
+            .await
             .embed(vec![information], None)
             .map_err(|e| VectorClientError(format!("Failed to generate embeddings: {}", e)))?;
 
@@ -155,6 +158,8 @@ impl VectorClient {
         // Generate embeddings for the new content
         let embeddings = self
             .embedding_model
+            .lock()
+            .await
             .embed(vec![information], None)
             .map_err(|e| VectorClientError(format!("Failed to generate embeddings: {}", e)))?;
 
@@ -232,9 +237,14 @@ impl VectorClient {
             }
         };
 
-        let embeddings = self.embedding_model.embed(vec![query], None).map_err(|e| {
-            VectorClientError(format!("Failed to generate query embeddings: {}", e))
-        })?;
+        let embeddings = self
+            .embedding_model
+            .lock()
+            .await
+            .embed(vec![query], None)
+            .map_err(|e| {
+                VectorClientError(format!("Failed to generate query embeddings: {}", e))
+            })?;
 
         let query_embedding = embeddings
             .first()

@@ -38,7 +38,7 @@ article_scraper = "2.1.2"
 url = "2.5.4"
 rig-core = { git = "https://github.com/0xPlaygrounds/rig" }
 chromadb = "2.2.2"
-fastembed = "4.9.1"
+fastembed = "=5.8.0" # 5.8.1 has linking problems on macos
 uuid = { version = "1.17.0", features = ["v4"] }
 arc-swap = "1.7.1"
 scc = "3.4.2"
@@ -50,4 +50,3 @@ criterion = "0.5.1"
 [[bench]]
 name = "blog_comments"
 harness = false
-
