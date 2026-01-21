@@ -81,6 +81,9 @@
               buildInputs = with pkgs; [
                 openssl
                 libxml2
+
+                # ort and fastembed
+                onnxruntime
               ];
               nativeBuildInputs = with pkgs; [
                 pkg-config
