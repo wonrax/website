@@ -12,7 +12,7 @@ retainer = "0.4.0"
 dotenv = "0.15.0"
 futures-util = "0.3.30"
 chrono = { version = "0.4.38", features = ["serde"] }
-serde = "1.0.210"
+serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0"
 rand = "0.8.5"
 mimalloc = "0.1.43"
@@ -43,6 +43,13 @@ uuid = { version = "1.17.0", features = ["v4"] }
 arc-swap = "1.7.1"
 scc = "3.4.2"
 async-trait = "0.1.89"
+governor = "0.10.4"
+html-to-markdown-rs = "2.23.4"
+pgvector = { version = "0.4.1", features = ["diesel", "serde"] }
+robotxt = "0.6.1"
+text-splitter = { version = "0.28.0", features = ["markdown"] }
+tokio-stream = { version = "0.1.18", features = ["sync"] }
+deadpool-runtime = { version = "0.1.4", features = ["tokio_1"] }
 
 [dev-dependencies]
 criterion = "0.5.1"

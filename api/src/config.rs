@@ -25,6 +25,7 @@ pub struct ServerConfig {
     pub openai_api_key: Option<String>,
     pub raindrop_api_token: Option<String>,
     pub vector_db: Option<VectorDbConfig>,
+    pub recommender_raindrop_collections: Vec<RecommenderRaindropCollection>,
 }
 
 #[derive(Clone)]
@@ -45,6 +46,13 @@ pub struct VectorDbConfig {
     pub token: String,
     pub database: String,
     pub default_collection: Option<String>,
+}
+
+#[derive(Clone)]
+pub struct RecommenderRaindropCollection {
+    pub collection_id: String,
+    pub name: String,
+    pub weight: f32,
 }
 
 fn var(key: &str) -> Result<Option<String>, String> {
@@ -152,6 +160,36 @@ impl ServerConfig {
                 default_collection: var("CHROMADB_DEFAULT_COLLECTION").unwrap_or(None),
             });
 
+        let recommender_raindrop_collections = var("RECOMMENDER_RAINDROP_COLLECTIONS")
+            .unwrap_or(None)
+            .map(|s| {
+                s.split(',')
+                    .filter_map(|part| {
+                        let mut pieces = part.split(':');
+                        let name = pieces.next()?;
+                        let collection_id = pieces.next()?;
+                        let weight = pieces.next().and_then(|w| w.parse().ok()).unwrap_or(0.1f32);
+                        Some(RecommenderRaindropCollection {
+                            collection_id: collection_id.to_string(),
+                            name: name.to_string(),
+                            weight,
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or(vec![
+                RecommenderRaindropCollection {
+                    collection_id: "55948413".to_string(),
+                    name: "great-reads".to_string(),
+                    weight: 0.8,
+                },
+                RecommenderRaindropCollection {
+                    collection_id: "62896998".to_string(),
+                    name: "interesting-reads".to_string(),
+                    weight: 0.4,
+                },
+            ]);
+
         ServerConfig {
             env,
             site_url,
@@ -174,6 +212,9 @@ impl ServerConfig {
                 },
             ),
             vector_db,
+            recommender_raindrop_collections,
         }
     }
 }
+
+pub const FASTEMBED_CACHE_DIR: &str = "./.fastembed_cache";

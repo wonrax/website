@@ -109,3 +109,57 @@ model Session {
 
   @@map("sessions")
 }
+
+model user_history {
+  id                Int             @id @default(autoincrement())
+  online_article_id Int
+  weight            Float?          @default(0.0)
+  added_at          DateTime?       @default(now()) @db.Timestamp(6)
+  online_articles   online_articles @relation(fields: [online_article_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model online_article_chunks {
+  id                Int                   @id @default(autoincrement())
+  online_article_id Int
+  embedding         Unsupported("vector")
+  created_at        DateTime?             @default(now()) @db.Timestamp(6)
+  online_articles   online_articles       @relation(fields: [online_article_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([embedding])
+}
+
+model online_article_metadata {
+  id                     Int                    @id @default(autoincrement())
+  online_article_id      Int
+  source_id              Int
+  external_score         Float?
+  metadata               Json?
+  created_at             DateTime               @default(now()) @db.Timestamp(6)
+  updated_at             DateTime               @default(now()) @db.Timestamp(6)
+  online_articles        online_articles        @relation(fields: [online_article_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  online_article_sources online_article_sources @relation(fields: [source_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([online_article_id, source_id])
+  @@index([online_article_id])
+  @@index([source_id])
+}
+
+model online_article_sources {
+  id                      Int                       @id @default(autoincrement())
+  key                     String                    @unique
+  name                    String
+  base_url                String?
+  created_at              DateTime                  @default(now()) @db.Timestamp(6)
+  online_article_metadata online_article_metadata[]
+}
+
+model online_articles {
+  id                      Int                       @id @default(autoincrement())
+  url                     String                    @unique
+  title                   String
+  content_text            String?
+  created_at              DateTime?                 @default(now()) @db.Timestamp(6)
+  online_article_chunks   online_article_chunks[]
+  online_article_metadata online_article_metadata[]
+  user_history            user_history[]
+}

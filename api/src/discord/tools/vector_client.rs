@@ -8,7 +8,7 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use crate::config::VectorDbConfig;
+use crate::config::{FASTEMBED_CACHE_DIR, VectorDbConfig};
 
 /// Type alias for the shared vector client wrapped in Arc for easy sharing across threads
 #[derive(Clone)]
@@ -61,7 +61,7 @@ impl VectorClient {
         tracing::info!("Initializing FastEmbed model (this may download files on first run)...");
         let embedding_model = TextEmbedding::try_new(
             InitOptions::new(EmbeddingModel::AllMiniLML12V2)
-                .with_cache_dir("./.fastembed_cache".parse().unwrap()),
+                .with_cache_dir(FASTEMBED_CACHE_DIR.parse().unwrap()),
         )
         .map_err(|e| VectorClientError(format!("Failed to initialize embedding model: {}", e)))?;
 

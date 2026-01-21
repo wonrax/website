@@ -1,3 +1,7 @@
+Please, don't be afraid to question me if my presumptions are wrong or if you
+have better ideas. I know you're RLHFed into being agreeable and helpful, I
+don't want that.
+
 # Compiling or testing code
 - If there is a flake.nix file and the `nix` CLI is available in path, always
 prefix bash commands with `nix develop -c` to ensure the correct environment is
