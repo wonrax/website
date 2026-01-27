@@ -163,8 +163,25 @@ import ToasterProvider from "@/components/ToasterProvider";
     padding: 1px 6px;
     border-radius: 4px;
     font-size: 11px;
-    text-transform: uppercase;
     letter-spacing: 0.3px;
+  }
+
+  .source-link {
+    text-decoration: none;
+    color: var(--text-body-medium);
+
+    &:hover {
+      background: var(--bg-additive-medium);
+    }
+  }
+
+  .similarity-badge {
+    background: var(--bg-additive-light);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--text-body-medium);
+    cursor: help;
   }
 
   .load-more-btn {

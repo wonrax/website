@@ -5,7 +5,7 @@ use axum::{
     routing::get,
 };
 use diesel::prelude::*;
-use diesel::sql_types::{Array, Float8, Integer, Text, Timestamp};
+use diesel::sql_types::{Float8, Integer, Jsonb, Nullable, Text, Timestamp};
 use diesel_async::{AsyncPgConnection, RunQueryDsl};
 use eyre::eyre;
 use futures_util::stream::StreamExt;
@@ -83,14 +83,22 @@ impl SiteLimiter {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct SourceInfo {
+    pub key: String,
+    pub score: Option<f64>,
+    pub external_id: Option<String>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FeedItem {
     pub id: i32,
     pub title: String,
     pub url: String,
     pub score: f64,
-    pub created_at: Option<chrono::NaiveDateTime>,
-    pub sources: Vec<String>,
+    pub similarity_score: Option<f64>,
+    pub submitted_at: Option<chrono::NaiveDateTime>,
+    pub sources: Vec<SourceInfo>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -142,11 +150,13 @@ struct RankedRow {
     #[diesel(sql_type = Text)]
     url: String,
     #[diesel(sql_type = Timestamp)]
-    created_at: chrono::NaiveDateTime,
+    submitted_at: chrono::NaiveDateTime,
     #[diesel(sql_type = Float8)]
     score: f64,
-    #[diesel(sql_type = Array<Text>)]
-    sources: Vec<String>,
+    #[diesel(sql_type = Nullable<Float8>)]
+    similarity_score: Option<f64>,
+    #[diesel(sql_type = Nullable<Jsonb>)]
+    sources: Option<serde_json::Value>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -245,7 +255,7 @@ async fn fetch_feed_items(
     // Signals:
     // - Similarity: vector similarity to user history (weighted by history weight)
     // - External score: ln(hn_points + 1) + ln(lobsters_points + 1) to dampen outliers
-    // - Freshness: ln(1 + 1/hours_old) to favor recent articles with diminishing returns
+    // - Freshness: ln(1 + 1/hours_old) based on earliest submitted_at across sources
     //
     // For each history chunk, we find the nearest feed chunks using HNSW index.
     // This direction allows PostgreSQL to use the index on online_article_chunks.embedding.
@@ -256,16 +266,19 @@ async fn fetch_feed_items(
             FROM user_history
         ),
         feed_items AS (
-            SELECT i.id, i.title, i.url, i.created_at
+            SELECT i.id, i.title AS original_title, i.url, i.created_at
             FROM online_articles i
             WHERE NOT EXISTS (SELECT 1 FROM user_history uh WHERE uh.online_article_id = i.id)
             {source_filter_sql}
         ),
-        -- For each history chunk, find nearest feed chunks using HNSW index
-        nearest_feed AS (
+        -- For each history chunk, find nearest chunks using HNSW index (no filter inside LATERAL
+        -- so the index can be used), then filter to feed_items afterward
+        nearest_chunks AS (
             SELECT
+                hc.online_article_id AS history_article_id,
                 nearest.online_article_id,
-                (1 - nearest.dist) * ha.weight AS weighted_similarity
+                nearest.dist,
+                ha.weight
             FROM history_articles ha
             JOIN online_article_chunks hc ON hc.online_article_id = ha.online_article_id
             CROSS JOIN LATERAL (
@@ -273,10 +286,17 @@ async fn fetch_feed_items(
                     fc.online_article_id,
                     fc.embedding <=> hc.embedding AS dist
                 FROM online_article_chunks fc
-                JOIN feed_items fi ON fi.id = fc.online_article_id
+                WHERE fc.online_article_id != hc.online_article_id
                 ORDER BY fc.embedding <=> hc.embedding
-                LIMIT 50
+                LIMIT 100
             ) nearest
+        ),
+        nearest_feed AS (
+            SELECT
+                nc.online_article_id,
+                (1 - nc.dist) * nc.weight AS weighted_similarity
+            FROM nearest_chunks nc
+            JOIN feed_items fi ON fi.id = nc.online_article_id
         ),
         item_similarities AS (
             SELECT
@@ -294,12 +314,14 @@ async fn fetch_feed_items(
             LEFT JOIN online_article_metadata im ON im.online_article_id = fi.id
             GROUP BY fi.id
         ),
-        -- Freshness score: ln(1 + 1/hours_old) dampens recency with diminishing returns
+        -- Freshness score: ln(1 + 1/hours_old) based on earliest submitted_at across sources
         item_freshness AS (
             SELECT
                 fi.id AS online_article_id,
-                LN(1.0 + 1.0 / GREATEST(EXTRACT(EPOCH FROM (NOW() - fi.created_at)) / 3600.0, 0.01)) AS freshness_score
+                LN(1.0 + 1.0 / GREATEST(EXTRACT(EPOCH FROM (NOW() - MIN(im.submitted_at))) / 3600.0, 0.01)) AS freshness_score
             FROM feed_items fi
+            JOIN online_article_metadata im ON im.online_article_id = fi.id
+            GROUP BY fi.id
         ),
         -- Rank by similarity (higher is better)
         similarity_ranked AS (
@@ -326,32 +348,52 @@ async fn fetch_feed_items(
         ranked AS (
             SELECT
                 fi.id,
-                fi.title,
+                fi.original_title,
                 fi.url,
                 fi.created_at,
                 (
                     COALESCE(1.0 / ({similarity_k} + sr.rank), 0.0)
                     + COALESCE(1.0 / ({external_k} + er.rank), 0.0)
                     + COALESCE(1.0 / ({freshness_k} + fr.rank), 0.0)
-                )::FLOAT8 AS score
+                )::FLOAT8 AS score,
+                ism.similarity AS similarity_score
             FROM feed_items fi
             LEFT JOIN similarity_ranked sr ON sr.online_article_id = fi.id
             LEFT JOIN external_ranked er ON er.online_article_id = fi.id
             LEFT JOIN freshness_ranked fr ON fr.online_article_id = fi.id
+            LEFT JOIN item_similarities ism ON ism.online_article_id = fi.id
         ),
-        -- Aggregate source keys for each article
-        item_sources AS (
-            SELECT
-                im.online_article_id,
-                ARRAY_AGG(DISTINCT s.key) AS sources
+        -- Limit results first, then fetch expensive metadata
+        limited_ranked AS (
+            SELECT * FROM ranked
+            ORDER BY score DESC, created_at DESC, id DESC
+            LIMIT $1 OFFSET $2
+        )
+        SELECT
+            lr.id,
+            COALESCE(
+                (SELECT im.metadata->>'editorialized_title'
+                 FROM online_article_metadata im
+                 WHERE im.online_article_id = lr.id
+                   AND im.metadata->>'editorialized_title' IS NOT NULL
+                 ORDER BY im.submitted_at
+                 LIMIT 1),
+                lr.original_title
+            ) AS title,
+            lr.url,
+            (SELECT MIN(im.submitted_at) FROM online_article_metadata im WHERE im.online_article_id = lr.id) AS submitted_at,
+            lr.score,
+            lr.similarity_score,
+            (SELECT JSONB_AGG(JSONB_BUILD_OBJECT(
+                'key', s.key,
+                'score', im.external_score,
+                'external_id', im.metadata->>'external_id'
+            ))
             FROM online_article_metadata im
             JOIN online_article_sources s ON s.id = im.source_id
-            GROUP BY im.online_article_id
-        )
-        SELECT r.id, r.title, r.url, r.created_at, r.score, COALESCE(src.sources, ARRAY[]::TEXT[]) AS sources
-        FROM ranked r
-        LEFT JOIN item_sources src ON src.online_article_id = r.id
-        ORDER BY score DESC, created_at DESC, id DESC LIMIT $1 OFFSET $2
+            WHERE im.online_article_id = lr.id) AS sources
+        FROM limited_ranked lr
+        ORDER BY lr.score DESC, lr.created_at DESC, lr.id DESC
     "#
     );
 
@@ -363,13 +405,20 @@ async fn fetch_feed_items(
 
     Ok(rows
         .into_iter()
-        .map(|row: RankedRow| FeedItem {
-            id: row.id,
-            title: row.title,
-            url: row.url,
-            score: row.score,
-            created_at: Some(row.created_at),
-            sources: row.sources,
+        .map(|row: RankedRow| {
+            let sources: Vec<SourceInfo> = row
+                .sources
+                .and_then(|v| serde_json::from_value(v).ok())
+                .unwrap_or_default();
+            FeedItem {
+                id: row.id,
+                title: row.title,
+                url: row.url,
+                score: row.score,
+                similarity_score: row.similarity_score,
+                submitted_at: Some(row.submitted_at),
+                sources,
+            }
         })
         .collect())
 }
