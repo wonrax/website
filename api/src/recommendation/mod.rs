@@ -98,10 +98,33 @@ pub struct FeedSnapshot {
     pub items: Vec<FeedItem>,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RankingPreset {
+    #[default]
+    Balanced,
+    NewerFirst,
+    TopFirst,
+    SimilarFirst,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SourceFilter {
+    #[default]
+    All,
+    HackerNews,
+    Lobsters,
+}
+
 #[derive(Deserialize)]
 pub struct FeedQuery {
     offset: Option<i64>,
     limit: Option<u32>,
+    #[serde(default)]
+    source: SourceFilter,
+    #[serde(default)]
+    ranking: RankingPreset,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -165,7 +188,7 @@ async fn get_feed_snapshot(
         }
     });
 
-    let items = fetch_feed_items(&ctx, limit, offset).await?;
+    let items = fetch_feed_items(&ctx, limit, offset, query.source, query.ranking).await?;
 
     let snapshot = FeedSnapshot { items };
 
@@ -190,8 +213,30 @@ async fn fetch_feed_items(
     ctx: &App,
     limit: i64,
     offset: i64,
+    source_filter: SourceFilter,
+    ranking: RankingPreset,
 ) -> Result<Vec<FeedItem>, eyre::Error> {
     let mut conn = ctx.diesel.get().await?;
+
+    // RRF k constants for each ranking preset
+    // Lower k = more weight given to top-ranked items for that signal
+    let (similarity_k, external_k, freshness_k) = match ranking {
+        RankingPreset::Balanced => (8.0, 2.0, 10.0),
+        RankingPreset::NewerFirst => (20.0, 15.0, 1.0),
+        RankingPreset::TopFirst => (20.0, 1.0, 20.0),
+        RankingPreset::SimilarFirst => (1.0, 15.0, 20.0),
+    };
+
+    // Source filter condition for SQL
+    let source_filter_sql = match source_filter {
+        SourceFilter::All => String::new(),
+        SourceFilter::HackerNews => {
+            "AND EXISTS (SELECT 1 FROM online_article_metadata m JOIN online_article_sources s ON s.id = m.source_id WHERE m.online_article_id = i.id AND s.key = 'hacker-news')".to_string()
+        }
+        SourceFilter::Lobsters => {
+            "AND EXISTS (SELECT 1 FROM online_article_metadata m JOIN online_article_sources s ON s.id = m.source_id WHERE m.online_article_id = i.id AND s.key = 'lobsters')".to_string()
+        }
+    };
 
     // Reciprocal Rank Fusion (RRF) combines multiple ranking signals by converting each
     // to a rank-based score: 1/(k + rank). This normalizes different scales and reduces
@@ -204,7 +249,8 @@ async fn fetch_feed_items(
     //
     // For each history chunk, we find the nearest feed chunks using HNSW index.
     // This direction allows PostgreSQL to use the index on online_article_chunks.embedding.
-    let base_sql = r#"
+    let sql = format!(
+        r#"
         WITH history_articles AS (
             SELECT online_article_id, COALESCE(weight, 0.1) AS weight
             FROM user_history
@@ -213,6 +259,7 @@ async fn fetch_feed_items(
             SELECT i.id, i.title, i.url, i.created_at
             FROM online_articles i
             WHERE NOT EXISTS (SELECT 1 FROM user_history uh WHERE uh.online_article_id = i.id)
+            {source_filter_sql}
         ),
         -- For each history chunk, find nearest feed chunks using HNSW index
         nearest_feed AS (
@@ -283,9 +330,9 @@ async fn fetch_feed_items(
                 fi.url,
                 fi.created_at,
                 (
-                    COALESCE(1.0 / (8.0 + sr.rank), 0.0)    -- similarity
-                    + COALESCE(1.0 / (2.0 + er.rank), 0.0)  -- external
-                    + COALESCE(1.0 / (10.0 + fr.rank), 0.0) -- freshness
+                    COALESCE(1.0 / ({similarity_k} + sr.rank), 0.0)
+                    + COALESCE(1.0 / ({external_k} + er.rank), 0.0)
+                    + COALESCE(1.0 / ({freshness_k} + fr.rank), 0.0)
                 )::FLOAT8 AS score
             FROM feed_items fi
             LEFT JOIN similarity_ranked sr ON sr.online_article_id = fi.id
@@ -304,10 +351,10 @@ async fn fetch_feed_items(
         SELECT r.id, r.title, r.url, r.created_at, r.score, COALESCE(src.sources, ARRAY[]::TEXT[]) AS sources
         FROM ranked r
         LEFT JOIN item_sources src ON src.online_article_id = r.id
-    "#;
+        ORDER BY score DESC, created_at DESC, id DESC LIMIT $1 OFFSET $2
+    "#
+    );
 
-    let sql =
-        format!("{base_sql} ORDER BY score DESC, created_at DESC, id DESC LIMIT $1 OFFSET $2");
     let rows = diesel::sql_query(sql)
         .bind::<Integer, _>(limit as i32)
         .bind::<Integer, _>(offset as i32)

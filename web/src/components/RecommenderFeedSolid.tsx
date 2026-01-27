@@ -27,6 +27,38 @@ interface FeedEvent {
   data: { count: number };
 }
 
+type SourceFilter = "all" | "hacker_news" | "lobsters";
+type RankingPreset = "balanced" | "newer_first" | "top_first" | "similar_first";
+
+const SOURCE_OPTIONS: { value: SourceFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "lobsters", label: "Lobsters" },
+  { value: "hacker_news", label: "Hacker News" },
+];
+
+const RANKING_OPTIONS: {
+  value: RankingPreset;
+  label: string;
+  description: string;
+}[] = [
+  { value: "balanced", label: "Balanced", description: "Mix of all signals" },
+  {
+    value: "top_first",
+    label: "Top first",
+    description: "Prioritize external score",
+  },
+  {
+    value: "newer_first",
+    label: "Newer first",
+    description: "Prioritize freshness",
+  },
+  {
+    value: "similar_first",
+    label: "Similar to you",
+    description: "Prioritize vector similarity",
+  },
+];
+
 export default function RecommenderFeed(): JSXElement {
   const [items, setItems] = createSignal<FeedItem[]>([]);
   const [loading, setLoading] = createSignal(true);
@@ -36,13 +68,20 @@ export default function RecommenderFeed(): JSXElement {
   const [hasMore, setHasMore] = createSignal(true);
   const [loadingMore, setLoadingMore] = createSignal(false);
 
+  const [sourceFilter, setSourceFilter] = createSignal<SourceFilter>("all");
+  const [ranking, setRanking] = createSignal<RankingPreset>("balanced");
+
   const LIMIT = 20;
 
   const fetchFeed = async (currentOffset: number, append = false) => {
     try {
-      const resp = await fetch(
-        `${config.API_URL}/feed?offset=${currentOffset}&limit=${LIMIT}`
-      );
+      const params = new URLSearchParams({
+        offset: currentOffset.toString(),
+        limit: LIMIT.toString(),
+        source: sourceFilter(),
+        ranking: ranking(),
+      });
+      const resp = await fetch(`${config.API_URL}/feed?${params}`);
       if (!resp.ok) {
         throw new Error(`API error: ${resp.status}`);
       }
@@ -78,6 +117,20 @@ export default function RecommenderFeed(): JSXElement {
     setNewItemsCount(0);
     await fetchFeed(0);
     setLoading(false);
+  };
+
+  const handleSourceChange = (newSource: SourceFilter) => {
+    setSourceFilter(newSource);
+    setOffset(0);
+    setLoading(true);
+    fetchFeed(0).then(() => setLoading(false));
+  };
+
+  const handleRankingChange = (newRanking: RankingPreset) => {
+    setRanking(newRanking);
+    setOffset(0);
+    setLoading(true);
+    fetchFeed(0).then(() => setLoading(false));
   };
 
   onMount(() => {
@@ -136,6 +189,40 @@ export default function RecommenderFeed(): JSXElement {
 
   return (
     <>
+      <div class="feed-controls">
+        <div class="control-group">
+          <label class="control-label">Source</label>
+          <div class="button-group">
+            <For each={SOURCE_OPTIONS}>
+              {(opt) => (
+                <button
+                  class={`toggle-btn ${sourceFilter() === opt.value ? "active" : ""}`}
+                  onClick={() => handleSourceChange(opt.value)}
+                >
+                  {opt.label}
+                </button>
+              )}
+            </For>
+          </div>
+        </div>
+        <div class="control-group">
+          <label class="control-label">Ranking</label>
+          <div class="button-group">
+            <For each={RANKING_OPTIONS}>
+              {(opt) => (
+                <button
+                  class={`toggle-btn ${ranking() === opt.value ? "active" : ""}`}
+                  onClick={() => handleRankingChange(opt.value)}
+                  title={opt.description}
+                >
+                  {opt.label}
+                </button>
+              )}
+            </For>
+          </div>
+        </div>
+      </div>
+
       <Show when={newItemsCount() > 0}>
         <div class="new-items-banner">
           <span>{newItemsCount()} new items available</span>
@@ -145,12 +232,8 @@ export default function RecommenderFeed(): JSXElement {
         </div>
       </Show>
 
-      <Show when={!loading()} fallback={<p>Loading…</p>}>
+      <Show when={!loading()} fallback={<p>Loading...</p>}>
         <Show when={!err() || items().length > 0} fallback={<p>{err()}</p>}>
-          <p style={{ color: "var(--text-body-light)" }}>
-            Personalized article recommendations based on reading history and
-            trending content from Hacker News and Lobsters.
-          </p>
           <ul class="feed-list">
             <For each={items()}>
               {(item) => (
