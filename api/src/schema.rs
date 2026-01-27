@@ -1,5 +1,9 @@
 // @generated automatically by Diesel CLI.
 
+#[allow(unused_imports)]
+use diesel::sql_types::*;
+pub type PgVector = pgvector::sql_types::Vector;
+
 diesel::table! {
     _prisma_migrations (id) {
         #[max_length = 36]
@@ -91,6 +95,37 @@ diesel::table! {
 }
 
 diesel::table! {
+    online_article_chunks (id) {
+        id -> Int4,
+        online_article_id -> Int4,
+        embedding -> crate::schema::PgVector,
+        created_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    online_article_metadata (id) {
+        id -> Int4,
+        online_article_id -> Int4,
+        source_id -> Int4,
+        external_score -> Nullable<Float8>,
+        metadata -> Nullable<Jsonb>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    online_articles (id) {
+        id -> Int4,
+        url -> Text,
+        title -> Text,
+        content_text -> Nullable<Text>,
+        created_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     sessions (id) {
         id -> Int4,
         #[max_length = 133]
@@ -104,12 +139,35 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    online_article_sources (id) {
+        id -> Int4,
+        key -> Text,
+        name -> Text,
+        base_url -> Nullable<Text>,
+        created_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    user_history (id) {
+        id -> Int4,
+        online_article_id -> Int4,
+        weight -> Nullable<Float8>,
+        added_at -> Timestamp,
+    }
+}
+
 diesel::joinable!(blog_comment_votes -> blog_comments (comment_id));
 diesel::joinable!(blog_comments -> blog_posts (post_id));
 diesel::joinable!(blog_comments -> identities (identity_id));
 diesel::joinable!(identity_credentials -> identities (identity_id));
 diesel::joinable!(identity_credentials -> identity_credential_types (credential_type_id));
+diesel::joinable!(online_article_chunks -> online_articles (online_article_id));
+diesel::joinable!(online_article_metadata -> online_articles (online_article_id));
+diesel::joinable!(online_article_metadata -> online_article_sources (source_id));
 diesel::joinable!(sessions -> identities (identity_id));
+diesel::joinable!(user_history -> online_articles (online_article_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     _prisma_migrations,
@@ -120,5 +178,10 @@ diesel::allow_tables_to_appear_in_same_query!(
     identities,
     identity_credential_types,
     identity_credentials,
+    online_article_chunks,
+    online_article_metadata,
+    online_articles,
     sessions,
+    online_article_sources,
+    user_history,
 );

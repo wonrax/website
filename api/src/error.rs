@@ -11,7 +11,7 @@ use tracing::debug;
 /// debugging info and get logged automatically. If you intent to not use this
 /// type, you have to handle logging and debugging by yourself.
 pub struct AppError {
-    error: Inner,
+    pub error: Inner,
     reason: Option<serde_json::Value>,
     backtrace: Option<Backtrace>,
     context: Option<HashMap<String, serde_json::Value>>,

@@ -1,6 +1,6 @@
 services:
   database:
-    image: postgres:18
+    image: pgvector/pgvector:pg18
     container_name: wrx-sh-pg
     restart: unless-stopped
     env_file:

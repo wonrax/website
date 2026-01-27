@@ -33,6 +33,7 @@ mod identity;
 mod json;
 mod models;
 mod real_ip;
+mod recommendation;
 mod schema;
 mod utils;
 
@@ -52,6 +53,7 @@ impl Deref for App {
 pub struct Inner {
     counters_ttl_cache: retainer::Cache<String, bool>,
     great_reads_cache: retainer::Cache<String, Vec<u8>>,
+    recommendation: recommendation::RecommendationSystem,
     config: ServerConfig,
     diesel: diesel_async::pooled_connection::deadpool::Pool<diesel_async::AsyncPgConnection>,
     http: reqwest::Client,
@@ -149,6 +151,8 @@ async fn main() {
     // TODO consider using bb8 pool since it has more features (min_idle, max_lifetime etc.)
     let diesel_pool = diesel_async::pooled_connection::deadpool::Pool::builder(diesel_manager)
         .max_size(7)
+        .wait_timeout(Some(Duration::from_secs(15)))
+        .runtime(deadpool_runtime::Runtime::Tokio1)
         .build()
         .expect("could not build Diesel pool");
 
@@ -160,10 +164,13 @@ async fn main() {
     let shared_state = App(Arc::new(Inner {
         counters_ttl_cache: retainer::Cache::new(),
         great_reads_cache: retainer::Cache::new(),
+        recommendation: recommendation::RecommendationSystem::new(),
         config: config.clone(),
         diesel: diesel_pool,
         http: http_client,
     }));
+
+    recommendation::start_background_crawl(shared_state.clone());
 
     let site_url = config.site_url.clone();
     let cors = CorsLayer::new()
@@ -201,6 +208,7 @@ async fn main() {
             "/great-reads-highlights",
             get(great_reads_feed::get_highlights),
         )
+        .merge(recommendation::route())
         .layer(cors)
         .with_state(shared_state)
         .layer(

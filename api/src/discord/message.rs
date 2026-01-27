@@ -103,10 +103,11 @@ fn format_message_content_with_bot_id(
     let base_message = if msg.content.is_empty() && !msg.attachments.is_empty() {
         // Handle attachments (images, files, etc.)
         format!(
-            "[Message ID: {}] [{}] {}: [Attachment: {}]",
+            "[Message ID: {}] [{}] {} (@{}): [Attachment: {}]",
             message_id,
             timestamp_str.unwrap_or_else(|| "N/A".to_string()),
-            format!("{} (@{})", author_name, msg.author.id),
+            author_name,
+            msg.author.id,
             msg.attachments
                 .iter()
                 .map(|a| a.filename.as_str())
@@ -115,10 +116,11 @@ fn format_message_content_with_bot_id(
         )
     } else {
         format!(
-            "[Message ID: {}] [{}] {}: {}",
+            "[Message ID: {}] [{}] {} (@{}): {}",
             message_id,
             timestamp_str.unwrap_or_else(|| "N/A".to_string()),
-            format!("{} (@{})", author_name, msg.author.id),
+            author_name,
+            msg.author.id,
             msg.content
         )
     };
