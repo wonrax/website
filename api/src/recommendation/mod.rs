@@ -174,7 +174,7 @@ pub fn route() -> Router<App> {
 
 pub fn start_background_crawl(ctx: App) {
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_hours(12));
+        let mut interval = tokio::time::interval(Duration::from_hours(8));
         loop {
             interval.tick().await;
             if let Err(err) = run_crawl_and_notify(ctx.clone()).await {
