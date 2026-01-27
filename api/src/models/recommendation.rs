@@ -55,6 +55,7 @@ pub struct NewArticleMetadata {
     pub source_id: i32,
     pub external_score: Option<f64>,
     pub metadata: Option<serde_json::Value>,
+    pub submitted_at: NaiveDateTime,
 }
 
 #[derive(Queryable, Selectable, Debug, Serialize, Clone)]

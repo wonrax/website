@@ -2,13 +2,51 @@ use std::time::Duration;
 
 use crate::App;
 use diesel::prelude::*;
-use diesel_async::RunQueryDsl;
+use diesel_async::{AsyncPgConnection, RunQueryDsl};
 use eyre::{OptionExt, eyre};
 use futures::stream::StreamExt;
 use robotxt::Robots;
 use serde::Deserialize;
 
 use super::get_or_create_source;
+
+async fn upsert_metadata(
+    conn: &mut AsyncPgConnection,
+    online_article_id: i32,
+    source_id: i32,
+    external_score: Option<f64>,
+    metadata_json: serde_json::Value,
+    submitted_at: chrono::NaiveDateTime,
+) -> Result<(), diesel::result::Error> {
+    use crate::schema::online_article_metadata::dsl as metadata_dsl;
+
+    let updated = diesel::update(metadata_dsl::online_article_metadata)
+        .filter(metadata_dsl::online_article_id.eq(online_article_id))
+        .filter(metadata_dsl::source_id.eq(source_id))
+        .set((
+            metadata_dsl::external_score.eq(external_score),
+            metadata_dsl::metadata.eq(&metadata_json),
+            metadata_dsl::submitted_at.eq(submitted_at),
+        ))
+        .execute(conn)
+        .await?;
+
+    if updated == 0 {
+        let new_metadata = crate::models::recommendation::NewArticleMetadata {
+            online_article_id,
+            source_id,
+            external_score,
+            metadata: Some(metadata_json),
+            submitted_at,
+        };
+        diesel::insert_into(metadata_dsl::online_article_metadata)
+            .values(&new_metadata)
+            .execute(conn)
+            .await?;
+    }
+
+    Ok(())
+}
 
 pub const MAX_CONCURRENT_FETCHES: usize = 4;
 const ROBOTS_USER_AGENT: &str = "wrx-recommendation-bot";
@@ -20,6 +58,8 @@ pub struct SourceEntry {
     pub title: Option<String>,
     pub url: url::Url,
     pub external_score: Option<f64>,
+    pub submitted_at: chrono::NaiveDateTime,
+    pub external_id: String,
 }
 
 #[derive(Debug)]
@@ -71,23 +111,20 @@ pub async fn run_crawl(ctx: &App) -> Result<(), eyre::Error> {
             .optional()?;
 
         if let Some(existing) = existing {
-            // Update metadata for existing item
-            if let Some(score) = entry.external_score {
-                use crate::schema::online_article_metadata::dsl as metadata_dsl;
-                let new_metadata = crate::models::recommendation::NewArticleMetadata {
-                    online_article_id: existing.id,
-                    source_id: entry.source_id,
-                    external_score: Some(score),
-                    metadata: None,
-                };
-                diesel::insert_into(metadata_dsl::online_article_metadata)
-                    .values(&new_metadata)
-                    .on_conflict((metadata_dsl::online_article_id, metadata_dsl::source_id))
-                    .do_update()
-                    .set(metadata_dsl::external_score.eq(Some(score)))
-                    .execute(&mut conn)
-                    .await?;
-            }
+            // Update metadata for existing item (score, editorialized title, external_id, submitted_at)
+            let metadata_json = serde_json::json!({
+                "editorialized_title": entry.title,
+                "external_id": entry.external_id,
+            });
+            upsert_metadata(
+                &mut conn,
+                existing.id,
+                entry.source_id,
+                entry.external_score,
+                metadata_json,
+                entry.submitted_at,
+            )
+            .await?;
         } else {
             new_entries.push(SourceEntry { url, ..entry });
         }
@@ -202,20 +239,20 @@ pub async fn insert_article(
                     .execute(conn)
                     .await?;
 
-                if let Some(source_entry) = source_entry
-                    && let Some(score) = source_entry.external_score
-                {
+                if let Some(source_entry) = source_entry {
+                    let metadata_json = serde_json::json!({
+                        "editorialized_title": source_entry.title,
+                        "external_id": source_entry.external_id,
+                    });
                     let new_metadata = crate::models::recommendation::NewArticleMetadata {
                         online_article_id: article_id,
                         source_id: source_entry.source_id,
-                        external_score: Some(score),
-                        metadata: None,
+                        external_score: source_entry.external_score,
+                        metadata: Some(metadata_json),
+                        submitted_at: source_entry.submitted_at,
                     };
                     diesel::insert_into(metadata_dsl::online_article_metadata)
                         .values(&new_metadata)
-                        .on_conflict((metadata_dsl::online_article_id, metadata_dsl::source_id))
-                        .do_update()
-                        .set(metadata_dsl::external_score.eq(Some(score)))
                         .execute(conn)
                         .await?;
                 }
@@ -310,9 +347,11 @@ async fn fetch_markdown(
 async fn fetch_lobsters(ctx: &App) -> Result<Vec<SourceEntry>, eyre::Error> {
     #[derive(Deserialize)]
     struct LobstersEntry {
+        short_id: String,
         title: String,
         url: String,
         score: i64,
+        created_at: String,
     }
 
     let conn = &mut ctx.diesel.get().await?;
@@ -332,11 +371,20 @@ async fn fetch_lobsters(ctx: &App) -> Result<Vec<SourceEntry>, eyre::Error> {
                 tracing::warn!(url = %entry.url, ?err, "Failed to parse URL from Lobsters entry")
             }).ok()?;
 
+                let submitted_at = chrono::DateTime::parse_from_rfc3339(&entry.created_at)
+                    .inspect_err(|err| {
+                        tracing::warn!(created_at = %entry.created_at, ?err, "Failed to parse created_at from Lobsters entry")
+                    })
+                    .ok()?
+                    .naive_utc();
+
                 url.scheme().starts_with("http").then_some(SourceEntry {
                     source_id: lobsters_source_id,
                     title: Some(entry.title),
                     url,
                     external_score: Some(entry.score as f64),
+                    submitted_at,
+                    external_id: entry.short_id,
                 })
             })
             .collect::<Vec<_>>();
@@ -354,6 +402,7 @@ async fn fetch_hackernews(ctx: &App) -> Result<Vec<SourceEntry>, eyre::Error> {
         url: Option<String>,
         score: i64,
         r#type: String,
+        time: i64,
     }
 
     let conn = &mut ctx.diesel.get().await?;
@@ -392,14 +441,20 @@ async fn fetch_hackernews(ctx: &App) -> Result<Vec<SourceEntry>, eyre::Error> {
                 tracing::warn!(url = %url_str, ?err, "Failed to parse URL from Hacker News item")
             }).ok();
 
+            let submitted_at =
+                chrono::DateTime::from_timestamp(item.time, 0).map(|dt| dt.naive_utc());
+
             if let Some(url) = url
                 && url.scheme().starts_with("http")
+                && let Some(submitted_at) = submitted_at
             {
                 entries.push(SourceEntry {
                     source_id: hn_source_id,
                     title: Some(item.title),
                     url,
                     external_score: Some(item.score as f64),
+                    submitted_at,
+                    external_id: story_id.to_string(),
                 });
             }
         }

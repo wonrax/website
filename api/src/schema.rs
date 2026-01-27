@@ -112,6 +112,7 @@ diesel::table! {
         metadata -> Nullable<Jsonb>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        submitted_at -> Timestamp,
     }
 }
 

@@ -8,14 +8,22 @@ import {
 } from "solid-js";
 import { toast } from "solid-sonner";
 import config from "@/config";
+import { timeSince } from "@/utils/time";
+
+interface SourceInfo {
+  key: string;
+  score: number | null;
+  external_id: string | null;
+}
 
 interface FeedItem {
   id: number;
   title: string;
   url: string;
   score: number;
-  created_at: string | null;
-  sources: string[];
+  similarity_score: number | null;
+  submitted_at: string | null;
+  sources: SourceInfo[];
 }
 
 interface FeedSnapshot {
@@ -178,13 +186,40 @@ export default function RecommenderFeed(): JSXElement {
     }
   };
 
-  const formatDate = (dateStr: string | null): string => {
+  const formatRelativeTime = (dateStr: string | null): string => {
     if (!dateStr) return "";
-    return new Date(dateStr).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+    return timeSince(new Date(dateStr + "Z"));
+  };
+
+  const formatSimilarity = (score: number | null): string => {
+    if (score === null) return "N/A%";
+    return `${Math.round(score * 100)}%`;
+  };
+
+  const formatSourceLabel = (source: SourceInfo): string => {
+    let label: string;
+    if (source.key === "hacker-news") {
+      label = "Hacker News";
+    } else if (source.key === "lobsters") {
+      label = "Lobsters";
+    } else {
+      label = source.key;
+    }
+    if (source.score !== null) {
+      return `${label} (${Math.round(source.score)})`;
+    }
+    return label;
+  };
+
+  const getSourceDiscussionUrl = (source: SourceInfo): string | null => {
+    if (!source.external_id) return null;
+    if (source.key === "hacker-news") {
+      return `https://news.ycombinator.com/item?id=${source.external_id}`;
+    }
+    if (source.key === "lobsters") {
+      return `https://lobste.rs/s/${source.external_id}`;
+    }
+    return null;
   };
 
   return (
@@ -238,7 +273,9 @@ export default function RecommenderFeed(): JSXElement {
             <For each={items()}>
               {(item) => (
                 <li class="feed-entry">
-                  <span class="feed-date">{formatDate(item.created_at)}</span>
+                  <span class="feed-date">
+                    {formatRelativeTime(item.submitted_at)}
+                  </span>
                   <a
                     href={item.url}
                     rel="noopener noreferrer"
@@ -258,15 +295,36 @@ export default function RecommenderFeed(): JSXElement {
                       <span class="feed-sources">
                         via{" "}
                         <For each={item.sources}>
-                          {(source, i) => (
-                            <>
-                              <span class="source-tag">{source}</span>
-                              {i() < item.sources.length - 1 && ", "}
-                            </>
-                          )}
+                          {(source, i) => {
+                            const url = getSourceDiscussionUrl(source);
+                            return (
+                              <>
+                                {url ? (
+                                  <a
+                                    href={url}
+                                    rel="noopener noreferrer"
+                                    class="source-tag source-link"
+                                  >
+                                    {formatSourceLabel(source)}
+                                  </a>
+                                ) : (
+                                  <span class="source-tag">
+                                    {formatSourceLabel(source)}
+                                  </span>
+                                )}
+                                {i() < item.sources.length - 1 && ", "}
+                              </>
+                            );
+                          }}
                         </For>
                       </span>
                     </Show>
+                    <span
+                      class="similarity-badge"
+                      title="Vector similarity to your reading history"
+                    >
+                      {formatSimilarity(item.similarity_score)}
+                    </span>
                   </div>
                 </li>
               )}
