@@ -5,7 +5,7 @@ use axum::{
     routing::get,
 };
 use diesel::prelude::*;
-use diesel::sql_types::{Float8, Integer, Text, Timestamp};
+use diesel::sql_types::{Array, Float8, Integer, Text, Timestamp};
 use diesel_async::{AsyncPgConnection, RunQueryDsl};
 use eyre::eyre;
 use futures_util::stream::StreamExt;
@@ -90,6 +90,7 @@ pub struct FeedItem {
     pub url: String,
     pub score: f64,
     pub created_at: Option<chrono::NaiveDateTime>,
+    pub sources: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -121,6 +122,8 @@ struct RankedRow {
     created_at: chrono::NaiveDateTime,
     #[diesel(sql_type = Float8)]
     score: f64,
+    #[diesel(sql_type = Array<Text>)]
+    sources: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -190,53 +193,89 @@ async fn fetch_feed_items(
 ) -> Result<Vec<FeedItem>, eyre::Error> {
     let mut conn = ctx.diesel.get().await?;
 
-    // Flip the search direction: for each FEED chunk, find nearest HISTORY chunks.
-    // This is faster because:
-    // 1. Fewer feed chunks than history chunks
-    // 2. History chunks don't need filtering - we want all of them
-    // 3. HNSW index scan doesn't need a semi-join filter
+    // Reciprocal Rank Fusion (RRF) combines multiple ranking signals by converting each
+    // to a rank-based score: 1/(k + rank). This normalizes different scales and reduces
+    // the impact of outliers. Each signal has its own k constant for tuning.
     //
-    // Complexity: O(feed_chunks * log(history_chunks))
+    // Signals:
+    // - Similarity: vector similarity to user history (weighted by history weight)
+    // - External score: ln(hn_points + 1) + ln(lobsters_points + 1) to dampen outliers
+    // - Freshness: ln(1 + 1/hours_old) to favor recent articles with diminishing returns
+    //
+    // For each history chunk, we find the nearest feed chunks using HNSW index.
+    // This direction allows PostgreSQL to use the index on online_article_chunks.embedding.
     let base_sql = r#"
-        WITH history_chunks AS (
-            SELECT ic.id AS chunk_id, ic.embedding, COALESCE(uh.weight, 1.0) AS weight
-            FROM user_history uh
-            JOIN online_article_chunks ic ON ic.online_article_id = uh.online_article_id
+        WITH history_articles AS (
+            SELECT online_article_id, COALESCE(weight, 0.1) AS weight
+            FROM user_history
         ),
         feed_items AS (
             SELECT i.id, i.title, i.url, i.created_at
             FROM online_articles i
-            WHERE TRUE -- i.created_at > NOW() - INTERVAL '14 days'
-              AND NOT EXISTS (SELECT 1 FROM user_history uh WHERE uh.online_article_id = i.id)
+            WHERE NOT EXISTS (SELECT 1 FROM user_history uh WHERE uh.online_article_id = i.id)
         ),
-        feed_chunks AS (
-            SELECT ic.id AS chunk_id, ic.online_article_id, ic.embedding
-            FROM online_article_chunks ic
-            JOIN feed_items fi ON fi.id = ic.online_article_id
-        ),
-        nearest_history AS (
-            -- For each feed chunk, find top 50 nearest history chunks
+        -- For each history chunk, find nearest feed chunks using HNSW index
+        nearest_feed AS (
             SELECT
-                fc.online_article_id,
-                nearest.similarity,
-                nearest.weight
-            FROM feed_chunks fc
+                nearest.online_article_id,
+                (1 - nearest.dist) * ha.weight AS weighted_similarity
+            FROM history_articles ha
+            JOIN online_article_chunks hc ON hc.online_article_id = ha.online_article_id
             CROSS JOIN LATERAL (
                 SELECT
-                    1 - (hc.embedding <=> fc.embedding) AS similarity,
-                    hc.weight
-                FROM history_chunks hc
-                ORDER BY hc.embedding <=> fc.embedding
+                    fc.online_article_id,
+                    fc.embedding <=> hc.embedding AS dist
+                FROM online_article_chunks fc
+                JOIN feed_items fi ON fi.id = fc.online_article_id
+                ORDER BY fc.embedding <=> hc.embedding
                 LIMIT 50
             ) nearest
         ),
         item_similarities AS (
             SELECT
                 online_article_id,
-                MAX(similarity * weight) AS similarity
-            FROM nearest_history
+                MAX(weighted_similarity) AS similarity
+            FROM nearest_feed
             GROUP BY online_article_id
         ),
+        -- Aggregate external scores using log dampening: ln(hn + 1) + ln(lobsters + 1)
+        item_external_scores AS (
+            SELECT
+                fi.id AS online_article_id,
+                SUM(LN(COALESCE(im.external_score, 0.0) + 1.0)) AS log_external_score
+            FROM feed_items fi
+            LEFT JOIN online_article_metadata im ON im.online_article_id = fi.id
+            GROUP BY fi.id
+        ),
+        -- Freshness score: ln(1 + 1/hours_old) dampens recency with diminishing returns
+        item_freshness AS (
+            SELECT
+                fi.id AS online_article_id,
+                LN(1.0 + 1.0 / GREATEST(EXTRACT(EPOCH FROM (NOW() - fi.created_at)) / 3600.0, 0.01)) AS freshness_score
+            FROM feed_items fi
+        ),
+        -- Rank by similarity (higher is better)
+        similarity_ranked AS (
+            SELECT
+                online_article_id,
+                ROW_NUMBER() OVER (ORDER BY similarity DESC NULLS LAST) AS rank
+            FROM item_similarities
+        ),
+        -- Rank by external score (higher is better)
+        external_ranked AS (
+            SELECT
+                online_article_id,
+                ROW_NUMBER() OVER (ORDER BY log_external_score DESC NULLS LAST) AS rank
+            FROM item_external_scores
+        ),
+        -- Rank by freshness (higher is better)
+        freshness_ranked AS (
+            SELECT
+                online_article_id,
+                ROW_NUMBER() OVER (ORDER BY freshness_score DESC NULLS LAST) AS rank
+            FROM item_freshness
+        ),
+        -- RRF: combine ranks with 1/(k + rank), k tuned per signal
         ranked AS (
             SELECT
                 fi.id,
@@ -244,18 +283,27 @@ async fn fetch_feed_items(
                 fi.url,
                 fi.created_at,
                 (
-                    COALESCE(s.similarity, 0.0)
-                    -- FIXME: use Reciprocal Rank Fusion and log function over points instead
-                    + COALESCE(MAX(im.external_score), 0.0) * 0
-                    + (1.0 / (1.0 + GREATEST(EXTRACT(EPOCH FROM (NOW() - fi.created_at)) / 3600.0, 0.0))) * 0.1
-                ) AS score
+                    COALESCE(1.0 / (8.0 + sr.rank), 0.0)    -- similarity
+                    + COALESCE(1.0 / (2.0 + er.rank), 0.0)  -- external
+                    + COALESCE(1.0 / (10.0 + fr.rank), 0.0) -- freshness
+                )::FLOAT8 AS score
             FROM feed_items fi
-            LEFT JOIN item_similarities s ON s.online_article_id = fi.id
-            LEFT JOIN online_article_metadata im ON im.online_article_id = fi.id
-            GROUP BY fi.id, fi.title, fi.url, fi.created_at, s.similarity
+            LEFT JOIN similarity_ranked sr ON sr.online_article_id = fi.id
+            LEFT JOIN external_ranked er ON er.online_article_id = fi.id
+            LEFT JOIN freshness_ranked fr ON fr.online_article_id = fi.id
+        ),
+        -- Aggregate source keys for each article
+        item_sources AS (
+            SELECT
+                im.online_article_id,
+                ARRAY_AGG(DISTINCT s.key) AS sources
+            FROM online_article_metadata im
+            JOIN online_article_sources s ON s.id = im.source_id
+            GROUP BY im.online_article_id
         )
-        SELECT id, title, url, created_at, score
-        FROM ranked
+        SELECT r.id, r.title, r.url, r.created_at, r.score, COALESCE(src.sources, ARRAY[]::TEXT[]) AS sources
+        FROM ranked r
+        LEFT JOIN item_sources src ON src.online_article_id = r.id
     "#;
 
     let sql =
@@ -274,6 +322,7 @@ async fn fetch_feed_items(
             url: row.url,
             score: row.score,
             created_at: Some(row.created_at),
+            sources: row.sources,
         })
         .collect())
 }
