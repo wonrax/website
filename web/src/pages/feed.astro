@@ -1,0 +1,138 @@
+---
+import Layout from "../layouts/Layout.astro";
+import RecommenderFeed from "../components/RecommenderFeedSolid.tsx";
+import ToasterProvider from "@/components/ToasterProvider";
+---
+
+<Layout
+  seoProps={{
+    title: "Recommender Feed",
+    description: "Personalized article recommendations",
+    noindex: true,
+  }}
+>
+  <ToasterProvider client:only="solid-js" />
+  <main class="recommender-main">
+    <h3>Recommender Feed</h3>
+    <RecommenderFeed client:only="solid-js" />
+  </main>
+</Layout>
+
+<style lang="scss" is:global>
+  .recommender-main {
+    max-width: 700px;
+    margin: 32px auto;
+    padding: 0 16px;
+  }
+
+  .new-items-banner {
+    position: sticky;
+    top: 16px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    background: var(--bg-additive-light);
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: 8px;
+    font-size: 14px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .refresh-btn {
+    padding: 6px 12px;
+    background: var(--text-body-link, #234f77);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+
+    &:hover {
+      opacity: 0.9;
+    }
+  }
+
+  .feed-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .feed-entry {
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .feed-date {
+    color: var(--text-body-light, #888);
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
+  .feed-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-body-link, #234f77);
+    text-decoration: none;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    line-height: 1.4;
+
+    &:visited {
+      color: var(--text-body-medium, #5a3e6f);
+    }
+  }
+
+  .feed-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--text-body-light, #888);
+  }
+
+  .feed-source {
+    color: var(--text-body-medium, #0076d1);
+    text-decoration: underline dotted;
+  }
+
+  .feed-sources {
+    color: var(--text-body-light, #888);
+  }
+
+  .source-tag {
+    background: var(--bg-additive-light);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .load-more-btn {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    margin-top: 32px;
+    background: var(--bg-additive-light);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+</style>
