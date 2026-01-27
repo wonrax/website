@@ -197,7 +197,14 @@ export default function RecommenderFeed(): JSXElement {
   };
 
   const formatSourceLabel = (source: SourceInfo): string => {
-    const label = source.key === "hacker-news" ? "Hacker News" : "Lobsters";
+    let label: string;
+    if (source.key === "hacker-news") {
+      label = "Hacker News";
+    } else if (source.key === "lobsters") {
+      label = "Lobsters";
+    } else {
+      label = source.key;
+    }
     if (source.score !== null) {
       return `${label} (${Math.round(source.score)})`;
     }
