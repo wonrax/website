@@ -2,13 +2,51 @@ use std::time::Duration;
 
 use crate::App;
 use diesel::prelude::*;
-use diesel_async::RunQueryDsl;
+use diesel_async::{AsyncPgConnection, RunQueryDsl};
 use eyre::{OptionExt, eyre};
 use futures::stream::StreamExt;
 use robotxt::Robots;
 use serde::Deserialize;
 
 use super::get_or_create_source;
+
+async fn upsert_metadata(
+    conn: &mut AsyncPgConnection,
+    online_article_id: i32,
+    source_id: i32,
+    external_score: Option<f64>,
+    metadata_json: serde_json::Value,
+    submitted_at: chrono::NaiveDateTime,
+) -> Result<(), diesel::result::Error> {
+    use crate::schema::online_article_metadata::dsl as metadata_dsl;
+
+    let updated = diesel::update(metadata_dsl::online_article_metadata)
+        .filter(metadata_dsl::online_article_id.eq(online_article_id))
+        .filter(metadata_dsl::source_id.eq(source_id))
+        .set((
+            metadata_dsl::external_score.eq(external_score),
+            metadata_dsl::metadata.eq(&metadata_json),
+            metadata_dsl::submitted_at.eq(submitted_at),
+        ))
+        .execute(conn)
+        .await?;
+
+    if updated == 0 {
+        let new_metadata = crate::models::recommendation::NewArticleMetadata {
+            online_article_id,
+            source_id,
+            external_score,
+            metadata: Some(metadata_json),
+            submitted_at,
+        };
+        diesel::insert_into(metadata_dsl::online_article_metadata)
+            .values(&new_metadata)
+            .execute(conn)
+            .await?;
+    }
+
+    Ok(())
+}
 
 pub const MAX_CONCURRENT_FETCHES: usize = 4;
 const ROBOTS_USER_AGENT: &str = "wrx-recommendation-bot";
@@ -74,29 +112,19 @@ pub async fn run_crawl(ctx: &App) -> Result<(), eyre::Error> {
 
         if let Some(existing) = existing {
             // Update metadata for existing item (score, editorialized title, external_id, submitted_at)
-            use crate::schema::online_article_metadata::dsl as metadata_dsl;
             let metadata_json = serde_json::json!({
                 "editorialized_title": entry.title,
                 "external_id": entry.external_id,
             });
-            let new_metadata = crate::models::recommendation::NewArticleMetadata {
-                online_article_id: existing.id,
-                source_id: entry.source_id,
-                external_score: entry.external_score,
-                metadata: Some(metadata_json.clone()),
-                submitted_at: entry.submitted_at,
-            };
-            diesel::insert_into(metadata_dsl::online_article_metadata)
-                .values(&new_metadata)
-                .on_conflict((metadata_dsl::online_article_id, metadata_dsl::source_id))
-                .do_update()
-                .set((
-                    metadata_dsl::external_score.eq(entry.external_score),
-                    metadata_dsl::metadata.eq(metadata_json),
-                    metadata_dsl::submitted_at.eq(entry.submitted_at),
-                ))
-                .execute(&mut conn)
-                .await?;
+            upsert_metadata(
+                &mut conn,
+                existing.id,
+                entry.source_id,
+                entry.external_score,
+                metadata_json,
+                entry.submitted_at,
+            )
+            .await?;
         } else {
             new_entries.push(SourceEntry { url, ..entry });
         }
@@ -220,18 +248,11 @@ pub async fn insert_article(
                         online_article_id: article_id,
                         source_id: source_entry.source_id,
                         external_score: source_entry.external_score,
-                        metadata: Some(metadata_json.clone()),
+                        metadata: Some(metadata_json),
                         submitted_at: source_entry.submitted_at,
                     };
                     diesel::insert_into(metadata_dsl::online_article_metadata)
                         .values(&new_metadata)
-                        .on_conflict((metadata_dsl::online_article_id, metadata_dsl::source_id))
-                        .do_update()
-                        .set((
-                            metadata_dsl::external_score.eq(source_entry.external_score),
-                            metadata_dsl::metadata.eq(metadata_json),
-                            metadata_dsl::submitted_at.eq(source_entry.submitted_at),
-                        ))
                         .execute(conn)
                         .await?;
                 }
