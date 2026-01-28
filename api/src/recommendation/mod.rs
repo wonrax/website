@@ -230,11 +230,19 @@ async fn fetch_feed_items(
 
     // RRF k constants for each ranking preset
     // Lower k = more weight given to top-ranked items for that signal
-    let (similarity_k, external_k, freshness_k) = match ranking {
-        RankingPreset::Balanced => (8.0, 2.0, 3.0),
-        RankingPreset::NewerFirst => (20.0, 15.0, 1.0),
-        RankingPreset::TopFirst => (20.0, 1.0, 10.0),
-        RankingPreset::SimilarFirst => (1.0, 15.0, 15.0),
+    let (similarity_k, external_k) = match ranking {
+        RankingPreset::Balanced => (12.0, 6.0),
+        RankingPreset::NewerFirst => (20.0, 15.0),
+        RankingPreset::TopFirst => (25.0, 1.0),
+        RankingPreset::SimilarFirst => (1.0, 25.0),
+    };
+
+    // Freshness decay half-life in hours for each preset
+    let freshness_half_life = match ranking {
+        RankingPreset::Balanced => 6.0,
+        RankingPreset::NewerFirst => 3.0,
+        RankingPreset::TopFirst => 24.0,
+        RankingPreset::SimilarFirst => 12.0,
     };
 
     // Source filter condition for SQL
@@ -248,62 +256,34 @@ async fn fetch_feed_items(
         }
     };
 
-    // Reciprocal Rank Fusion (RRF) combines multiple ranking signals by converting each
-    // to a rank-based score: 1/(k + rank). This normalizes different scales and reduces
-    // the impact of outliers. Each signal has its own k constant for tuning.
+    // Two-phase ranking with Reciprocal Rank Fusion (RRF):
     //
-    // Signals:
-    // - Similarity: vector similarity to user history (weighted by history weight)
-    // - External score: ln(hn_points + 1) + ln(lobsters_points + 1) to dampen outliers
-    // - Freshness: ln(1 + 1/hours_old) based on earliest submitted_at across sources
+    // Phase 1: Filter candidates by freshness and external score. This reduces the
+    // corpus to a manageable size (~500 items) before computing similarity.
     //
-    // For each history chunk, we find the nearest feed chunks using HNSW index.
-    // This direction allows PostgreSQL to use the index on online_article_chunks.embedding.
+    // Phase 2: Compute similarity for candidates. For each candidate chunk, we compute
+    // distance to ALL history chunks (brute force). This is efficient because:
+    // - History is small (typically < 500 chunks)
+    // - Candidate pool is limited to top items by freshness/external score
+    // - We get accurate similarity for all displayed items (no N/A scores)
+    //
+    // Weight is used correctly: high-weight history items contribute more to similarity,
+    // meaning articles similar to important history items rank higher.
+    //
+    // RRF combines ranking signals by converting each to 1/(k + rank), normalizing
+    // different scales. Each signal has its own k constant for tuning.
     let sql = format!(
         r#"
-        WITH history_articles AS (
-            SELECT online_article_id, COALESCE(weight, 0.1) AS weight
-            FROM user_history
+        WITH history_chunks AS (
+            SELECT hc.embedding, COALESCE(uh.weight, 0.1) AS weight
+            FROM user_history uh
+            JOIN online_article_chunks hc ON hc.online_article_id = uh.online_article_id
         ),
         feed_items AS (
             SELECT i.id, i.title AS original_title, i.url, i.created_at
             FROM online_articles i
             WHERE NOT EXISTS (SELECT 1 FROM user_history uh WHERE uh.online_article_id = i.id)
             {source_filter_sql}
-        ),
-        -- For each history chunk, find nearest chunks using HNSW index (no filter inside LATERAL
-        -- so the index can be used), then filter to feed_items afterward
-        nearest_chunks AS (
-            SELECT
-                hc.online_article_id AS history_article_id,
-                nearest.online_article_id,
-                nearest.dist,
-                ha.weight
-            FROM history_articles ha
-            JOIN online_article_chunks hc ON hc.online_article_id = ha.online_article_id
-            CROSS JOIN LATERAL (
-                SELECT
-                    fc.online_article_id,
-                    fc.embedding <=> hc.embedding AS dist
-                FROM online_article_chunks fc
-                WHERE fc.online_article_id != hc.online_article_id
-                ORDER BY fc.embedding <=> hc.embedding
-                LIMIT 100
-            ) nearest
-        ),
-        nearest_feed AS (
-            SELECT
-                nc.online_article_id,
-                (1 - nc.dist) * nc.weight AS weighted_similarity
-            FROM nearest_chunks nc
-            JOIN feed_items fi ON fi.id = nc.online_article_id
-        ),
-        item_similarities AS (
-            SELECT
-                online_article_id,
-                MAX(weighted_similarity) AS similarity
-            FROM nearest_feed
-            GROUP BY online_article_id
         ),
         -- Aggregate external scores using log dampening: ln(hn + 1) + ln(lobsters + 1)
         item_external_scores AS (
@@ -314,15 +294,51 @@ async fn fetch_feed_items(
             LEFT JOIN online_article_metadata im ON im.online_article_id = fi.id
             GROUP BY fi.id
         ),
-        -- Freshness score: ln(1 + 1/hours_old) based on earliest submitted_at across sources
+        -- Freshness score: exponential decay with configurable half-life
         item_freshness AS (
             SELECT
                 fi.id AS online_article_id,
-                -- Cap minimum age at 1 hour to avoid extreme values
-                LN(1.0 + 1.0 / GREATEST(EXTRACT(EPOCH FROM (NOW() - MIN(im.submitted_at))) / 3600.0, 1)) AS freshness_score
+                EXP(-EXTRACT(EPOCH FROM (NOW() - MIN(im.submitted_at))) / 3600.0 * LN(2) / {freshness_half_life} + 3) AS freshness_score
             FROM feed_items fi
             JOIN online_article_metadata im ON im.online_article_id = fi.id
             GROUP BY fi.id
+        ),
+        -- Rank by external score (higher is better)
+        external_ranked AS (
+            SELECT
+                online_article_id,
+                log_external_score,
+                ROW_NUMBER() OVER (ORDER BY log_external_score DESC NULLS LAST) AS rank
+            FROM item_external_scores
+        ),
+        -- Phase 1: Select top candidates by freshness-weighted external score (before similarity)
+        -- Use 2x (limit + offset) to ensure enough candidates after similarity reranking
+        candidates AS (
+            SELECT
+                fi.id,
+                fi.original_title,
+                fi.url,
+                fi.created_at,
+                er.rank AS external_rank,
+                ifr.freshness_score
+            FROM feed_items fi
+            LEFT JOIN external_ranked er ON er.online_article_id = fi.id
+            LEFT JOIN item_freshness ifr ON ifr.online_article_id = fi.id
+            ORDER BY (
+                COALESCE(1.0 / ({external_k} + er.rank), 0.0) * COALESCE(ifr.freshness_score, 0.0)
+            ) DESC
+            LIMIT GREATEST(($1 + $2) * 2, 100)
+        ),
+        -- Phase 2: Compute similarity for candidates by comparing to ALL history chunks
+        -- Weight affects similarity: high-weight history items contribute more
+        item_similarities AS (
+            SELECT
+                c.id AS online_article_id,
+                MAX((1.0 - (cc.embedding <=> hc.embedding)) * hc.weight) AS similarity
+            FROM candidates c
+            JOIN online_article_chunks cc ON cc.online_article_id = c.id
+            CROSS JOIN history_chunks hc
+            GROUP BY c.id
         ),
         -- Rank by similarity (higher is better)
         similarity_ranked AS (
@@ -331,38 +347,23 @@ async fn fetch_feed_items(
                 ROW_NUMBER() OVER (ORDER BY similarity DESC NULLS LAST) AS rank
             FROM item_similarities
         ),
-        -- Rank by external score (higher is better)
-        external_ranked AS (
-            SELECT
-                online_article_id,
-                ROW_NUMBER() OVER (ORDER BY log_external_score DESC NULLS LAST) AS rank
-            FROM item_external_scores
-        ),
-        -- Rank by freshness (higher is better)
-        freshness_ranked AS (
-            SELECT
-                online_article_id,
-                ROW_NUMBER() OVER (ORDER BY freshness_score DESC NULLS LAST) AS rank
-            FROM item_freshness
-        ),
-        -- RRF: combine ranks with 1/(k + rank), k tuned per signal
+        -- Combine similarity and external RRF, then multiply by freshness decay
         ranked AS (
             SELECT
-                fi.id,
-                fi.original_title,
-                fi.url,
-                fi.created_at,
+                c.id,
+                c.original_title,
+                c.url,
+                c.created_at,
                 (
-                    COALESCE(1.0 / ({similarity_k} + sr.rank), 0.0)
-                    + COALESCE(1.0 / ({external_k} + er.rank), 0.0)
-                    + COALESCE(1.0 / ({freshness_k} + fr.rank), 0.0)
+                    (
+                        COALESCE(1.0 / ({similarity_k} + sr.rank), 0.0)
+                        + COALESCE(1.0 / ({external_k} + c.external_rank), 0.0)
+                    ) * COALESCE(c.freshness_score, 0.0)
                 )::FLOAT8 AS score,
                 ism.similarity AS similarity_score
-            FROM feed_items fi
-            LEFT JOIN similarity_ranked sr ON sr.online_article_id = fi.id
-            LEFT JOIN external_ranked er ON er.online_article_id = fi.id
-            LEFT JOIN freshness_ranked fr ON fr.online_article_id = fi.id
-            LEFT JOIN item_similarities ism ON ism.online_article_id = fi.id
+            FROM candidates c
+            LEFT JOIN similarity_ranked sr ON sr.online_article_id = c.id
+            LEFT JOIN item_similarities ism ON ism.online_article_id = c.id
         ),
         -- Limit results first, then fetch expensive metadata
         limited_ranked AS (
