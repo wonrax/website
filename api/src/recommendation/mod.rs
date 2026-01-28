@@ -245,7 +245,7 @@ async fn fetch_feed_items(
         RankingPreset::SimilarFirst => 12.0,
     };
 
-    // Source filter condition for SQL
+    // Source filter condition for feed_items
     let source_filter_sql = match source_filter {
         SourceFilter::All => String::new(),
         SourceFilter::HackerNews => {
@@ -253,6 +253,19 @@ async fn fetch_feed_items(
         }
         SourceFilter::Lobsters => {
             "AND EXISTS (SELECT 1 FROM online_article_metadata m JOIN online_article_sources s ON s.id = m.source_id WHERE m.online_article_id = i.id AND s.key = 'lobsters')".to_string()
+        }
+    };
+
+    // Source filter for external score aggregation - only count the filtered source's score
+    let external_score_source_filter = match source_filter {
+        SourceFilter::All => String::new(),
+        SourceFilter::HackerNews => {
+            "JOIN online_article_sources s ON s.id = im.source_id AND s.key = 'hacker-news'"
+                .to_string()
+        }
+        SourceFilter::Lobsters => {
+            "JOIN online_article_sources s ON s.id = im.source_id AND s.key = 'lobsters'"
+                .to_string()
         }
     };
 
@@ -285,13 +298,15 @@ async fn fetch_feed_items(
             WHERE NOT EXISTS (SELECT 1 FROM user_history uh WHERE uh.online_article_id = i.id)
             {source_filter_sql}
         ),
-        -- Aggregate external scores using log dampening: ln(hn + 1) + ln(lobsters + 1)
+        -- Aggregate external scores using log dampening
+        -- When a source filter is applied, only that source's score is used for ranking
         item_external_scores AS (
             SELECT
                 fi.id AS online_article_id,
                 SUM(LN(COALESCE(im.external_score, 0.0) + 1.0)) AS log_external_score
             FROM feed_items fi
             LEFT JOIN online_article_metadata im ON im.online_article_id = fi.id
+            {external_score_source_filter}
             GROUP BY fi.id
         ),
         -- Freshness score: exponential decay with configurable half-life
