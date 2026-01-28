@@ -318,7 +318,8 @@ async fn fetch_feed_items(
         item_freshness AS (
             SELECT
                 fi.id AS online_article_id,
-                LN(1.0 + 1.0 / GREATEST(EXTRACT(EPOCH FROM (NOW() - MIN(im.submitted_at))) / 3600.0, 0.01)) AS freshness_score
+                -- Cap minimum age at 1 hour to avoid extreme values
+                LN(1.0 + 1.0 / GREATEST(EXTRACT(EPOCH FROM (NOW() - MIN(im.submitted_at))) / 3600.0, 1)) AS freshness_score
             FROM feed_items fi
             JOIN online_article_metadata im ON im.online_article_id = fi.id
             GROUP BY fi.id
