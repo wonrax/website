@@ -231,7 +231,7 @@ async fn fetch_feed_items(
     // RRF k constants for each ranking preset
     // Lower k = more weight given to top-ranked items for that signal
     let (similarity_k, external_k) = match ranking {
-        RankingPreset::Balanced => (12.0, 6.0),
+        RankingPreset::Balanced => (18.0, 6.0),
         RankingPreset::NewerFirst => (20.0, 15.0),
         RankingPreset::TopFirst => (25.0, 1.0),
         RankingPreset::SimilarFirst => (1.0, 25.0),
