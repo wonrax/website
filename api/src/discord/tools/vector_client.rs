@@ -1,14 +1,13 @@
 use chromadb::client::ChromaClientOptions;
 use chromadb::collection::{CollectionEntries, QueryOptions};
 use chromadb::{ChromaClient, ChromaCollection};
-use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 use serde_json::Value;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use crate::config::{FASTEMBED_CACHE_DIR, VectorDbConfig};
+use crate::config::VectorDbConfig;
+use crate::utils::embed_texts;
 
 /// Type alias for the shared vector client wrapped in Arc for easy sharing across threads
 #[derive(Clone)]
@@ -37,7 +36,6 @@ pub struct VectorClientError(String);
 /// Shared vector database client with common functionality
 pub struct VectorClient {
     client: ChromaClient,
-    embedding_model: Mutex<TextEmbedding>,
     config: VectorDbConfig,
 }
 
@@ -57,19 +55,7 @@ impl VectorClient {
             .await
             .map_err(|e| VectorClientError(format!("Failed to create ChromaDB client: {}", e)))?;
 
-        // Initialize embedding model with better error handling
-        tracing::info!("Initializing FastEmbed model (this may download files on first run)...");
-        let embedding_model = TextEmbedding::try_new(
-            InitOptions::new(EmbeddingModel::AllMiniLML12V2)
-                .with_cache_dir(FASTEMBED_CACHE_DIR.parse().unwrap()),
-        )
-        .map_err(|e| VectorClientError(format!("Failed to initialize embedding model: {}", e)))?;
-
-        Ok(Self {
-            client,
-            embedding_model: Mutex::new(embedding_model),
-            config,
-        })
+        Ok(Self { client, config })
     }
 
     /// Get the collection name to use, incorporating channel ID if available
@@ -106,12 +92,7 @@ impl VectorClient {
         let collection_name = self.get_collection_name(channel_id);
         let collection = self.get_or_create_collection(&collection_name).await?;
 
-        // Generate embeddings
-        let embeddings = self
-            .embedding_model
-            .lock()
-            .await
-            .embed(vec![information], None)
+        let embeddings = embed_texts(vec![information.to_string()])
             .map_err(|e| VectorClientError(format!("Failed to generate embeddings: {}", e)))?;
 
         let embedding = embeddings
@@ -155,12 +136,7 @@ impl VectorClient {
         let collection_name = self.get_collection_name(channel_id);
         let collection = self.get_or_create_collection(&collection_name).await?;
 
-        // Generate embeddings for the new content
-        let embeddings = self
-            .embedding_model
-            .lock()
-            .await
-            .embed(vec![information], None)
+        let embeddings = embed_texts(vec![information.to_string()])
             .map_err(|e| VectorClientError(format!("Failed to generate embeddings: {}", e)))?;
 
         let embedding = embeddings
@@ -237,14 +213,9 @@ impl VectorClient {
             }
         };
 
-        let embeddings = self
-            .embedding_model
-            .lock()
-            .await
-            .embed(vec![query], None)
-            .map_err(|e| {
-                VectorClientError(format!("Failed to generate query embeddings: {}", e))
-            })?;
+        let embeddings = embed_texts(vec![query.to_string()]).map_err(|e| {
+            VectorClientError(format!("Failed to generate query embeddings: {}", e))
+        })?;
 
         let query_embedding = embeddings
             .first()
