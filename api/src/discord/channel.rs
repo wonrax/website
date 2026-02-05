@@ -192,6 +192,12 @@ impl ChannelState {
 
 
                                 self.message_queue.push((msg, mentions_bot));
+                                // truncate to MESSAGE_CONTEXT_SIZE to avoid accumulating too many
+                                // messages in case of no mentions
+                                if self.message_queue.len() > MESSAGE_CONTEXT_SIZE {
+                                    self.message_queue.drain(0..self.message_queue.len() - MESSAGE_CONTEXT_SIZE);
+                                }
+
                                 (false, false)
                             }
                             ChannelEvent::Typing(uid, ctx) => {
