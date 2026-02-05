@@ -4,7 +4,7 @@ use crate::App;
 use diesel::prelude::*;
 use diesel_async::{AsyncPgConnection, RunQueryDsl};
 use eyre::{OptionExt, eyre};
-use futures::stream::StreamExt;
+use futures::{FutureExt, stream::StreamExt};
 use robotxt::Robots;
 use serde::Deserialize;
 
@@ -328,10 +328,19 @@ async fn fetch_markdown(
         .wait(domain, robots.crawl_delay().unwrap_or(DEFAULT_CRAWL_DELAY))
         .await;
 
-    let article = article_scraper::ArticleScraper::new(None)
-        .await
-        .parse(url, false, &ctx.http, None)
-        .await?;
+    let article = {
+        // `ArticleScraper::parse` can panic internally, so run it in a separate task
+        // possibly related: https://gitlab.com/news-flash/article_scraper/-/issues/9
+        let url = url.clone();
+        let ctx = ctx.clone();
+        tokio::spawn(async move {
+            article_scraper::ArticleScraper::new(None)
+                .await
+                .parse(&url, false, &ctx.http, None)
+                .await
+        })
+        .await??
+    };
 
     let markdown = html_to_markdown_rs::convert(
         article
