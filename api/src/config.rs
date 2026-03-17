@@ -51,7 +51,7 @@ pub struct VectorDbConfig {
 #[derive(Clone)]
 pub struct RecommenderRaindropCollection {
     pub collection_id: String,
-    pub name: String,
+    pub _name: String,
     pub weight: f32,
 }
 
@@ -171,7 +171,7 @@ impl ServerConfig {
                         let weight = pieces.next().and_then(|w| w.parse().ok()).unwrap_or(0.1f32);
                         Some(RecommenderRaindropCollection {
                             collection_id: collection_id.to_string(),
-                            name: name.to_string(),
+                            _name: name.to_string(),
                             weight,
                         })
                     })
@@ -180,12 +180,12 @@ impl ServerConfig {
             .unwrap_or(vec![
                 RecommenderRaindropCollection {
                     collection_id: "55948413".to_string(),
-                    name: "great-reads".to_string(),
+                    _name: "great-reads".to_string(),
                     weight: 0.8,
                 },
                 RecommenderRaindropCollection {
                     collection_id: "62896998".to_string(),
-                    name: "interesting-reads".to_string(),
+                    _name: "interesting-reads".to_string(),
                     weight: 0.4,
                 },
             ]);

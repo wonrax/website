@@ -2,9 +2,11 @@ use std::time::Duration;
 
 use crate::App;
 use diesel::prelude::*;
+use diesel::sql_types::Integer;
 use diesel_async::{AsyncPgConnection, RunQueryDsl};
 use eyre::{OptionExt, eyre};
-use futures::{FutureExt, stream::StreamExt};
+use futures::stream::StreamExt;
+use pgvector::Vector;
 use robotxt::Robots;
 use serde::Deserialize;
 
@@ -66,7 +68,28 @@ pub struct SourceEntry {
 pub struct FetchedArticle {
     url: url::Url,
     title: String,
-    embeddings: Vec<pgvector::Vector>,
+    embeddings: Vec<Vector>,
+}
+
+async fn insert_article_chunks(
+    conn: &mut AsyncPgConnection,
+    article_id: i32,
+    embeddings: &[Vector],
+) -> Result<(), diesel::result::Error> {
+    let insert_sql = format!(
+        "INSERT INTO online_article_chunks (online_article_id, embedding) VALUES ($1, binary_quantize($2)::BIT({}))",
+        crate::utils::RECOMMENDER_EMBEDDING_BITS
+    );
+
+    for embedding in embeddings {
+        diesel::sql_query(&insert_sql)
+            .bind::<Integer, _>(article_id)
+            .bind::<crate::schema::PgVector, _>(embedding)
+            .execute(conn)
+            .await?;
+    }
+
+    Ok(())
 }
 
 #[tracing::instrument(skip(ctx))]
@@ -202,19 +225,21 @@ pub async fn insert_article(
     article: FetchedArticle,
     source_entry: Option<&SourceEntry>,
 ) -> Result<i32, eyre::Error> {
-    use crate::schema::online_article_chunks::dsl as chunks_dsl;
     use crate::schema::online_article_metadata::dsl as metadata_dsl;
     use crate::schema::online_articles::dsl as articles_dsl;
     use diesel_async::AsyncConnection;
 
     let canonical_url = canonicalize_url(article.url.clone())?;
+    let FetchedArticle {
+        title, embeddings, ..
+    } = article;
 
     Ok(conn
         .transaction(|conn| {
             Box::pin(async move {
                 let new_item = crate::models::recommendation::NewOnlineArticle {
                     url: canonical_url.to_string(),
-                    title: article.title,
+                    title,
                     // useful when debugging though takes up space, so optional
                     content_text: None,
                 };
@@ -225,19 +250,7 @@ pub async fn insert_article(
                     .get_result::<i32>(conn)
                     .await?;
 
-                let chunk_rows: Vec<crate::models::recommendation::NewArticleChunk> = article
-                    .embeddings
-                    .iter()
-                    .map(|embedding| crate::models::recommendation::NewArticleChunk {
-                        online_article_id: article_id,
-                        embedding: embedding.clone(),
-                    })
-                    .collect();
-
-                diesel::insert_into(chunks_dsl::online_article_chunks)
-                    .values(&chunk_rows)
-                    .execute(conn)
-                    .await?;
+                insert_article_chunks(conn, article_id, &embeddings).await?;
 
                 if let Some(source_entry) = source_entry {
                     let metadata_json = serde_json::json!({

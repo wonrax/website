@@ -16,7 +16,10 @@ use tokio::sync::Mutex;
 use tokio::time::Instant;
 use tokio_stream::wrappers::BroadcastStream;
 
-use crate::{App, error::AppError, recommendation::crawler::MAX_CONCURRENT_FETCHES};
+use crate::{
+    App, error::AppError, recommendation::crawler::MAX_CONCURRENT_FETCHES,
+    utils::RECOMMENDER_EMBEDDING_BITS,
+};
 
 mod crawler;
 mod engine;
@@ -231,7 +234,7 @@ async fn fetch_feed_items(
     // RRF k constants for each ranking preset
     // Lower k = more weight given to top-ranked items for that signal
     let (similarity_k, external_k) = match ranking {
-        RankingPreset::Balanced => (18.0, 6.0),
+        RankingPreset::Balanced => (12.0, 6.0),
         RankingPreset::NewerFirst => (20.0, 15.0),
         RankingPreset::TopFirst => (25.0, 1.0),
         RankingPreset::SimilarFirst => (1.0, 25.0),
@@ -239,8 +242,8 @@ async fn fetch_feed_items(
 
     // Freshness decay half-life in hours for each preset
     let freshness_half_life = match ranking {
-        RankingPreset::Balanced => 6.0,
-        RankingPreset::NewerFirst => 3.0,
+        RankingPreset::Balanced => 24.0,
+        RankingPreset::NewerFirst => 4.0,
         RankingPreset::TopFirst => 24.0,
         RankingPreset::SimilarFirst => 12.0,
     };
@@ -275,7 +278,8 @@ async fn fetch_feed_items(
     // corpus to a manageable size (~500 items) before computing similarity.
     //
     // Phase 2: Compute similarity for candidates. For each candidate chunk, we compute
-    // distance to ALL history chunks (brute force). This is efficient because:
+    // normalized Hamming similarity against ALL history chunks (brute force). This is
+    // efficient because:
     // - History is small (typically < 500 chunks)
     // - Candidate pool is limited to top items by freshness/external score
     // - We get accurate similarity for all displayed items (no N/A scores)
@@ -349,7 +353,10 @@ async fn fetch_feed_items(
         item_similarities AS (
             SELECT
                 c.id AS online_article_id,
-                MAX((1.0 - (cc.embedding <=> hc.embedding)) * hc.weight) AS similarity
+                MAX((
+                    1.0
+                    - ((cc.embedding <~> hc.embedding) / {RECOMMENDER_EMBEDDING_BITS}.0)
+                ) * hc.weight) AS similarity
             FROM candidates c
             JOIN online_article_chunks cc ON cc.online_article_id = c.id
             CROSS JOIN history_chunks hc
