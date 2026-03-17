@@ -1,8 +1,13 @@
 // @generated automatically by Diesel CLI.
 
 #[allow(unused_imports)]
-use diesel::sql_types::*;
+use diesel::{query_builder::QueryId, sql_types::*};
+
 pub type PgVector = pgvector::sql_types::Vector;
+
+#[derive(Debug, Clone, Copy, QueryId, SqlType)]
+#[diesel(postgres_type(name = "bit"))]
+pub struct PgBit;
 
 diesel::table! {
     _prisma_migrations (id) {
@@ -98,7 +103,7 @@ diesel::table! {
     online_article_chunks (id) {
         id -> Int4,
         online_article_id -> Int4,
-        embedding -> crate::schema::PgVector,
+        embedding -> crate::schema::PgBit,
         created_at -> Timestamp,
     }
 }

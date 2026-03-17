@@ -4,6 +4,8 @@ use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 
 use crate::config::FASTEMBED_CACHE_DIR;
 
+pub const RECOMMENDER_EMBEDDING_BITS: usize = 384;
+
 /// Replace placeholder in template with data.
 pub fn render_template(template: &str, data: &[(&str, &str)]) -> String {
     let mut result = String::from(template);

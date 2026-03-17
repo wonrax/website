@@ -1,6 +1,5 @@
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
-use pgvector::Vector;
 use serde::Serialize;
 
 #[derive(Queryable, Selectable, Debug, Serialize, Clone)]
@@ -39,13 +38,6 @@ pub struct NewOnlineArticle {
     pub url: String,
     pub title: String,
     pub content_text: Option<String>,
-}
-
-#[derive(Insertable, Debug)]
-#[diesel(table_name = crate::schema::online_article_chunks)]
-pub struct NewArticleChunk {
-    pub online_article_id: i32,
-    pub embedding: Vector,
 }
 
 #[derive(Insertable, Debug)]
