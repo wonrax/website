@@ -66,30 +66,6 @@ const series = Astro.props.series;
   </div>
   <div class="post-header">
     <h1>{post.title}</h1>
-    <div class="separator">
-      <span class="article-date">
-        {
-          new Date(post.published).toLocaleDateString("en-UK", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })
-        }
-      </span>
-      <span class="separator-line"></span>
-      {
-        post.tags &&
-          post.tags.map((tag) => (
-            <a href={`/blog/tag/${tag}`} class="post-tag">
-              #{tag}
-            </a>
-          ))
-      }
-    </div>
-    <Sheet.Trigger class="open-discussion" client:load>
-      <MessagesSquare size={16} strokeWidth={1.5} />
-      View discussions
-    </Sheet.Trigger>
   </div>
   {
     series ? (
@@ -132,6 +108,32 @@ const series = Astro.props.series;
     ) : null
   }
   <slot />
+  <div class="post-header">
+    <div class="separator">
+      <span class="article-date">
+        {
+          new Date(post.published).toLocaleDateString("en-UK", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })
+        }
+      </span>
+      <span class="separator-line"></span>
+      {
+        post.tags &&
+          post.tags.map((tag) => (
+            <a href={`/blog/tag/${tag}`} class="post-tag">
+              #{tag}
+            </a>
+          ))
+      }
+    </div>
+    <Sheet.Trigger class="open-discussion" client:load>
+      <MessagesSquare size={16} strokeWidth={2} />
+      View discussions
+    </Sheet.Trigger>
+  </div>
   <Sheet.Root client:load>
     <Sheet.Trigger
       class="close-button"
@@ -487,13 +489,14 @@ const series = Astro.props.series;
     box-sizing: border-box;
     margin-left: 0;
     margin-top: 16px;
-    margin-bottom: 16px;
+    margin-bottom: -1em;
     h1 {
-      font-size: 28px;
-      font-weight: var(--font-weight-medium);
+      font-size: 32px;
+      font-weight: 1000;
       margin: 16px 0;
       color: var(--text-heading);
       letter-spacing: -0.02em;
+      line-height: 1.1em;
     }
 
     .separator {
