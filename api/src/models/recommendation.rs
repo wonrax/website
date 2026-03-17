@@ -29,6 +29,7 @@ pub struct OnlineArticle {
     pub url: String,
     pub title: String,
     pub content_text: Option<String>,
+    pub recommender_terms: Option<serde_json::Value>,
     pub created_at: NaiveDateTime,
 }
 
@@ -38,6 +39,7 @@ pub struct NewOnlineArticle {
     pub url: String,
     pub title: String,
     pub content_text: Option<String>,
+    pub recommender_terms: Option<serde_json::Value>,
 }
 
 #[derive(Insertable, Debug)]

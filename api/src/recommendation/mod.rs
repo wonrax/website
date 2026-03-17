@@ -11,7 +11,10 @@ use eyre::eyre;
 use futures_util::stream::StreamExt;
 use robotxt::Robots;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 use tokio_stream::wrappers::BroadcastStream;
@@ -25,6 +28,10 @@ mod crawler;
 mod engine;
 
 const MIN_CRAWL_INTERVAL: Duration = Duration::from_mins(10);
+const MIN_RERANK_CANDIDATE_POOL: i64 = 100;
+const MAX_RERANK_CANDIDATE_POOL: i64 = 400;
+const RERANK_CANDIDATE_POOL_MULTIPLIER: i64 = 2;
+const MAX_PROFILE_TERMS: usize = 32;
 
 pub struct RecommendationSystem {
     pub site_limiter: SiteLimiter,
@@ -153,13 +160,27 @@ struct RankedRow {
     #[diesel(sql_type = Text)]
     url: String,
     #[diesel(sql_type = Timestamp)]
-    submitted_at: chrono::NaiveDateTime,
+    created_at: chrono::NaiveDateTime,
+    #[diesel(sql_type = Nullable<Timestamp>)]
+    submitted_at: Option<chrono::NaiveDateTime>,
     #[diesel(sql_type = Float8)]
     score: f64,
     #[diesel(sql_type = Nullable<Float8>)]
     similarity_score: Option<f64>,
     #[diesel(sql_type = Nullable<Jsonb>)]
     sources: Option<serde_json::Value>,
+    #[diesel(sql_type = Nullable<Jsonb>)]
+    recommender_terms: Option<serde_json::Value>,
+}
+
+#[derive(QueryableByName, Debug)]
+struct HistoryProfileRow {
+    #[diesel(sql_type = Text)]
+    title: String,
+    #[diesel(sql_type = Float8)]
+    weight: f64,
+    #[diesel(sql_type = Nullable<Jsonb>)]
+    recommender_terms: Option<serde_json::Value>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -230,6 +251,11 @@ async fn fetch_feed_items(
     ranking: RankingPreset,
 ) -> Result<Vec<FeedItem>, eyre::Error> {
     let mut conn = ctx.diesel.get().await?;
+    let offset = offset.max(0);
+    let candidate_pool_size = limit
+        .saturating_add(offset)
+        .saturating_mul(RERANK_CANDIDATE_POOL_MULTIPLIER)
+        .clamp(MIN_RERANK_CANDIDATE_POOL, MAX_RERANK_CANDIDATE_POOL);
 
     // RRF k constants for each ranking preset
     // Lower k = more weight given to top-ranked items for that signal
@@ -246,6 +272,12 @@ async fn fetch_feed_items(
         RankingPreset::NewerFirst => 4.0,
         RankingPreset::TopFirst => 24.0,
         RankingPreset::SimilarFirst => 12.0,
+    };
+    let lexical_weight = match ranking {
+        RankingPreset::Balanced => 0.55,
+        RankingPreset::NewerFirst => 0.25,
+        RankingPreset::TopFirst => 0.35,
+        RankingPreset::SimilarFirst => 0.75,
     };
 
     // Source filter condition for feed_items
@@ -275,16 +307,13 @@ async fn fetch_feed_items(
     // Two-phase ranking with Reciprocal Rank Fusion (RRF):
     //
     // Phase 1: Filter candidates by freshness and external score. This reduces the
-    // corpus to a manageable size (~500 items) before computing similarity.
+    // corpus to a manageable size before computing similarity and the lexical rerank.
     //
-    // Phase 2: Compute similarity for candidates. For each candidate chunk, we compute
-    // normalized Hamming similarity against ALL history chunks (brute force). This is
-    // efficient because:
-    // - History is small (typically < 500 chunks)
-    // - Candidate pool is limited to top items by freshness/external score
-    // - We get accurate similarity for all displayed items (no N/A scores)
+    // Phase 2: Compute chunk-level similarity for the candidate pool. This keeps the
+    // query logic simple and pushes the more experimental taste-matching logic into
+    // the lightweight lexical reranker below.
     //
-    // Weight is used correctly: high-weight history items contribute more to similarity,
+    // Weight still matters: high-weight history items contribute more to similarity,
     // meaning articles similar to important history items rank higher.
     //
     // RRF combines ranking signals by converting each to 1/(k + rank), normalizing
@@ -292,7 +321,9 @@ async fn fetch_feed_items(
     let sql = format!(
         r#"
         WITH history_chunks AS (
-            SELECT hc.embedding, COALESCE(uh.weight, 0.1) AS weight
+            SELECT
+                hc.embedding,
+                COALESCE(uh.weight, 0.1) AS weight
             FROM user_history uh
             JOIN online_article_chunks hc ON hc.online_article_id = uh.online_article_id
         ),
@@ -330,8 +361,8 @@ async fn fetch_feed_items(
                 ROW_NUMBER() OVER (ORDER BY log_external_score DESC NULLS LAST) AS rank
             FROM item_external_scores
         ),
-        -- Phase 1: Select top candidates by freshness-weighted external score (before similarity)
-        -- Use 2x (limit + offset) to ensure enough candidates after similarity reranking
+        -- Phase 1: Select a candidate pool large enough for semantic + lexical reranking,
+        -- and paginate only after the rerank so later pages stay consistent.
         candidates AS (
             SELECT
                 fi.id,
@@ -346,10 +377,8 @@ async fn fetch_feed_items(
             ORDER BY (
                 COALESCE(1.0 / ({external_k} + er.rank), 0.0) * COALESCE(ifr.freshness_score, 0.0)
             ) DESC
-            LIMIT GREATEST(($1 + $2) * 2, 100)
+            LIMIT $1
         ),
-        -- Phase 2: Compute similarity for candidates by comparing to ALL history chunks
-        -- Weight affects similarity: high-weight history items contribute more
         item_similarities AS (
             SELECT
                 c.id AS online_article_id,
@@ -386,28 +415,23 @@ async fn fetch_feed_items(
             FROM candidates c
             LEFT JOIN similarity_ranked sr ON sr.online_article_id = c.id
             LEFT JOIN item_similarities ism ON ism.online_article_id = c.id
-        ),
-        -- Limit results first, then fetch expensive metadata
-        limited_ranked AS (
-            SELECT * FROM ranked
-            ORDER BY score DESC, created_at DESC, id DESC
-            LIMIT $1 OFFSET $2
         )
         SELECT
-            lr.id,
+            r.id,
             COALESCE(
                 (SELECT im.metadata->>'editorialized_title'
                  FROM online_article_metadata im
-                 WHERE im.online_article_id = lr.id
+                 WHERE im.online_article_id = r.id
                    AND im.metadata->>'editorialized_title' IS NOT NULL
                  ORDER BY im.submitted_at
                  LIMIT 1),
-                lr.original_title
+                r.original_title
             ) AS title,
-            lr.url,
-            (SELECT MIN(im.submitted_at) FROM online_article_metadata im WHERE im.online_article_id = lr.id) AS submitted_at,
-            lr.score,
-            lr.similarity_score,
+            r.url,
+            r.created_at,
+            (SELECT MIN(im.submitted_at) FROM online_article_metadata im WHERE im.online_article_id = r.id) AS submitted_at,
+            r.score,
+            r.similarity_score,
             (SELECT JSONB_AGG(JSONB_BUILD_OBJECT(
                 'key', s.key,
                 'score', im.external_score,
@@ -415,36 +439,183 @@ async fn fetch_feed_items(
             ))
             FROM online_article_metadata im
             JOIN online_article_sources s ON s.id = im.source_id
-            WHERE im.online_article_id = lr.id) AS sources
-        FROM limited_ranked lr
-        ORDER BY lr.score DESC, lr.created_at DESC, lr.id DESC
+            WHERE im.online_article_id = r.id) AS sources,
+            oa.recommender_terms
+        FROM ranked r
+        JOIN online_articles oa ON oa.id = r.id
+        ORDER BY r.score DESC, r.created_at DESC, r.id DESC
     "#
     );
 
-    let rows = diesel::sql_query(sql)
-        .bind::<Integer, _>(limit as i32)
-        .bind::<Integer, _>(offset as i32)
+    let rows: Vec<RankedRow> = diesel::sql_query(sql)
+        .bind::<Integer, _>(candidate_pool_size as i32)
         .load(&mut conn)
         .await?;
 
-    Ok(rows
+    let history_rows: Vec<HistoryProfileRow> = diesel::sql_query(
+        r#"
+        SELECT
+            oa.title,
+            COALESCE(uh.weight, 0.1)::FLOAT8 AS weight,
+            oa.recommender_terms
+        FROM user_history uh
+        JOIN online_articles oa ON oa.id = uh.online_article_id
+    "#,
+    )
+    .load(&mut conn)
+    .await?;
+
+    let candidate_terms = rows
+        .iter()
+        .map(|row| recommender_terms_for_article(&row.title, row.recommender_terms.as_ref()))
+        .collect::<Vec<_>>();
+    let profile_term_weights = build_profile_term_weights(&history_rows, &candidate_terms);
+    let max_lexical_score = rows
+        .iter()
+        .zip(candidate_terms.iter())
+        .map(|(_, terms)| lexical_profile_score(terms, &profile_term_weights))
+        .fold(0.0, f64::max);
+
+    let mut reranked = rows
         .into_iter()
-        .map(|row: RankedRow| {
+        .zip(candidate_terms)
+        .map(|(row, terms)| {
+            let lexical_score = lexical_profile_score(&terms, &profile_term_weights);
+            let lexical_boost = if max_lexical_score > 0.0 {
+                1.0 + lexical_weight * (lexical_score / max_lexical_score)
+            } else {
+                1.0
+            };
+
+            (row, lexical_boost)
+        })
+        .collect::<Vec<_>>();
+
+    reranked.sort_by(|(left_row, left_boost), (right_row, right_boost)| {
+        (right_row.score * right_boost)
+            .total_cmp(&(left_row.score * left_boost))
+            .then_with(|| right_row.created_at.cmp(&left_row.created_at))
+            .then_with(|| right_row.id.cmp(&left_row.id))
+    });
+
+    let start = offset as usize;
+    if start >= reranked.len() {
+        return Ok(Vec::new());
+    }
+
+    let end = start.saturating_add(limit as usize).min(reranked.len());
+
+    Ok(reranked[start..end]
+        .iter()
+        .map(|(row, lexical_boost)| {
             let sources: Vec<SourceInfo> = row
                 .sources
-                .and_then(|v| serde_json::from_value(v).ok())
+                .clone()
+                .and_then(|value| serde_json::from_value(value).ok())
                 .unwrap_or_default();
+
             FeedItem {
                 id: row.id,
-                title: row.title,
-                url: row.url,
-                score: row.score,
+                title: row.title.clone(),
+                url: row.url.clone(),
+                score: row.score * lexical_boost,
                 similarity_score: row.similarity_score,
-                submitted_at: Some(row.submitted_at),
+                submitted_at: row.submitted_at,
                 sources,
             }
         })
         .collect())
+}
+
+fn parse_recommender_terms_json(value: Option<&serde_json::Value>) -> Vec<String> {
+    let Some(serde_json::Value::Array(items)) = value else {
+        return Vec::new();
+    };
+
+    let mut seen = HashSet::new();
+    items
+        .iter()
+        .filter_map(|item| item.as_str())
+        .filter_map(|term| {
+            let term = term.trim();
+            (!term.is_empty() && seen.insert(term.to_string())).then_some(term.to_string())
+        })
+        .collect()
+}
+
+fn recommender_terms_for_article(
+    title: &str,
+    stored_terms: Option<&serde_json::Value>,
+) -> HashSet<String> {
+    let stored_terms = parse_recommender_terms_json(stored_terms);
+    let effective_terms = if stored_terms.is_empty() {
+        crate::utils::extract_recommender_terms(title, None)
+    } else {
+        stored_terms
+    };
+
+    effective_terms.into_iter().collect()
+}
+
+fn build_profile_term_weights(
+    history_rows: &[HistoryProfileRow],
+    candidate_terms: &[HashSet<String>],
+) -> HashMap<String, f64> {
+    let mut candidate_document_frequency = HashMap::new();
+    for terms in candidate_terms {
+        for term in terms {
+            *candidate_document_frequency
+                .entry(term.clone())
+                .or_insert(0usize) += 1;
+        }
+    }
+
+    let candidate_count = candidate_terms.len() as f64;
+    if candidate_count <= 0.0 {
+        return HashMap::new();
+    }
+
+    let mut weighted_terms = HashMap::new();
+    for row in history_rows {
+        let terms = recommender_terms_for_article(&row.title, row.recommender_terms.as_ref());
+        for term in terms {
+            let document_frequency = candidate_document_frequency
+                .get(&term)
+                .copied()
+                .unwrap_or(0);
+            let specificity = ((candidate_count + 1.0) / (document_frequency as f64 + 1.0)).ln();
+            if specificity <= 0.0 {
+                continue;
+            }
+
+            *weighted_terms.entry(term).or_insert(0.0) += row.weight * specificity;
+        }
+    }
+
+    let mut ranked_terms = weighted_terms.into_iter().collect::<Vec<_>>();
+    ranked_terms.sort_by(|(left_term, left_score), (right_term, right_score)| {
+        right_score
+            .total_cmp(left_score)
+            .then_with(|| left_term.cmp(right_term))
+    });
+    ranked_terms.truncate(MAX_PROFILE_TERMS);
+    ranked_terms.into_iter().collect()
+}
+
+fn lexical_profile_score(
+    candidate_terms: &HashSet<String>,
+    profile_term_weights: &HashMap<String, f64>,
+) -> f64 {
+    if candidate_terms.is_empty() || profile_term_weights.is_empty() {
+        return 0.0;
+    }
+
+    let matched_weight = candidate_terms
+        .iter()
+        .filter_map(|term| profile_term_weights.get(term))
+        .sum::<f64>();
+
+    matched_weight / (candidate_terms.len() as f64).sqrt().max(1.0)
 }
 
 async fn newest_item_id(ctx: &App) -> Result<Option<i32>, eyre::Error> {

@@ -68,6 +68,8 @@ pub struct SourceEntry {
 pub struct FetchedArticle {
     url: url::Url,
     title: String,
+    content_text: Option<String>,
+    recommender_terms: Vec<String>,
     embeddings: Vec<Vector>,
 }
 
@@ -210,11 +212,15 @@ pub async fn fetch_and_generate_embedding(
         .or(title)
         .ok_or_eyre("couldn't extract title from the article, maybe manually supply one")?;
 
+    let content_text = crate::utils::truncate_recommender_content(&markdown);
+    let recommender_terms = crate::utils::extract_recommender_terms(&title, Some(&markdown));
     let embeddings = super::engine::generate_embeddings(&title, &markdown).await?;
 
     Ok(FetchedArticle {
         url,
         title,
+        content_text,
+        recommender_terms,
         embeddings,
     })
 }
@@ -231,7 +237,11 @@ pub async fn insert_article(
 
     let canonical_url = canonicalize_url(article.url.clone())?;
     let FetchedArticle {
-        title, embeddings, ..
+        title,
+        content_text,
+        recommender_terms,
+        embeddings,
+        ..
     } = article;
 
     Ok(conn
@@ -240,8 +250,9 @@ pub async fn insert_article(
                 let new_item = crate::models::recommendation::NewOnlineArticle {
                     url: canonical_url.to_string(),
                     title,
-                    // useful when debugging though takes up space, so optional
-                    content_text: None,
+                    content_text,
+                    recommender_terms: (!recommender_terms.is_empty())
+                        .then_some(serde_json::json!(recommender_terms)),
                 };
 
                 let article_id = diesel::insert_into(articles_dsl::online_articles)

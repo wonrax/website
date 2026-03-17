@@ -127,6 +127,7 @@ diesel::table! {
         url -> Text,
         title -> Text,
         content_text -> Nullable<Text>,
+        recommender_terms -> Nullable<Jsonb>,
         created_at -> Timestamp,
     }
 }

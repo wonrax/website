@@ -160,6 +160,7 @@ model online_articles {
   url                     String                    @unique
   title                   String
   content_text            String?
+  recommender_terms       Json?
   created_at              DateTime?                 @default(now()) @db.Timestamp(6)
   online_article_chunks   online_article_chunks[]
   online_article_metadata online_article_metadata[]

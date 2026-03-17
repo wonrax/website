@@ -37,6 +37,10 @@ interface FeedEvent {
 
 type SourceFilter = "all" | "hacker_news" | "lobsters";
 type RankingPreset = "balanced" | "newer_first" | "top_first" | "similar_first";
+type FeedFilters = {
+  sourceFilter: SourceFilter;
+  ranking: RankingPreset;
+};
 
 const SOURCE_OPTIONS: { value: SourceFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -67,7 +71,74 @@ const RANKING_OPTIONS: {
   },
 ];
 
+const DEFAULT_FILTERS: FeedFilters = {
+  sourceFilter: "all",
+  ranking: "balanced",
+};
+
+function isSourceFilter(value: string | null): value is SourceFilter {
+  return SOURCE_OPTIONS.some((option) => option.value === value);
+}
+
+function isRankingPreset(value: string | null): value is RankingPreset {
+  return RANKING_OPTIONS.some((option) => option.value === value);
+}
+
+function readFiltersFromUrl(): FeedFilters {
+  if (typeof window === "undefined") {
+    return DEFAULT_FILTERS;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const rawSourceFilter = params.get("source");
+  const rawRanking = params.get("ranking");
+
+  return {
+    sourceFilter: isSourceFilter(rawSourceFilter)
+      ? rawSourceFilter
+      : DEFAULT_FILTERS.sourceFilter,
+    ranking: isRankingPreset(rawRanking) ? rawRanking : DEFAULT_FILTERS.ranking,
+  };
+}
+
+function writeFiltersToUrl(
+  filters: FeedFilters,
+  mode: "push" | "replace"
+): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+
+  if (filters.sourceFilter === DEFAULT_FILTERS.sourceFilter) {
+    url.searchParams.delete("source");
+  } else {
+    url.searchParams.set("source", filters.sourceFilter);
+  }
+
+  if (filters.ranking === DEFAULT_FILTERS.ranking) {
+    url.searchParams.delete("ranking");
+  } else {
+    url.searchParams.set("ranking", filters.ranking);
+  }
+
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+  if (nextUrl === currentUrl) {
+    return;
+  }
+
+  if (mode === "replace") {
+    window.history.replaceState(null, "", nextUrl);
+  } else {
+    window.history.pushState(null, "", nextUrl);
+  }
+}
+
 export default function RecommenderFeed(): JSXElement {
+  const initialFilters = readFiltersFromUrl();
   const [items, setItems] = createSignal<FeedItem[]>([]);
   const [loading, setLoading] = createSignal(true);
   const [err, setErr] = createSignal<string | null>(null);
@@ -76,18 +147,31 @@ export default function RecommenderFeed(): JSXElement {
   const [hasMore, setHasMore] = createSignal(true);
   const [loadingMore, setLoadingMore] = createSignal(false);
 
-  const [sourceFilter, setSourceFilter] = createSignal<SourceFilter>("all");
-  const [ranking, setRanking] = createSignal<RankingPreset>("balanced");
+  const [sourceFilter, setSourceFilter] = createSignal<SourceFilter>(
+    initialFilters.sourceFilter
+  );
+  const [ranking, setRanking] = createSignal<RankingPreset>(
+    initialFilters.ranking
+  );
 
   const LIMIT = 20;
 
-  const fetchFeed = async (currentOffset: number, append = false) => {
+  const fetchFeed = async (
+    currentOffset: number,
+    append = false,
+    filters?: FeedFilters
+  ) => {
+    const activeFilters = filters ?? {
+      sourceFilter: sourceFilter(),
+      ranking: ranking(),
+    };
+
     try {
       const params = new URLSearchParams({
         offset: currentOffset.toString(),
         limit: LIMIT.toString(),
-        source: sourceFilter(),
-        ranking: ranking(),
+        source: activeFilters.sourceFilter,
+        ranking: activeFilters.ranking,
       });
       const resp = await fetch(`${config.API_URL}/feed?${params}`);
       if (!resp.ok) {
@@ -110,6 +194,23 @@ export default function RecommenderFeed(): JSXElement {
     }
   };
 
+  const reloadFeedForFilters = async (
+    nextFilters: FeedFilters,
+    historyMode: "push" | "replace" | "skip" = "push"
+  ) => {
+    setSourceFilter(nextFilters.sourceFilter);
+    setRanking(nextFilters.ranking);
+    setOffset(0);
+    setLoading(true);
+
+    if (historyMode !== "skip") {
+      writeFiltersToUrl(nextFilters, historyMode);
+    }
+
+    await fetchFeed(0, false, nextFilters);
+    setLoading(false);
+  };
+
   const loadMore = async () => {
     if (loadingMore() || !hasMore()) return;
     setLoadingMore(true);
@@ -123,34 +224,68 @@ export default function RecommenderFeed(): JSXElement {
     setLoading(true);
     setOffset(0);
     setNewItemsCount(0);
-    await fetchFeed(0);
+    await fetchFeed(0, false, {
+      sourceFilter: sourceFilter(),
+      ranking: ranking(),
+    });
     setLoading(false);
   };
 
   const handleSourceChange = (newSource: SourceFilter) => {
-    setSourceFilter(newSource);
-    setOffset(0);
-    setLoading(true);
-    fetchFeed(0).then(() => setLoading(false));
+    if (newSource === sourceFilter()) {
+      return;
+    }
+
+    void reloadFeedForFilters(
+      {
+        sourceFilter: newSource,
+        ranking: ranking(),
+      },
+      "push"
+    );
   };
 
   const handleRankingChange = (newRanking: RankingPreset) => {
-    setRanking(newRanking);
-    setOffset(0);
-    setLoading(true);
-    fetchFeed(0).then(() => setLoading(false));
+    if (newRanking === ranking()) {
+      return;
+    }
+
+    void reloadFeedForFilters(
+      {
+        sourceFilter: sourceFilter(),
+        ranking: newRanking,
+      },
+      "push"
+    );
   };
 
   onMount(() => {
+    writeFiltersToUrl(
+      {
+        sourceFilter: sourceFilter(),
+        ranking: ranking(),
+      },
+      "replace"
+    );
+
     toast.loading("Fetching recommendations...", {
       id: "recommender-fetch",
       duration: Infinity,
     });
 
-    fetchFeed(0).then(() => {
+    fetchFeed(0, false, {
+      sourceFilter: sourceFilter(),
+      ranking: ranking(),
+    }).then(() => {
       setLoading(false);
       toast.dismiss("recommender-fetch");
     });
+
+    const handlePopState = () => {
+      void reloadFeedForFilters(readFiltersFromUrl(), "skip");
+    };
+
+    window.addEventListener("popstate", handlePopState);
 
     const eventSource = new EventSource(`${config.API_URL}/feed/stream`);
 
@@ -173,6 +308,7 @@ export default function RecommenderFeed(): JSXElement {
     };
 
     onCleanup(() => {
+      window.removeEventListener("popstate", handlePopState);
       eventSource.close();
     });
   });
