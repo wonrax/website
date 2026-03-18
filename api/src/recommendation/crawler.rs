@@ -1,10 +1,10 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use crate::App;
 use diesel::prelude::*;
 use diesel::sql_types::Integer;
 use diesel_async::{AsyncPgConnection, RunQueryDsl};
-use eyre::{OptionExt, eyre};
+use eyre::{OptionExt, WrapErr, eyre};
 use futures::stream::StreamExt;
 use pgvector::Vector;
 use robotxt::Robots;
@@ -94,6 +94,61 @@ async fn insert_article_chunks(
     Ok(())
 }
 
+fn missing_recommender_fields(article: &crate::models::recommendation::OnlineArticle) -> bool {
+    article.content_text.is_none() || article.recommender_terms.is_none()
+}
+
+fn build_recommender_terms_json(title: &str, content: Option<&str>) -> Option<serde_json::Value> {
+    let recommender_terms = crate::utils::extract_recommender_terms(title, content);
+    (!recommender_terms.is_empty()).then_some(serde_json::json!(recommender_terms))
+}
+
+#[tracing::instrument(skip(ctx))]
+pub async fn backfill_missing_recommender_fields(
+    ctx: &App,
+    article: crate::models::recommendation::OnlineArticle,
+) -> Result<bool, eyre::Error> {
+    use crate::schema::online_articles::dsl as articles_dsl;
+
+    if !missing_recommender_fields(&article) {
+        return Ok(false);
+    }
+
+    let mut fetched_markdown = None;
+    if article.content_text.is_none() {
+        let url = url::Url::parse(&article.url)
+            .wrap_err_with(|| format!("Failed to parse article URL {}", article.url))?;
+        let (_, markdown) = fetch_markdown(ctx, &url).await?;
+        fetched_markdown = Some(markdown);
+    }
+
+    let content_text = article.content_text.clone().or_else(|| {
+        fetched_markdown
+            .as_deref()
+            .and_then(crate::utils::truncate_recommender_content)
+    });
+
+    let recommender_terms = article.recommender_terms.clone().or_else(|| {
+        build_recommender_terms_json(
+            &article.title,
+            fetched_markdown
+                .as_deref()
+                .or(article.content_text.as_deref()),
+        )
+    });
+
+    let mut conn = ctx.diesel.get().await?;
+    diesel::update(articles_dsl::online_articles.filter(articles_dsl::id.eq(article.id)))
+        .set((
+            articles_dsl::content_text.eq(content_text),
+            articles_dsl::recommender_terms.eq(recommender_terms),
+        ))
+        .execute(&mut conn)
+        .await?;
+
+    Ok(true)
+}
+
 #[tracing::instrument(skip(ctx))]
 pub async fn run_crawl(ctx: &App) -> Result<(), eyre::Error> {
     tracing::debug!("Starting crawl job");
@@ -118,6 +173,7 @@ pub async fn run_crawl(ctx: &App) -> Result<(), eyre::Error> {
     // First pass: filter out already-existing URLs
     let mut conn = ctx.diesel.get().await?;
     let mut new_entries = Vec::new();
+    let mut articles_to_backfill = HashMap::new();
     // FIXME: N+1 query
     for entry in entries {
         let url = match canonicalize_url(entry.url.clone()) {
@@ -150,12 +206,46 @@ pub async fn run_crawl(ctx: &App) -> Result<(), eyre::Error> {
                 entry.submitted_at,
             )
             .await?;
+
+            if missing_recommender_fields(&existing) {
+                articles_to_backfill.insert(existing.id, existing);
+            }
         } else {
             new_entries.push(SourceEntry { url, ..entry });
         }
     }
     // Release connection before HTTP fetches
     drop(conn);
+
+    let articles_to_backfill = articles_to_backfill.into_values().collect::<Vec<_>>();
+    if !articles_to_backfill.is_empty() {
+        tracing::debug!(
+            "Backfilling recommender content for {} existing articles",
+            articles_to_backfill.len()
+        );
+
+        futures::stream::iter(articles_to_backfill)
+            .map(|article| {
+                let ctx = ctx.clone();
+                async move {
+                    backfill_missing_recommender_fields(&ctx, article)
+                        .await
+                        .map(|_| ())
+                }
+            })
+            .buffer_unordered(MAX_CONCURRENT_FETCHES)
+            .filter_map(|result| async {
+                match result {
+                    Ok(ok) => Some(ok),
+                    Err(err) => {
+                        tracing::warn!(?err, "Failed to backfill recommender fields");
+                        None
+                    }
+                }
+            })
+            .collect::<Vec<_>>()
+            .await;
+    }
 
     if new_entries.is_empty() {
         tracing::debug!("No new entries to process");

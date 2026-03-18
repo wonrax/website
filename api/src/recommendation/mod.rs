@@ -795,6 +795,7 @@ async fn insert_user_history(
     use crate::schema::user_history::dsl as history_dsl;
 
     let mut new_entries: Vec<UserHistorySource> = Vec::new();
+    let mut articles_to_backfill = HashMap::new();
     // FIXME: N+1 query
     for source in sources {
         let url = match crawler::canonicalize_url(source.url.clone()) {
@@ -815,6 +816,10 @@ async fn insert_user_history(
 
         match existing_item {
             Some(item) => {
+                if item.content_text.is_none() || item.recommender_terms.is_none() {
+                    articles_to_backfill.insert(item.id, item.clone());
+                }
+
                 // if the article is already indexed, just add to history
                 let existing_history = history_dsl::user_history
                     .filter(history_dsl::online_article_id.eq(item.id))
@@ -835,6 +840,36 @@ async fn insert_user_history(
                 new_entries.push(source);
             }
         };
+    }
+
+    let articles_to_backfill = articles_to_backfill.into_values().collect::<Vec<_>>();
+    if !articles_to_backfill.is_empty() {
+        tracing::debug!(
+            "Backfilling recommender content for {} existing history articles",
+            articles_to_backfill.len()
+        );
+
+        futures::stream::iter(articles_to_backfill)
+            .map(|article| {
+                let ctx = ctx.clone();
+                async move {
+                    crawler::backfill_missing_recommender_fields(&ctx, article)
+                        .await
+                        .map(|_| ())
+                }
+            })
+            .buffer_unordered(MAX_CONCURRENT_FETCHES)
+            .filter_map(|result| async {
+                match result {
+                    Ok(ok) => Some(ok),
+                    Err(err) => {
+                        tracing::warn!(?err, "Failed to backfill recommender fields");
+                        None
+                    }
+                }
+            })
+            .collect::<Vec<_>>()
+            .await;
     }
 
     Ok(futures::stream::iter(new_entries)
