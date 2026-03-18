@@ -9,7 +9,6 @@ use crate::config::FASTEMBED_CACHE_DIR;
 
 pub const RECOMMENDER_EMBEDDING_BITS: usize = 384;
 pub const MAX_RECOMMENDER_TERMS: usize = 48;
-pub const MAX_RECOMMENDER_CONTENT_CHARS: usize = 24_000;
 
 static RECOMMENDER_STOPWORDS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     HashSet::from([
@@ -101,20 +100,6 @@ pub fn extract_recommender_terms(title: &str, content: Option<&str>) -> Vec<Stri
         .take(MAX_RECOMMENDER_TERMS)
         .map(|(term, _)| term)
         .collect()
-}
-
-pub fn truncate_recommender_content(content: &str) -> Option<String> {
-    let trimmed = content.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-
-    Some(
-        trimmed
-            .chars()
-            .take(MAX_RECOMMENDER_CONTENT_CHARS)
-            .collect(),
-    )
 }
 
 /// Shared FastEmbed embedding model instance.

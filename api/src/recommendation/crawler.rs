@@ -68,7 +68,6 @@ pub struct SourceEntry {
 pub struct FetchedArticle {
     url: url::Url,
     title: String,
-    content_text: Option<String>,
     recommender_terms: Vec<String>,
     embeddings: Vec<Vector>,
 }
@@ -94,8 +93,8 @@ async fn insert_article_chunks(
     Ok(())
 }
 
-fn missing_recommender_fields(article: &crate::models::recommendation::OnlineArticle) -> bool {
-    article.content_text.is_none() || article.recommender_terms.is_none()
+fn needs_recommender_backfill(article: &crate::models::recommendation::OnlineArticle) -> bool {
+    article.content_text.is_some() || article.recommender_terms.is_none()
 }
 
 fn build_recommender_terms_json(title: &str, content: Option<&str>) -> Option<serde_json::Value> {
@@ -104,43 +103,31 @@ fn build_recommender_terms_json(title: &str, content: Option<&str>) -> Option<se
 }
 
 #[tracing::instrument(skip(ctx))]
-pub async fn backfill_missing_recommender_fields(
+pub async fn backfill_recommender_fields(
     ctx: &App,
     article: crate::models::recommendation::OnlineArticle,
 ) -> Result<bool, eyre::Error> {
     use crate::schema::online_articles::dsl as articles_dsl;
 
-    if !missing_recommender_fields(&article) {
+    if !needs_recommender_backfill(&article) {
         return Ok(false);
     }
 
-    let mut fetched_markdown = None;
-    if article.content_text.is_none() {
+    let recommender_terms = if article.recommender_terms.is_some() {
+        article.recommender_terms.clone()
+    } else if let Some(content_text) = article.content_text.as_deref() {
+        build_recommender_terms_json(&article.title, Some(content_text))
+    } else {
         let url = url::Url::parse(&article.url)
             .wrap_err_with(|| format!("Failed to parse article URL {}", article.url))?;
         let (_, markdown) = fetch_markdown(ctx, &url).await?;
-        fetched_markdown = Some(markdown);
-    }
-
-    let content_text = article.content_text.clone().or_else(|| {
-        fetched_markdown
-            .as_deref()
-            .and_then(crate::utils::truncate_recommender_content)
-    });
-
-    let recommender_terms = article.recommender_terms.clone().or_else(|| {
-        build_recommender_terms_json(
-            &article.title,
-            fetched_markdown
-                .as_deref()
-                .or(article.content_text.as_deref()),
-        )
-    });
+        build_recommender_terms_json(&article.title, Some(&markdown))
+    };
 
     let mut conn = ctx.diesel.get().await?;
     diesel::update(articles_dsl::online_articles.filter(articles_dsl::id.eq(article.id)))
         .set((
-            articles_dsl::content_text.eq(content_text),
+            articles_dsl::content_text.eq::<Option<String>>(None),
             articles_dsl::recommender_terms.eq(recommender_terms),
         ))
         .execute(&mut conn)
@@ -207,7 +194,7 @@ pub async fn run_crawl(ctx: &App) -> Result<(), eyre::Error> {
             )
             .await?;
 
-            if missing_recommender_fields(&existing) {
+            if needs_recommender_backfill(&existing) {
                 articles_to_backfill.insert(existing.id, existing);
             }
         } else {
@@ -227,11 +214,7 @@ pub async fn run_crawl(ctx: &App) -> Result<(), eyre::Error> {
         futures::stream::iter(articles_to_backfill)
             .map(|article| {
                 let ctx = ctx.clone();
-                async move {
-                    backfill_missing_recommender_fields(&ctx, article)
-                        .await
-                        .map(|_| ())
-                }
+                async move { backfill_recommender_fields(&ctx, article).await.map(|_| ()) }
             })
             .buffer_unordered(MAX_CONCURRENT_FETCHES)
             .filter_map(|result| async {
@@ -302,14 +285,12 @@ pub async fn fetch_and_generate_embedding(
         .or(title)
         .ok_or_eyre("couldn't extract title from the article, maybe manually supply one")?;
 
-    let content_text = crate::utils::truncate_recommender_content(&markdown);
     let recommender_terms = crate::utils::extract_recommender_terms(&title, Some(&markdown));
     let embeddings = super::engine::generate_embeddings(&title, &markdown).await?;
 
     Ok(FetchedArticle {
         url,
         title,
-        content_text,
         recommender_terms,
         embeddings,
     })
@@ -328,7 +309,6 @@ pub async fn insert_article(
     let canonical_url = canonicalize_url(article.url.clone())?;
     let FetchedArticle {
         title,
-        content_text,
         recommender_terms,
         embeddings,
         ..
@@ -340,7 +320,7 @@ pub async fn insert_article(
                 let new_item = crate::models::recommendation::NewOnlineArticle {
                     url: canonical_url.to_string(),
                     title,
-                    content_text,
+                    content_text: None,
                     recommender_terms: (!recommender_terms.is_empty())
                         .then_some(serde_json::json!(recommender_terms)),
                 };

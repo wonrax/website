@@ -816,7 +816,7 @@ async fn insert_user_history(
 
         match existing_item {
             Some(item) => {
-                if item.content_text.is_none() || item.recommender_terms.is_none() {
+                if item.content_text.is_some() || item.recommender_terms.is_none() {
                     articles_to_backfill.insert(item.id, item.clone());
                 }
 
@@ -853,7 +853,7 @@ async fn insert_user_history(
             .map(|article| {
                 let ctx = ctx.clone();
                 async move {
-                    crawler::backfill_missing_recommender_fields(&ctx, article)
+                    crawler::backfill_recommender_fields(&ctx, article)
                         .await
                         .map(|_| ())
                 }
