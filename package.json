@@ -48,8 +48,5 @@
   },
   "prisma": {
     "seed": "ts-node api/prisma/seed.ts"
-  },
-  "overrides": {
-    "@emmetio/css-parser": "^0.4.0"
   }
 }

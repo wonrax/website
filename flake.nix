@@ -91,6 +91,8 @@
                 clang # rust-bindgen
               ];
               inherit LIBCLANG_PATH;
+              ORT_LIB_LOCATION = "${pkgs.onnxruntime}/lib";
+              ORT_PREFER_DYNAMIC_LINK = "1";
             };
           in
           craneLib.buildPackage (
@@ -117,6 +119,9 @@
           npmDeps = pkgs.importNpmLock { npmRoot = ./.; };
           npmConfigHook = pkgs.importNpmLock.npmConfigHook;
           npmWorkspace = ./.;
+
+          # fetch satori fonts and remote images during build
+          nativeBuildInputs = [ pkgs.cacert ];
 
           env.PUBLIC_GIT_REV = builtins.substring 0 7 (self.rev or self.dirtyRev or "unknown");
 
