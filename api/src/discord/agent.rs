@@ -9,7 +9,6 @@ use rig::{
     completion::{Message as RigMessage, Prompt},
     providers::gemini::{Client, completion::CompletionModel},
 };
-use serde_json::json;
 use serenity::all::{ChannelId, Context};
 use std::sync::Arc;
 use tracing::instrument;
@@ -193,15 +192,6 @@ pub fn create_agent_session(
         //     "reasoning_effort": "medium",
         //     "verbosity": "low"
         // }))
-        // Gemini params
-        .additional_params(json!({
-            "generationConfig": {
-                "thinkingConfig": {
-                    "thinkingLevel": "medium",
-                    "thinkingBudget": 4096
-                }
-            }
-        }))
         .build();
 
     // Store the history in the session rather than initializing the agent with it
