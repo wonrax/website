@@ -2,7 +2,7 @@ import { Remarkable } from "remarkable";
 import { createSignal, For, Show, type JSXElement, useContext } from "solid-js";
 import { CommentSubmission, CommentEditing } from "./CommentEditor";
 import { type Comment } from "./CommentSection";
-import { User } from "lucide-solid";
+import { User } from "@/components/Icon";
 import config from "@/config";
 import { fetchAny } from "@/rpc";
 import CommentContext from "./CommentSectionContext";

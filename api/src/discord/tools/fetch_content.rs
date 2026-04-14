@@ -75,7 +75,7 @@ async fn fetch_url_content_and_parse(url_str: &str) -> Result<String, eyre::Erro
     let client = Client::builder().timeout(URL_FETCH_TIMEOUT_SECS).build()?;
 
     let article = scraper
-        .parse(&url, false, &client, None)
+        .parse(&url, &client)
         .await
         .map_err(|e| eyre::eyre!("Failed to scrape article for {url_str}: {e}"))?;
 

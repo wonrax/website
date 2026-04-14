@@ -6,6 +6,7 @@
 
 import type { ImageMetadata, ImageTransform } from "astro";
 import { getImage } from "astro:assets";
+import { ArrowDown } from "@/components/Icon";
 type Props = {
   src: ImageMetadata | string;
   alt: string;
@@ -21,7 +22,6 @@ type Props = {
   deviceSizes?: number[];
 } & Omit<ImageTransform, "src"> &
   Omit<astroHTML.JSX.ImgHTMLAttributes, "src" | "width" | "height">;
-import { ArrowDown } from "lucide-solid";
 
 const {
   src,

@@ -78,7 +78,7 @@ async fn perform_web_search(query: &str) -> Result<String, eyre::Error> {
         .build()?;
 
     let article = scraper
-        .parse(&url, false, &client, None)
+        .parse(&url, &client)
         .await
         .map_err(|e| eyre::eyre!("Failed to scrape search results for query '{query}': {e}"))?;
 

@@ -2,7 +2,7 @@ use std::ops::Add;
 
 use base64::Engine;
 use diesel::prelude::*;
-use rand::RngCore;
+use rand::TryRng;
 
 use crate::crypto::random;
 
@@ -34,16 +34,18 @@ pub struct NewSession {
 
 impl Session {
     /// TODO this function should be ran inside spawn_blocking
-    pub fn new_with_identity_id(identity_id: i32) -> NewSession {
+    pub fn new_with_identity_id(identity_id: i32) -> Result<NewSession, eyre::Error> {
         let mut session_bytes = [0u8; 96];
-        random::get_rng().fill_bytes(&mut session_bytes);
+        random::get_rng()
+            .try_fill_bytes(&mut session_bytes)
+            .map_err(|_| eyre::eyre!("could not generate session bytes"))?;
 
         let token =
             "wnrx_".to_owned() + &base64::engine::general_purpose::STANDARD.encode(session_bytes);
 
         let now = chrono::Utc::now().naive_utc();
 
-        NewSession {
+        Ok(NewSession {
             active: true,
             token,
             issued_at: now,
@@ -54,6 +56,6 @@ impl Session {
             identity_id,
             created_at: now,
             updated_at: now,
-        }
+        })
     }
 }

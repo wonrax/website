@@ -76,27 +76,32 @@ impl AgentSession {
 
         for i in 0..MAX_AGENT_TURNS {
             let response = self
-            .agent
-            .prompt(if i == 0 {
-                "[SYSTEM]: New messages are added, respond appropriately. Output [END] if no further action is needed."
-            } else {
-                "[SYSTEM]: Continue processing the conversation. Output [END] if no further action is needed."
-            })
-            .with_history(&mut self.conversation_history)
-            .multi_turn(MAX_AGENT_TURNS)
-            .await
-            .inspect_err(|_| {
-                // remove all tool calls and tool results in case of this error:
-                // "The following tool_call_ids did not have response messages: call_UZH253hv9o9RYVHjRxS"
-                self.conversation_history.retain(|msg| match msg {
-                    RigMessage::User { content } => {
-                        !content.iter().any(|c| matches!(c, rig::message::UserContent::ToolResult(_)))
-                    }
-                    RigMessage::Assistant { content, .. } => {
-                        !content.iter().any(|c| matches!(c, rig::message::AssistantContent::ToolCall(_)))
-                    }
-                });
-            })?;
+                .agent
+                .prompt(if i == 0 {
+                    "[SYSTEM]: New messages are added, respond appropriately. Output [END] if no further action is needed."
+                } else {
+                    "[SYSTEM]: Continue processing the conversation. Output [END] if no further action is needed."
+                })
+                .with_history(&self.conversation_history)
+                .max_turns(MAX_AGENT_TURNS)
+                .await
+                .inspect_err(|_| {
+                    // remove all tool calls and tool results in case of this error:
+                    // "The following tool_call_ids did not have response messages: call_UZH253hv9o9RYVHjRxS"
+                    self.conversation_history.retain(|msg| match msg {
+                        RigMessage::System { .. } => true,
+                        RigMessage::User { content } => {
+                            !content.iter().any(|c| {
+                                matches!(c, rig::message::UserContent::ToolResult(_))
+                            })
+                        }
+                        RigMessage::Assistant { content, .. } => {
+                            !content.iter().any(|c| {
+                                matches!(c, rig::message::AssistantContent::ToolCall(_))
+                            })
+                        }
+                    });
+                })?;
 
             if response.trim().ends_with("[END]") {
                 break;
@@ -192,7 +197,7 @@ pub fn create_agent_session(
         .additional_params(json!({
             "generationConfig": {
                 "thinkingConfig": {
-                    "thinkingLevel": "MEDIUM",
+                    "thinkingLevel": "medium",
                     "thinkingBudget": 4096
                 }
             }

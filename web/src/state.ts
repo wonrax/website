@@ -55,8 +55,10 @@ export async function checkAuthUser(): Promise<AuthUser | undefined> {
     };
   } else {
     const error = await res.error();
-    throw Error("Couldn't check for authentication status: " + error.msg, {
-      cause: error.reason,
-    });
+    const authError = new Error(
+      "Couldn't check for authentication status: " + error.msg
+    ) as Error & { cause?: unknown };
+    authError.cause = error.reason;
+    throw authError;
   }
 }
