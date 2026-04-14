@@ -107,7 +107,10 @@
           tag = "latest";
           contents = with pkgs; [ cacert ];
           config = {
-            Env = [ "RUST_LOG=info" ];
+            Env = [
+              "RUST_LOG=info"
+              "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+            ];
             Cmd = [ "${packages.api}/bin/api" ];
           };
         };
