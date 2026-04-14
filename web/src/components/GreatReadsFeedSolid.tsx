@@ -1,5 +1,4 @@
 import { createSignal, onMount, For, Show, type JSXElement } from "solid-js";
-import { toast } from "solid-sonner";
 import config from "@/config";
 import styles from "../pages/great-reads/GreatReadsFeed.module.scss";
 import { parseFeed, type RSSItem } from "../shared/parseRssFeed";
@@ -100,7 +99,9 @@ export default function GreatReadsFeed(props: Props): JSXElement {
     initialItems
   );
 
-  onMount(() => {
+  onMount(async () => {
+    const { toast } = await import("solid-sonner");
+
     // Only show loading if we have no initial content
     if (initialItems.length === 0 && initialHighlights.length === 0) {
       setLoading(true);

@@ -81,9 +81,21 @@ pub async fn patch_comment(
 
     let mut author_name = updated_comment.1.clone();
 
-    if author_name.is_none() && updated_comment.2.is_some() {
+    if let Some(identity_id) = updated_comment.2 {
+        if author_name.is_some() {
+            return Ok(Json(Comment {
+                id: updated_comment.0,
+                author_name: author_name.unwrap_or_else(|| "Anonymous".to_string()),
+                content: updated_comment.3,
+                parent_id: updated_comment.4,
+                created_at: updated_comment.5,
+                votes: 0,
+                depth: -1,
+            }));
+        }
+
         let identity_traits = identities::table
-            .filter(identities::id.eq(updated_comment.2.unwrap()))
+            .filter(identities::id.eq(identity_id))
             .select(identities::traits)
             .first::<serde_json::Value>(&mut conn)
             .await

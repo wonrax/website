@@ -127,9 +127,9 @@ you use more additional fonts, check which fonts are being used in Chrome devtoo
 
             const flagKey = "global-banner";
             if (posthog.isFeatureEnabled(flagKey)) {
-              const payload = posthog.getFeatureFlagPayload(
-                flagKey
-              ) as unknown as BannerPayload;
+              const payload = posthog.getFeatureFlagResult(flagKey)?.payload as
+                | BannerPayload
+                | undefined;
               if (payload && payload.content && payload.type) {
                 // Store banner data on window for component to access
                 window.__bannerData = payload;

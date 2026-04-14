@@ -430,7 +430,7 @@ async fn fetch_markdown(
         tokio::spawn(async move {
             article_scraper::ArticleScraper::new(None)
                 .await
-                .parse(&url, false, &ctx.http, None)
+                .parse(&url, &ctx.http)
                 .await
         })
         .await??
@@ -442,7 +442,9 @@ async fn fetch_markdown(
             .as_ref()
             .ok_or_else(|| eyre!("no html content found"))?,
         None,
-    )?;
+    )?
+    .content
+    .ok_or_else(|| eyre!("html to markdown conversion produced no content"))?;
 
     Ok((article.title, markdown))
 }

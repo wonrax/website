@@ -1,5 +1,5 @@
-use rand::RngCore;
+use rand::TryRng;
 
-pub fn get_rng() -> impl RngCore {
-    rand::thread_rng()
+pub fn get_rng() -> impl TryRng {
+    rand::rng()
 }

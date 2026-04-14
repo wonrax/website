@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use rand::Rng;
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use rand::RngExt;
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("blog_comments");
@@ -44,7 +44,7 @@ struct CommentView {
 fn generate_comments(n: usize, max_depth: usize) -> Vec<Comment> {
     let mut comments = vec![];
     for i in 0..n {
-        let depth = rand::thread_rng().gen_range(0..max_depth + 1);
+        let depth = rand::rng().random_range(0..max_depth + 1);
         let comment = Comment {
             id: i as i32,
             author_name: "author".to_string(),

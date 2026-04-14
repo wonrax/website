@@ -106,6 +106,9 @@ export default defineConfig({
     domains: ["files.wrx.sh", "res.cloudinary.com"],
   },
   vite: {
+    resolve: {
+      conditions: ["solid", "browser", "module"],
+    },
     optimizeDeps: { exclude: ["@resvg/resvg-js"] },
     server: {
       proxy: {

@@ -269,7 +269,7 @@ pub async fn handle_github_oauth_callback(
 
     let identity = identity.unwrap();
 
-    let session = Session::new_with_identity_id(identity.id);
+    let session = Session::new_with_identity_id(identity.id)?;
 
     {
         use crate::schema::sessions;
