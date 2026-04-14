@@ -197,7 +197,6 @@ pub fn create_agent_session(
         .additional_params(json!({
             "generationConfig": {
                 "thinkingConfig": {
-                    "thinkingLevel": "medium",
                     "thinkingBudget": 4096
                 }
             }
