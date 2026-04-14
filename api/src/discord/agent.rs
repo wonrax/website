@@ -1,5 +1,5 @@
 use crate::discord::{
-    constants::{MAX_AGENT_TURNS, MESSAGE_CONTEXT_SIZE, SYSTEM_PROMPT},
+    constants::{MAX_AGENT_TURNS, MESSAGE_CONTEXT_SIZE, build_system_prompt},
     tools::{DiscordSendMessageTool, FetchPageContentTool, WebSearchTool},
 };
 use eyre::Context as _;
@@ -142,9 +142,10 @@ pub fn create_agent_session(
     let gb_ver = crate::discord::tools::GodboltVersion;
 
     // Create memory tools if Qdrant is configured
+    let has_memory_tools = shared_vectordb_client.is_some();
     let mut agent_builder = llm_client
         .agent("gemini-3-flash-preview")
-        .preamble(SYSTEM_PROMPT)
+        .preamble(build_system_prompt(has_memory_tools))
         .tool(discord_tool)
         .tool(fetch_tool)
         .tool(web_search_tool)
