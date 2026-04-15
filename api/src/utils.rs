@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, LazyLock, Mutex},
+    sync::{LazyLock, Mutex},
 };
 
 use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
@@ -105,27 +105,29 @@ pub fn extract_recommender_terms(title: &str, content: Option<&str>) -> Vec<Stri
 /// Shared FastEmbed embedding model instance.
 /// This is lazily initialized on first use and shared across the application
 /// to reduce memory usage by avoiding multiple model instances.
-static SHARED_EMBEDDING_MODEL: LazyLock<Arc<Mutex<TextEmbedding>>> = LazyLock::new(|| {
-    tracing::info!("Initializing shared FastEmbed embedding model");
-    let model = TextEmbedding::try_new(
-        InitOptions::new(EmbeddingModel::AllMiniLML12V2).with_cache_dir(
-            FASTEMBED_CACHE_DIR
-                .parse()
-                .expect("invalid fastembed cache dir"),
-        ),
-    )
-    .expect("failed to initialize embedding model");
-    Arc::new(Mutex::new(model))
-});
+static SHARED_EMBEDDING_MODEL: LazyLock<Result<Mutex<TextEmbedding>, EmbeddingError>> =
+    LazyLock::new(|| {
+        tracing::info!("Initializing shared FastEmbed embedding model");
+        let cache_dir = FASTEMBED_CACHE_DIR
+            .parse()
+            .map_err(|err| EmbeddingError(format!("invalid fastembed cache dir: {err}")))?;
+        let model = TextEmbedding::try_new(
+            InitOptions::new(EmbeddingModel::AllMiniLML12V2).with_cache_dir(cache_dir),
+        )
+        .map_err(|err| EmbeddingError(format!("failed to initialize embedding model: {err}")))?;
+
+        Ok(Mutex::new(model))
+    });
 
 /// Error type for embedding operations
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[error("Embedding error: {0}")]
 pub struct EmbeddingError(String);
 
 /// Generate embeddings for a list of texts using the shared model.
 pub fn embed_texts(texts: Vec<String>) -> Result<Vec<Vec<f32>>, EmbeddingError> {
-    let mut model = SHARED_EMBEDDING_MODEL
+    let model = SHARED_EMBEDDING_MODEL.as_ref().map_err(Clone::clone)?;
+    let mut model = model
         .lock()
         .map_err(|_| EmbeddingError("embedding model lock poisoned".to_string()))?;
     model

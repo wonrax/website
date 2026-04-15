@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/release-25.11";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
 
     rust-overlay = {
@@ -25,6 +26,7 @@
     {
       self,
       nixpkgs,
+      nixpkgs-unstable,
       rust-overlay,
       flake-utils,
       prisma-utils,
@@ -36,6 +38,7 @@
       let
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs { inherit system overlays; };
+        pkgsUnstable = import nixpkgs-unstable { inherit system overlays; };
 
         # Use crane with the latest stable toolchain for reproducible builds
         craneLib = (crane.mkLib pkgs).overrideToolchain (p: p.rust-bin.stable.latest.default);
@@ -59,6 +62,7 @@
         };
 
         LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+        certBundle = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
       in
       rec {
         # Build the Rust API with crane (workspace root). The bin is "api" crate.
@@ -81,9 +85,7 @@
               buildInputs = with pkgs; [
                 openssl
                 libxml2
-
-                # ort and fastembed
-                onnxruntime
+                pkgsUnstable.onnxruntime
               ];
               nativeBuildInputs = with pkgs; [
                 pkg-config
@@ -91,7 +93,7 @@
                 clang # rust-bindgen
               ];
               inherit LIBCLANG_PATH;
-              ORT_LIB_LOCATION = "${pkgs.onnxruntime}/lib";
+              ORT_LIB_LOCATION = "${pkgsUnstable.onnxruntime}/lib";
               ORT_PREFER_DYNAMIC_LINK = "1";
             };
           in
@@ -109,10 +111,18 @@
           config = {
             Env = [
               "RUST_LOG=info"
-              "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+              "SSL_CERT_FILE=${certBundle}"
+              "NIX_SSL_CERT_FILE=${certBundle}"
+              "SSL_CERT_DIR=/etc/ssl/certs"
+              "CURL_CA_BUNDLE=${certBundle}"
             ];
             Cmd = [ "${packages.api}/bin/api" ];
           };
+          extraCommands = ''
+            mkdir -p etc/ssl/certs
+            ln -sf ca-bundle.crt etc/ssl/certs/ca-certificates.crt
+            ln -sf certs/ca-bundle.crt etc/ssl/cert.pem
+          '';
         };
 
         packages.www = pkgs.buildNpmPackage {

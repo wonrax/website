@@ -140,10 +140,7 @@ pub async fn create_comment(
         if let Some(traits) = identity_traits {
             let traits: Traits = serde_json::from_value(traits).map_err(|_| "Invalid traits")?;
             author_name = traits.name.or_else(|| {
-                tracing::error!(
-                    "No name in traits found for identity ID `{}`",
-                    identity_id,
-                );
+                tracing::error!("No name in traits found for identity ID `{}`", identity_id,);
                 Some("No name".into())
             });
         }
