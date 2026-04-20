@@ -38,6 +38,8 @@ npm run -w api lint
 
 - markdown auto external link
 - headings anchor clickable
+- add copy button to code blocks
+- show code language label in code blocks (e.g. rust, sql)
 - right padding in code block (or white space)
 - fix featuretype=lg width in multiple screen sizes
 - hide the ToC when featuretype=lg element presents

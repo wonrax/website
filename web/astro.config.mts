@@ -8,6 +8,7 @@ import remarkDirective from "remark-directive";
 import remarkMath from "remark-math";
 import type { Element } from "hast";
 import rehypeBlogPost from "./plugins/rehypeBlogPost";
+import rehypeCodeGroup from "./plugins/rehypeCodeGroup";
 import { remarkDirectiveHtml } from "./plugins/remarkDirective";
 import remarkResponsiveImage from "./plugins/remarkResponsiveImage";
 import solid from "@astrojs/solid-js";
@@ -91,6 +92,7 @@ export default defineConfig({
     rehypePlugins: [
       rehypeKatex,
       [rehypePrettyCode, codeHighlightOptions],
+      rehypeCodeGroup,
       rehypeBlogPost,
     ],
   },

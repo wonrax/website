@@ -9,6 +9,7 @@ export const CUSTOM_IMAGE_IMPORT_SOURCE =
   "@/components/BlogResponsiveImage.astro";
 export const CODE_GROUP_COMPONENT_NAME = "CodeGroup";
 export const CODE_GROUP_IMPORT_SOURCE = "@/components/CodeGroup.tsx";
+export const CODE_GROUP_TITLE_ATTRIBUTE = "data-code-group-title";
 export const FEATURE_TYPE_ATTRIBUTE = "featuretype";
 
 export type CustomImageNode = MdxJsxFlowElement & {

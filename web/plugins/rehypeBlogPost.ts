@@ -14,6 +14,17 @@ type MdxFlowNode = RootContent & {
   children: RootContent[];
 };
 
+type NodeClassification =
+  | {
+      kind: "feature";
+      className: string;
+      wrapperTag: "div" | "figure";
+    }
+  | {
+      kind: "reading";
+      wrappedInFigure: boolean;
+    };
+
 function isElementNode(node: RootContent): node is Element {
   return node.type === "element";
 }
@@ -65,6 +76,58 @@ function findCustomImageNode(node: RootContent): MdxFlowNode | undefined {
   );
 }
 
+function classifyNode(node: RootContent): NodeClassification {
+  const featureWrapperClass = getFeatureWrapperClass(node);
+  if (featureWrapperClass != null) {
+    return {
+      kind: "feature",
+      className: featureWrapperClass,
+      wrapperTag: "div",
+    };
+  }
+
+  const imgNode = findCustomImageNode(node);
+  if (imgNode == null) {
+    return {
+      kind: "reading",
+      wrappedInFigure: false,
+    };
+  }
+
+  const featureType = getStringAttribute(imgNode, FEATURE_TYPE_ATTRIBUTE);
+  if (featureType == null) {
+    return {
+      kind: "reading",
+      wrappedInFigure: true,
+    };
+  }
+
+  return {
+    kind: "feature",
+    className: `feature feature-${featureType}`,
+    wrapperTag: "figure",
+  };
+}
+
+function wrapReadingNode(
+  node: RootContent,
+  wrappedInFigure: boolean
+): RootContent {
+  if (!wrappedInFigure) {
+    return node;
+  }
+
+  return h("figure", [node]);
+}
+
+function wrapFeatureNode(
+  node: RootContent,
+  wrapperTag: "div" | "figure",
+  className: string
+): RootContent {
+  return h(wrapperTag, { class: className.split(" ") }, [node]);
+}
+
 export default function rehypeBlogPost() {
   return (tree: Root) => {
     let wrapQueue: RootContent[] = [];
@@ -85,28 +148,19 @@ export default function rehypeBlogPost() {
         continue;
       }
 
-      const featureWrapperClass = getFeatureWrapperClass(node);
-      if (featureWrapperClass != null) {
-        flushWrapper();
-        finalChildren.push(h("div", { class: featureWrapperClass }, [node]));
-        continue;
-      }
-
-      const imgNode = findCustomImageNode(node);
-      if (imgNode == null) {
-        wrapQueue.push(node);
-        continue;
-      }
-
-      const featureType = getStringAttribute(imgNode, FEATURE_TYPE_ATTRIBUTE);
-      if (featureType == null) {
-        wrapQueue.push(h("figure", [node]));
+      const classification = classifyNode(node);
+      if (classification.kind === "reading") {
+        wrapQueue.push(wrapReadingNode(node, classification.wrappedInFigure));
         continue;
       }
 
       flushWrapper();
       finalChildren.push(
-        h("figure", { class: ["feature", "feature-" + featureType] }, [node])
+        wrapFeatureNode(
+          node,
+          classification.wrapperTag,
+          classification.className
+        )
       );
     }
 

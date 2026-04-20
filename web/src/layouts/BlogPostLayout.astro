@@ -693,6 +693,13 @@ const series = Astro.props.series;
   }
 
   .blog-container .code-group {
+    & > [role="tabpanel"] > figure[data-rehype-pretty-code-figure] {
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      background-color: transparent;
+    }
+
     .code-group-tabs {
       display: flex;
       padding-left: 16px;
