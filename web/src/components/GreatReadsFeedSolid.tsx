@@ -24,6 +24,24 @@ interface MergedArticle {
   status?: "normal" | "new";
 }
 
+async function fetchHighlights(): Promise<HighlightItem[]> {
+  const resp = await fetch(`${config.API_URL}/great-reads-highlights`);
+  if (!resp.ok) {
+    throw new Error(`Highlights API failed with status ${resp.status}`);
+  }
+
+  return (await resp.json()) as HighlightItem[];
+}
+
+async function fetchRssFeed(): Promise<RSSItem[]> {
+  const resp = await fetch(`${config.API_URL}/great-reads-feed`);
+  if (!resp.ok) {
+    throw new Error(`RSS API failed with status ${resp.status}`);
+  }
+
+  return parseFeed(await resp.text());
+}
+
 export default function GreatReadsFeed(props: Props): JSXElement {
   const initialItems = props.initialItems || [];
   const initialHighlights = props.initialHighlights || [];
@@ -88,97 +106,117 @@ export default function GreatReadsFeed(props: Props): JSXElement {
     );
   };
 
-  const [articles, setArticles] = createSignal<MergedArticle[]>(
-    mergeArticles(groupHighlightsByArticle(initialHighlights), initialItems)
-  );
-  const [loading, setLoading] = createSignal(false); // Start as false since we have initial content
-  const [err, setErr] = createSignal<string | null>(null);
-
-  let prevArticles = mergeArticles(
+  const initialArticles = mergeArticles(
     groupHighlightsByArticle(initialHighlights),
     initialItems
   );
 
+  const [articles, setArticles] =
+    createSignal<MergedArticle[]>(initialArticles);
+  const [loading, setLoading] = createSignal(false);
+  const [err, setErr] = createSignal<string | null>(null);
+
+  let prevArticles = initialArticles;
+
   onMount(async () => {
     const { toast } = await import("solid-sonner");
+    const hasInitialContent = initialArticles.length > 0;
 
-    // Only show loading if we have no initial content
-    if (initialItems.length === 0 && initialHighlights.length === 0) {
+    // Stale content can render immediately; only block when we have nothing yet.
+    if (!hasInitialContent) {
       setLoading(true);
     }
 
-    // Capture current articles length before async operation
-    const currentArticlesLength = articles().length;
-
-    // Show fetching status with toast using a consistent ID
     toast.loading("Fetching latest articles and highlights...", {
       id: "great-reads-fetch",
       duration: Infinity,
     });
 
-    // Always try to fetch both highlights and RSS, then merge them
-    Promise.all([
-      fetch(`${config.API_URL}/great-reads-highlights`).then((resp) => {
-        if (!resp.ok) throw new Error("Highlights API failed");
-        return resp.json() as Promise<HighlightItem[]>;
-      }), // Fallback to initial highlights on error
+    const [highlightsResult, rssResult] = await Promise.allSettled([
+      fetchHighlights(),
+      fetchRssFeed(),
+    ]);
 
-      fetch(`${config.API_URL}/great-reads-feed`)
-        .then((resp) => resp.text())
-        .then((xml) => parseFeed(xml)), // Fallback to initial RSS items on error
-    ])
-      .then(([highlightsData, rssData]) => {
-        const newArticles = mergeArticles(
-          groupHighlightsByArticle(highlightsData),
-          rssData
+    const refreshErrors: Error[] = [];
+
+    const highlightsData =
+      highlightsResult.status === "fulfilled"
+        ? highlightsResult.value
+        : (refreshErrors.push(
+            highlightsResult.reason instanceof Error
+              ? highlightsResult.reason
+              : new Error(String(highlightsResult.reason))
+          ),
+          initialHighlights);
+
+    const rssData =
+      rssResult.status === "fulfilled"
+        ? rssResult.value
+        : (refreshErrors.push(
+            rssResult.reason instanceof Error
+              ? rssResult.reason
+              : new Error(String(rssResult.reason))
+          ),
+          initialItems);
+
+    const newArticles = mergeArticles(
+      groupHighlightsByArticle(highlightsData),
+      rssData
+    );
+
+    if (newArticles.length > 0) {
+      const prevLinks = new Set(prevArticles.map((a) => a.link));
+      const articlesWithStatus = newArticles.map((article) => ({
+        ...article,
+        status: prevLinks.has(article.link)
+          ? ("normal" as const)
+          : ("new" as const),
+      }));
+
+      setArticles(articlesWithStatus);
+      prevArticles = newArticles;
+
+      setTimeout(() => {
+        setArticles((current) =>
+          current.map((article) =>
+            article.status === "new"
+              ? { ...article, status: "normal" }
+              : article
+          )
         );
+      }, 1500);
+    }
 
-        // Mark new articles
-        const prevLinks = new Set(prevArticles.map((a) => a.link));
-        const articlesWithStatus = newArticles.map((article) => ({
-          ...article,
-          status: prevLinks.has(article.link)
-            ? ("normal" as const)
-            : ("new" as const),
-        }));
-
-        setArticles(articlesWithStatus);
-        prevArticles = newArticles;
-
-        // Reset new status after animation
-        setTimeout(() => {
-          setArticles((current) =>
-            current.map((article) =>
-              article.status === "new"
-                ? { ...article, status: "normal" }
-                : article
-            )
-          );
-        }, 1500);
-
-        setLoading(false);
-        setErr(null); // Clear any previous errors on successful load
-        toast.dismiss("great-reads-fetch");
-      })
-      .catch((e) => {
-        // Update the same toast to show error
-        if (currentArticlesLength === 0) {
-          setErr("Failed to load feed");
-          toast.error("Failed to load articles and highlights", {
-            id: "great-reads-fetch",
-            closeButton: true,
-            duration: 5000,
-          });
-        } else {
-          toast.error("Failed to refresh content, showing cached data", {
-            id: "great-reads-fetch",
-            closeButton: true,
-            duration: 5000,
-          });
-        }
-        console.error("Failed to load great reads feed: ", e);
-        setLoading(false);
+    if (refreshErrors.length === 0) {
+      setErr(null);
+      toast.dismiss("great-reads-fetch");
+    } else if (newArticles.length > 0) {
+      setErr(null);
+      toast.error("Partially refreshed content, some sources failed", {
+        id: "great-reads-fetch",
+        closeButton: true,
+        duration: 5000,
       });
+    } else if (hasInitialContent) {
+      toast.error("Failed to refresh content, showing cached data", {
+        id: "great-reads-fetch",
+        closeButton: true,
+        duration: 5000,
+      });
+    } else {
+      setErr("Failed to load feed");
+      toast.error("Failed to load articles and highlights", {
+        id: "great-reads-fetch",
+        closeButton: true,
+        duration: 5000,
+      });
+    }
+
+    if (refreshErrors.length > 0) {
+      console.error("Failed to refresh great reads feed", refreshErrors);
+    }
+
+    setLoading(false);
   });
 
   return (

@@ -20,19 +20,20 @@ export function parseFeedServer(xml: string): RSSItem[] {
   }));
 }
 
-// Always fetch RSS feed server-side for initial page load
+// Build an initial RSS snapshot for stale-first rendering.
 let highlights: HighlightItem[] = [];
-let fallbackItems: RSSItem[] = [];
+let initialItems: RSSItem[] = [];
 
 try {
-  // Always fetch RSS feed for initial page load
+  // This page can be rendered before the API is available, so bootstrap from
+  // the public RSS feed and let the client refresh through `/api` after load.
   const FEED_URL = "https://bg.raindrop.io/rss/public/55948413";
   const rssRes = await fetch(FEED_URL);
   const xml = await rssRes.text();
-  fallbackItems = parseFeedServer(xml);
+  initialItems = parseFeedServer(xml);
 } catch (error) {
   console.error("Failed to fetch RSS feed:", error);
-  fallbackItems = [];
+  initialItems = [];
 }
 ---
 
@@ -45,7 +46,7 @@ try {
   <ToasterProvider client:only="solid-js" />
   <main class="blog-main">
     <GreatReadsFeed
-      initialItems={fallbackItems}
+      initialItems={initialItems}
       initialHighlights={highlights}
       client:idle
     />
