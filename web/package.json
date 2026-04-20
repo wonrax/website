@@ -9,6 +9,7 @@
     "start": "astro dev",
     "build": "astro build",
     "lint": "eslint .",
+    "test": "vitest run",
     "preview": "astro preview",
     "astro": "astro"
   },
@@ -52,6 +53,7 @@
     "@types/jsdom": "^28.0.1",
     "@types/remarkable": "^2.0.8",
     "jsdom": "^29.0.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   }
 }

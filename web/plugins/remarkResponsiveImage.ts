@@ -10,8 +10,14 @@ import type {
   MdxJsxTextElement,
   MdxjsEsm,
 } from "mdast-util-mdx";
-
-type CustomImageNode = MdxJsxFlowElement;
+import {
+  CODE_GROUP_COMPONENT_NAME,
+  CODE_GROUP_IMPORT_SOURCE,
+  CUSTOM_IMAGE_COMPONENT_NAME,
+  CUSTOM_IMAGE_IMPORT_SOURCE,
+  type CustomImageNode,
+  isMdxJsxElement,
+} from "./shared";
 
 function isParagraphNode(node: Parent["children"][number]): node is Paragraph {
   return node.type === "paragraph";
@@ -21,7 +27,7 @@ function isMarkdownImageNode(node: Parent["children"][number]): node is Image {
   return node.type === "image";
 }
 
-function parseCustomTitle(
+export function parseImageMeta(
   value: string | MdxJsxAttributeValueExpression | null | undefined
 ) {
   if (typeof value !== "string" || !value.startsWith("#")) {
@@ -64,22 +70,21 @@ function parseCustomTitle(
 function isCustomImageElement(
   node: Parent["children"][number] | PhrasingContent
 ): node is MdxJsxFlowElement | MdxJsxTextElement {
-  if (node.type !== "mdxJsxFlowElement" && node.type !== "mdxJsxTextElement") {
+  if (!isMdxJsxElement(node)) {
     return false;
   }
 
-  const mdxNode = node as MdxJsxFlowElement | MdxJsxTextElement;
-  return mdxNode.name === "astro-image" || mdxNode.name === "img";
+  return node.name === "astro-image" || node.name === "img";
 }
 
 function convertMarkdownImage(
   node: Image,
   captionChildren: PhrasingContent[] = []
 ): CustomImageNode {
-  const { title, attributes } = parseCustomTitle(node.title);
+  const { title, attributes } = parseImageMeta(node.title);
 
   return {
-    name: "__CustomImage__",
+    name: CUSTOM_IMAGE_COMPONENT_NAME,
     type: "mdxJsxFlowElement",
     attributes: [
       {
@@ -111,10 +116,11 @@ function convertMdxImage(
   node: MdxJsxFlowElement | MdxJsxTextElement,
   captionChildren: PhrasingContent[] = []
 ): CustomImageNode {
-  const attributes: MdxJsxAttribute[] = [];
+  const attributes: typeof node.attributes = [];
 
   for (const attribute of node.attributes) {
     if (attribute.type !== "mdxJsxAttribute") {
+      attributes.push(attribute);
       continue;
     }
 
@@ -123,7 +129,7 @@ function convertMdxImage(
       continue;
     }
 
-    const parsedTitle = parseCustomTitle(attribute.value);
+    const parsedTitle = parseImageMeta(attribute.value);
     if (parsedTitle.title != null) {
       attributes.push({
         ...attribute,
@@ -134,7 +140,7 @@ function convertMdxImage(
   }
 
   return {
-    name: "__CustomImage__",
+    name: CUSTOM_IMAGE_COMPONENT_NAME,
     type: "mdxJsxFlowElement",
     attributes,
     children: captionChildren as CustomImageNode["children"],
@@ -190,17 +196,68 @@ function transformChildren(children: Parent["children"]): Parent["children"] {
   return transformedChildren;
 }
 
-// By default images in mdx are not responsive. This plugin preserves the
-// existing authoring syntax while delegating image optimization to Astro.
+function hasNodeNamed(children: Parent["children"], name: string): boolean {
+  for (const child of children) {
+    if (isMdxJsxElement(child) && child.name === name) {
+      return true;
+    }
+
+    if ("children" in child && Array.isArray(child.children)) {
+      if (hasNodeNamed(child.children as Parent["children"], name)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+export function hasMdxImport(tree: Root, source: string): boolean {
+  return tree.children.some(
+    (child) =>
+      child.type === "mdxjsEsm" &&
+      typeof child.value === "string" &&
+      child.value.includes(`from "${source}"`)
+  );
+}
+
+function ensureMdxImport(tree: Root, localName: string, source: string): void {
+  if (hasMdxImport(tree, source)) {
+    return;
+  }
+
+  tree.children.unshift(jsToTreeNode(`import ${localName} from "${source}";`));
+}
+
 export default function remarkResponsiveImage() {
   return (tree: Root) => {
     tree.children = transformChildren(tree.children) as Root["children"];
-    tree.children.unshift(
-      jsToTreeNode(
-        `import __CustomImage__ from "@/components/BlogResponsiveImage.astro";`
-      ),
-      jsToTreeNode(`import CodeGroup from "@/components/CodeGroup.tsx";`)
-    );
+
+    if (
+      hasNodeNamed(
+        tree.children as Parent["children"],
+        CUSTOM_IMAGE_COMPONENT_NAME
+      )
+    ) {
+      ensureMdxImport(
+        tree,
+        CUSTOM_IMAGE_COMPONENT_NAME,
+        CUSTOM_IMAGE_IMPORT_SOURCE
+      );
+    }
+
+    if (
+      hasNodeNamed(
+        tree.children as Parent["children"],
+        CODE_GROUP_COMPONENT_NAME
+      )
+    ) {
+      ensureMdxImport(
+        tree,
+        CODE_GROUP_COMPONENT_NAME,
+        CODE_GROUP_IMPORT_SOURCE
+      );
+    }
   };
 }
 
@@ -213,7 +270,7 @@ export function jsToTreeNode(
 ): MdxjsEsm {
   return {
     type: "mdxjsEsm",
-    value: "",
+    value: jsString,
     data: {
       estree: {
         ...(parse(jsString, acornOpts) as Program),

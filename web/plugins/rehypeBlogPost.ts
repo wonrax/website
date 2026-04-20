@@ -1,17 +1,73 @@
-import type { Root, RootContent } from "hast";
+import type { Element, Root, RootContent } from "hast";
 import { h } from "hastscript";
-import type { MdxJsxFlowElement, MdxJsxAttribute } from "mdast-util-mdx";
+import {
+  CODE_GROUP_COMPONENT_NAME,
+  FEATURE_TYPE_ATTRIBUTE,
+  getStringAttribute,
+  isCustomImageNode,
+} from "./shared";
 
-// add extra custom modification like feature image etc.
+type MdxFlowNode = RootContent & {
+  type: "mdxJsxFlowElement";
+  name: string | null;
+  attributes: { type: string }[];
+  children: RootContent[];
+};
+
+function isElementNode(node: RootContent): node is Element {
+  return node.type === "element";
+}
+
+function isMdxFlowElement(node: RootContent): node is MdxFlowNode {
+  return node.type === "mdxJsxFlowElement";
+}
+
+function getFeatureWrapperClass(node: RootContent): string | undefined {
+  if (isElementNode(node)) {
+    if (node.tagName === "table") {
+      return "feature-table";
+    }
+
+    if (node.tagName === "aside") {
+      return "feature-aside";
+    }
+
+    if (node.tagName === "warning" || node.tagName === "note") {
+      return "feature-callout";
+    }
+
+    if (
+      node.tagName === "figure" &&
+      node.properties?.["data-rehype-pretty-code-figure"] === ""
+    ) {
+      return "feature-code";
+    }
+  }
+
+  if (isMdxFlowElement(node) && node.name === CODE_GROUP_COMPONENT_NAME) {
+    return "feature-code";
+  }
+
+  return undefined;
+}
+
+function findCustomImageNode(node: RootContent): MdxFlowNode | undefined {
+  if (isCustomImageNode(node)) {
+    return node as MdxFlowNode;
+  }
+
+  if (!("children" in node) || !Array.isArray(node.children)) {
+    return undefined;
+  }
+
+  return node.children.find((child): child is MdxFlowNode =>
+    isCustomImageNode(child)
+  );
+}
+
 export default function rehypeBlogPost() {
   return (tree: Root) => {
-    // The queue that holds the normal elements that will be wrapped in a
-    // MaxWidth component, whose width is reading line length. When a feature
-    // image is encountered, the queue is flushed and the image is added
-    // without the MaxWidth wrapper. This is inspired by react.dev
     let wrapQueue: RootContent[] = [];
-
-    // The final children that will be set back to the tree
     const finalChildren: RootContent[] = [];
 
     function flushWrapper(): void {
@@ -23,101 +79,34 @@ export default function rehypeBlogPost() {
       }
     }
 
-    for (let index = 0; index < tree.children.length; index++) {
-      const node = tree.children[index];
-
-      if (node.type !== "element" && node.type !== "mdxJsxFlowElement") {
+    for (const node of tree.children) {
+      if (!isElementNode(node) && !isMdxFlowElement(node)) {
         finalChildren.push(node);
         continue;
       }
 
-      if (node.type === "element") {
-        // table is a special case and is feature by default
-        if (node.tagName === "table") {
-          flushWrapper();
-          finalChildren.push(h("div", { class: "feature-table" }, node));
-          continue;
-        }
-
-        // aside is a special case and is feature by default
-        if (node.tagName === "aside") {
-          flushWrapper();
-          finalChildren.push(h("div", { class: "feature-aside" }, node));
-          continue;
-        }
-
-        if (["warning", "note"].includes(node.tagName)) {
-          flushWrapper();
-          finalChildren.push(h("div", { class: "feature-callout" }, node));
-          continue;
-        }
-
-        // code block is a special case and is feature by default
-        if (
-          node.tagName === "figure" &&
-          node.properties?.["data-rehype-pretty-code-figure"] === ""
-        ) {
-          flushWrapper();
-          finalChildren.push(h("div", { class: "feature-code" }, node));
-          continue;
-        }
+      const featureWrapperClass = getFeatureWrapperClass(node);
+      if (featureWrapperClass != null) {
+        flushWrapper();
+        finalChildren.push(h("div", { class: featureWrapperClass }, [node]));
+        continue;
       }
 
-      if (node.type === "mdxJsxFlowElement") {
-        // code group is a special case and is feature by default
-        if (node.name === "CodeGroup") {
-          flushWrapper();
-          finalChildren.push(h("div", { class: "feature-code" }, node));
-          continue;
-        }
-      }
-
-      // check if node contains img element or is the img element itself
-      let imgNode: MdxJsxFlowElement | undefined;
-      const imgNodesParent = node;
-      if (
-        node.type === "mdxJsxFlowElement" &&
-        node.name === "__CustomImage__"
-      ) {
-        imgNode = node as MdxJsxFlowElement;
-      } else if ("children" in node && Array.isArray(node.children)) {
-        for (const child of node.children) {
-          if (
-            child.type === "mdxJsxFlowElement" &&
-            child.name === "__CustomImage__"
-          ) {
-            imgNode = child as MdxJsxFlowElement;
-            break;
-          }
-        }
-      }
-
+      const imgNode = findCustomImageNode(node);
       if (imgNode == null) {
         wrapQueue.push(node);
         continue;
       }
 
-      // find the featuretype attribute
-      const featureTypeAttr = imgNode.attributes.find(
-        (attr) => attr.type === "mdxJsxAttribute" && attr.name === "featuretype"
-      ) as MdxJsxAttribute | undefined;
-
-      if (featureTypeAttr?.value == null) {
-        wrapQueue.push(h("figure", [imgNodesParent]));
+      const featureType = getStringAttribute(imgNode, FEATURE_TYPE_ATTRIBUTE);
+      if (featureType == null) {
+        wrapQueue.push(h("figure", [node]));
         continue;
-      }
-
-      if (typeof featureTypeAttr.value !== "string") {
-        throw new Error("featuretype attribute must be a string");
       }
 
       flushWrapper();
       finalChildren.push(
-        h(
-          "figure",
-          { class: ["feature", "feature-" + featureTypeAttr.value] },
-          [imgNodesParent]
-        )
+        h("figure", { class: ["feature", "feature-" + featureType] }, [node])
       );
     }
 
