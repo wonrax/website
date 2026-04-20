@@ -75,13 +75,12 @@ export default function rehypeBlogPost() {
       // check if node contains img element or is the img element itself
       let imgNode: MdxJsxFlowElement | undefined;
       const imgNodesParent = node;
-      if (node.children === undefined) continue;
       if (
         node.type === "mdxJsxFlowElement" &&
         node.name === "__CustomImage__"
       ) {
         imgNode = node as MdxJsxFlowElement;
-      } else {
+      } else if ("children" in node && Array.isArray(node.children)) {
         for (const child of node.children) {
           if (
             child.type === "mdxJsxFlowElement" &&

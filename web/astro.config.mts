@@ -104,6 +104,8 @@ export default defineConfig({
   image: {
     service: sharpImageService(),
     domains: ["files.wrx.sh", "res.cloudinary.com"],
+    layout: "constrained",
+    responsiveStyles: true,
   },
   vite: {
     resolve: {

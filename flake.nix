@@ -49,7 +49,7 @@
             if pkgs.stdenv.hostPlatform.isLinux then
               "sha256-snLKY3X1+XJDiM7b02JhwBw/6EMKjQTmkSKdRrn1OsY="
             else
-              "sha256-PBsKvHfrF8AuSbRr3gHGPpouEBtThd7rEMLNZmOd0Ts=";
+              "sha256-9NubR/ofNXWTPXKX8xm1VSq5XNHmqCUo5aY2lImfpd4=";
           npmLock = ./package-lock.json;
         };
 

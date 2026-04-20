@@ -1,136 +1,152 @@
 ---
 /* global astroHTML */
 
-// An adaption of
-// https://gist.github.com/sannajammeh/d1dfddc8c2538062de53714b07953cdf
-
-import type { ImageMetadata, ImageTransform } from "astro";
-import { getImage } from "astro:assets";
+import type { ImageMetadata } from "astro";
+import { Image } from "astro:assets";
 import { ArrowDown } from "@/components/Icon";
+
 type Props = {
   src: ImageMetadata | string;
   alt: string;
-  width?: number;
-  height?: number;
-  quality?: number;
+  width?: number | string;
+  height?: number | string;
+  quality?: number | string;
   format?: string;
   sizes?: string;
-  /**
-   * Array of screens to generate the image for i.e [320, 480, 1200]
-   * Maximum width will be 1200 regardless if screen is larger
-   */
-  deviceSizes?: number[];
-} & Omit<ImageTransform, "src"> &
-  Omit<astroHTML.JSX.ImgHTMLAttributes, "src" | "width" | "height">;
+  widths?: number[];
+  layout?: "constrained" | "fixed" | "full-width";
+  fit?: string;
+  position?: string;
+  priority?: boolean;
+  inferSize?: boolean;
+} & Omit<astroHTML.JSX.ImgHTMLAttributes, "src" | "width" | "height" | "alt">;
 
 const {
   src,
-  format,
-  width: propsWidth,
+  alt,
+  width,
   height,
   quality,
-  alt,
+  format,
+  sizes,
+  widths,
+  layout = "constrained",
+  fit,
+  position,
+  priority,
+  inferSize,
   loading = "lazy",
   decoding = "async",
-  sizes,
-  deviceSizes = [320, 480, 640, 750, 828, 1200, 1920, 2048, 3840],
   ...rest
 } = Astro.props;
-if (!src) {
-  throw new Error("src is required");
-}
 
-const getImageType = () => {
-  if (typeof src === "string") {
-    // TODO support URL containing query params
-    return src.split(".").pop();
-  }
+const parseDimension = (value: number | string | undefined) => {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") return undefined;
 
-  return src.format;
+  const parsedValue = Number.parseInt(value, 10);
+  return Number.isNaN(parsedValue) ? undefined : parsedValue;
 };
 
-let originalWidth;
-let originalHeight;
+const parsedWidth = parseDimension(width);
+const parsedHeight = parseDimension(height);
+const isRemoteImage =
+  typeof src === "string" && /^https?:\/\//i.test(src.trim());
+const shouldInferSize =
+  inferSize ?? (isRemoteImage && (parsedWidth == null || parsedHeight == null));
 
-if (typeof src === "string") {
-  // Remote image
-  originalWidth = propsWidth;
-  originalHeight = height;
-} else {
-  // Local image
-  originalWidth = src.width;
-  originalHeight = src.height;
-}
+const originalSrc = typeof src === "string" ? src : src.src;
 
-if (!originalWidth || !originalHeight) {
+if (
+  typeof src === "string" &&
+  !shouldInferSize &&
+  (parsedWidth == null || parsedHeight == null)
+) {
   throw new Error(
-    "couldn't figure out image size, please provide width and height if it's a remote image"
+    "string image sources require width/height unless inferSize is enabled"
   );
 }
-
-const aspectRatio = originalHeight / originalWidth;
-// If propsWidth is provided, use it as the maximum size
-const maxWidth =
-  propsWidth && propsWidth <= originalWidth ? propsWidth : originalWidth;
-
-let sizesAttr = getImageType() === "svg" ? undefined : sizes;
-let srcset = undefined;
-
-if (getImageType() !== "svg") {
-  // Filter out sizes that are larger than the max width
-  const validSizes = deviceSizes.filter((size) => size <= maxWidth);
-  const generateSrcSet = async (size: number) => {
-    const resizedImg = await getImage({
-      src,
-      format,
-      width: size,
-      height: Math.round(size * aspectRatio),
-      quality,
-    } as ImageTransform);
-    return `${resizedImg.src} ${size}w`;
-  };
-  const srcsetPromises = validSizes.map(generateSrcSet);
-  const srcsetResults = await Promise.all(srcsetPromises);
-  srcset = srcsetResults.join(", ");
-
-  if (!sizesAttr) {
-    const sizesAttrMapped = validSizes
-      .map((size) => `(max-width: ${size}px) ${size}px`)
-      .join(", ");
-    sizesAttr = `
-  ${sizesAttrMapped},
-  ${maxWidth}px
-`;
-  }
-}
-
-const original = await getImage({
-  src,
-  format: "png",
-  width: maxWidth,
-  height: Math.round(maxWidth * aspectRatio),
-  quality: 100,
-} as ImageTransform);
 ---
 
-<img
-  src={original.src}
-  srcset={srcset}
-  sizes={sizesAttr}
-  alt={alt}
-  loading={loading}
-  decoding={decoding}
-  width={originalWidth}
-  height={originalHeight}
-  {...rest}
-/>
+{
+  typeof src === "string" && shouldInferSize ? (
+    <Image
+      src={src}
+      alt={alt}
+      quality={quality}
+      format={format}
+      sizes={sizes}
+      widths={widths}
+      fit={fit}
+      position={position}
+      priority={priority}
+      inferSize
+      layout={layout}
+      loading={loading}
+      decoding={decoding}
+      {...rest}
+    />
+  ) : typeof src === "string" ? (
+    <Image
+      src={src}
+      alt={alt}
+      width={parsedWidth!}
+      height={parsedHeight!}
+      quality={quality}
+      format={format}
+      sizes={sizes}
+      widths={widths}
+      fit={fit}
+      position={position}
+      priority={priority}
+      layout={layout}
+      loading={loading}
+      decoding={decoding}
+      {...rest}
+    />
+  ) : parsedWidth != null && parsedHeight != null ? (
+    <Image
+      src={src}
+      alt={alt}
+      width={parsedWidth}
+      height={parsedHeight}
+      quality={quality}
+      format={format}
+      sizes={sizes}
+      widths={widths}
+      fit={fit}
+      position={position}
+      priority={priority}
+      layout={layout}
+      loading={loading}
+      decoding={decoding}
+      {...rest}
+    />
+  ) : (
+    <Image
+      src={src}
+      alt={alt}
+      quality={quality}
+      format={format}
+      sizes={sizes}
+      widths={widths}
+      fit={fit}
+      position={position}
+      priority={priority}
+      layout={layout}
+      loading={loading}
+      decoding={decoding}
+      {...rest}
+    />
+  )
+}
 <div class="image-caption">
   <div>
     <slot />
   </div>
   <a
     class="rounded-button"
-    href={original.src}
+    href={originalSrc}
     aria-label={`Download image, ${alt}`}
   >
     <ArrowDown size={16} strokeWidth={2.5} />
@@ -138,7 +154,6 @@ const original = await getImage({
 </div>
 
 <style lang="scss">
-  /* // TODO move to global styles */
   a.rounded-button {
     display: inline-block;
     padding: 6px;

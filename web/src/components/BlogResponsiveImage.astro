@@ -1,31 +1,29 @@
 ---
+import type { ImageMetadata } from "astro";
 import ResponsiveImage from "./ResponsiveImage.astro";
 
 type Props = {
-  src: string;
+  src: ImageMetadata | string;
   alt: string;
   width?: number | string;
   height?: number | string;
   featuretype?: string;
+  inferSize?: boolean;
 };
 
-const { src, width, height, alt } = Astro.props;
+const { src, alt, width, height, featuretype, inferSize, ...rest } =
+  Astro.props;
 
-let parsedWidth: number | undefined;
-let parsedHeight: number | undefined;
-
-if (typeof width === "string") parsedWidth = parseInt(width);
-else parsedWidth = width;
-if (typeof height === "string") parsedHeight = parseInt(height);
-else parsedHeight = height;
+void featuretype;
 ---
 
 <ResponsiveImage
   src={src}
   alt={alt}
-  width={parsedWidth}
-  height={parsedHeight}
-  format="webp"
+  width={width}
+  height={height}
   quality={95}
-  deviceSizes={[400, 800, 1200, 2048, 3840, 5760]}><slot /></ResponsiveImage
+  inferSize={inferSize}
+  widths={[400, 800, 1200, 2048, 3840, 5760]}
+  {...rest}><slot /></ResponsiveImage
 >
