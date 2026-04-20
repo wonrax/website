@@ -3,7 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "dev": "wireit"
+    "check": "nix develop -c cargo check -p api",
+    "dev": "wireit",
+    "lint": "nix develop -c cargo clippy -p api --all-targets -- -D warnings"
   },
   "wireit": {
     "dev": {

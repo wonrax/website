@@ -13,3 +13,10 @@ npm run -w web astro check
 npx eslint ./web
 ```
 
+The final checks before commit should be building the project with nix because
+the CI use nix packaging. For example but not limited to:
+```bash
+nix build .#www
+```
+We don't need to build the docker images because the nix docker tools are quite
+stable unless we change the docker configuration.

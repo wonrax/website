@@ -4,9 +4,11 @@
   "version": "1.2.1",
   "private": true,
   "scripts": {
+    "check": "astro check",
     "dev": "wireit",
     "start": "astro dev",
     "build": "astro build",
+    "lint": "eslint .",
     "preview": "astro preview",
     "astro": "astro"
   },

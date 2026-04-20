@@ -7,7 +7,7 @@ import {
   useContext,
   type Setter,
   type JSXElement,
-  createEffect,
+  onMount,
   onCleanup,
 } from "solid-js";
 import CommentContext from "./CommentSectionContext";
@@ -179,9 +179,13 @@ export function CommentEditorBase(props: {
 
   const editorId = "editor-" + Math.random().toString(36).substring(2, 15);
 
-  let editor: OverType;
+  let editor: OverType | undefined;
+  let mediaQuery: MediaQueryList | undefined;
+  let handleThemeChange: ((e: MediaQueryListEvent) => void) | undefined;
 
-  createEffect(() => {
+  onMount(() => {
+    mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
     // @ts-expect-error Overtype has not been typed yet
     [editor] = new OverType(`#${editorId}`, {
       showStats: true,
@@ -193,19 +197,21 @@ export function CommentEditorBase(props: {
         name: "content",
         autocomplete: "false",
       },
-      theme: window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "cave"
-        : "solar",
+      theme: mediaQuery.matches ? "cave" : "solar",
     });
 
-    window
-      .matchMedia("(prefers-color-scheme: dark)")
-      .addEventListener("change", function (e) {
-        editor.setTheme(e.matches ? "cave" : "solar");
-      });
+    handleThemeChange = (e) => {
+      editor?.setTheme(e.matches ? "cave" : "solar");
+    };
+
+    mediaQuery.addEventListener("change", handleThemeChange);
   });
 
   onCleanup(() => {
+    if (mediaQuery != null && handleThemeChange != null) {
+      mediaQuery.removeEventListener("change", handleThemeChange);
+    }
+
     if (editor != null) {
       editor.destroy();
     }
@@ -219,7 +225,7 @@ export function CommentEditorBase(props: {
     try {
       setLoading(true);
       await props.onSubmit(e);
-      editor.setValue(""); // clear the editor after submission
+      editor?.setValue(""); // clear the editor after submission
     } catch (e) {
       setError(e as Error);
     }

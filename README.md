@@ -16,6 +16,24 @@ docker compose -f docker/docker-compose.dev.yml -p wrx-sh up -d
 npm run dev
 ```
 
+### checks
+
+repo-level checks:
+
+```bash
+npm run check
+npm run lint
+```
+
+workspace-level checks:
+
+```bash
+npm run -w web check
+npm run -w web lint
+npm run -w api check
+npm run -w api lint
+```
+
 ### blog todo
 
 - markdown auto external link

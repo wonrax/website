@@ -7,6 +7,9 @@
       "outputs": ["dist/**"],
       "inputs": ["apps/**"]
     },
+    "check": {
+      "outputs": []
+    },
     "lint": {
       "outputs": []
     },
