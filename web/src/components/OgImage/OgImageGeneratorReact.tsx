@@ -1,7 +1,5 @@
 /** @jsxImportSource react */
 
-// TODO: the image is broken
-
 import React from "react";
 
 interface Props {
@@ -31,7 +29,6 @@ export default async function OgImage(
         style={{
           display: "flex",
           flexDirection: "column",
-          // padding: "48px 96px 48px 48px",
           padding: "96px",
           flexShrink: 1,
           boxSizing: "border-box",
@@ -40,7 +37,7 @@ export default async function OgImage(
       >
         <h1
           style={{
-            letterSpacing: "-0.035em",
+            letterSpacing: 0,
             margin: "0px",
             fontSize: props.description != null ? 64 : 96,
             lineHeight: 1.2,
@@ -57,7 +54,7 @@ export default async function OgImage(
               color: "#999",
               lineHeight: 1.3,
               fontSize: 36,
-              letterSpacing: "-0.035em",
+              letterSpacing: 0,
               fontWeight: 500,
             }}
           >
@@ -72,7 +69,7 @@ export default async function OgImage(
               color: "#333",
               lineHeight: 1.2,
               fontSize: 48,
-              letterSpacing: "-0.025em",
+              letterSpacing: 0,
               fontWeight: 500,
             }}
           >

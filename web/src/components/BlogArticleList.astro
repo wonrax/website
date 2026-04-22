@@ -1,0 +1,154 @@
+---
+import { getPostSlug } from "@/shared/blog";
+import type { CollectionEntry } from "astro:content";
+
+type BlogEntry = CollectionEntry<"blog">;
+
+type Props = {
+  posts: BlogEntry[];
+  allPosts: BlogEntry[];
+  tag?: string;
+};
+
+const { posts, allPosts, tag } = Astro.props;
+
+const sortedPosts = [...posts].sort((a, b) => {
+  return (
+    new Date(b.data.published).getTime() - new Date(a.data.published).getTime()
+  );
+});
+
+const tags = Array.from(
+  new Set(
+    allPosts
+      .flatMap((post) => post.data.tags)
+      .filter((entry): entry is string => Boolean(entry))
+  )
+);
+---
+
+<main class="blog-article-list">
+  {
+    tag ? (
+      <p class="blog-article-list__meta">
+        Viewing posts tagged with <strong>{tag}</strong>
+      </p>
+    ) : (
+      <p class="blog-article-list__meta">Newest first</p>
+    )
+  }
+  <ul class="blog-article-list__items">
+    {
+      sortedPosts.map((post) => {
+        const isHidden =
+          post.data.isDraft === true || post.data.hidden === true;
+
+        return (
+          <li class={`blog-article-list__entry${isHidden ? " is-hidden" : ""}`}>
+            <div class="blog-article-list__row">
+              <a href={`/blog/${getPostSlug(post)}`}>{post.data.title}</a>
+              <span class="blog-article-list__divider" />
+              <p class="blog-article-list__date">
+                {new Date(post.data.published).toLocaleDateString("en-UK", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </p>
+            </div>
+            <p class="blog-article-list__description">
+              {post.data.description}
+            </p>
+          </li>
+        );
+      })
+    }
+  </ul>
+  <p class="blog-article-list__tags">
+    Tags:
+    {
+      tags.map((entry) => {
+        return <a href={`/blog/tag/${entry}`}>{entry}</a>;
+      })
+    }
+  </p>
+</main>
+
+<style lang="scss">
+  .blog-article-list {
+    &__meta {
+      color: var(--text-body-light);
+    }
+
+    &__items {
+      list-style-type: decimal;
+      padding-inline-start: 0;
+    }
+
+    &__entry {
+      margin-bottom: var(--space-10);
+      display: flex;
+      flex-direction: column;
+      max-width: var(--layout-content-width);
+
+      &.is-hidden a {
+        color: var(--text-body-light);
+      }
+    }
+
+    &__row {
+      width: 100%;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--space-6);
+
+      a {
+        font-size: var(--font-size-base);
+        font-weight: var(--font-weight-medium);
+        letter-spacing: 0;
+        line-height: var(--line-height-normal);
+      }
+    }
+
+    &__divider {
+      height: 1px;
+      flex: 1;
+      background-color: var(--border-medium);
+    }
+
+    &__date {
+      color: var(--text-body-light);
+      font-size: var(--font-size-md);
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin: var(--space-1) 0;
+    }
+
+    &__description {
+      color: var(--text-body-light);
+      font-size: var(--font-size-md);
+      line-height: var(--line-height-normal);
+      margin: var(--space-1) 0;
+    }
+
+    &__tags {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+
+    @media (max-width: 620px) {
+      &__row {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: var(--space-1);
+      }
+
+      &__divider {
+        display: none;
+      }
+    }
+  }
+</style>

@@ -30,33 +30,33 @@ import config from "@/config";
   }
 
   h1 {
-    margin-bottom: 24px;
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--black-1);
+    margin-bottom: var(--space-12);
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-heading);
   }
 
   a {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 12px;
-    padding: 12px 28px;
+    gap: var(--space-6);
+    padding: var(--space-6) var(--space-14);
     border: none;
-    border-radius: 12px;
-    background-color: var(--black-1);
-    color: var(--white-1);
-    font-size: 16px;
-    font-weight: 500;
+    border-radius: var(--radius-xl);
+    background-color: var(--text-body-heavy);
+    color: var(--bg-color);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-medium);
     cursor: pointer;
   }
 
   a:hover {
-    background-color: var(--grey-5);
+    opacity: 0.9;
   }
 
   a:focus {
     outline: none;
-    box-shadow: 0 0 0 3px var(--color-blue-300);
+    box-shadow: 0 0 0 3px var(--accent-color);
   }
 </style>

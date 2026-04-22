@@ -36,6 +36,7 @@ npm run -w api lint
 
 ### blog todo
 
+- Fix the auth prompt in the comment submission form
 - markdown auto external link
 - headings anchor clickable
 - add copy button to code blocks

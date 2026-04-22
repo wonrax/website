@@ -1,0 +1,115 @@
+.reading-intro {
+  color: var(--text-body-light);
+}
+
+.reading-list {
+  list-style-type: decimal;
+  padding-inline-start: 0;
+  margin: 0;
+}
+
+.reading-entry {
+  margin-bottom: var(--space-12);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  transition:
+    background-color 0.5s ease,
+    opacity 0.5s ease,
+    transform 0.5s ease;
+}
+
+.new-entry {
+  animation: reading-entry-fade-in 0.5s ease;
+}
+
+@keyframes reading-entry-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.reading-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-body-link);
+  text-decoration: none;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: var(--line-height-normal);
+
+  &:visited {
+    color: var(--text-body-link-visited);
+  }
+}
+
+.reading-date {
+  color: var(--text-body-light);
+  font-size: 12px;
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+}
+
+.reading-source {
+  font-size: var(--font-size-sm);
+  color: var(--text-body-light);
+  margin-top: var(--space-2);
+
+  a {
+    color: var(--text-body-medium);
+    text-decoration: underline dotted;
+  }
+}
+
+.highlights-container {
+  font-size: var(--font-size-md);
+  margin: var(--space-6) 0 var(--space-4) 0;
+  width: 100%;
+}
+
+.highlight-content {
+  margin: var(--space-4) 0;
+  width: 100%;
+}
+
+.highlight-text {
+  margin: var(--space-4) 0;
+  padding: var(--space-4) var(--space-8);
+  border-left: 4px solid var(--border-light);
+  font-style: italic;
+  line-height: 1.5;
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  white-space: pre-line;
+}
+
+.highlight-note {
+  margin: var(--space-4) 0;
+  padding: var(--space-4) var(--space-6);
+  background: var(--bg-additive-light);
+  border-radius: var(--radius-xs);
+  font-size: var(--font-size-md);
+  line-height: 1.4;
+}
+
+.highlight-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 var(--space-2) 0;
+}
+
+.highlight-tag {
+  background: var(--text-body-light);
+  color: var(--bg-color);
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-round);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

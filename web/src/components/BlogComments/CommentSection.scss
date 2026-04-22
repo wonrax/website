@@ -1,5 +1,5 @@
 .loader {
-  margin-top: 12px;
+  margin-top: var(--space-6);
   width: 18px;
   height: 18px;
   border: 2px solid var(--text-body-heavy);
@@ -8,6 +8,12 @@
   display: inline-block;
   box-sizing: border-box;
   animation: rotation 0.3s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader {
+    animation-duration: 1s;
+  }
 }
 
 @keyframes rotation {
@@ -20,53 +26,58 @@
 }
 
 .comments-container {
-  max-width: 1004px;
-  padding: 16px 24px 64px 24px;
+  max-width: var(--layout-page-width);
+  padding: var(--space-8) var(--space-12) var(--space-32) var(--space-12);
   background-color: var(--bg-color);
-  box-shadow: 0 0 36px 0 rgba($color: black, $alpha: 0.15);
+  box-shadow: var(--shadow-overlay);
   box-sizing: border-box;
   height: 100%;
   overflow-y: scroll;
 
   @container (max-width: 480px) {
-    padding: 16px 18px 50vh 18px;
+    padding: var(--space-8) var(--space-9) 50vh var(--space-9);
   }
 
   .heading {
     display: flex;
     flex-direction: row;
-    gap: 12px;
+    gap: var(--space-6);
     align-items: center;
     height: 36px;
   }
 
-  h3 {
-    // padding-left: 24px;
+  .comments-heading-button {
     margin-top: 0;
     font-weight: var(--font-weight-medium);
     margin: 0;
     color: var(--text-body-heavy);
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    font-size: var(--font-size-lg);
   }
 
-  // TODO use container query to make this responsive
+  .comments-error {
+    color: var(--error-medium);
+  }
+
   .comments {
     display: flex;
     flex-direction: column;
-    gap: 24px;
-    // background-color: var(--bg-additive-light);
-    border-radius: 12px;
+    gap: var(--space-12);
+    border-radius: var(--radius-xl);
     padding-inline-start: 0;
     padding-inline-end: 0;
-    // padding: 24px;
-    margin: 32px 0;
+    margin: var(--space-16) 0;
 
     .comment-children {
       padding-inline-start: 0;
       padding-inline-end: 0;
-      margin-top: 16px;
+      margin-top: var(--space-8);
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: var(--space-8);
     }
 
     .comment {
@@ -74,21 +85,43 @@
       padding-left: 18px;
       padding-top: 0;
       margin-top: 0;
-      border-left: 1px solid var(--bg-additive-light);
+      border-left: 1px solid var(--border-light);
 
       .comment-header {
         display: flex;
-        gap: 12px;
+        gap: var(--space-6);
         align-items: baseline;
 
         .comment-author {
           display: flex;
           flex-direction: row;
-          gap: 8px;
+          gap: var(--space-4);
           margin-left: -8px;
           align-items: center;
           font-weight: var(--font-weight-medium);
           font-size: 15px;
+        }
+
+        .comment-avatar {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: var(--space-3);
+          border-radius: var(--radius-round);
+          background-color: var(--bg-additive-light);
+          color: var(--text-body-heavy);
+          line-height: 0;
+        }
+
+        .comment-author-badge {
+          color: var(--info-heavy);
+          background-color: var(--info-light);
+          padding: var(--space-1) var(--space-2);
+          border-radius: var(--radius-xs);
+          border: 1px solid var(--info-medium);
+          margin: 0;
+          font-size: 0.8em;
+          line-height: var(--line-height-tight);
         }
 
         .comment-date {
@@ -102,7 +135,7 @@
       }
 
       .comment-content {
-        --font-size: 16px;
+        --font-size: var(--font-size-base);
 
         color: var(--text-body-heavy);
         font-size: var(--font-size);
@@ -123,8 +156,8 @@
 
         pre {
           background-color: var(--bg-additive-light);
-          padding: 8px 12px;
-          border-radius: 8px;
+          padding: var(--space-4) var(--space-6);
+          border-radius: var(--radius-md);
         }
 
         code {
@@ -135,13 +168,13 @@
 
         :not(pre) > code {
           background-color: var(--bg-additive-light);
-          padding: 2px 4px;
-          border-radius: 4px;
+          padding: var(--space-1) var(--space-2);
+          border-radius: var(--radius-xs);
         }
 
         hr {
           border: none;
-          border-top: solid 1px var(--bg-additive-light);
+          border-top: solid 1px var(--border-light);
         }
 
         pre,
@@ -189,13 +222,13 @@
           td {
             white-space: break-spaces;
             overflow-wrap: break-word;
-            padding: 4px 8px;
-            border-top: 1px solid var(--bg-additive-medium);
+            padding: var(--space-2) var(--space-4);
+            border-top: 1px solid var(--border-medium);
             font-weight: var(--font-weight-normal);
           }
 
           th {
-            padding: 4px 8px;
+            padding: var(--space-2) var(--space-4);
             font-weight: var(--font-weight-normal);
             color: var(--text-body-heavy);
           }
@@ -207,8 +240,8 @@
         margin-left: -8px;
 
         button {
-          font-size: 14px;
-          padding: 4px 8px;
+          font-size: var(--font-size-md);
+          padding: var(--space-2) var(--space-4);
           color: var(--text-body-light);
           background-color: transparent;
           line-height: 1em;

@@ -9,10 +9,10 @@ import CurrentlyPlaying from "./_currently-playing";
     <section class="home-main">
       <div class="profile-summary">
         <img
-          class="only-light-mode"
+          class="home-main__pixel-icon only-light-mode"
           width="48"
+          alt=""
           src="https://res.cloudinary.com/dmdgv6qrg/image/upload/v1726327480/hhai.dev%20blog/internet-person.ico"
-          style="image-rendering: pixelated; margin-bottom: 8px;"
         />
         <h3>wonrax</h3>
         <h4 class="job-title">Software Engineer</h4>
@@ -24,31 +24,29 @@ import CurrentlyPlaying from "./_currently-playing";
         <div class="links-section">
           <a href="/blog" class="link">Blog</a>
           <a
-            class="instagram"
+            class="link instagram"
             href="https://www.instagram.com/wnrax/"
             target="_blank"
-            class="link">Photos</a
+            rel="noopener noreferrer">Photos</a
           >
         </div>
-        <div
-          style="margin-top: 12px; display: flex; flex-direction: row; align-items: center; gap: 8px;"
-        >
+        <div class="home-main__email">
           <img
-            class="only-light-mode"
+            class="home-main__email-icon only-light-mode"
             width="32"
             height="32"
+            alt=""
             src="https://res.cloudinary.com/dmdgv6qrg/image/upload/v1726327480/hhai.dev%20blog/email.ico"
-            style="image-rendering: pixelated;"
           />
           <p><strong>hi</strong> (at) <i>this domain</i></p>
         </div>
       </div>
       <div class="projects-section">
         <img
-          class="only-light-mode"
+          class="home-main__pixel-icon only-light-mode"
           width="48"
+          alt=""
           src="https://res.cloudinary.com/dmdgv6qrg/image/upload/v1726327480/hhai.dev%20blog/projects.ico"
-          style="image-rendering: pixelated; margin-bottom: 8px;"
         />
         <h3>Projects</h3>
         <div class="project-entry">
@@ -59,6 +57,7 @@ import CurrentlyPlaying from "./_currently-playing";
             <a
               href="https://huggingface.co/wonrax/phobert-base-vietnamese-sentiment"
               target="_blank"
+              rel="noopener noreferrer"
               class="link">Published on Hugging Face</a
             >, it has garnered 800,000+ downloads.
           </p>
@@ -71,6 +70,7 @@ import CurrentlyPlaying from "./_currently-playing";
             <a
               href="https://play.google.com/store/apps/details?id=com.wonrax.mybk"
               target="_blank"
+              rel="noopener noreferrer"
               class="link"
             >
               published on the Google Play Store
@@ -79,6 +79,7 @@ import CurrentlyPlaying from "./_currently-playing";
             <a
               href="https://github.com/wonrax/mybk-mobile"
               target="_blank"
+              rel="noopener noreferrer"
               class="link"
             >
               Open sourced on GitHub.
@@ -87,23 +88,14 @@ import CurrentlyPlaying from "./_currently-playing";
         </div>
       </div>
     </section>
-    <section
-      style={{
-        "flex-grow": 1,
-        display: "flex",
-        "flex-direction": "column",
-        "justify-content": "end",
-      }}
-    >
+    <section class="home-main__now-playing">
       <CurrentlyPlaying client:only="solid-js" />
     </section>
   </main>
 </RootLayout>
 
-<style lang="scss" is:global>
-  body {
-    /* TODO: Somehow using the CSS variable doesn't work */
-    /* background-color: rgba(var(--bg-color), 0.95); */
+<style lang="scss">
+  :global(body) {
     background-color: rgba(255, 255, 255, 0.95);
 
     @media (prefers-color-scheme: dark) {
@@ -111,7 +103,7 @@ import CurrentlyPlaying from "./_currently-playing";
     }
   }
 
-  html {
+  :global(html) {
     background-image: url("https://res.cloudinary.com/dmdgv6qrg/image/upload/v1726328435/hhai.dev%20blog/internet-pc.ico");
     background-repeat: no-repeat;
     background-position: 120% 120%;
@@ -147,7 +139,31 @@ import CurrentlyPlaying from "./_currently-playing";
 
     p {
       margin: 16px 0;
-      letter-spacing: -0.01em;
+      letter-spacing: 0;
+    }
+
+    &__pixel-icon {
+      image-rendering: pixelated;
+      margin-bottom: var(--space-4);
+    }
+
+    &__email {
+      margin-top: var(--space-6);
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--space-4);
+    }
+
+    &__email-icon {
+      image-rendering: pixelated;
+    }
+
+    &__now-playing {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: end;
     }
 
     .profile-summary {
@@ -180,7 +196,7 @@ import CurrentlyPlaying from "./_currently-playing";
     }
 
     .instagram {
-      background-image: linear-gradient(90deg, #e6b718, #ee2a7b, #7140ee);
+      background-image: var(--accent-gradient);
       color: transparent;
       background-clip: text;
       text-decoration: underline;
@@ -195,16 +211,7 @@ import CurrentlyPlaying from "./_currently-playing";
         left: 0;
         height: 1.5px;
         margin-top: -2.5px;
-        background: linear-gradient(90deg, #e6b718, #ee2a7b, #7140ee);
-
-        @media (prefers-color-scheme: dark) {
-          background-image: linear-gradient(90deg, #f9c213, #ff3f8d, #8757ff);
-        }
-      }
-
-      /* Make the gradient more visible in dark mode */
-      @media (prefers-color-scheme: dark) {
-        background-image: linear-gradient(90deg, #f9c213, #ff3f8d, #8757ff);
+        background: var(--accent-gradient);
       }
     }
 
@@ -249,25 +256,6 @@ import CurrentlyPlaying from "./_currently-playing";
         max-width: 100%;
         width: 100%;
       }
-    }
-  }
-
-  .currently-playing {
-    strong {
-      color: var(--text-body-heavy);
-    }
-
-    p {
-      color: var(--text-body-medium);
-      font-size: 15px;
-      margin: 6px 0;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    span {
-      font-size: 6px;
     }
   }
 </style>

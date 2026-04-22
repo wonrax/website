@@ -145,7 +145,7 @@ if (
     <slot />
   </div>
   <a
-    class="rounded-button"
+    class="image-caption__download"
     href={originalSrc}
     aria-label={`Download image, ${alt}`}
   >
@@ -154,14 +154,18 @@ if (
 </div>
 
 <style lang="scss">
-  a.rounded-button {
-    display: inline-block;
-    padding: 6px;
+  a.image-caption__download {
+    display: inline-flex;
+    padding: var(--space-3);
     border-radius: 50%;
     background-color: var(--bg-additive-light);
-    color: var(--color-white);
+    color: var(--text-body-heavy);
     text-decoration: none;
     margin-top: -4px;
     line-height: 0;
+
+    &:hover {
+      background-color: var(--bg-additive-medium);
+    }
   }
 </style>

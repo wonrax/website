@@ -9,6 +9,7 @@ import {
 import { toast } from "solid-sonner";
 import config from "@/config";
 import { timeSince } from "@/utils/time";
+import "./RecommenderFeedSolid.scss";
 
 interface SourceInfo {
   key: string;
@@ -359,15 +360,17 @@ export default function RecommenderFeed(): JSXElement {
   };
 
   return (
-    <>
-      <div class="feed-controls">
-        <div class="control-group">
-          <label class="control-label">Source</label>
-          <div class="button-group">
+    <div class="recommender-feed">
+      <div class="recommender-feed__controls">
+        <div class="recommender-feed__control-group">
+          <label class="recommender-feed__control-label">Source</label>
+          <div class="ui-button-group">
             <For each={SOURCE_OPTIONS}>
               {(opt) => (
                 <button
-                  class={`toggle-btn ${sourceFilter() === opt.value ? "active" : ""}`}
+                  class={`ui-button recommender-feed__toggle ${
+                    sourceFilter() === opt.value ? "is-active" : ""
+                  }`}
                   onClick={() => handleSourceChange(opt.value)}
                 >
                   {opt.label}
@@ -376,13 +379,15 @@ export default function RecommenderFeed(): JSXElement {
             </For>
           </div>
         </div>
-        <div class="control-group">
-          <label class="control-label">Ranking</label>
-          <div class="button-group">
+        <div class="recommender-feed__control-group">
+          <label class="recommender-feed__control-label">Ranking</label>
+          <div class="ui-button-group">
             <For each={RANKING_OPTIONS}>
               {(opt) => (
                 <button
-                  class={`toggle-btn ${ranking() === opt.value ? "active" : ""}`}
+                  class={`ui-button recommender-feed__toggle ${
+                    ranking() === opt.value ? "is-active" : ""
+                  }`}
                   onClick={() => handleRankingChange(opt.value)}
                   title={opt.description}
                 >
@@ -395,9 +400,9 @@ export default function RecommenderFeed(): JSXElement {
       </div>
 
       <Show when={newItemsCount() > 0}>
-        <div class="new-items-banner">
+        <div class="recommender-feed__new-items">
           <span>{newItemsCount()} new items available</span>
-          <button onClick={refresh} class="refresh-btn">
+          <button onClick={refresh} class="ui-button ui-button--primary">
             Refresh
           </button>
         </div>
@@ -405,30 +410,30 @@ export default function RecommenderFeed(): JSXElement {
 
       <Show when={!loading()} fallback={<p>Loading...</p>}>
         <Show when={!err() || items().length > 0} fallback={<p>{err()}</p>}>
-          <ul class="feed-list">
+          <ul class="recommender-feed__list">
             <For each={items()}>
               {(item) => (
-                <li class="feed-entry">
-                  <span class="feed-date">
+                <li class="recommender-feed__entry">
+                  <span class="recommender-feed__date">
                     {formatRelativeTime(item.submitted_at)}
                   </span>
                   <a
                     href={item.url}
                     rel="noopener noreferrer"
-                    class="feed-title"
+                    class="recommender-feed__title"
                   >
                     {item.title}
                   </a>
-                  <div class="feed-meta">
+                  <div class="recommender-feed__meta">
                     <a
                       href={`https://${getWebsiteUrl(item.url)}`}
                       rel="noopener noreferrer"
-                      class="feed-source"
+                      class="recommender-feed__source"
                     >
                       {getWebsiteUrl(item.url)}
                     </a>
                     <Show when={item.sources.length > 0}>
-                      <span class="feed-sources">
+                      <span class="recommender-feed__sources">
                         via{" "}
                         <For each={item.sources}>
                           {(source, i) => {
@@ -439,12 +444,12 @@ export default function RecommenderFeed(): JSXElement {
                                   <a
                                     href={url}
                                     rel="noopener noreferrer"
-                                    class="source-tag source-link"
+                                    class="recommender-feed__source-tag recommender-feed__source-link"
                                   >
                                     {formatSourceLabel(source)}
                                   </a>
                                 ) : (
-                                  <span class="source-tag">
+                                  <span class="recommender-feed__source-tag">
                                     {formatSourceLabel(source)}
                                   </span>
                                 )}
@@ -456,7 +461,7 @@ export default function RecommenderFeed(): JSXElement {
                       </span>
                     </Show>
                     <span
-                      class="similarity-badge"
+                      class="recommender-feed__similarity"
                       title="Vector similarity to your reading history"
                     >
                       {formatSimilarity(item.similarity_score)}
@@ -470,13 +475,13 @@ export default function RecommenderFeed(): JSXElement {
             <button
               onClick={loadMore}
               disabled={loadingMore()}
-              class="load-more-btn"
+              class="ui-button recommender-feed__load-more"
             >
               {loadingMore() ? "Loading..." : "Load more"}
             </button>
           </Show>
         </Show>
       </Show>
-    </>
+    </div>
   );
 }

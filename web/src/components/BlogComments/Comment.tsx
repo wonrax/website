@@ -56,15 +56,7 @@ export default function CommentComponent(props: {
     <li class="comment">
       <div class="comment-header">
         <div class="comment-author">
-          <div
-            style={{
-              "background-color": "var(--bg-additive-light)",
-              "border-radius": "50%",
-              padding: "6px",
-              "line-height": "0",
-              color: "var(--text-body-heavy)",
-            }}
-          >
+          <div class="comment-avatar">
             <User size={16} stroke-width={1.5} />
           </div>
           {props.comment.author_name}
@@ -72,20 +64,7 @@ export default function CommentComponent(props: {
             {timeSince(new Date(Date.parse(props.comment.created_at + "Z")))}
           </div>
           {(props.comment.is_blog_author ?? false) && (
-            <p
-              // TODO use a class instead of inline styles
-              style={{
-                "font-size": "0.8em",
-                color: "var(--info-heavy)",
-                "background-color": "var(--info-light)",
-                padding: "2px 4px",
-                "border-radius": "4px",
-                border: "1px solid var(--info-medium)",
-                margin: "0",
-              }}
-            >
-              Author
-            </p>
+            <p class="comment-author-badge">Author</p>
           )}
         </div>
         {/* <div class="comment-upvote">{props.comment.upvote} upvotes</div> */}

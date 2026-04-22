@@ -8,26 +8,30 @@ import Layout from "@/layouts/Layout.astro";
     description: "Login using your GitHub account",
   }}
 >
-  <div
-    style={{
-      padding: "24px",
-      height: "80vh",
-      "box-sizing": "border-box",
-    }}
-  >
+  <main class="auth-callback">
     <div id="content">
       <p>We're logging you in...</p>
     </div>
-  </div>
+  </main>
 </Layout>
 
-<style is:global>
-  a {
+<style lang="scss" is:global>
+  .auth-callback {
+    padding: var(--space-12);
+    min-height: 80vh;
+    box-sizing: border-box;
+  }
+
+  .auth-callback a {
     text-decoration: underline;
     font-size: 15px;
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: var(--space-4);
     font-weight: var(--font-weight-medium);
+  }
+
+  .auth-callback__error {
+    color: var(--error-medium);
   }
 </style>
 
@@ -42,14 +46,30 @@ import Layout from "@/layouts/Layout.astro";
   const redirect = params.get("return_to");
   const loginUrl = `${config.API_URL}/login/github${redirect != null ? `?return_to=${redirect}` : ""}`;
 
+  function paragraph(text: string, className?: string) {
+    const element = document.createElement("p");
+    element.textContent = text;
+    if (className != null) element.className = className;
+    return element;
+  }
+
+  function link(text: string, href: string) {
+    const element = document.createElement("a");
+    element.textContent = text;
+    element.href = href;
+    return element;
+  }
+
+  function replaceContent(...nodes: Node[]) {
+    document.getElementById("content")?.replaceChildren(...nodes);
+  }
+
   function unexpectedError() {
-    const content = document.getElementById("content");
-    if (content != null)
-      content.innerHTML = `
-        <p>Something has gone wrong from our side. Please try again.</p>
-        <a href='${loginUrl}'>Login again via GitHub</a>
-        <a href='/'>Return home</a>
-      `;
+    replaceContent(
+      paragraph("Something has gone wrong from our side. Please try again."),
+      link("Login again via GitHub", loginUrl),
+      link("Return home", "/")
+    );
   }
 
   if (code != null) {
@@ -75,15 +95,15 @@ import Layout from "@/layouts/Layout.astro";
             break;
           default: {
             const error = ApiError.parse(await resp.json());
-            const content = document.getElementById("content");
-            if (content != null)
-              content.innerHTML = `
-              <p>Couldn't log you in due to an error:</p>
-              <p style="color: red;">${error.msg}</p>
-              ${error.reason != null ? "<p>Reason: ${error.reason}</p>" : ""}
-              <a href='${loginUrl}'>Login again via GitHub</a>
-              <a href='/'>Return home</a>
-            `;
+            replaceContent(
+              paragraph("Couldn't log you in due to an error:"),
+              paragraph(error.msg, "auth-callback__error"),
+              ...(error.reason != null
+                ? [paragraph(`Reason: ${error.reason}`)]
+                : []),
+              link("Login again via GitHub", loginUrl),
+              link("Return home", "/")
+            );
           }
         }
       }

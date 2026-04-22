@@ -111,14 +111,15 @@ export function CommentSection(): JSXElement {
     >
       <div class="comments-container">
         <div class="heading">
-          <h3
+          <button
+            type="button"
+            class="comments-heading-button"
             onClick={() => {
               void refetch();
             }}
-            style={{ cursor: "pointer" }}
           >
             Comments
-          </h3>
+          </button>
         </div>
         <Suspense fallback={<span class="loader" />}>
           {comments.state === "unresolved" ||
@@ -157,9 +158,9 @@ export function CommentSection(): JSXElement {
           )}
         </Suspense>
         {comments.state === "errored" && (
-          <p
-            style={{ color: "red" }}
-          >{`Could not fetch discussions: ${(comments.error as Error).message}`}</p>
+          <p class="comments-error">{`Could not fetch discussions: ${
+            (comments.error as Error).message
+          }`}</p>
         )}
       </div>
     </CommentContext.Provider>

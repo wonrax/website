@@ -1,16 +1,16 @@
 .centered-layout {
   max-width: 100%;
   box-sizing: border-box;
-  width: 1004px;
+  width: var(--layout-page-width);
   margin: 0 auto;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding-top: 48px;
-  padding-bottom: 48px;
+  padding-top: var(--space-24);
+  padding-bottom: var(--space-24);
 
   @media (max-width: 1100px) {
     width: 100%;
-    padding: 32px 24px;
+    padding: var(--space-16) var(--space-12);
   }
 }

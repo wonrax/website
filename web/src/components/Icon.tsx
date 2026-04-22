@@ -23,7 +23,11 @@ function createIcon(
         stroke-width={local.strokeWidth ?? 2}
         stroke-linecap="round"
         stroke-linejoin="round"
-        aria-hidden="true"
+        aria-hidden={
+          props["aria-label"] == null && props["aria-labelledby"] == null
+            ? "true"
+            : undefined
+        }
         {...rest}
       >
         {paths}
