@@ -1,0 +1,22 @@
+.currently-playing {
+  strong {
+    color: var(--text-body-heavy);
+  }
+
+  p {
+    color: var(--text-body-medium);
+    font-size: 15px;
+    margin: var(--space-3) 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  &__status {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-round);
+    background-color: var(--brand-spotify);
+    flex: 0 0 auto;
+  }
+}

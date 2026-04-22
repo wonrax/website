@@ -6,17 +6,15 @@
     right: 0;
     top: 0;
     background-color: rgba($color: black, $alpha: 0.3);
-    height: 100vh;
+    height: 100dvh;
     width: 100vw;
     z-index: 1;
-    animation: overlay-fade-in 0.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    animation: overlay-fade-in var(--duration-normal) var(--ease-standard)
+      forwards;
 
     @media (prefers-color-scheme: dark) {
       background-color: rgba($color: black, $alpha: 0.7);
     }
-
-    // TODO implement reduced motion
-
     @keyframes overlay-fade-in {
       0% {
         opacity: 0;
@@ -32,14 +30,13 @@
     z-index: 10;
     right: 0;
     top: 0;
-    height: 100vh;
+    height: 100dvh;
     overflow-y: auto;
     width: 0;
-    max-width: 700px;
-    height: 100%;
-    max-height: 100vh;
-    animation: sheet-slide-in 0.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
-    z-index: 10;
+    max-width: var(--layout-content-width);
+    max-height: 100dvh;
+    animation: sheet-slide-in var(--duration-normal) var(--ease-standard)
+      forwards;
     position: fixed;
     container-type: inline-size;
 
@@ -71,15 +68,15 @@
 
   .close-button {
     position: absolute;
-    top: 16px;
-    right: 16px;
-    padding: 12px;
+    top: var(--space-8);
+    right: var(--space-8);
+    padding: var(--space-6);
     cursor: pointer;
     background-color: transparent;
     border: none;
     color: var(--text-body-light);
-    font-size: 24px;
-    line-height: 1em;
+    font-size: var(--font-size-2xl);
+    line-height: 1;
     &:hover {
       color: var(--text-body-heavy);
       background-color: var(--bg-additive-light);
@@ -89,4 +86,13 @@
 
 body.noscroll {
   overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side-sheet {
+    .sheet-overlay,
+    .sheet-content {
+      animation-duration: 1ms;
+    }
+  }
 }

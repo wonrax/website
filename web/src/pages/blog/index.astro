@@ -1,7 +1,7 @@
 ---
 import BlogRouteLayout from "@/layouts/BlogRouteLayout.astro";
 import "@/layouts/layout.scss";
-import { getPostSlug } from "@/shared/blog";
+import BlogArticleList from "@/components/BlogArticleList.astro";
 import { getCollection, type CollectionEntry } from "astro:content";
 
 type BlogEntry = CollectionEntry<"blog">;
@@ -10,140 +10,13 @@ const allPosts = (await getCollection("blog")) as BlogEntry[];
 ---
 
 <BlogRouteLayout seoProps={{ title: "blog index", description: "blog index" }}>
-  <main class="blog-main">
-    <p style={{ color: "var(--text-body-light)" }}>Newest first</p>
-    <ul class="article-list">
-      {
-        allPosts
-          .filter((post: BlogEntry) => {
-            return (
-              process.env.NODE_ENV !== "production" ||
-              (post.data.isDraft !== true && post.data.hidden !== true)
-            );
-          })
-          .sort((a: BlogEntry, b: BlogEntry) => {
-            return (
-              new Date(b.data.published).getTime() -
-              new Date(a.data.published).getTime()
-            );
-          })
-          .map((post: BlogEntry) => {
-            return (
-              <li
-                class={`article-entry${
-                  post.data.isDraft === true || post.data.hidden === true
-                    ? " hidden"
-                    : ""
-                }`}
-              >
-                <div>
-                  <div
-                    style={{
-                      display: "flex",
-                      "flex-direction": "row",
-                      "align-items": "center",
-                      gap: "12px",
-                    }}
-                  >
-                    <a href={`/blog/${getPostSlug(post)}`}>{post.data.title}</a>
-                    <hr
-                      style={{
-                        height: "1px",
-                        flex: 1,
-                        "background-color": "var(--bg-additive-medium)",
-                        border: "none",
-                      }}
-                    />
-                    <p class="article-date">
-                      {new Date(post.data.published).toLocaleDateString(
-                        "en-UK",
-                        {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        }
-                      )}
-                    </p>
-                  </div>
-                </div>
-                <p class="article-description">{post.data.description}</p>
-              </li>
-            );
-          })
-      }
-    </ul>
-    <p
-      style={{
-        display: "flex",
-        "flex-direction": "row",
-        gap: "4px",
-      }}
-    >
-      Tags:
-      {
-        (
-          Array.from(
-            new Set(
-              allPosts
-                .map((post: BlogEntry) => post.data.tags)
-                .flat()
-                .filter((tag): tag is string => Boolean(tag))
-            )
-          ) as string[]
-        ).map((tag) => {
-          return <a href={`/blog/tag/${tag}`}>{tag}</a>;
-        })
-      }
-    </p>
-  </main>
+  <BlogArticleList
+    posts={allPosts.filter((post: BlogEntry) => {
+      return (
+        process.env.NODE_ENV !== "production" ||
+        (post.data.isDraft !== true && post.data.hidden !== true)
+      );
+    })}
+    allPosts={allPosts}
+  />
 </BlogRouteLayout>
-
-<style lang="scss" is:global>
-  .blog-main {
-    .article-list {
-      list-style-type: decimal;
-      padding-inline-start: 0;
-
-      .article-entry {
-        margin-bottom: 20px;
-        display: flex;
-        flex-direction: column;
-        max-width: 700px;
-
-        &.hidden {
-          a {
-            color: var(--text-body-light);
-          }
-        }
-
-        & > div {
-          width: 100%;
-        }
-
-        a {
-          font-size: 16px;
-          letter-spacing: -0.01em;
-          line-height: 1.45em;
-        }
-
-        p {
-          margin: 2px 0;
-        }
-
-        .article-date {
-          color: var(--text-body-light);
-          font-size: 14px;
-          white-space: nowrap;
-          // TODO relayout to display all instead of doing this
-          flex-shrink: 0;
-        }
-
-        .article-description {
-          color: var(--text-body-light);
-          font-size: 14px;
-          line-height: 1.45em;
-        }
-      }
-    }
-  }
-</style>

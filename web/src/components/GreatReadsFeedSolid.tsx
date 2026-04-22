@@ -1,6 +1,6 @@
 import { createSignal, onMount, For, Show, type JSXElement } from "solid-js";
 import config from "@/config";
-import styles from "../pages/great-reads/GreatReadsFeed.module.scss";
+import styles from "./GreatReadsFeed.module.scss";
 import { parseFeed, type RSSItem } from "../shared/parseRssFeed";
 import type { HighlightItem } from "../shared/parseHighlights";
 import { getWebsiteUrl } from "../shared/parseHighlights";
@@ -222,7 +222,7 @@ export default function GreatReadsFeed(props: Props): JSXElement {
   return (
     <Show when={!loading()} fallback={<p>Loading…</p>}>
       <Show when={!err() || articles().length > 0} fallback={<p>{err()}</p>}>
-        <p style={{ color: "var(--text-body-light)" }}>
+        <p class={styles["reading-intro"]}>
           A selection of interesting articles, papers, and resources curated by
           me. Articles with highlights show my notes and selected passages.
         </p>
@@ -272,11 +272,7 @@ export default function GreatReadsFeed(props: Props): JSXElement {
                     <For each={article.highlights}>
                       {(highlight) => (
                         <div class={styles["highlight-content"]}>
-                          <blockquote
-                            class={styles["highlight-text"]}
-                            style={{ "white-space": "pre-line" }} // preserve line breaks
-                            // style={{ "border-left-color": highlight.color }}
-                          >
+                          <blockquote class={styles["highlight-text"]}>
                             {highlight.text}
                           </blockquote>
                           <Show when={highlight.note}>

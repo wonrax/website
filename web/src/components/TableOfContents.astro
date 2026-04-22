@@ -6,11 +6,11 @@ type Props = {
   headings: Heading[];
 };
 
-// Shift the levels to base 1 by finding the smallest depth
 const minDepth = Math.min(...Astro.props.headings.map((h) => h.depth));
-Astro.props.headings.forEach((h) => (h.depth -= minDepth - 1));
-
-const headings: Heading[] = Astro.props.headings;
+const headings: Heading[] = Astro.props.headings.map((heading) => ({
+  ...heading,
+  depth: heading.depth - minDepth + 1,
+}));
 
 export type NestedHeading = {
   text: string;
@@ -31,11 +31,14 @@ for (const h of filteredHeadings) {
       children: [],
     });
   } else if (h.depth === 2) {
-    nestedHeadings[nestedHeadings.length - 1].children.push({
-      text: h.text,
-      slug: h.slug,
-      children: [],
-    });
+    const parent = nestedHeadings.at(-1);
+    if (parent != null) {
+      parent.children.push({
+        text: h.text,
+        slug: h.slug,
+        children: [],
+      });
+    }
   }
 }
 ---
@@ -56,7 +59,7 @@ for (const h of filteredHeadings) {
 <style lang="scss" is:global>
   .table-of-content {
     .title {
-      font-size: 16px;
+      font-size: var(--font-size-base);
       color: var(--text-body-heavy);
       font-weight: var(--font-weight-normal);
     }
@@ -79,9 +82,9 @@ for (const h of filteredHeadings) {
     li > a,
     li > a:visited {
       color: var(--text-body-light);
-      font-size: 14px;
-      line-height: 1.35em;
-      letter-spacing: -0.02em;
+      font-size: var(--font-size-md);
+      line-height: 1.35;
+      letter-spacing: 0;
       hyphens: auto;
       text-decoration: none;
       font-weight: var(--font-weight-normal);
@@ -97,11 +100,11 @@ for (const h of filteredHeadings) {
     }
   }
 
-  .level-1 > li > a {
-    padding: 6px 8px 6px 4px;
+  .table-of-content .level-1 > li > a {
+    padding: var(--space-3) var(--space-4) var(--space-3) var(--space-2);
   }
 
-  .level-2 > li > a {
-    padding: 4px 8px 4px 4px;
+  .table-of-content .level-2 > li > a {
+    padding: var(--space-2) var(--space-4) var(--space-2) var(--space-2);
   }
 </style>

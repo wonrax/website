@@ -2,6 +2,7 @@ import config from "@/config";
 import { createFetch } from "@/rpc";
 import { Suspense, createResource, type JSXElement } from "solid-js";
 import { z } from "zod/v4";
+import "./_currently-playing.scss";
 
 const fetchCurrentlyPlaying = createFetch(
   z.object({
@@ -35,21 +36,24 @@ export default function CurrentlyPlaying(): JSXElement {
 
     return await res.JSON();
   });
+  const item = () => currentlyPlaying()?.item;
+  const primaryArtistName = () => item()?.artists[0]?.name;
 
   return (
     <Suspense fallback={null}>
-      {currentlyPlaying()?.item != null && (
+      {item() != null && (
         <div class="currently-playing">
           <p>Listening to</p>
           <p>
-            <span>🟢</span>
+            <span class="currently-playing__status" aria-hidden="true" />
             <a
-              href={currentlyPlaying()?.item?.external_urls.spotify}
+              href={item()?.external_urls.spotify}
               target="_blank"
+              rel="noopener noreferrer"
             >
-              <strong>{currentlyPlaying()?.item?.name}</strong>
+              <strong>{item()?.name}</strong>
             </a>{" "}
-            by {currentlyPlaying()?.item?.artists[0].name}
+            {primaryArtistName() != null ? <>by {primaryArtistName()}</> : null}
           </p>
         </div>
       )}

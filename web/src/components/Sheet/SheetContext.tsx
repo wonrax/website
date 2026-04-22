@@ -21,7 +21,7 @@ function createCommentSheetContext(): {
     },
     isSheetTriggerButtonHovered: () => {
       throw new Error(
-        "isSheetTriggerButtonHoveredcalled before context was set"
+        "isSheetTriggerButtonHovered called before context was set"
       );
     },
     setSheetTriggerButtonHovered: () => {

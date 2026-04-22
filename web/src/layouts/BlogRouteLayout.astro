@@ -25,13 +25,11 @@ export type Props = RootLayoutProps;
     background-color: var(--bg-color);
     display: grid;
     grid-template-columns:
-      [first] auto [line1] 16px [line3] 700px [line4] 16px [line5] min(
-        20vw,
-        400px
-      )
+      [first] auto [line1] 16px [line3] var(--layout-content-width)
+      [line4] 16px [line5] min(20vw, 400px)
       [line6] auto [end];
     grid-auto-rows: min-content;
-    column-gap: 24px;
+    column-gap: var(--space-12);
     row-gap: 0;
     margin: 0 12px;
     margin-top: 32px;
@@ -49,7 +47,7 @@ export type Props = RootLayoutProps;
     @media (max-width: 1100px) {
       grid-template-columns:
         [first] 1fr [feature-sm-l] 16px [reading-l] min(
-          700px,
+          var(--layout-content-width),
           calc(100% - 32px)
         )
         [reading-r] 16px [feature-sm-r] 1fr [end];
@@ -70,7 +68,7 @@ export type Props = RootLayoutProps;
     display: flex;
     flex-direction: row;
     justify-content: center;
-    padding: 32px 0 0 0;
+    padding: var(--space-16) 0 0 0;
     grid-column-start: 3;
   }
 
@@ -78,14 +76,14 @@ export type Props = RootLayoutProps;
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 16px;
-    max-width: 1004px;
+    gap: var(--space-8);
+    max-width: var(--layout-page-width);
     margin: 0 auto;
     width: 100%;
     box-sizing: border-box;
 
     @media (max-width: 1100px) {
-      max-width: 700px;
+      max-width: var(--layout-content-width);
       padding: 0;
     }
 

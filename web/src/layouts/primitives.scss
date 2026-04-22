@@ -1,0 +1,131 @@
+:where(a, button, input, textarea, select) {
+  font: inherit;
+}
+
+:where(a, button, input, textarea, select):focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.ui-muted {
+  color: var(--text-body-light);
+}
+
+.ui-surface {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-subtle);
+}
+
+.ui-button {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 32px;
+  box-sizing: border-box;
+  padding: var(--space-3) var(--space-6);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-additive-light);
+  color: var(--text-body-heavy);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-normal);
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) ease,
+    border-color var(--duration-fast) ease,
+    color var(--duration-fast) ease,
+    opacity var(--duration-fast) ease;
+
+  &:hover:not(:disabled) {
+    background-color: var(--bg-additive-medium);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+}
+
+.ui-button--primary {
+  background-color: var(--text-body-heavy);
+  color: var(--bg-color);
+  border-color: var(--text-body-heavy);
+  font-weight: var(--font-weight-medium);
+
+  &:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+}
+
+.ui-button--ghost {
+  background-color: transparent;
+  border-color: transparent;
+}
+
+.ui-button--plain {
+  min-height: auto;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  text-decoration: underline;
+}
+
+.ui-button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-xs);
+  background-color: var(--bg-additive-light);
+  color: var(--text-body-medium);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-tight);
+}
+
+.ui-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-additive-lighter);
+  color: var(--text-body-heavy);
+  padding: var(--space-4) var(--space-6);
+  font-size: var(--font-size-base);
+  transition:
+    background-color var(--duration-normal) ease,
+    border-color var(--duration-normal) ease;
+
+  &:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    background-color: transparent;
+  }
+
+  &::placeholder {
+    color: var(--text-body-light);
+  }
+}
+
+.ui-icon-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+  border-radius: var(--radius-round);
+  background-color: var(--bg-additive-light);
+  color: var(--text-body-heavy);
+  line-height: 0;
+}

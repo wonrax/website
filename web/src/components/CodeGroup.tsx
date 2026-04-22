@@ -89,11 +89,6 @@ export default function CodeGroup(props: { children: JSXElement }): JSXElement {
                 id={`${groupId}-panel-${index()}`}
                 aria-labelledby={`${groupId}-tab-${index()}`}
                 hidden={currentSlide() !== index()}
-                style={
-                  currentSlide() === index()
-                    ? { display: "block" }
-                    : { display: "none" }
-                }
               >
                 {pane.contentNode}
               </div>

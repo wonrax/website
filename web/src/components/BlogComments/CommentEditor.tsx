@@ -195,7 +195,7 @@ export function CommentEditorBase(props: {
       textareaProps: {
         id: "content",
         name: "content",
-        autocomplete: "false",
+        autocomplete: "off",
       },
       theme: mediaQuery.matches ? "cave" : "solar",
     });
@@ -240,31 +240,16 @@ export function CommentEditorBase(props: {
         void handleCommentSubmit(e);
       }}
     >
-      <div style={{ padding: "10px" }}>
+      <div class="comment-submission__auth">
         {(props.showAuthInfo ?? true) &&
           (AppState.authUser == null ? (
             <>
-              <p
-                style={{
-                  "font-size": "14px",
-                  color: "var(--text-body-medium)",
-                  margin: "2px 8px 12px 8px",
-                  "line-height": "140%",
-                  "align-items": "baseline",
-                }}
-              >
+              <p class="comment-submission__auth-prompt">
                 Either
                 <button
-                  style={{
-                    display: "inline",
-                    padding: "4px 4px",
-                    color: "var(--info-heavy)",
-                    "background-color": "transparent",
-                    "text-decoration": "underline",
-                  }}
+                  type="button"
+                  class="ui-button ui-button--plain comment-submission__login-button"
                   onClick={(e) => {
-                    // quick workaround in order not to accidentally submit the form
-                    // TODO
                     e.preventDefault();
                     const w = window.open(`${config.API_URL}/login/github`);
                     if (w != null)
@@ -299,8 +284,9 @@ export function CommentEditorBase(props: {
             <p class="auth-user">
               Posting as{" "}
               <span class="author-name">{AppState.authUser?.name}</span>, or{" "}
-              <span
-                class="logout-button"
+              <button
+                type="button"
+                class="ui-button ui-button--plain logout-button"
                 onClick={() => {
                   void fetchAny(`${config.API_URL}/logout`, {
                     method: "POST",
@@ -316,7 +302,7 @@ export function CommentEditorBase(props: {
                 }}
               >
                 logout
-              </span>
+              </button>
             </p>
           ))}
       </div>
@@ -356,14 +342,18 @@ export function CommentEditorBase(props: {
                 e.preventDefault();
                 props.onCancel();
               }}
-              type="submit"
+              type="button"
               disabled={loading()}
-              class="ghost"
+              class="ui-button ui-button--ghost"
             >
               Cancel
             </button>
           )}
-          <button type="submit" class="primary" disabled={loading()}>
+          <button
+            type="submit"
+            class="ui-button ui-button--primary"
+            disabled={loading()}
+          >
             {props.buttonCta ?? "Submit"}
           </button>
         </div>
@@ -381,10 +371,11 @@ export function Input(props: {
   return (
     <div class="input">
       <input
+        class="ui-input"
         type={props.type || "text"}
         placeholder={props.placeholder}
         id={props.id}
-        autocomplete="false"
+        autocomplete="off"
       />
       {props.description != null && (
         <p class="description">{props.description}</p>
