@@ -1,7 +1,4 @@
 // TODO handle basic form validation client side
-// TODO enable markdown preview through a toggle
-// TODO enable basic markdown editing like bold, italic, link, etc.
-
 import {
   createSignal,
   useContext,
@@ -17,9 +14,11 @@ import "./CommentEditor.scss";
 import { AppState, SetAppState, checkAuthUser } from "@/state";
 import { createFetch, fetchAny } from "@/rpc";
 import { z } from "zod/v4";
-
-// @ts-expect-error Overtype has not been typed yet
-import { OverType } from "overtype";
+import OverType, {
+  toolbarButtons,
+  type OverType as OverTypeInstance,
+  type Theme,
+} from "overtype";
 
 type FormEvent = Event & {
   target: EventTarget & {
@@ -31,6 +30,72 @@ type FormEvent = Event & {
 
 // FIXME: proper type validation
 const fetchComment = createFetch(z.custom<Comment>());
+
+const commentOvertypeTheme = {
+  name: "wrx",
+  colors: {
+    bgPrimary: "var(--bg-surface)",
+    bgSecondary: "var(--bg-color)",
+    text: "var(--text-body-heavy)",
+    textPrimary: "var(--text-body-heavy)",
+    textSecondary: "var(--text-body-medium)",
+    h1: "var(--text-heading)",
+    h2: "var(--info-heavy)",
+    h3: "var(--text-body-medium)",
+    strong: "var(--text-heading)",
+    em: "var(--info-medium)",
+    del: "var(--text-body-light)",
+    link: "var(--text-body-link)",
+    code: "var(--text-body-heavy)",
+    codeBg: "var(--bg-additive-light)",
+    blockquote: "var(--text-body-medium)",
+    hr: "var(--border-medium)",
+    syntaxMarker: "var(--text-body-light)",
+    syntax: "var(--text-body-light)",
+    cursor: "var(--accent-color)",
+    selection: "rgb(var(--accent-light) / 0.28)",
+    listMarker: "var(--info-medium)",
+    rawLine: "var(--text-body-medium)",
+    border: "var(--border-medium)",
+    hoverBg: "var(--bg-additive-light)",
+    primary: "var(--accent-color)",
+    toolbarBg: "var(--bg-additive-lighter)",
+    toolbarBorder: "var(--border-medium)",
+    toolbarIcon: "var(--text-body-medium)",
+    toolbarHover: "var(--bg-additive-light)",
+    toolbarActive: "var(--bg-additive-medium)",
+    placeholder: "var(--text-body-light)",
+  },
+  previewColors: {
+    bg: "transparent",
+    text: "var(--text-body-heavy)",
+    h1: "var(--text-heading)",
+    h2: "var(--text-heading)",
+    h3: "var(--text-heading)",
+    strong: "var(--text-heading)",
+    em: "var(--text-body-heavy)",
+    link: "var(--text-body-link)",
+    code: "var(--text-body-heavy)",
+    codeBg: "var(--bg-additive-light)",
+    blockquote: "var(--text-body-medium)",
+    hr: "var(--border-medium)",
+  },
+} satisfies Theme;
+
+const commentToolbarButtons = [
+  toolbarButtons.bold,
+  toolbarButtons.italic,
+  toolbarButtons.code,
+  toolbarButtons.separator,
+  toolbarButtons.link,
+  toolbarButtons.quote,
+  toolbarButtons.separator,
+  toolbarButtons.bulletList,
+  toolbarButtons.orderedList,
+  toolbarButtons.taskList,
+  toolbarButtons.separator,
+  toolbarButtons.viewMode,
+];
 
 export function CommentSubmission(props: {
   parentId?: number;
@@ -179,39 +244,40 @@ export function CommentEditorBase(props: {
 
   const editorId = "editor-" + Math.random().toString(36).substring(2, 15);
 
-  let editor: OverType | undefined;
-  let mediaQuery: MediaQueryList | undefined;
-  let handleThemeChange: ((e: MediaQueryListEvent) => void) | undefined;
+  let editor: OverTypeInstance | undefined;
 
   onMount(() => {
-    mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    OverType.setTheme(commentOvertypeTheme);
 
-    // @ts-expect-error Overtype has not been typed yet
     [editor] = new OverType(`#${editorId}`, {
       showStats: true,
+      toolbar: true,
+      toolbarButtons: commentToolbarButtons,
       autoResize: true,
+      minHeight: "136px",
+      maxHeight: "420px",
+      fontFamily: "var(--font-family-sans)",
+      fontSize: "var(--font-size-base)",
+      lineHeight: "var(--line-height-relaxed)",
+      padding: "var(--space-8)",
+      mobile: {
+        fontSize: "16px",
+        lineHeight: "var(--line-height-normal)",
+        padding: "var(--space-6)",
+      },
       placeholder: props.placeholder ?? "Start writing markdown...",
       value: props.content,
+      statsFormatter: ({ words, chars, line, column }) =>
+        `<span class="overtype-stat">${words} words</span><span class="overtype-stat">${chars} chars</span><span class="overtype-stat">Ln ${line}, Col ${column}</span>`,
       textareaProps: {
         id: "content",
         name: "content",
         autocomplete: "off",
       },
-      theme: mediaQuery.matches ? "cave" : "solar",
     });
-
-    handleThemeChange = (e) => {
-      editor?.setTheme(e.matches ? "cave" : "solar");
-    };
-
-    mediaQuery.addEventListener("change", handleThemeChange);
   });
 
   onCleanup(() => {
-    if (mediaQuery != null && handleThemeChange != null) {
-      mediaQuery.removeEventListener("change", handleThemeChange);
-    }
-
     if (editor != null) {
       editor.destroy();
     }
@@ -307,7 +373,7 @@ export function CommentEditorBase(props: {
           ))}
       </div>
       <hr />
-      <div id={editorId} />
+      <div id={editorId} class="comment-submission__editor" />
       {error() != null && <div class="error">{error()?.message}</div>}
       <div class="action-row">
         <div class="markdown-hint">
