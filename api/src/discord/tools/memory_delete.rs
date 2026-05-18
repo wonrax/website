@@ -51,30 +51,20 @@ impl Tool for MemoryDeleteTool {
                 "items": {
                     "type": "string"
                 },
-                "description": "Array of memory IDs to delete. Use this when you know specific memory IDs to remove."
-            },
-            "where_metadata": {
-                "type": "object",
-                "description": "Filter for deletion by metadata. E.g. {\"timestamp\": {\"$lt\": \"2023-01-01\"}} to delete old memories.",
-                "additionalProperties": true
-            },
-            "where_document": {
-                "type": "object",
-                "description": "Filter for deletion by document content. E.g. {\"$contains\": \"some text\"} to delete memories containing specific text.",
-                "additionalProperties": true
+                "description": "Array of memory IDs to delete (obtain via memory_find)."
             }
         });
 
         ToolDefinition {
             name: "memory_delete".to_string(),
             description: format!(
-                "Delete stored memories from the vector database for channel {}. Use this to remove outdated, incorrect, or no longer relevant information. You can delete by specific IDs, metadata filters, or document content filters. BE CAREFUL - deletions are permanent.",
+                "Delete stored memories from the vector database for channel {} by specific memory IDs. Look them up first with memory_find. BE CAREFUL - deletions are permanent.",
                 self.channel_id
             ),
             parameters: json!({
                 "type": "object",
                 "properties": properties,
-                "required": []
+                "required": ["ids"]
             }),
         }
     }

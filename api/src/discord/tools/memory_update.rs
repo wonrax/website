@@ -52,11 +52,6 @@ impl Tool for MemoryUpdateTool {
             "information": {
                 "type": "string",
                 "description": "Updated information to replace the existing memory content"
-            },
-            "metadata": {
-                "type": "object",
-                "description": "Optional updated metadata to store with the information",
-                "additionalProperties": true
             }
         });
 

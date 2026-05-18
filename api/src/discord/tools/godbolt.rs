@@ -121,17 +121,14 @@ impl Tool for Godbolt {
                 "properties": {
                     "compiler_id": {"type": "string", "description": "Compiler id from /api/compilers/{language}"},
                     "source": {"type": "string", "description": "Primary source code"},
-                    "user_arguments": {"type": "string", "description": "Compiler flags", "nullable": true},
-                    "files": {"type": "array", "items": {"type": "object", "properties": {"filename": {"type": "string"}, "contents": {"type": "string"}}, "required": ["filename", "contents"]}},
-                    "libraries": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "version": {"type": "string"}}, "required": ["id", "version"]}},
-                    "lang": {"type": "string", "nullable": false, "description": "Language id (e.g., rust)"},
-                    "execute": {"type": "boolean", "nullable": false, "description": "Whether to run the program and capture output"},
-                    "asm": {"type": "boolean", "nullable": true, "description": "Whether to return assembly output"},
-                    "tools": {"type": "array", "items": {"type": "object"}, "nullable": true},
-                    "compiler_options": {"type": "object", "nullable": true},
-                    "execute_parameters": {"type": "object", "nullable": true},
+                    "user_arguments": {"type": ["string", "null"], "description": "Compiler flags"},
+                    "files": {"type": ["array", "null"], "items": {"type": "object", "properties": {"filename": {"type": "string"}, "contents": {"type": "string"}}, "required": ["filename", "contents"]}},
+                    "libraries": {"type": ["array", "null"], "items": {"type": "object", "properties": {"id": {"type": "string"}, "version": {"type": "string"}}, "required": ["id", "version"]}},
+                    "lang": {"type": "string", "description": "Language id (e.g., rust)"},
+                    "execute": {"type": "boolean", "description": "Whether to run the program and capture output"},
+                    "asm": {"type": ["boolean", "null"], "description": "Whether to return assembly output"},
                 },
-                "required": ["compiler_id", "lang", "source", "execute"]
+                "required": ["compiler_id", "source", "user_arguments", "files", "libraries", "lang", "execute", "asm"]
             }),
         }
     }

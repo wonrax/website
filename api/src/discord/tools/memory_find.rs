@@ -80,14 +80,12 @@ impl Tool for MemoryFindTool {
                 "description": "Query to search for in the vector database"
             },
             "limit": {
-                "type": "integer",
-                "description": "Maximum number of results to return (default: 10, max: 20)",
-                "minimum": 1,
-                "maximum": 20
+                "type": ["integer", "null"],
+                "description": "Maximum number of results to return (default: 10, max: 20)"
             }
         });
 
-        let required = vec!["query"];
+        let required = vec!["query", "limit"];
 
         ToolDefinition {
             name: "memory_find".to_string(),

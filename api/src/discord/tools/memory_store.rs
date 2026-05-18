@@ -47,11 +47,6 @@ impl Tool for MemoryStoreTool {
             "information": {
                 "type": "string",
                 "description": "Information to store in the vector database"
-            },
-            "metadata": {
-                "type": "object",
-                "description": "Optional metadata to store with the information",
-                "additionalProperties": true
             }
         });
 

@@ -49,11 +49,11 @@ impl Tool for DiscordSendMessageTool {
                         "description": "The message content to send"
                     },
                     "reply_to_message_id": {
-                        "type": "string",
+                        "type": ["string", "null"],
                         "description": "The Discord message ID to reply to."
                     }
                 },
-                "required": ["content"]
+                "required": ["content", "reply_to_message_id"]
             }),
         }
     }

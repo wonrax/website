@@ -43,3 +43,5 @@ target/
 .fastembed_cache/
 
 result
+
+.claude/
