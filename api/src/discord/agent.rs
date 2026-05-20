@@ -143,7 +143,7 @@ pub fn create_agent_session(
 
     // Create memory tools if Qdrant is configured
     let mut agent_builder = llm_client
-        .agent("gemini-3-flash-preview")
+        .agent("gemini-3.5-flash")
         .preamble(SYSTEM_PROMPT)
         .tool(discord_tool)
         .tool(fetch_tool)
