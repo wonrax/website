@@ -1,22 +1,30 @@
 ---
-import BlogRouteLayout from "@/layouts/BlogRouteLayout.astro";
+import RootLayout from "@/layouts/Layout.astro";
 import "@/layouts/layout.scss";
 import BlogArticleList from "@/components/BlogArticleList.astro";
+import NumberedNav from "@/components/NumberedNav.astro";
 import { getCollection, type CollectionEntry } from "astro:content";
 
 type BlogEntry = CollectionEntry<"blog">;
 
 const allPosts = (await getCollection("blog")) as BlogEntry[];
+const visiblePosts = allPosts.filter((post: BlogEntry) => {
+  return (
+    process.env.NODE_ENV !== "production" ||
+    (post.data.isDraft !== true && post.data.hidden !== true)
+  );
+});
 ---
 
-<BlogRouteLayout seoProps={{ title: "blog index", description: "blog index" }}>
-  <BlogArticleList
-    posts={allPosts.filter((post: BlogEntry) => {
-      return (
-        process.env.NODE_ENV !== "production" ||
-        (post.data.isDraft !== true && post.data.hidden !== true)
-      );
-    })}
-    allPosts={allPosts}
-  />
-</BlogRouteLayout>
+<RootLayout
+  seoProps={{ title: "blog", description: "essays, notes, and field reports" }}
+>
+  <main class="narrow-shell">
+    <NumberedNav active="blog" class="narrow-shell__nav" />
+    <header class="narrow-shell__hero">
+      <h1 class="narrow-shell__title">essays.</h1>
+      <p class="narrow-shell__lede">writing, mostly about software.</p>
+    </header>
+    <BlogArticleList posts={visiblePosts} allPosts={allPosts} />
+  </main>
+</RootLayout>

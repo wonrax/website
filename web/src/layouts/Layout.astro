@@ -1,12 +1,18 @@
 ---
 import "./global.scss";
 import "@fontsource-variable/inter";
-import inter from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
+import "@fontsource-variable/cascadia-code";
+// Preload URLs — we only ship latin glyphs for the chrome (English-only bio +
+// dates + filenames). Other subsets stay lazy via @fontsource's CSS.
+import interLatin from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
+import interLatinItalic from "@fontsource-variable/inter/files/inter-latin-wght-italic.woff2?url";
+import cascadiaLatin from "@fontsource-variable/cascadia-code/files/cascadia-code-latin-wght-normal.woff2?url";
 import path from "path";
 import { SEO, type Props as SeoProps } from "astro-seo";
 import childProcess from "child_process";
 import { version } from "../../package.json";
 import GlobalBanner from "@/components/GlobalBanner";
+import NumberedNav from "@/components/NumberedNav.astro";
 
 export type Props = {
   seoProps: SeoProps & {
@@ -81,13 +87,29 @@ try {
         ...seoProps?.twitter,
       }}
     />
-    <!-- Preload the font to avoid FOUT, note that you might have to add more if
-you use more additional fonts, check which fonts are being used in Chrome devtools -->
+    <!-- Preload latin variants of both Inter (body/display) and Cascadia
+         (mono chrome) so the swap from system fallback to webfont happens
+         before paint, killing the layout shift on page nav. Italic Inter is
+         included because `<em>` shows up in body copy. -->
     <link
       rel="preload"
       as="font"
       type="font/woff2"
-      href={inter}
+      href={interLatin}
+      crossorigin="anonymous"
+    />
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href={interLatinItalic}
+      crossorigin="anonymous"
+    />
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href={cascadiaLatin}
       crossorigin="anonymous"
     />
 
@@ -145,42 +167,36 @@ you use more additional fonts, check which fonts are being used in Chrome devtoo
       }
     </script>
     <footer>
-      <div class="footer-content">
-        <a href="/" class="logo-name-text">wonrax</a>
-        <a href="/blog" class="footer-link-item">Blog</a>
-        <a href="/great-reads" class="footer-link-item">Bookmarks</a>
+      <div class="footer-inner">
+        <NumberedNav class="footer-nav" />
+        <span class="ui-meta footer-stamp">
+          commit {commitHash} · v{version}
+        </span>
       </div>
-      <span>
-        Commit: {commitHash} - Version: {version}
-      </span>
     </footer>
     <GlobalBanner client:load />
   </body>
 </html>
 
 <style lang="scss" is:global>
+  // The outer <footer> is padded only horizontally so the top hairline rule
+  // sits inside the padding zone — matching the width of section rules above
+  // (which are page content, not page-edge). The inner div carries the rule
+  // and lays out the nav + version stamp.
   footer {
-    padding: 48px 0;
-    gap: 8px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
+    max-width: var(--layout-narrow-width);
+    margin: var(--space-24) auto 0;
+    padding: 0 var(--layout-narrow-px);
+    box-sizing: border-box;
 
-    .footer-content {
+    .footer-inner {
+      padding: var(--space-24) 0;
+      border-top: 1px solid var(--rule);
       display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 16px;
-
-      .logo-name-text {
-        font-weight: var(--font-weight-medium);
-      }
-    }
-
-    span {
-      font-size: 13px;
-      color: var(--text-body-light);
+      flex-wrap: wrap;
+      gap: var(--space-8);
+      justify-content: space-between;
+      align-items: baseline;
     }
   }
 </style>

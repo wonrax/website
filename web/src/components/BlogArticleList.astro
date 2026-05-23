@@ -18,137 +18,273 @@ const sortedPosts = [...posts].sort((a, b) => {
   );
 });
 
-const tags = Array.from(
+const allTags = Array.from(
   new Set(
     allPosts
       .flatMap((post) => post.data.tags)
       .filter((entry): entry is string => Boolean(entry))
   )
-);
+).sort();
+
+function formatDate(raw: string): { year: number; short: string } {
+  const d = new Date(raw);
+  const day = String(d.getDate()).padStart(2, "0");
+  const monthShort = d.toLocaleString("en-US", { month: "short" });
+  return { year: d.getFullYear(), short: `${day} ${monthShort}` };
+}
 ---
 
-<main class="blog-article-list">
+<div class="blog-list">
+  <div class="blog-list__filters">
+    <div class="blog-list__filter-row">
+      <span class="blog-list__filter-label">tags</span>
+      <div class="blog-list__filter-options">
+        <a
+          href="/blog"
+          class:list={[
+            "ui-button ui-button--xs ui-button--toggle",
+            { "is-active": !tag },
+          ]}>all</a
+        >
+        {
+          allTags.map((t) => (
+            <a
+              href={`/blog/tag/${t}`}
+              class:list={[
+                "ui-button ui-button--xs ui-button--toggle",
+                { "is-active": tag === t },
+              ]}
+            >
+              #{t}
+            </a>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+
   {
-    tag ? (
-      <p class="blog-article-list__meta">
-        Viewing posts tagged with <strong>{tag}</strong>
+    sortedPosts.length === 0 ? (
+      <p class="blog-list__empty">
+        {tag
+          ? `No posts tagged #${tag} yet.`
+          : "No posts yet — check back soon."}
       </p>
     ) : (
-      <p class="blog-article-list__meta">Newest first</p>
+      <ul class="blog-list__rows">
+        {(() => {
+          let lastYear: number | null = null;
+          return sortedPosts.map((post) => {
+            const { year, short } = formatDate(post.data.published);
+            const isFirstInYear = year !== lastYear;
+            lastYear = year;
+            const isHidden =
+              post.data.isDraft === true || post.data.hidden === true;
+            return (
+              <>
+                {isFirstInYear && (
+                  <li class="blog-list__year-mark" aria-hidden="true">
+                    <span class="blog-list__year-label">{year}</span>
+                  </li>
+                )}
+                <li
+                  class:list={["blog-list__entry", { "is-hidden": isHidden }]}
+                >
+                  <article class="blog-list__row">
+                    <span class="blog-list__date">{short}</span>
+                    <h2 class="blog-list__title">
+                      <a
+                        class="ui-link ui-link--title"
+                        href={`/blog/${getPostSlug(post)}`}
+                      >
+                        {post.data.title}
+                      </a>
+                    </h2>
+                    <p class="blog-list__excerpt">{post.data.description}</p>
+                    <span class="ui-meta blog-list__meta">
+                      {post.data.tags
+                        .filter((t): t is string => Boolean(t))
+                        .map((t) => `#${t}`)
+                        .join(" ")}
+                    </span>
+                  </article>
+                </li>
+              </>
+            );
+          });
+        })()}
+      </ul>
     )
   }
-  <ul class="blog-article-list__items">
-    {
-      sortedPosts.map((post) => {
-        const isHidden =
-          post.data.isDraft === true || post.data.hidden === true;
 
-        return (
-          <li class={`blog-article-list__entry${isHidden ? " is-hidden" : ""}`}>
-            <div class="blog-article-list__row">
-              <a href={`/blog/${getPostSlug(post)}`}>{post.data.title}</a>
-              <span class="blog-article-list__divider" />
-              <p class="blog-article-list__date">
-                {new Date(post.data.published).toLocaleDateString("en-UK", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </p>
-            </div>
-            <p class="blog-article-list__description">
-              {post.data.description}
-            </p>
-          </li>
-        );
-      })
-    }
-  </ul>
-  <p class="blog-article-list__tags">
-    Tags:
+  <div class="ui-meta blog-list__foot">
+    <span>{sortedPosts.length} of {allPosts.length}</span>
     {
-      tags.map((entry) => {
-        return <a href={`/blog/tag/${entry}`}>{entry}</a>;
-      })
+      tag && (
+        <a class="ui-link" href="/blog">
+          ← all posts
+        </a>
+      )
     }
-  </p>
-</main>
+  </div>
+</div>
 
 <style lang="scss">
-  .blog-article-list {
-    &__meta {
-      color: var(--text-body-light);
+  .blog-list__filters {
+    padding: var(--space-7) 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: var(--space-8);
+  }
+
+  .blog-list__filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-8);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    line-height: 1.4;
+  }
+
+  .blog-list__filter-label {
+    color: var(--text-3);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+    min-width: 48px;
+  }
+
+  .blog-list__filter-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-7);
+    color: var(--text-3);
+    letter-spacing: var(--tracking-loose);
+  }
+
+  .blog-list__rows {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .blog-list__year-mark {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    column-gap: var(--space-8);
+    align-items: baseline;
+    padding: var(--space-14) 0 var(--space-3);
+  }
+
+  .blog-list__year-label {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--text-3);
+    letter-spacing: var(--tracking-wide);
+  }
+
+  .blog-list__entry {
+    border-top: 1px solid var(--rule);
+
+    &.is-hidden .blog-list__title,
+    &.is-hidden .blog-list__excerpt {
+      color: var(--text-3);
     }
+  }
 
-    &__items {
-      list-style-type: decimal;
-      padding-inline-start: 0;
+  .blog-list__row {
+    display: grid;
+    grid-template-columns: 60px 1fr auto;
+    column-gap: var(--space-8);
+    row-gap: var(--space-2);
+    padding: var(--space-5) 0;
+    align-items: baseline;
+    color: var(--text-1);
+    text-decoration: none;
+  }
+
+  .blog-list__date {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--text-2);
+    padding-top: 3px;
+    white-space: nowrap;
+  }
+
+  .blog-list__title {
+    grid-column: 2;
+    grid-row: 1;
+    font-family: var(--font-display);
+    font-size: var(--font-size-base);
+    line-height: 1.25;
+    font-weight: var(--font-weight-medium);
+    letter-spacing: var(--tracking-snug);
+    color: var(--text-1);
+    margin: 0;
+  }
+
+  .blog-list__excerpt {
+    grid-column: 2;
+    grid-row: 2;
+    font-family: var(--font-body);
+    font-size: var(--font-size-md);
+    line-height: 1.4;
+    color: var(--text-3);
+    margin: 0;
+  }
+
+  .blog-list__meta {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    padding-top: 3px;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .blog-list__empty {
+    padding: var(--space-12) 0;
+    font-family: var(--font-body);
+    color: var(--text-3);
+    text-align: center;
+    border-top: 1px solid var(--rule);
+  }
+
+  .blog-list__foot {
+    margin-top: var(--space-8);
+    padding-top: var(--space-7);
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  // Narrow widths: drop date gutter, fold date into meta line, move meta below excerpt.
+  @media (max-width: 600px) {
+    .blog-list__row {
+      grid-template-columns: auto 1fr;
+      column-gap: var(--space-4);
+      row-gap: var(--space-2);
     }
-
-    &__entry {
-      margin-bottom: var(--space-10);
-      display: flex;
-      flex-direction: column;
-      max-width: var(--layout-content-width);
-
-      &.is-hidden a {
-        color: var(--text-body-light);
-      }
+    .blog-list__date {
+      grid-column: 1;
+      grid-row: 1;
+      padding-top: 0;
     }
-
-    &__row {
-      width: 100%;
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: var(--space-6);
-
-      a {
-        font-size: var(--font-size-base);
-        font-weight: var(--font-weight-medium);
-        letter-spacing: 0;
-        line-height: var(--line-height-normal);
-      }
+    .blog-list__title {
+      grid-column: 1 / -1;
+      grid-row: 2;
     }
-
-    &__divider {
-      height: 1px;
-      flex: 1;
-      background-color: var(--border-medium);
+    .blog-list__excerpt {
+      grid-column: 1 / -1;
+      grid-row: 3;
     }
-
-    &__date {
-      color: var(--text-body-light);
-      font-size: var(--font-size-md);
-      white-space: nowrap;
-      flex-shrink: 0;
-      margin: var(--space-1) 0;
-    }
-
-    &__description {
-      color: var(--text-body-light);
-      font-size: var(--font-size-md);
-      line-height: var(--line-height-normal);
-      margin: var(--space-1) 0;
-    }
-
-    &__tags {
-      display: flex;
-      flex-direction: row;
-      flex-wrap: wrap;
-      gap: var(--space-2);
-    }
-
-    @media (max-width: 620px) {
-      &__row {
-        align-items: flex-start;
-        flex-direction: column;
-        gap: var(--space-1);
-      }
-
-      &__divider {
-        display: none;
-      }
+    .blog-list__meta {
+      grid-column: 2;
+      grid-row: 1;
+      padding-top: 0;
+      text-align: right;
     }
   }
 </style>

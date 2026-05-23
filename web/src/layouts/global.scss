@@ -18,7 +18,6 @@ html {
 // Font fallbacks config to avoid CLS
 // https://developer.chrome.com/blog/font-fallbacks/
 // https://github.com/unjs/fontaine
-// TODO do the same thing for monospace fonts
 @font-face {
   font-family: "Inter fallback";
   src:
@@ -26,6 +25,20 @@ html {
     local("Arial"), local("Noto Sans");
   ascent-override: 96.875%;
   descent-override: 24.14772727%;
+  line-gap-override: 0%;
+}
+
+// Cascadia Code metrics (unitsPerEm 2048, ascent 1900, descent 480, lineGap 0)
+// projected onto the OS mono fallback so the swap from system mono to
+// Cascadia Code Variable doesn't shift line-box height.
+@font-face {
+  font-family: "Cascadia Code fallback";
+  src:
+    local("ui-monospace"), local("SFMono-Regular"), local("Menlo"),
+    local("Consolas"), local("Liberation Mono"), local("DejaVu Sans Mono"),
+    local("Courier New");
+  ascent-override: 92.7734%;
+  descent-override: 23.4375%;
   line-gap-override: 0%;
 }
 

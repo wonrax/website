@@ -10,7 +10,7 @@ use crate::{
     App,
     blog::models::{NewBlogComment, NewBlogPost},
     error::AppError,
-    identity::{self, MaybeAuthUser, models::identity::Traits},
+    identity::{AuthUser, models::identity::Traits},
     real_ip::ClientIp,
     schema::{blog_comments, blog_posts, identities},
 };
@@ -22,17 +22,11 @@ pub async fn create_comment(
     State(ctx): State<App>,
     Path(slug): Path<String>,
     ClientIp(ip): ClientIp,
-    MaybeAuthUser(auth_user): MaybeAuthUser,
+    AuthUser(auth_user): AuthUser,
     crate::json::Json(mut comment): crate::json::Json<CommentSubmission>,
 ) -> Result<Json<Comment>, AppError> {
-    if let Err(ref e) = auth_user
-        && matches!(e, identity::AuthenticationError::Unauthorized)
-    {
-        return Err(identity::AuthenticationError::Unauthorized.into());
-    }
-
     comment
-        .validate(auth_user.is_ok())
+        .validate()
         .map_err(|e| (e, axum::http::StatusCode::BAD_REQUEST))?;
 
     let mut conn = ctx.diesel.get().await?;
@@ -87,9 +81,11 @@ pub async fn create_comment(
 
     let new_comment = NewBlogComment {
         author_ip: ip.to_string(),
-        author_name: comment.author_name.clone(),
-        author_email: comment.author_email.clone(),
-        identity_id: auth_user.ok().map(|u| u.id),
+        // Name comes from the linked identity's traits at read time; no
+        // per-comment override is accepted now that auth is required.
+        author_name: None,
+        author_email: None,
+        identity_id: Some(auth_user.id),
         content: comment.content.clone(),
         post_id,
         parent_id: comment.parent_id,
@@ -99,59 +95,34 @@ pub async fn create_comment(
         .values(&new_comment)
         .returning((
             blog_comments::id,
-            blog_comments::author_name,
-            blog_comments::identity_id,
             blog_comments::content,
             blog_comments::parent_id,
             blog_comments::created_at,
         ))
-        .get_result::<(
-            i32,
-            Option<String>,
-            Option<i32>,
-            String,
-            Option<i32>,
-            chrono::NaiveDateTime,
-        )>(&mut conn)
+        .get_result::<(i32, String, Option<i32>, chrono::NaiveDateTime)>(&mut conn)
         .await?;
 
-    let mut author_name = resulting_comment.1.clone();
+    let identity_traits = identities::table
+        .filter(identities::id.eq(auth_user.id))
+        .select(identities::traits)
+        .first::<serde_json::Value>(&mut conn)
+        .await
+        .optional()?;
 
-    if let Some(identity_id) = resulting_comment.2 {
-        if author_name.is_some() {
-            return Ok(Json(Comment {
-                id: resulting_comment.0,
-                author_name: author_name.unwrap_or_else(|| "Anonymous".to_string()),
-                content: resulting_comment.3,
-                parent_id: resulting_comment.4,
-                created_at: resulting_comment.5,
-                votes: 0,
-                depth: -1,
-            }));
-        }
-
-        let identity_traits = identities::table
-            .filter(identities::id.eq(identity_id))
-            .select(identities::traits)
-            .first::<serde_json::Value>(&mut conn)
-            .await
-            .optional()?;
-
-        if let Some(traits) = identity_traits {
-            let traits: Traits = serde_json::from_value(traits).map_err(|_| "Invalid traits")?;
-            author_name = traits.name.or_else(|| {
-                tracing::error!("No name in traits found for identity ID `{}`", identity_id,);
-                Some("No name".into())
-            });
-        }
-    }
+    let author_name = identity_traits
+        .and_then(|traits| serde_json::from_value::<Traits>(traits).ok())
+        .and_then(|t| t.name)
+        .unwrap_or_else(|| {
+            tracing::error!("No name in traits for identity ID `{}`", auth_user.id);
+            "No name".into()
+        });
 
     Ok(Json(Comment {
         id: resulting_comment.0,
-        author_name: author_name.unwrap_or_else(|| "Anonymous".to_string()),
-        content: resulting_comment.3,
-        parent_id: resulting_comment.4,
-        created_at: resulting_comment.5,
+        author_name,
+        content: resulting_comment.1,
+        parent_id: resulting_comment.2,
+        created_at: resulting_comment.3,
         votes: 0,
         depth: -1,
     }))
@@ -159,29 +130,12 @@ pub async fn create_comment(
 
 #[derive(Deserialize, Serialize)]
 pub struct CommentSubmission {
-    author_name: Option<String>,
-    author_email: Option<String>,
     content: String,
     parent_id: Option<i32>,
 }
 
 impl CommentSubmission {
-    fn validate(&mut self, is_auth: bool) -> Result<(), &'static str> {
-        if let Some(mut name) = self.author_name.take() {
-            name = name.trim().to_string();
-            if name.is_empty() {
-                return Err("No author name provided");
-            }
-
-            if name.len() > 50 {
-                return Err("Author name too long");
-            }
-
-            self.author_name = Some(name);
-        } else if !is_auth {
-            return Err("No author name provided");
-        }
-
+    fn validate(&mut self) -> Result<(), &'static str> {
         self.content = self.content.trim().to_string();
         if self.content.len() > 5000 {
             return Err("Content too long (max 5000 characters)");
@@ -189,22 +143,6 @@ impl CommentSubmission {
 
         if self.content.is_empty() {
             return Err("No content provided");
-        }
-
-        if let Some(email) = self.author_email.take() {
-            self.author_email = Some(email.trim().to_lowercase());
-
-            if email.len() > 50 {
-                return Err("Email too long");
-            }
-
-            if email.is_empty() {
-                return Err("No email provided");
-            }
-
-            if !email.contains('@') {
-                return Err("Invalid email");
-            }
         }
 
         Ok(())

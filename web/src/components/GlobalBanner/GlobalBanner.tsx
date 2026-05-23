@@ -228,7 +228,8 @@ export default function GlobalBanner(props: Props): JSXElement {
             innerHTML={md.render(bannerData()!.content)}
           />
           <button
-            class="global-banner__dismiss"
+            type="button"
+            class="ui-icon-button ui-icon-button--sm global-banner__dismiss"
             onClick={handleDismiss}
             aria-label="Dismiss banner"
           >

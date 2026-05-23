@@ -12,7 +12,10 @@ import config from "@/config";
 >
   <main>
     <h1>Login to wrx.sh</h1>
-    <a href={`${config.API_URL}/login/github?return_to=/settings`}>
+    <a
+      class="ui-button ui-button--primary ui-button--lg"
+      href={`${config.API_URL}/login/github?return_to=/settings`}
+    >
       <GitHub width={24} />
       Continue with GitHub
     </a>
@@ -34,29 +37,5 @@ import config from "@/config";
     font-size: var(--font-size-xl);
     font-weight: var(--font-weight-bold);
     color: var(--text-heading);
-  }
-
-  a {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-6);
-    padding: var(--space-6) var(--space-14);
-    border: none;
-    border-radius: var(--radius-xl);
-    background-color: var(--text-body-heavy);
-    color: var(--bg-color);
-    font-size: var(--font-size-base);
-    font-weight: var(--font-weight-medium);
-    cursor: pointer;
-  }
-
-  a:hover {
-    opacity: 0.9;
-  }
-
-  a:focus {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--accent-color);
   }
 </style>

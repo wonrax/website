@@ -220,12 +220,8 @@ export default function GreatReadsFeed(props: Props): JSXElement {
   });
 
   return (
-    <Show when={!loading()} fallback={<p>Loading…</p>}>
+    <Show when={!loading()} fallback={<p>loading…</p>}>
       <Show when={!err() || articles().length > 0} fallback={<p>{err()}</p>}>
-        <p class={styles["reading-intro"]}>
-          A selection of interesting articles, papers, and resources curated by
-          me. Articles with highlights show my notes and selected passages.
-        </p>
         <ul class={styles["reading-list"]}>
           <For each={articles()}>
             {(article) => (
@@ -237,15 +233,27 @@ export default function GreatReadsFeed(props: Props): JSXElement {
                   .filter(Boolean)
                   .join(" ")}
               >
-                <span class={styles["reading-date"]}>
-                  {article.date
-                    ? new Date(article.date).toLocaleDateString(undefined, {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })
-                    : ""}
-                </span>
+                <div>
+                  <span class={`ui-meta ${styles["reading-date"]}`}>
+                    {article.date
+                      ? new Date(article.date).toLocaleDateString(undefined, {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })
+                      : ""}
+                  </span>
+                  <span class={`ui-meta ${styles["reading-source"]}`}>
+                    <a
+                      href={getWebsiteUrl(article.link)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {getWebsiteUrl(article.link)} {"->"}
+                    </a>
+                  </span>
+                </div>
+
                 <a
                   href={article.link}
                   target="_blank"
@@ -255,16 +263,6 @@ export default function GreatReadsFeed(props: Props): JSXElement {
                   {article.title}
                 </a>
 
-                <span class={styles["reading-source"]}>
-                  <a
-                    href={getWebsiteUrl(article.link)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {getWebsiteUrl(article.link)}
-                  </a>
-                </span>
-
                 <Show
                   when={article.highlights && article.highlights.length > 0}
                 >
@@ -273,12 +271,13 @@ export default function GreatReadsFeed(props: Props): JSXElement {
                       {(highlight) => (
                         <div class={styles["highlight-content"]}>
                           <blockquote class={styles["highlight-text"]}>
-                            {highlight.text}
+                            <span>{highlight.text}</span>
                           </blockquote>
                           <Show when={highlight.note}>
-                            <div class={styles["highlight-note"]}>
-                              <strong>Note:</strong> {highlight.note}
-                            </div>
+                            <p class={styles["highlight-note"]}>
+                              <strong class="ui-kicker">note</strong>
+                              {highlight.note}
+                            </p>
                           </Show>
                         </div>
                       )}
@@ -287,7 +286,9 @@ export default function GreatReadsFeed(props: Props): JSXElement {
                       <div class={styles["highlight-tags"]}>
                         <For each={article.highlights![0].tags}>
                           {(tag) => (
-                            <span class={styles["highlight-tag"]}>{tag}</span>
+                            <span class={`ui-meta ${styles["highlight-tag"]}`}>
+                              {tag}
+                            </span>
                           )}
                         </For>
                       </div>

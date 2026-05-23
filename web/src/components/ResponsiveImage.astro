@@ -140,32 +140,48 @@ if (
     />
   )
 }
-<div class="image-caption">
-  <div>
-    <slot />
-  </div>
+<div class="ui-meta image-caption">
+  <div class="image-caption__text"><slot /></div>
   <a
     class="image-caption__download"
     href={originalSrc}
     aria-label={`Download image, ${alt}`}
   >
-    <ArrowDown size={16} strokeWidth={2.5} />
+    <ArrowDown size={14} strokeWidth={2} />
   </a>
 </div>
 
 <style lang="scss">
-  a.image-caption__download {
+  // Two-column layout: caption text on the left, download button on the right.
+  // Center column eats space-between so they don't overlap.
+  :global(.image-caption) {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-6);
+    flex-wrap: nowrap;
+  }
+
+  :global(.image-caption__text) {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  :global(.image-caption__download) {
+    flex: 0 0 auto;
     display: inline-flex;
-    padding: var(--space-3);
-    border-radius: 50%;
-    background-color: var(--bg-additive-light);
-    color: var(--text-body-heavy);
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0;
+    background: transparent;
+    color: var(--text-3);
     text-decoration: none;
-    margin-top: -4px;
     line-height: 0;
+    transition: color var(--duration-fast) ease;
 
     &:hover {
-      background-color: var(--bg-additive-medium);
+      color: var(--accent);
     }
   }
 </style>

@@ -1,27 +1,28 @@
 ---
-import Layout from "../layouts/Layout.astro";
-import RecommenderFeed from "../components/RecommenderFeedSolid.tsx";
+import RootLayout from "@/layouts/Layout.astro";
+import "@/layouts/layout.scss";
+import RecommenderFeed from "@/components/RecommenderFeedSolid.tsx";
 import ToasterProvider from "@/components/ToasterProvider";
+import NumberedNav from "@/components/NumberedNav.astro";
 ---
 
-<Layout
+<RootLayout
   seoProps={{
-    title: "Recommender Feed",
-    description: "Personalized article recommendations",
+    title: "feed",
+    description: "personalized article recommendations",
     noindex: true,
   }}
 >
   <ToasterProvider client:only="solid-js" />
-  <main class="recommender-page">
-    <h3>Recommender Feed</h3>
+  <main class="narrow-shell">
+    <NumberedNav class="narrow-shell__nav" />
+    <header class="narrow-shell__hero">
+      <h1 class="narrow-shell__title">the feed.</h1>
+      <p class="narrow-shell__lede">
+        lobsters and hacker news items, ranked by similarity to what you've
+        already read.
+      </p>
+    </header>
     <RecommenderFeed client:only="solid-js" />
   </main>
-</Layout>
-
-<style lang="scss">
-  .recommender-page {
-    max-width: var(--layout-content-width);
-    margin: 32px auto;
-    padding: 0 var(--space-8);
-  }
-</style>
+</RootLayout>

@@ -2,7 +2,6 @@ import { Remarkable } from "remarkable";
 import { createSignal, For, Show, type JSXElement, useContext } from "solid-js";
 import { CommentSubmission, CommentEditing } from "./CommentEditor";
 import { type Comment } from "./CommentSection";
-import { User } from "@/components/Icon";
 import config from "@/config";
 import { fetchAny } from "@/rpc";
 import CommentContext from "./CommentSectionContext";
@@ -13,8 +12,6 @@ export default function CommentComponent(props: {
   depth: number;
   onDelete: () => void;
 }): JSXElement {
-  // TODO read more on the docs to identify security issues
-  // TODO use memo to avoid re-rendering if possible
   const ctx = useContext(CommentContext);
 
   if (!ctx?.slug) {
@@ -22,23 +19,12 @@ export default function CommentComponent(props: {
   }
 
   const md = new Remarkable({
-    html: false, // Enable HTML tags in source
-    xhtmlOut: false, // Use '/' to close single tags (<br />)
-    breaks: false, // Convert '\n' in paragraphs into <br>
-    langPrefix: "language-", // CSS language prefix for fenced blocks
-
-    // Enable some language-neutral replacement + quotes beautification
+    html: false,
+    xhtmlOut: false,
+    breaks: false,
+    langPrefix: "language-",
     typographer: false,
-
-    // Double + single quotes replacement pairs, when typographer enabled,
-    // and smartquotes on. Set doubles to '«»' for Russian, '„“' for German.
     quotes: "“”‘’",
-
-    // Highlighter function. Should return escaped HTML,
-    // or '' if the source string is not changed
-    // highlight: function (/*str, lang*/) {
-    //   return "";
-    // },
   });
 
   /* eslint-disable-next-line solid/reactivity --
@@ -54,49 +40,64 @@ export default function CommentComponent(props: {
 
   return (
     <li class="comment">
-      <div class="comment-header">
-        <div class="comment-author">
-          <div class="comment-avatar">
-            <User size={16} stroke-width={1.5} />
-          </div>
-          {props.comment.author_name}
-          <div class="comment-date">
-            {timeSince(new Date(Date.parse(props.comment.created_at + "Z")))}
-          </div>
-          {(props.comment.is_blog_author ?? false) && (
-            <p class="comment-author-badge">Author</p>
-          )}
-        </div>
-        {/* <div class="comment-upvote">{props.comment.upvote} upvotes</div> */}
-        {/* <div>{comment.id}</div> */}
-      </div>
+      <header class="ui-meta comment-header">
+        <span class="comment-num" aria-hidden="true" />
+        <span class="comment-author-name">{props.comment.author_name}</span>
+        {(props.comment.is_blog_author ?? false) && (
+          <span class="comment-badge">author</span>
+        )}
+        <span class="comment-spacer" />
+        <span class="comment-date">
+          {timeSince(new Date(Date.parse(props.comment.created_at + "Z")))}
+        </span>
+      </header>
+
       <Show when={!isEditing()}>
         <div
           class="comment-content"
-          // See above for safety concerns
+          // Comment content is markdown rendered by remarkable. HTML is
+          // disabled in the renderer config above, so the only risk is
+          // remarkable bugs — accepted tradeoff for now.
           // eslint-disable-next-line solid/no-innerhtml
           innerHTML={md.render(content())}
         />
       </Show>
       <Show when={isEditing()}>
-        <CommentEditing
-          commentId={props.comment.id}
-          setEditing={(value, newContent) => {
-            setIsEditing(value);
-            if (newContent != null) {
-              setContent(newContent);
-            }
-          }}
-          content={content()}
-        />
+        <div class="comment-editing">
+          <CommentEditing
+            commentId={props.comment.id}
+            setEditing={(value, newContent) => {
+              setIsEditing(value);
+              if (newContent != null) {
+                setContent(newContent);
+              }
+            }}
+            content={content()}
+          />
+        </div>
       </Show>
+
       <Show when={!isEditing() && !isReplying()}>
-        <div class="comment-action-row">
-          <button onClick={() => setIsReplying(true)}>Reply</button>
+        <div class="ui-meta comment-action-row">
+          <button
+            type="button"
+            class="ui-button"
+            onClick={() => setIsReplying(true)}
+          >
+            reply
+          </button>
           {(props.comment.is_comment_owner ?? false) && (
             <>
-              <button onClick={() => setIsEditing(true)}>Edit</button>
               <button
+                type="button"
+                class="ui-button ui-button--ghost"
+                onClick={() => setIsEditing(true)}
+              >
+                edit
+              </button>
+              <button
+                type="button"
+                class="ui-button ui-button--danger"
                 onClick={() => {
                   if (
                     confirm("Are you sure you want to delete this comment?")
@@ -125,42 +126,46 @@ export default function CommentComponent(props: {
                   }
                 }}
               >
-                Delete
+                delete
               </button>
             </>
           )}
-          {/* <button>Upvote</button> */}
         </div>
       </Show>
+
       {isReplying() && (
-        <CommentSubmission
-          parentId={props.comment.id}
-          unshift={(c: Comment) => {
-            setChildren((children) => {
-              return [c, ...(children ?? [])];
-            });
-          }}
-          setReplying={setIsReplying}
-          placeholder={`Replying to ${props.comment.author_name}`}
-        />
+        <div class="comment-reply">
+          <p class="ui-kicker comment-reply__label">
+            ↳ reply to {props.comment.author_name}
+          </p>
+          <CommentSubmission
+            parentId={props.comment.id}
+            unshift={(c: Comment) => {
+              setChildren((children) => {
+                return [c, ...(children ?? [])];
+              });
+            }}
+            setReplying={setIsReplying}
+            placeholder={`Replying to ${props.comment.author_name}`}
+          />
+        </div>
       )}
+
       {children() != null && (
         <ol class="comment-children">
-          {
-            <For each={children()}>
-              {(c) => (
-                <CommentComponent
-                  comment={c}
-                  depth={props.depth + 1}
-                  onDelete={() => {
-                    setChildren((children) => {
-                      return children?.filter((child) => child.id !== c.id);
-                    });
-                  }}
-                />
-              )}
-            </For>
-          }
+          <For each={children()}>
+            {(c) => (
+              <CommentComponent
+                comment={c}
+                depth={props.depth + 1}
+                onDelete={() => {
+                  setChildren((children) => {
+                    return children?.filter((child) => child.id !== c.id);
+                  });
+                }}
+              />
+            )}
+          </For>
         </ol>
       )}
     </li>

@@ -1,8 +1,6 @@
 ---
 import { CommentSection } from "@/components/BlogComments/CommentSection";
-import { ArrowUp, MessagesSquare, X } from "@/components/Icon";
-import * as Sheet from "@/components/Sheet/Sheet";
-import "@fontsource/inconsolata/500.css";
+import { ArrowUp } from "@/components/Icon";
 import "katex/dist/katex.css";
 import "./BlogPostLayout.scss";
 import TableOfContents from "../components/TableOfContents.astro";
@@ -48,53 +46,52 @@ const series = Astro.props.series;
 <BlogRouteLayout
   seoProps={{ title: post.title, description: post.description }}
 >
-  <div class="right-sidebar">
-    <div class="right-sidebar-content">
-      {
-        headings.length ? (
-          <>
-            <TableOfContents headings={headings} />
-            <button id="go-to-top" aria-label="Go to top of the page">
-              <ArrowUp size={16} />
-            </button>
-          </>
-        ) : null
-      }
-      <!-- <div class="mt-6">
-          <ScrollToTopButton />
-        </div> -->
-    </div>
-  </div>
+  {
+    headings.length ? (
+      <aside class="post-toc" aria-label="table of contents">
+        <TableOfContents headings={headings} />
+        <button
+          id="go-to-top"
+          type="button"
+          class="ui-icon-button ui-icon-button--sm post-toc__top"
+          aria-label="Go to top of the page"
+        >
+          <ArrowUp size={16} />
+        </button>
+      </aside>
+    ) : null
+  }
   <div class="post-header">
     <h1>{post.title}</h1>
-    <div class="separator">
-      <span class="article-date">
+    <div class="ui-meta post-meta">
+      <span class="post-meta__date">
         {
           new Date(post.published).toLocaleDateString("en-UK", {
             year: "numeric",
-            month: "long",
+            month: "short",
             day: "numeric",
           })
         }
       </span>
-      <span class="separator-line"></span>
       {
-        post.tags &&
-          post.tags.map((tag) => (
-            <a href={`/blog/tag/${tag}`} class="post-tag">
-              #{tag}
-            </a>
-          ))
+        post.tags && post.tags.length > 0 ? (
+          <div class="post-meta__tags">
+            {post.tags.map((tag, i) => (
+              <>
+                {i > 0 && <span class="post-meta__sep">·</span>}
+                <a href={`/blog/tag/${tag}`} class="ui-link">
+                  #{tag}
+                </a>
+              </>
+            ))}
+          </div>
+        ) : null
       }
     </div>
-    <Sheet.Trigger class="open-discussion" client:load>
-      <MessagesSquare size={16} strokeWidth={1.5} />
-      View discussions
-    </Sheet.Trigger>
     {
       series ? (
         <div class="series-callout">
-          <p class="series-position">
+          <p class="ui-kicker series-position">
             Series / Part {series.position} of {series.total}
           </p>
           <p class="series-title">{series.title}</p>
@@ -102,11 +99,23 @@ const series = Astro.props.series;
             <p class="series-description">{series.description}</p>
           ) : null}
           <ol class="series-list">
-            {series.posts.map((entry, index) => (
-              <li class={index === series.position - 1 ? "is-current" : ""}>
-                <a href={`/blog/${entry.slug}`}>{entry.title}</a>
-              </li>
-            ))}
+            {series.posts.map((entry, index) => {
+              const isCurrent = index === series.position - 1;
+              return (
+                <li class={isCurrent ? "is-current" : ""}>
+                  {isCurrent ? (
+                    <span aria-current="page">{entry.title}</span>
+                  ) : (
+                    <a
+                      class="ui-link ui-link--title"
+                      href={`/blog/${entry.slug}`}
+                    >
+                      {entry.title}
+                    </a>
+                  )}
+                </li>
+              );
+            })}
           </ol>
         </div>
       ) : null
@@ -131,16 +140,7 @@ const series = Astro.props.series;
     ) : null
   }
   <slot />
-  <Sheet.Root client:load>
-    <Sheet.Trigger
-      class="close-button"
-      aria-label="Close comment section"
-      client:load
-    >
-      <X strokeWidth={1.5} />
-    </Sheet.Trigger>
-    <CommentSection client:only="solid-js" />
-  </Sheet.Root>
+  <CommentSection client:only="solid-js" />
 </BlogRouteLayout>
 
 <script>
@@ -151,7 +151,7 @@ const series = Astro.props.series;
         const id = entry.target.getAttribute("id");
         if (entry.isIntersecting) {
           document
-            .querySelector(`.right-sidebar .table-of-content a[href="#${id}"]`)
+            .querySelector(`.post-toc .table-of-content a[href="#${id}"]`)
             ?.parentElement?.classList.add("active");
           currentId = id;
           break;
@@ -159,7 +159,7 @@ const series = Astro.props.series;
       }
       if (currentId)
         document
-          .querySelectorAll(".right-sidebar .table-of-content .active a")
+          .querySelectorAll(".post-toc .table-of-content .active a")
           .forEach((entry) => {
             const id = entry.getAttribute("href");
             if (id !== "#" + currentId) {
@@ -173,7 +173,6 @@ const series = Astro.props.series;
     }
   );
 
-  // Track all sections that have an `id` applied
   document.querySelectorAll("h1[id],h2[id],h3[id]").forEach((section) => {
     observer.observe(section);
   });
@@ -184,4 +183,73 @@ const series = Astro.props.series;
       behavior: "smooth",
     });
   });
+
+  function attachCodeBlockHeader(figure: HTMLElement): void {
+    if (figure.querySelector(":scope > .code-block-header") != null) return;
+
+    // rehype-pretty-code puts data-language on the <pre>, not the <figure>.
+    const lang =
+      figure.querySelector("pre")?.getAttribute("data-language") ?? "";
+    const titleEl = figure.querySelector<HTMLElement>(
+      ":scope > figcaption.code-block-title"
+    );
+    const title = titleEl?.textContent?.trim() ?? "";
+
+    const header = document.createElement("div");
+    header.className = "ui-kicker code-block-header";
+
+    if (lang) {
+      const langEl = document.createElement("span");
+      langEl.className = "code-block-header__lang";
+      langEl.textContent = lang;
+      header.appendChild(langEl);
+    }
+
+    if (title) {
+      const titleSpan = document.createElement("span");
+      titleSpan.className = "code-block-header__title";
+      titleSpan.textContent = title;
+      header.appendChild(titleSpan);
+    }
+
+    const spacer = document.createElement("span");
+    spacer.className = "code-block-header__spacer";
+    header.appendChild(spacer);
+
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "ui-button ui-button--xs code-block-header__copy";
+    copy.dataset.copied = "false";
+    copy.setAttribute("aria-label", "Copy code");
+    copy.textContent = "copy";
+    copy.addEventListener("click", () => {
+      const codeText = figure.querySelector("pre > code")?.textContent ?? "";
+      if (codeText === "") return;
+      void navigator.clipboard.writeText(codeText).then(() => {
+        copy.textContent = "copied";
+        copy.dataset.copied = "true";
+        setTimeout(() => {
+          copy.textContent = "copy";
+          copy.dataset.copied = "false";
+        }, 1500);
+      });
+    });
+    header.appendChild(copy);
+
+    figure.prepend(header);
+  }
+
+  document
+    .querySelectorAll<HTMLElement>(
+      "figure[data-rehype-pretty-code-figure]:not(.code-group)"
+    )
+    .forEach((figure) => {
+      // Skip figures that are members of a code-group, in either SSR position
+      // (inside an <astro-slot>) or post-hydration position (inside a tabpanel
+      // under .code-group). The code-group tab strip carries the chrome for
+      // the active pane, so per-pane headers are redundant.
+      if (figure.closest(".code-group") != null) return;
+      if (figure.parentElement?.tagName.toLowerCase() === "astro-slot") return;
+      attachCodeBlockHeader(figure);
+    });
 </script>

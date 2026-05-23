@@ -1,9 +1,10 @@
 ---
-import BlogRouteLayout from "@/layouts/BlogRouteLayout.astro";
+import RootLayout from "@/layouts/Layout.astro";
 import "@/layouts/layout.scss";
 import { getCollection, type CollectionEntry } from "astro:content";
 import type { GetStaticPathsResult } from "astro";
 import BlogArticleList from "@/components/BlogArticleList.astro";
+import NumberedNav from "@/components/NumberedNav.astro";
 
 type BlogEntry = CollectionEntry<"blog">;
 
@@ -28,22 +29,31 @@ export async function getStaticPaths(): Promise<GetStaticPathsResult> {
 const { slug } = Astro.params;
 ---
 
-<BlogRouteLayout
+<RootLayout
   seoProps={{
-    title: `Blog with tag ${slug}`,
-    description: "wrx.sh blog index with tag ${slug}",
+    title: `#${slug}`,
+    description: `posts tagged #${slug}`,
   }}
 >
-  <BlogArticleList
-    posts={allPosts.filter((post: BlogEntry) => {
-      return (
-        slug &&
-        post.data.tags.includes(String(slug)) &&
-        (process.env.NODE_ENV !== "production" ||
-          (!post.data.isDraft && !post.data.hidden))
-      );
-    })}
-    allPosts={allPosts}
-    tag={slug}
-  />
-</BlogRouteLayout>
+  <main class="narrow-shell">
+    <NumberedNav active="blog" class="narrow-shell__nav" />
+    <header class="narrow-shell__hero">
+      <h1 class="narrow-shell__title">#{slug}</h1>
+      <p class="narrow-shell__lede">
+        every post tagged with <code>#{slug}</code>, newest first.
+      </p>
+    </header>
+    <BlogArticleList
+      posts={allPosts.filter((post: BlogEntry) => {
+        return (
+          slug &&
+          post.data.tags.includes(String(slug)) &&
+          (process.env.NODE_ENV !== "production" ||
+            (!post.data.isDraft && !post.data.hidden))
+        );
+      })}
+      allPosts={allPosts}
+      tag={slug}
+    />
+  </main>
+</RootLayout>

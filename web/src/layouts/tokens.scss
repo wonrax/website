@@ -5,24 +5,34 @@
     Inter Variable, Inter fallback, BlinkMacSystemFont, "Segoe UI",
     "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   --font-family-mono:
-    Inconsolata, ui-monospace, SFMono-Regular, Menlo, monospace;
+    "Cascadia Code Variable", "Cascadia Code", "Cascadia Code fallback",
+    ui-monospace, SFMono-Regular, Menlo, monospace;
+  // Display/body roles used by the hacker-minimal pages — body and chrome
+  // resolve to Inter / Cascadia by default, but stay swappable via tokens.
+  --font-display: var(--font-family-sans);
+  --font-body: var(--font-family-sans);
+  --font-mono: var(--font-family-mono);
+
+  --tracking-tight: -0.02em;
+  --tracking-snug: -0.012em;
+  --tracking-normal: 0;
+  --tracking-loose: 0.04em;
+  --tracking-wide: 0.16em;
+  --tracking-wider: 0.18em;
 
   --font-weight-normal: 400;
   --font-weight-medium: 500;
-  --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
-  --font-size-xs: 11px;
+  --font-size-xs: 12px;
   --font-size-sm: 13px;
   --font-size-md: 14px;
   --font-size-base: 16px;
   --font-size-lg: 18px;
   --font-size-xl: 20px;
-  --font-size-2xl: 24px;
   --font-size-3xl: 28px;
   --font-size-4xl: 32px;
 
-  --line-height-tight: 1.3;
   --line-height-normal: 1.45;
   --line-height-relaxed: 1.65;
 
@@ -42,41 +52,39 @@
   --space-24: 48px;
   --space-32: 64px;
 
-  --radius-xs: 4px;
-  --radius-sm: 6px;
   --radius-md: 8px;
-  --radius-lg: 10px;
-  --radius-xl: 12px;
   --radius-round: 999px;
 
-  --layout-content-width: 700px;
+  --size-control-sm: 28px;
+  --size-control-md: 36px;
+
+  --border-width-thin: 1px;
+
   --layout-page-width: 1004px;
+  --layout-narrow-width: 760px;
   --layout-wide-width: 1200px;
   --layout-sidebar-width: 240px;
-  --layout-breakpoint: 1100px;
+  // Horizontal page padding for the narrow (760px) layout. Overridden in the
+  // ≤600px media query below so .home and the footer stay in lockstep.
+  --layout-narrow-px: var(--space-16);
 
   --duration-fast: 0.15s;
-  --duration-normal: 0.2s;
-  --ease-standard: cubic-bezier(0.25, 1, 0.5, 1);
+
+  --z-base: 0;
+  --z-sticky: 10;
 
   --white-1: #fff;
   --white-2: #f9f9f9;
   --white-3: #eeeeee;
-  --white-4: #e6e6e6;
   --black-1: #151718;
   --black-2: #1f1f1f;
   --black-3: #161616;
-  --black-4: #0d0d0d;
   --black-pure: #000;
   --grey-1: #ccc;
   --grey-2: #aaa;
-  --grey-3: #909090;
   --grey-4: #717171;
   --grey-5: #606060;
 
-  --color-white: var(--white-1);
-  --color-black: var(--black-pure);
-  --color-blue-300: #8ab4f8;
   --brand-spotify: #1ed760;
 
   --warning-light: #fff9ec;
@@ -91,33 +99,44 @@
   --error-medium: #b64545;
   --error-heavy: #7f0f0f;
 
-  --danger-light: var(--error-light);
-  --danger-medium: var(--error-medium);
-  --danger-heavy: var(--error-heavy);
-
-  --bg-color: var(--white-1);
-  --bg-surface: var(--white-1);
-  --bg-surface-raised: var(--white-2);
+  --surface-1: var(--white-1);
+  --surface-2: var(--white-2);
+  --bg-color: var(--surface-1);
+  --bg-surface: var(--surface-1);
+  --bg-surface-raised: var(--surface-2);
   --bg-additive-lighter: rgba(0, 0, 0, 0.03);
   --bg-additive-light: rgba(0, 0, 0, 0.05);
   --bg-additive-medium: rgba(0, 0, 0, 0.1);
 
-  --text-body-heavy: var(--black-1);
-  --text-body-medium: var(--grey-4);
-  --text-body-light: var(--grey-2);
+  --text-1: var(--black-1);
+  --text-2: var(--grey-4);
+  --text-3: var(--grey-2);
   --text-heading: var(--black-2);
-  --text-body-link: var(--black-1);
-  --text-body-link-visited: var(--grey-5);
+  --text-link: var(--black-1);
+  --text-link-visited: var(--grey-5);
 
-  --border-light: var(--bg-additive-light);
-  --border-medium: var(--bg-additive-medium);
-  --accent-color: var(--info-medium);
+  --text-body-heavy: var(--text-1);
+  --text-body-medium: var(--text-2);
+  --text-body-light: var(--text-3);
+  --text-body-link: var(--text-link);
+  --text-body-link-visited: var(--text-link-visited);
+
+  --border-1: var(--bg-additive-light);
+  --border-2: var(--bg-additive-medium);
+  --border-light: var(--border-1);
+  --border-medium: var(--border-2);
+
+  // Hacker-minimal hairlines + quiet ink. Distinct from --border-* because they
+  // need to be visible on the page bg (not on elevated surfaces).
+  --rule: #d4cfc1;
+  --rule-strong: #b6b1a3;
+  --fg-quiet: #c8c3b6;
+
+  --accent: var(--info-medium);
+  --accent-color: var(--accent);
+  // RGB triplet so consumers can apply alpha via `rgb(var(--accent-light) / 0.4)`.
   --accent-light: 147 125 199;
   --accent-gradient: linear-gradient(90deg, #e6b718, #ee2a7b, #7140ee);
-
-  --shadow-subtle: 0 1px 4px 0 rgba(0, 0, 0, 0.05);
-  --shadow-raised: 0 4px 16px 0 rgba(0, 0, 0, 0.08);
-  --shadow-overlay: 0 0 36px 0 rgba(0, 0, 0, 0.15);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -136,24 +155,40 @@
     --error-medium: #d45151;
     --error-heavy: #ffcdcd;
 
-    --bg-color: var(--black-1);
-    --bg-surface: var(--black-1);
-    --bg-surface-raised: var(--black-2);
+    --surface-1: var(--black-1);
+    --surface-2: var(--black-2);
+    --bg-color: var(--surface-1);
+    --bg-surface: var(--surface-1);
+    --bg-surface-raised: var(--surface-2);
     --bg-additive-lighter: rgba(255, 255, 255, 0.03);
     --bg-additive-light: rgba(255, 255, 255, 0.05);
     --bg-additive-medium: rgba(255, 255, 255, 0.1);
 
-    --text-body-heavy: var(--grey-1);
-    --text-body-medium: var(--grey-2);
-    --text-body-light: var(--grey-4);
+    --text-1: var(--grey-1);
+    --text-2: var(--grey-2);
+    --text-3: var(--grey-4);
     --text-heading: var(--white-3);
-    --text-body-link: var(--white-2);
-    --text-body-link-visited: var(--grey-2);
+    --text-link: var(--white-2);
+    --text-link-visited: var(--grey-2);
+
+    --text-body-heavy: var(--text-1);
+    --text-body-medium: var(--text-2);
+    --text-body-light: var(--text-3);
+    --text-body-link: var(--text-link);
+    --text-body-link-visited: var(--text-link-visited);
 
     --accent-light: 228 200 255;
     --accent-gradient: linear-gradient(90deg, #f9c213, #ff3f8d, #8757ff);
-    --shadow-raised: 0 4px 16px 0 rgba(0, 0, 0, 0.24);
-    --shadow-overlay: 0 0 36px 0 rgba(0, 0, 0, 0.45);
+
+    --rule: #232328;
+    --rule-strong: #34343c;
+    --fg-quiet: #2e2e34;
+  }
+}
+
+@media (max-width: 600px) {
+  :root {
+    --layout-narrow-px: var(--space-12);
   }
 }
 
@@ -172,22 +207,32 @@
   --error-medium: #d45151;
   --error-heavy: #ffcdcd;
 
-  --bg-color: var(--black-1);
-  --bg-surface: var(--black-1);
-  --bg-surface-raised: var(--black-2);
+  --surface-1: var(--black-1);
+  --surface-2: var(--black-2);
+  --bg-color: var(--surface-1);
+  --bg-surface: var(--surface-1);
+  --bg-surface-raised: var(--surface-2);
   --bg-additive-lighter: rgba(255, 255, 255, 0.03);
   --bg-additive-light: rgba(255, 255, 255, 0.05);
   --bg-additive-medium: rgba(255, 255, 255, 0.1);
 
-  --text-body-heavy: var(--grey-1);
-  --text-body-medium: var(--grey-2);
-  --text-body-light: var(--grey-4);
+  --text-1: var(--grey-1);
+  --text-2: var(--grey-2);
+  --text-3: var(--grey-4);
   --text-heading: var(--white-3);
-  --text-body-link: var(--white-2);
-  --text-body-link-visited: var(--grey-2);
+  --text-link: var(--white-2);
+  --text-link-visited: var(--grey-2);
+
+  --text-body-heavy: var(--text-1);
+  --text-body-medium: var(--text-2);
+  --text-body-light: var(--text-3);
+  --text-body-link: var(--text-link);
+  --text-body-link-visited: var(--text-link-visited);
 
   --accent-light: 228 200 255;
   --accent-gradient: linear-gradient(90deg, #f9c213, #ff3f8d, #8757ff);
-  --shadow-raised: 0 4px 16px 0 rgba(0, 0, 0, 0.24);
-  --shadow-overlay: 0 0 36px 0 rgba(0, 0, 0, 0.45);
+
+  --rule: #232328;
+  --rule-strong: #34343c;
+  --fg-quiet: #2e2e34;
 }

@@ -22,8 +22,6 @@ import OverType, {
 
 type FormEvent = Event & {
   target: EventTarget & {
-    "author-name"?: HTMLInputElement;
-    email?: HTMLInputElement;
     content?: HTMLTextAreaElement;
   };
 };
@@ -122,12 +120,7 @@ export function CommentSubmission(props: {
       {
         method: "POST",
         body: JSON.stringify({
-          author_name: form["author-name"]?.value,
           content: form.content.value,
-          author_email:
-            form.email?.value != null && form.email.value === ""
-              ? null
-              : form.email?.value,
           parent_id: props.parentId,
         }),
         headers: {
@@ -150,9 +143,6 @@ export function CommentSubmission(props: {
     if (props.setReplying != null) {
       props.setReplying?.(false);
     } else {
-      // reset the form
-      if (form["author-name"] != null) form["author-name"].value = "";
-      if (form.email != null) form.email.value = "";
       form.content.value = "";
     }
   }
@@ -251,19 +241,22 @@ export function CommentEditorBase(props: {
 
     [editor] = new OverType(`#${editorId}`, {
       showStats: true,
-      toolbar: true,
+      toolbar: false,
       toolbarButtons: commentToolbarButtons,
       autoResize: true,
-      minHeight: "136px",
+      // Numeric px only — OverType `parseInt`s this internally; calc() / var()
+      // strings parse to NaN and silently break autoresize + scroll. Matches
+      // the CSS calc on .__editor: 14px * 1.65 + 2 * 8px = 39.1px.
+      minHeight: "40px",
       maxHeight: "420px",
       fontFamily: "var(--font-family-sans)",
-      fontSize: "var(--font-size-base)",
+      fontSize: "var(--font-size-md)",
       lineHeight: "var(--line-height-relaxed)",
-      padding: "var(--space-8)",
+      padding: "var(--space-4) 0",
       mobile: {
         fontSize: "16px",
         lineHeight: "var(--line-height-normal)",
-        padding: "var(--space-6)",
+        padding: "var(--space-3) 0",
       },
       placeholder: props.placeholder ?? "Start writing markdown...",
       value: props.content,
@@ -309,50 +302,34 @@ export function CommentEditorBase(props: {
       <div class="comment-submission__auth">
         {(props.showAuthInfo ?? true) &&
           (AppState.authUser == null ? (
-            <>
-              <p class="comment-submission__auth-prompt">
-                Either
-                <button
-                  type="button"
-                  class="ui-button ui-button--plain comment-submission__login-button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    const w = window.open(`${config.API_URL}/login/github`);
-                    if (w != null)
-                      window.onmessage = (e) => {
-                        if (e.source !== w) {
-                          return;
-                        }
-                        if (e.data.auth as boolean) void checkAuthUser();
-                      };
-                  }}
-                >
-                  login via GitHub
-                </button>
-                or type your name below
-              </p>
-              <div class="author-info">
-                <Input
-                  id="author-name"
-                  type="text"
-                  placeholder="Your name"
-                  description="Required"
-                />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Your email"
-                  description="Optional, not displayed"
-                />
-              </div>
-            </>
-          ) : (
-            <p class="auth-user">
-              Posting as{" "}
-              <span class="author-name">{AppState.authUser?.name}</span>, or{" "}
+            <p class="ui-meta comment-submission__auth-prompt">
               <button
                 type="button"
-                class="ui-button ui-button--plain logout-button"
+                class="ui-button ui-button--xs"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const w = window.open(`${config.API_URL}/login/github`);
+                  if (w != null)
+                    window.onmessage = (e) => {
+                      if (e.source !== w) {
+                        return;
+                      }
+                      if (e.data.auth as boolean) void checkAuthUser();
+                    };
+                }}
+              >
+                sign in with github -&gt;
+              </button>
+              <span>to post a comment</span>
+            </p>
+          ) : (
+            <p class="ui-meta auth-user">
+              posting as{" "}
+              <span class="author-name">{AppState.authUser?.name}</span>
+              <span class="comment-submission__auth-sep">·</span>
+              <button
+                type="button"
+                class="ui-button ui-button--xs ui-button--muted"
                 onClick={() => {
                   void fetchAny(`${config.API_URL}/logout`, {
                     method: "POST",
@@ -372,36 +349,11 @@ export function CommentEditorBase(props: {
             </p>
           ))}
       </div>
-      <hr />
       <div id={editorId} class="comment-submission__editor" />
       {error() != null && <div class="error">{error()?.message}</div>}
       <div class="action-row">
-        <div class="markdown-hint">
-          {/* TODO check if I have the right to use this logo */}
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            height="14"
-            viewBox="0 0 208 128"
-          >
-            <rect
-              width="198"
-              height="118"
-              x="5"
-              y="5"
-              ry="10"
-              stroke="var(--text-body-light)"
-              stroke-width="10"
-              fill="none"
-            />
-            <path
-              fill="var(--text-body-medium)"
-              d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39zm125 0l-30-33h20V30h20v35h20z"
-            />
-          </svg>
-          Markdown supported
-        </div>
+        <div class="ui-kicker markdown-hint">markdown supported</div>
         <div class="button-row">
-          {/* TODO set tab index so that submit goes first */}
           {props.cancellable && (
             <button
               onClick={(e) => {
@@ -410,9 +362,9 @@ export function CommentEditorBase(props: {
               }}
               type="button"
               disabled={loading()}
-              class="ui-button ui-button--ghost"
+              class="ui-button ui-button--ghost ui-button--xs"
             >
-              Cancel
+              cancel
             </button>
           )}
           <button
@@ -420,32 +372,10 @@ export function CommentEditorBase(props: {
             class="ui-button ui-button--primary"
             disabled={loading()}
           >
-            {props.buttonCta ?? "Submit"}
+            {props.buttonCta ?? "submit ->"}
           </button>
         </div>
       </div>
     </form>
-  );
-}
-
-export function Input(props: {
-  type?: string;
-  placeholder?: string;
-  description?: string;
-  id?: string;
-}): JSXElement {
-  return (
-    <div class="input">
-      <input
-        class="ui-input"
-        type={props.type || "text"}
-        placeholder={props.placeholder}
-        id={props.id}
-        autocomplete="off"
-      />
-      {props.description != null && (
-        <p class="description">{props.description}</p>
-      )}
-    </div>
   );
 }

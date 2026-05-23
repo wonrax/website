@@ -2,260 +2,451 @@
 import RootLayout from "../layouts/Layout.astro";
 import "@/layouts/layout.scss";
 import CurrentlyPlaying from "./_currently-playing";
+import NumberedNav from "@/components/NumberedNav.astro";
+import HomeRecentBookmarks from "@/components/HomeRecentBookmarks.tsx";
+import { getCollection } from "astro:content";
+import { getPostSlug } from "@/shared/blog";
+
+type Project = {
+  name: string;
+  role: string;
+  description: string;
+  meta: string;
+  link: string;
+  linkHref: string;
+};
+
+const allPosts = await getCollection("blog");
+// Recent writing on the home page always excludes drafts/hidden, even in dev,
+// since this is a public-facing slot.
+const publishedPosts = allPosts.filter(
+  (p) => p.data.isDraft !== true && p.data.hidden !== true
+);
+const recentPosts = [...publishedPosts]
+  .sort(
+    (a, b) =>
+      new Date(b.data.published).getTime() -
+      new Date(a.data.published).getTime()
+  )
+  .slice(0, 3);
+
+function formatPostDate(raw: string): string {
+  const d = new Date(raw);
+  const day = String(d.getDate()).padStart(2, "0");
+  const monthShort = d.toLocaleString("en-US", { month: "short" });
+  return `${day} ${monthShort}`;
+}
+
+const projects: Project[] = [
+  {
+    name: "diffui",
+    role: "creator · in progress",
+    description:
+      "Native GUI for browsing revisions and diffs across git and jj repos. Built with iced, syntax-highlighted via tree-sitter. The tool I wanted while reviewing my own history.",
+    meta: "2026 · rust · iced · jj",
+    link: "github.com/wonrax/diffui",
+    linkHref: "https://github.com/wonrax/diffui",
+  },
+  {
+    name: "vietnamese sentiment",
+    role: "graduation thesis · published",
+    description:
+      "BERT-based model that predicts sentiment in Vietnamese texts. Built for my graduation thesis, kept alive as a tiny public artifact with 800k+ downloads on Hugging Face.",
+    meta: "2021 · python · pytorch · phobert",
+    link: "huggingface.co/wonrax/phobert-…",
+    linkHref: "https://huggingface.co/wonrax/phobert-base-vietnamese-sentiment",
+  },
+  {
+    name: "mybk mobile",
+    role: "creator · open source",
+    description:
+      "Android app that fetches class schedules and vital info — local-first so it still works offline. Listed on Google Play with 3k+ monthly active users; source on GitHub.",
+    meta: "2021 · android · kotlin",
+    link: "github.com/wonrax/mybk-mobile",
+    linkHref: "https://github.com/wonrax/mybk-mobile",
+  },
+];
 ---
 
-<RootLayout seoProps={{ title: "homepage", description: "wrx.sh homepage" }}>
-  <main class="centered-layout">
-    <section class="home-main">
-      <div class="profile-summary">
-        <img
-          class="home-main__pixel-icon only-light-mode"
-          width="48"
-          alt=""
-          src="https://res.cloudinary.com/dmdgv6qrg/image/upload/v1726327480/hhai.dev%20blog/internet-person.ico"
-        />
-        <h3>wonrax</h3>
-        <h4 class="job-title">Software Engineer</h4>
-        <p class="profile-description">
-          I design everything from software systems to the user interface. I
-          code religiously, take photos and practice witchcraft. I love
-          open-source.
-        </p>
-        <div class="links-section">
-          <a href="/blog" class="link">Blog</a>
+<RootLayout seoProps={{ title: "wonrax", description: "wrx.sh homepage" }}>
+  <main class="narrow-shell home">
+    <NumberedNav active="home" class="narrow-shell__nav" />
+
+    <header class="home__hero">
+      <h1 class="home__name">wonrax</h1>
+      <p class="home__bio">
+        I design everything from software systems to the user interface. I code
+        religiously, take photos and <span class="home__bio-muted"
+          >practice witchcraft</span
+        >. I love open-source.
+      </p>
+      <ul class="ui-meta home__socials">
+        <li>
           <a
-            class="link instagram"
+            class="ui-link"
+            href="https://github.com/wonrax"
+            target="_blank"
+            rel="noopener noreferrer">github</a
+          >
+        </li>
+        <li>
+          <a
+            class="ui-link"
             href="https://www.instagram.com/wnrax/"
             target="_blank"
-            rel="noopener noreferrer">Photos</a
+            rel="noopener noreferrer">photography</a
           >
-        </div>
-        <div class="home-main__email">
-          <img
-            class="home-main__email-icon only-light-mode"
-            width="32"
-            height="32"
-            alt=""
-            src="https://res.cloudinary.com/dmdgv6qrg/image/upload/v1726327480/hhai.dev%20blog/email.ico"
-          />
-          <p><strong>hi</strong> (at) <i>this domain</i></p>
-        </div>
+        </li>
+        <li>email: <strong>hi</strong> at <strong>this domain</strong></li>
+      </ul>
+    </header>
+
+    <section class="home__section home__projects">
+      <header class="ui-kicker home__section-head">
+        <span class="home__section-label">─ projects</span>
+        <span class="home__section-count">{projects.length} live</span>
+      </header>
+      <ul class="home__project-list">
+        {
+          projects.map((p) => (
+            <li class="home__project">
+              <div class="home__project-head">
+                <h2 class="home__project-name">
+                  <a
+                    class="ui-link ui-link--title"
+                    href={p.linkHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {p.name}
+                  </a>
+                </h2>
+                <p class="ui-meta home__project-role">{p.role}</p>
+              </div>
+              <p class="home__project-desc">{p.description}</p>
+              <p class="ui-meta home__project-meta">
+                <span>{p.meta}</span>
+                <span class="home__project-sep" aria-hidden="true">
+                  ·
+                </span>
+                <a
+                  class="ui-link ui-link--muted"
+                  href={p.linkHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {p.link}
+                </a>
+              </p>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <section class="home__section home__secondary">
+      <div class="home__secondary-col">
+        <header class="ui-kicker home__recent-head">
+          <span class="home__recent-label">─ recent writing</span>
+          <a class="ui-link ui-link--muted home__recent-link" href="/blog">
+            {"all ->"}
+          </a>
+        </header>
+        <ul class="home__recent-list">
+          {
+            recentPosts.length === 0 ? (
+              <li class="home__recent-row home__recent-row--empty">
+                <span class="home__recent-empty">no posts yet.</span>
+              </li>
+            ) : (
+              recentPosts.map((post) => (
+                <li class="home__recent-row">
+                  <span class="ui-meta home__recent-date">
+                    {formatPostDate(post.data.published)}
+                  </span>
+                  <a
+                    class="ui-link ui-link--title"
+                    href={`/blog/${getPostSlug(post)}`}
+                  >
+                    {post.data.title}
+                  </a>
+                </li>
+              ))
+            )
+          }
+        </ul>
       </div>
-      <div class="projects-section">
-        <img
-          class="home-main__pixel-icon only-light-mode"
-          width="48"
-          alt=""
-          src="https://res.cloudinary.com/dmdgv6qrg/image/upload/v1726327480/hhai.dev%20blog/projects.ico"
-        />
-        <h3>Projects</h3>
-        <div class="project-entry">
-          <h4>2021 — Vietnamese sentiment analysis</h4>
-          <p class="project-description">
-            In my graduation thesis, I developed a BERT-based model to predict
-            sentiment in Vietnamese texts.{" "}
-            <a
-              href="https://huggingface.co/wonrax/phobert-base-vietnamese-sentiment"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="link">Published on Hugging Face</a
-            >, it has garnered 800,000+ downloads.
-          </p>
-        </div>
-        <div class="project-entry">
-          <h4>2021 — Mybk Mobile Android app</h4>
-          <p class="project-description">
-            The app effortlessly fetches class schedules and vital info, built
-            with local first in mind so it works even if you're offline,{" "}
-            <a
-              href="https://play.google.com/store/apps/details?id=com.wonrax.mybk"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="link"
-            >
-              published on the Google Play Store
-            </a>{" "}
-            and has over 3,000 monthly active users.{" "}
-            <a
-              href="https://github.com/wonrax/mybk-mobile"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="link"
-            >
-              Open sourced on GitHub.
-            </a>
-          </p>
-        </div>
+      <div class="home__secondary-col">
+        <header class="ui-kicker home__recent-head">
+          <span class="home__recent-label">─ recent bookmarks</span>
+          <a
+            class="ui-link ui-link--muted home__recent-link"
+            href="/great-reads"
+          >
+            {"all ->"}
+          </a>
+        </header>
+        <HomeRecentBookmarks client:only="solid-js" />
       </div>
     </section>
-    <section class="home-main__now-playing">
+
+    <section class="home__section home__now">
+      <header class="ui-kicker home__section-head">
+        <span class="home__section-label">─ now playing</span>
+      </header>
       <CurrentlyPlaying client:only="solid-js" />
     </section>
   </main>
 </RootLayout>
 
 <style lang="scss">
-  :global(body) {
-    background-color: rgba(255, 255, 255, 0.95);
+  .home__hero {
+    margin-bottom: var(--space-24);
+  }
 
-    @media (prefers-color-scheme: dark) {
-      background-color: unset;
+  .home__name {
+    font-family: var(--font-display);
+    font-size: var(--font-size-4xl);
+    line-height: 1.1;
+    font-weight: var(--font-weight-medium);
+    letter-spacing: var(--tracking-tight);
+    margin: 0;
+    color: var(--text-1);
+
+    @media (max-width: 600px) {
+      font-size: var(--font-size-3xl);
     }
   }
 
-  :global(html) {
-    background-image: url("https://res.cloudinary.com/dmdgv6qrg/image/upload/v1726328435/hhai.dev%20blog/internet-pc.ico");
-    background-repeat: no-repeat;
-    background-position: 120% 120%;
-    background-size: 712px;
-    image-rendering: pixelated;
-
-    @media (max-width: 1100px) {
-      background-size: 612px;
-      background-position: 130% 130%;
-    }
-
-    @media (max-width: 768px) {
-      background-image: none;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      background-image: none;
-    }
+  .home__bio {
+    font-family: var(--font-body);
+    font-size: var(--font-size-base);
+    line-height: 1.65;
+    color: var(--text-1);
+    margin: var(--space-7) 0 0;
+    max-width: 56ch;
   }
 
-  .only-light-mode {
-    display: none;
-
-    @media (prefers-color-scheme: light) {
-      display: block;
-    }
+  .home__bio-muted {
+    color: var(--text-2);
   }
 
-  .home-main {
+  .home__socials {
+    list-style: none;
+    padding: 0;
+    margin: var(--space-8) 0 0;
     display: flex;
-    flex-direction: row;
-    gap: 32px;
+    flex-wrap: wrap;
+    gap: var(--space-9);
+  }
 
-    p {
-      margin: 16px 0;
-      letter-spacing: 0;
+  .home__section {
+    margin-top: var(--space-16);
+    padding-top: var(--space-10);
+    border-top: 1px solid var(--rule-strong);
+  }
+
+  .home__section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: var(--space-8);
+  }
+
+  .home__section-count {
+    letter-spacing: var(--tracking-loose);
+    text-transform: none;
+  }
+
+  // First project's own border-top + the "─ projects" label already provide
+  // separation; drop the section's outer top rule to avoid double-stripe.
+  .home__projects {
+    border-top: 0;
+  }
+
+  .home__project-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .home__project {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    column-gap: var(--space-12);
+    row-gap: var(--space-2);
+    align-items: baseline;
+    padding: var(--space-9) 0;
+    border-top: 1px solid var(--rule);
+    color: var(--text-1);
+    list-style: none;
+  }
+
+  .home__project-head {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .home__project-name {
+    font-family: var(--font-display);
+    font-size: 20px;
+    line-height: 1.2;
+    font-weight: var(--font-weight-medium);
+    color: var(--text-1);
+    letter-spacing: var(--tracking-snug);
+    margin: 0;
+  }
+
+  .home__project-role {
+    line-height: 1.5;
+    margin: var(--space-2) 0 0;
+  }
+
+  .home__project-desc {
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: var(--font-size-md);
+    line-height: 1.55;
+    color: var(--text-1);
+  }
+
+  .home__project-meta {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: var(--space-3);
+    row-gap: var(--space-1);
+    line-height: 1.5;
+    margin: var(--space-1) 0 0;
+  }
+
+  .home__project-sep {
+    color: var(--fg-quiet);
+  }
+
+  @media (max-width: 600px) {
+    .home__project {
+      grid-template-columns: 1fr;
+      column-gap: 0;
+      row-gap: var(--space-4);
     }
-
-    &__pixel-icon {
-      image-rendering: pixelated;
-      margin-bottom: var(--space-4);
+    .home__project-head {
+      grid-column: 1;
+      grid-row: 1;
     }
-
-    &__email {
-      margin-top: var(--space-6);
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: var(--space-4);
+    .home__project-desc {
+      grid-column: 1;
+      grid-row: 2;
     }
-
-    &__email-icon {
-      image-rendering: pixelated;
+    .home__project-meta {
+      grid-column: 1;
+      grid-row: 3;
     }
+  }
 
-    &__now-playing {
-      flex-grow: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: end;
+  // Drops the inherited `.home__section` top margin since the recent-head
+  // already provides separation via its own border-top rule.
+  .home__secondary {
+    margin-top: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: var(--space-16);
+    row-gap: var(--space-12);
+
+    @media (max-width: 600px) {
+      grid-template-columns: 1fr;
     }
+  }
 
-    .profile-summary {
-      max-width: 295px;
+  .home__recent-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+  }
 
-      h3 {
-        font-size: 18px;
-      }
+  .home__recent-label {
+    color: var(--text-3);
+  }
 
-      .job-title {
-        color: var(--text-body-medium);
-        margin-top: 0;
-      }
+  // Resets the inherited uppercase/tracking-wider from `.home__recent-head`
+  // — the recent-link reads as normal-case meta despite sitting in a caps row.
+  .home__recent-link {
+    letter-spacing: var(--tracking-loose);
+    text-transform: none;
+  }
 
-      .profile-description {
-        color: var(--text-body-medium);
-        line-height: 1.5em;
-      }
+  :global(.home__recent-list) {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  :global(.home__recent-row) {
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    column-gap: var(--space-6);
+    padding: var(--space-3) 0;
+    align-items: baseline;
+    border-bottom: 1px dashed var(--rule);
+
+    &:last-child {
+      border-bottom: 0;
     }
+  }
 
-    .links-section {
-      display: flex;
-      flex-direction: row;
-      gap: 16px;
-    }
+  :global(.home__recent-row--empty),
+  :global(.home__recent-row--skeleton) {
+    color: var(--text-3);
+  }
 
-    .link {
-      color: var(--text-body-link);
-      text-decoration: underline;
-    }
+  :global(.home__recent-date) {
+    white-space: nowrap;
+  }
 
-    .instagram {
-      background-image: var(--accent-gradient);
-      color: transparent;
-      background-clip: text;
-      text-decoration: underline;
-      position: relative;
+  :global(.home__recent-empty) {
+    font-family: var(--font-body);
+    font-size: var(--font-size-sm);
+    color: var(--text-3);
+  }
 
-      /* Underline */
-      &::before {
-        content: "";
-        position: absolute;
-        top: 100%;
-        width: 100%;
-        left: 0;
-        height: 1.5px;
-        margin-top: -2.5px;
-        background: var(--accent-gradient);
-      }
-    }
+  // Placeholder bar keeps row height stable while the bookmarks API loads.
+  :global(.home__recent-skeleton-title) {
+    display: block;
+    width: 80%;
+    height: 10px;
+    background: var(--bg-additive-light);
+  }
 
-    h3,
-    h4 {
-      font-weight: var(--font-weight-medium);
-      margin: 8px 0;
-      margin-top: 0;
-      color: var(--text-body-heavy);
-    }
+  .home__now :global(.currently-playing p) {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    color: var(--text-2);
+    letter-spacing: var(--tracking-normal);
+    margin: var(--space-3) 0;
+  }
 
-    .projects-section {
-      flex-grow: 1;
+  .home__now :global(.currently-playing strong) {
+    color: var(--text-1);
+    font-weight: var(--font-weight-medium);
+  }
+</style>
 
-      h3 {
-        margin-bottom: 24px;
-      }
-
-      .project-entry {
-        margin-bottom: 32px;
-
-        h4 {
-          margin-bottom: -6px;
-        }
-
-        .project-description {
-          color: var(--text-body-medium);
-          line-height: 1.5em;
-        }
-      }
-    }
-
-    @media (max-width: 768px) {
-      flex-direction: column;
-
-      .profile-summary {
-        max-width: 100%;
-        width: 100%;
-      }
-
-      .projects-section {
-        max-width: 100%;
-        width: 100%;
-      }
-    }
+<!--
+  Global hide-when-empty rule for the "now playing" section. Lives in an
+  is:global block because Astro doesn't compile `:global()` inside `:has()`
+  (it leaves the literal `:global(...)` text in the output, which is invalid
+  CSS and gets dropped by the browser). The CurrentlyPlaying widget is
+  `client:only` and renders null when nothing is playing — so the section
+  has no `.currently-playing` descendant unless a track is live.
+-->
+<style is:global>
+  .home__now:not(:has(.currently-playing)) {
+    display: none;
   }
 </style>

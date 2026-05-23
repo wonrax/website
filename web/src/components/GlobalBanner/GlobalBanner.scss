@@ -1,7 +1,7 @@
 .global-banner {
   width: 100%;
   padding: var(--space-6) var(--space-8);
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: var(--border-width-thin) solid var(--border-1);
   box-sizing: border-box;
 
   &__content {
@@ -38,21 +38,15 @@
   }
 
   &__dismiss {
-    background: none;
-    border: none;
-    font-size: 20px;
-    line-height: 1;
-    cursor: pointer;
-    padding: var(--space-2) var(--space-4);
-    border-radius: var(--radius-xs);
-    transition: background-color 0.2s ease;
     color: inherit;
     opacity: 0.7;
     flex-shrink: 0;
+    font-size: var(--font-size-xl);
+    line-height: 1;
 
-    &:hover {
+    &:hover:not(:disabled) {
       opacity: 1;
-      background-color: var(--bg-additive-medium);
+      color: inherit;
     }
   }
 
@@ -90,11 +84,7 @@
     }
 
     &__dismiss {
-      font-size: 18px;
-      padding: 6px;
-      margin-right: 0;
-      flex-shrink: 0;
-      min-width: 30px;
+      font-size: var(--font-size-lg);
     }
   }
 }

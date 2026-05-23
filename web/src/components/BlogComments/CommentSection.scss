@@ -1,13 +1,281 @@
-.loader {
+.comments-container {
+  padding-top: var(--space-12);
+  border-top: 1px solid var(--rule-strong);
+  container-type: inline-size;
+}
+
+// `.comments-container` qualifier outranks `.blog-container h2` which would
+// otherwise apply display font + xl size and rule chrome.
+.comments-container .comments-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-10);
+  padding: 0;
+  border: 0;
+  // Re-state ui-kicker typography here; `.blog-container h2` (0,1,1) beats
+  // `.ui-kicker` (0,1,0) and would otherwise apply display font + xl size.
+  font-family: var(--font-mono);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-normal);
+  line-height: 1.4;
+  letter-spacing: normal;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.comments-container .comments-heading__sigil {
+  color: var(--text-3);
+}
+
+.comments-container .comments-heading__label {
+  color: var(--text-1);
+  font-weight: var(--font-weight-medium);
+}
+
+.comments-container .comments-heading__count {
+  margin-left: auto;
+  color: var(--text-3);
+  font-weight: var(--font-weight-normal);
+}
+
+.comments-status {
+  margin: var(--space-6) 0;
+}
+
+.comments-error {
+  margin: var(--space-6) 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--error-medium);
+  letter-spacing: var(--tracking-loose);
+}
+
+.comments-compose {
+  margin-bottom: var(--space-16);
+}
+
+// Qualified selectors so the `.blog-container ul, .blog-container ol` rule
+// (which adds padding-left: var(--space-12)) doesn't override our resets.
+.comments-container .comments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: comment-thread;
+}
+
+.comments-container .comment {
+  counter-increment: comment-thread;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.comments-container .comments > .comment + .comment {
+  border-top: 1px solid var(--rule);
+}
+
+// Inner counter-reset gives counters() a hierarchical chain (01·01, 02·03).
+.comments-container .comment-children {
+  list-style: none;
+  margin: var(--space-10) 0 0 var(--space-6);
+  padding: 0 0 0 var(--space-9);
+  border-left: 1px solid var(--rule);
+  counter-reset: comment-thread;
+}
+
+.comment-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.comment-num {
+  color: var(--text-3);
+  min-width: 30px;
+
+  &::before {
+    content: counters(comment-thread, "·", decimal-leading-zero);
+  }
+}
+
+.comment-author-name {
+  color: var(--text-1);
+  font-weight: var(--font-weight-normal);
+}
+
+.comment-badge {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-2);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+
+  &::before {
+    content: "· ";
+    color: var(--fg-quiet);
+  }
+}
+
+.comment-spacer {
+  flex: 1;
+}
+
+.comment-date {
+  color: var(--text-3);
+}
+
+.comment-content {
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
+  line-height: 1.65;
+  color: var(--text-1);
+  text-wrap: pretty;
+
+  p {
+    margin: var(--space-5) 0;
+
+    &:first-child {
+      margin-top: 0;
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  a {
+    color: var(--text-1);
+    text-decoration: underline;
+    text-decoration-color: var(--fg-quiet);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--accent);
+      text-decoration-color: var(--accent);
+    }
+
+    &:visited {
+      color: var(--text-2);
+    }
+  }
+
+  strong {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-1);
+  }
+
+  blockquote {
+    margin: var(--space-6) 0;
+    padding-left: var(--space-6);
+    border-left: 2px solid var(--rule-strong);
+    color: var(--text-2);
+    font-style: italic;
+  }
+
+  pre {
+    margin: var(--space-6) 0;
+    padding: var(--space-5) 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    background: transparent;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+    color: var(--text-1);
+  }
+
+  pre code {
+    background: transparent;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+  }
+
+  :not(pre) > code {
+    padding: 1px var(--space-2);
+    background-color: var(--bg-additive-light);
+    border-radius: 0;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+  }
+
+  hr {
+    margin: var(--space-6) 0;
+    border: 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  ul,
+  ol {
+    margin: var(--space-5) 0;
+    padding-left: var(--space-10);
+  }
+
+  ul li {
+    list-style-type: disc;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin: var(--space-6) 0 var(--space-3);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-1);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    border-spacing: 0;
+    font-size: var(--font-size-md);
+
+    td,
+    th {
+      padding: var(--space-2) var(--space-4);
+      border-top: 1px solid var(--rule);
+      font-weight: var(--font-weight-normal);
+      text-align: left;
+    }
+
+    th {
+      color: var(--text-1);
+      font-weight: var(--font-weight-medium);
+      border-bottom: 1px solid var(--rule-strong);
+    }
+  }
+}
+
+.comment-action-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-6);
   margin-top: var(--space-6);
-  width: 18px;
-  height: 18px;
-  border: 2px solid var(--text-body-heavy);
-  border-bottom-color: transparent;
-  border-radius: 50%;
-  display: inline-block;
-  box-sizing: border-box;
-  animation: rotation 0.3s linear infinite;
+
+  .ui-button {
+    font-size: var(--font-size-xs);
+    letter-spacing: var(--tracking-loose);
+  }
+}
+
+.comment-reply {
+  margin-top: var(--space-9);
+}
+
+.comment-reply__label {
+  margin: 0 0 var(--space-3);
+}
+
+.comment-editing {
+  margin-top: var(--space-5);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -25,234 +293,14 @@
   }
 }
 
-.comments-container {
-  max-width: var(--layout-page-width);
-  padding: var(--space-8) var(--space-12) var(--space-32) var(--space-12);
-  background-color: var(--bg-color);
-  box-shadow: var(--shadow-overlay);
+.loader {
+  margin-top: var(--space-6);
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--text-3);
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
   box-sizing: border-box;
-  height: 100%;
-  overflow-y: scroll;
-
-  @container (max-width: 480px) {
-    padding: var(--space-8) var(--space-9) 50vh var(--space-9);
-  }
-
-  .heading {
-    display: flex;
-    flex-direction: row;
-    gap: var(--space-6);
-    align-items: center;
-    height: 36px;
-  }
-
-  .comments-heading-button {
-    margin-top: 0;
-    font-weight: var(--font-weight-medium);
-    margin: 0;
-    color: var(--text-body-heavy);
-    background: transparent;
-    border: 0;
-    padding: 0;
-    cursor: pointer;
-    font-size: var(--font-size-lg);
-  }
-
-  .comments-error {
-    color: var(--error-medium);
-  }
-
-  .comments {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-12);
-    border-radius: var(--radius-xl);
-    padding-inline-start: 0;
-    padding-inline-end: 0;
-    margin: var(--space-16) 0;
-
-    .comment-children {
-      padding-inline-start: 0;
-      padding-inline-end: 0;
-      margin-top: var(--space-8);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-8);
-    }
-
-    .comment {
-      list-style: none;
-      padding-left: 18px;
-      padding-top: 0;
-      margin-top: 0;
-      border-left: 1px solid var(--border-light);
-
-      .comment-header {
-        display: flex;
-        gap: var(--space-6);
-        align-items: baseline;
-
-        .comment-author {
-          display: flex;
-          flex-direction: row;
-          gap: var(--space-4);
-          margin-left: -8px;
-          align-items: center;
-          font-weight: var(--font-weight-medium);
-          font-size: 15px;
-        }
-
-        .comment-avatar {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          padding: var(--space-3);
-          border-radius: var(--radius-round);
-          background-color: var(--bg-additive-light);
-          color: var(--text-body-heavy);
-          line-height: 0;
-        }
-
-        .comment-author-badge {
-          color: var(--info-heavy);
-          background-color: var(--info-light);
-          padding: var(--space-1) var(--space-2);
-          border-radius: var(--radius-xs);
-          border: 1px solid var(--info-medium);
-          margin: 0;
-          font-size: 0.8em;
-          line-height: var(--line-height-tight);
-        }
-
-        .comment-date {
-          font-size: 0.8rem;
-          color: var(--text-body-medium);
-        }
-
-        .comment-upvote {
-          font-size: 0.8rem;
-        }
-      }
-
-      .comment-content {
-        --font-size: var(--font-size-base);
-
-        color: var(--text-body-heavy);
-        font-size: var(--font-size);
-        line-height: 145%;
-
-        strong {
-          font-weight: var(--font-weight-medium);
-        }
-
-        a {
-          color: var(--text-body-heavy);
-          text-decoration: underline;
-
-          &:visited {
-            color: var(--text-body-medium);
-          }
-        }
-
-        pre {
-          background-color: var(--bg-additive-light);
-          padding: var(--space-4) var(--space-6);
-          border-radius: var(--radius-md);
-        }
-
-        code {
-          font-size: var(--font-size);
-          background-color: transparent;
-          padding: 0;
-        }
-
-        :not(pre) > code {
-          background-color: var(--bg-additive-light);
-          padding: var(--space-1) var(--space-2);
-          border-radius: var(--radius-xs);
-        }
-
-        hr {
-          border: none;
-          border-top: solid 1px var(--border-light);
-        }
-
-        pre,
-        code {
-          max-width: 100%;
-          overflow-x: auto;
-        }
-
-        p {
-          margin: 12px 0;
-        }
-
-        h1,
-        h2,
-        h3,
-        h4,
-        h5,
-        h6 {
-          font-size: var(--font-size);
-          font-weight: var(--font-weight-medium);
-          color: var(--text-body-medium);
-          margin: 12px 0;
-        }
-
-        ul li {
-          list-style-type: disc;
-        }
-
-        blockquote {
-          color: var(--text-body-medium);
-          font-style: italic;
-          margin-inline-start: 20px;
-          margin-inline-end: 20px;
-        }
-
-        table {
-          font-size: var(--font-size);
-          border-collapse: collapse;
-          border-spacing: 0;
-
-          tbody {
-            color: var(--text-body-medium);
-          }
-
-          td {
-            white-space: break-spaces;
-            overflow-wrap: break-word;
-            padding: var(--space-2) var(--space-4);
-            border-top: 1px solid var(--border-medium);
-            font-weight: var(--font-weight-normal);
-          }
-
-          th {
-            padding: var(--space-2) var(--space-4);
-            font-weight: var(--font-weight-normal);
-            color: var(--text-body-heavy);
-          }
-        }
-      }
-
-      .comment-action-row {
-        display: flex;
-        margin-left: -8px;
-
-        button {
-          font-size: var(--font-size-md);
-          padding: var(--space-2) var(--space-4);
-          color: var(--text-body-light);
-          background-color: transparent;
-          line-height: 1em;
-          border: none;
-          cursor: pointer;
-          margin: 0;
-          &:hover {
-            color: var(--text-body-heavy);
-          }
-        }
-      }
-    }
-  }
+  animation: rotation 0.6s linear infinite;
 }

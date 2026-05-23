@@ -1,10 +1,11 @@
-import SheetContext from "@/components/Sheet/SheetContext";
 import {
   For,
-  createEffect,
+  Show,
   createResource,
   createSignal,
   lazy,
+  onCleanup,
+  onMount,
   type JSXElement,
   Suspense,
 } from "solid-js";
@@ -35,6 +36,16 @@ export interface Comment {
 
 const fetchComments = createFetch(z.custom<Comment[]>());
 
+function countComments(list: Comment[] | undefined): number {
+  if (list == null) return 0;
+  let n = 0;
+  for (const c of list) {
+    n += 1;
+    n += countComments(c.children);
+  }
+  return n;
+}
+
 export function CommentSection(): JSXElement {
   const slug = window.location.pathname
     .replace(/^\/blog\/?/, "")
@@ -44,26 +55,6 @@ export function CommentSection(): JSXElement {
     throw new Error("Why are we rendering comments on a non-blog page?");
   }
 
-  // TODO remove the open_comments query string when the sheet is closed
-
-  // check if query string contains open comments on page load
-  // if so, open the comments
-  // const { SheetContext: sheetCtx } = SheetContext;
-  const params = new URLSearchParams(window.location.search);
-  const openComments = params.get("open_comments");
-  if (openComments !== null) {
-    createEffect((success: boolean) => {
-      if (!success) {
-        if (SheetContext.SheetContext().initialized) {
-          SheetContext.SheetContext().toggle();
-          return true;
-        }
-      }
-      return false;
-    }, false);
-  }
-
-  // hold fetching until the sheet is opened
   const [pleaseFetch, setPleaseFetch] = createSignal(false);
 
   const [comments, { mutate, refetch }] = createResource(
@@ -85,20 +76,35 @@ export function CommentSection(): JSXElement {
     }
   );
 
-  // listen to sheet context to preload components and check auth user ahead of time
-  createEffect(() => {
-    const { SheetContext: sheetCtx } = SheetContext;
-    if (
-      sheetCtx().initialized &&
-      (sheetCtx().isSheetTriggerButtonHovered() || sheetCtx().isOpen()) &&
-      !pleaseFetch()
-    ) {
-      setPleaseFetch(true);
-      void CommentComponent.preload();
-      void CommentSubmission.preload();
-      void checkAuthUser();
-    }
+  let sectionEl: HTMLElement | undefined;
+
+  onMount(() => {
+    if (sectionEl == null) return;
+
+    // 600px rootMargin so the comments fetch fires while the user is still
+    // scrolling toward the section, not at the moment it enters view.
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && !pleaseFetch()) {
+            setPleaseFetch(true);
+            void CommentComponent.preload();
+            void CommentSubmission.preload();
+            void checkAuthUser();
+            observer.disconnect();
+            break;
+          }
+        }
+      },
+      { rootMargin: "600px 0px" }
+    );
+
+    observer.observe(sectionEl);
+
+    onCleanup(() => observer.disconnect());
   });
+
+  const totalReplies = (): number => countComments(comments());
 
   return (
     <CommentContext.Provider
@@ -109,33 +115,50 @@ export function CommentSection(): JSXElement {
         slug,
       }}
     >
-      <div class="comments-container">
-        <div class="heading">
-          <button
-            type="button"
-            class="comments-heading-button"
-            onClick={() => {
-              void refetch();
-            }}
+      <section
+        class="comments-container"
+        ref={(el) => (sectionEl = el)}
+        aria-labelledby="discussion-heading"
+      >
+        <h2 id="discussion-heading" class="comments-heading">
+          <span class="comments-heading__sigil">§</span>
+          <span class="comments-heading__label">discussion</span>
+          <Show when={comments.state === "ready" && comments() != null}>
+            <span class="comments-heading__count">
+              {totalReplies()} {totalReplies() === 1 ? "reply" : "replies"}
+            </span>
+          </Show>
+        </h2>
+
+        <Suspense
+          fallback={<p class="ui-meta comments-status">loading discussion…</p>}
+        >
+          <Show
+            when={pleaseFetch()}
+            fallback={
+              <p class="ui-meta comments-status">scroll to load discussion…</p>
+            }
           >
-            Comments
-          </button>
-        </div>
-        <Suspense fallback={<span class="loader" />}>
-          {comments.state === "unresolved" ||
-          comments.state === "pending" ||
-          comments.state === "refreshing" ? (
-            <span class="loader" />
-          ) : (
-            <>
-              <CommentSubmission
-                unshift={(c: Comment) => {
-                  mutate((comments) => {
-                    return [c, ...(comments ?? [])];
-                  });
-                }}
-              />
-              {comments.state === "ready" && comments() != null && (
+            <Show
+              when={
+                comments.state !== "unresolved" &&
+                comments.state !== "pending" &&
+                comments.state !== "refreshing"
+              }
+              fallback={
+                <p class="ui-meta comments-status">loading discussion…</p>
+              }
+            >
+              <div class="comments-compose">
+                <CommentSubmission
+                  unshift={(c: Comment) => {
+                    mutate((comments) => {
+                      return [c, ...(comments ?? [])];
+                    });
+                  }}
+                />
+              </div>
+              <Show when={comments.state === "ready" && comments() != null}>
                 <ol class="comments">
                   <For each={comments()}>
                     {(c) => (
@@ -153,16 +176,16 @@ export function CommentSection(): JSXElement {
                     )}
                   </For>
                 </ol>
-              )}
-            </>
-          )}
+              </Show>
+            </Show>
+          </Show>
         </Suspense>
-        {comments.state === "errored" && (
+        <Show when={comments.state === "errored"}>
           <p class="comments-error">{`Could not fetch discussions: ${
             (comments.error as Error).message
           }`}</p>
-        )}
-      </div>
+        </Show>
+      </section>
     </CommentContext.Provider>
   );
 }

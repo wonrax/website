@@ -8,7 +8,7 @@ import {
 } from "solid-js";
 import { toast } from "solid-sonner";
 import config from "@/config";
-import { timeSince } from "@/utils/time";
+import { formatRelativeShort } from "@/utils/time";
 import "./RecommenderFeedSolid.scss";
 
 interface SourceInfo {
@@ -44,32 +44,16 @@ type FeedFilters = {
 };
 
 const SOURCE_OPTIONS: { value: SourceFilter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "lobsters", label: "Lobsters" },
-  { value: "hacker_news", label: "Hacker News" },
+  { value: "all", label: "all" },
+  { value: "lobsters", label: "lobsters" },
+  { value: "hacker_news", label: "hacker news" },
 ];
 
-const RANKING_OPTIONS: {
-  value: RankingPreset;
-  label: string;
-  description: string;
-}[] = [
-  { value: "balanced", label: "Balanced", description: "Mix of all signals" },
-  {
-    value: "top_first",
-    label: "Top first",
-    description: "Prioritize external score",
-  },
-  {
-    value: "newer_first",
-    label: "Newer first",
-    description: "Prioritize freshness",
-  },
-  {
-    value: "similar_first",
-    label: "Similar to you",
-    description: "Prioritize vector similarity",
-  },
+const RANKING_OPTIONS: { value: RankingPreset; label: string }[] = [
+  { value: "balanced", label: "balanced" },
+  { value: "top_first", label: "top" },
+  { value: "newer_first", label: "newer" },
+  { value: "similar_first", label: "similar" },
 ];
 
 const DEFAULT_FILTERS: FeedFilters = {
@@ -136,6 +120,95 @@ function writeFiltersToUrl(
   } else {
     window.history.pushState(null, "", nextUrl);
   }
+}
+
+function getWebsiteUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+function formatSourceKey(key: string): string {
+  if (key === "hacker-news") return "hn";
+  return key;
+}
+
+function getSourceDiscussionUrl(source: SourceInfo): string | null {
+  if (!source.external_id) return null;
+  if (source.key === "hacker-news") {
+    return `https://news.ycombinator.com/item?id=${source.external_id}`;
+  }
+  if (source.key === "lobsters") {
+    return `https://lobste.rs/s/${source.external_id}`;
+  }
+  return null;
+}
+
+function MatchDots(props: { match: number | null }): JSXElement {
+  const width = 5;
+  const pct = () => (props.match == null ? 0 : Math.round(props.match * 100));
+  const filled = () => {
+    if (props.match == null) return 0;
+    // Any non-zero match shows at least 1 cell so a "low match" still reads as positive.
+    return Math.max(1, Math.round(props.match * width));
+  };
+  return (
+    <span class="recommender-feed__match">
+      <Show
+        when={props.match != null}
+        fallback={<span class="recommender-feed__match-na">—</span>}
+      >
+        <span class="recommender-feed__match-dots">
+          <span class="recommender-feed__match-fill">
+            {"▰".repeat(filled())}
+          </span>
+          <span class="recommender-feed__match-empty">
+            {"▱".repeat(width - filled())}
+          </span>
+        </span>
+        <span class="recommender-feed__match-pct">{pct()}%</span>
+      </Show>
+    </span>
+  );
+}
+
+function FilterRow<T extends string>(props: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+}): JSXElement {
+  return (
+    <div class="recommender-feed__filter-row">
+      <span class="recommender-feed__filter-label">{props.label}</span>
+      <div class="recommender-feed__filter-options">
+        <For each={props.options}>
+          {(opt, i) => (
+            <>
+              {i() > 0 && (
+                <span class="recommender-feed__filter-sep" aria-hidden="true">
+                  ·
+                </span>
+              )}
+              <button
+                type="button"
+                class={
+                  "ui-button ui-button--xs ui-button--toggle" +
+                  (props.value === opt.value ? " is-active" : "")
+                }
+                onClick={() => props.onChange(opt.value)}
+              >
+                {opt.label}
+              </button>
+            </>
+          )}
+        </For>
+      </div>
+    </div>
+  );
 }
 
 export default function RecommenderFeed(): JSXElement {
@@ -213,13 +286,15 @@ export default function RecommenderFeed(): JSXElement {
   };
 
   const loadMore = async () => {
-    if (loadingMore() || !hasMore()) return;
+    if (loadingMore() || !hasMore() || loading()) return;
     setLoadingMore(true);
     const newOffset = offset() + LIMIT;
     await fetchFeed(newOffset, true);
     setOffset(newOffset);
     setLoadingMore(false);
   };
+
+  let sentinelRef: HTMLDivElement | undefined;
 
   const refresh = async () => {
     setLoading(true);
@@ -230,34 +305,6 @@ export default function RecommenderFeed(): JSXElement {
       ranking: ranking(),
     });
     setLoading(false);
-  };
-
-  const handleSourceChange = (newSource: SourceFilter) => {
-    if (newSource === sourceFilter()) {
-      return;
-    }
-
-    void reloadFeedForFilters(
-      {
-        sourceFilter: newSource,
-        ranking: ranking(),
-      },
-      "push"
-    );
-  };
-
-  const handleRankingChange = (newRanking: RankingPreset) => {
-    if (newRanking === ranking()) {
-      return;
-    }
-
-    void reloadFeedForFilters(
-      {
-        sourceFilter: sourceFilter(),
-        ranking: newRanking,
-      },
-      "push"
-    );
   };
 
   onMount(() => {
@@ -308,180 +355,195 @@ export default function RecommenderFeed(): JSXElement {
       console.warn("SSE connection error, will retry automatically");
     };
 
+    // Infinite scroll: once the sentinel under the list scrolls into view (with
+    // a 600px head-start), fire loadMore. The existing "load more ->" link stays
+    // as a manual fallback in case JS or the observer fails.
+    const sentinelObserver = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0]?.isIntersecting &&
+          hasMore() &&
+          !loadingMore() &&
+          !loading()
+        ) {
+          void loadMore();
+        }
+      },
+      { rootMargin: "600px 0px 600px 0px" }
+    );
+    if (sentinelRef) {
+      sentinelObserver.observe(sentinelRef);
+    }
+
     onCleanup(() => {
       window.removeEventListener("popstate", handlePopState);
       eventSource.close();
+      sentinelObserver.disconnect();
     });
   });
-
-  const getWebsiteUrl = (url: string): string => {
-    try {
-      const parsed = new URL(url);
-      return parsed.hostname.replace(/^www\./, "");
-    } catch {
-      return url;
-    }
-  };
-
-  const formatRelativeTime = (dateStr: string | null): string => {
-    if (!dateStr) return "";
-    return timeSince(new Date(dateStr + "Z"));
-  };
-
-  const formatSimilarity = (score: number | null): string => {
-    if (score === null) return "N/A%";
-    return `${Math.round(score * 100)}%`;
-  };
-
-  const formatSourceLabel = (source: SourceInfo): string => {
-    let label: string;
-    if (source.key === "hacker-news") {
-      label = "Hacker News";
-    } else if (source.key === "lobsters") {
-      label = "Lobsters";
-    } else {
-      label = source.key;
-    }
-    if (source.score !== null) {
-      return `${label} (${Math.round(source.score)})`;
-    }
-    return label;
-  };
-
-  const getSourceDiscussionUrl = (source: SourceInfo): string | null => {
-    if (!source.external_id) return null;
-    if (source.key === "hacker-news") {
-      return `https://news.ycombinator.com/item?id=${source.external_id}`;
-    }
-    if (source.key === "lobsters") {
-      return `https://lobste.rs/s/${source.external_id}`;
-    }
-    return null;
-  };
 
   return (
     <div class="recommender-feed">
       <div class="recommender-feed__controls">
-        <div class="recommender-feed__control-group">
-          <label class="recommender-feed__control-label">Source</label>
-          <div class="ui-button-group">
-            <For each={SOURCE_OPTIONS}>
-              {(opt) => (
-                <button
-                  class={`ui-button recommender-feed__toggle ${
-                    sourceFilter() === opt.value ? "is-active" : ""
-                  }`}
-                  onClick={() => handleSourceChange(opt.value)}
-                >
-                  {opt.label}
-                </button>
-              )}
-            </For>
-          </div>
-        </div>
-        <div class="recommender-feed__control-group">
-          <label class="recommender-feed__control-label">Ranking</label>
-          <div class="ui-button-group">
-            <For each={RANKING_OPTIONS}>
-              {(opt) => (
-                <button
-                  class={`ui-button recommender-feed__toggle ${
-                    ranking() === opt.value ? "is-active" : ""
-                  }`}
-                  onClick={() => handleRankingChange(opt.value)}
-                  title={opt.description}
-                >
-                  {opt.label}
-                </button>
-              )}
-            </For>
-          </div>
-        </div>
+        <FilterRow
+          label="source"
+          value={sourceFilter()}
+          options={SOURCE_OPTIONS}
+          onChange={(v) =>
+            reloadFeedForFilters(
+              { sourceFilter: v, ranking: ranking() },
+              "push"
+            )
+          }
+        />
+        <FilterRow
+          label="rank"
+          value={ranking()}
+          options={RANKING_OPTIONS}
+          onChange={(v) =>
+            reloadFeedForFilters(
+              { sourceFilter: sourceFilter(), ranking: v },
+              "push"
+            )
+          }
+        />
       </div>
 
       <Show when={newItemsCount() > 0}>
         <div class="recommender-feed__new-items">
           <span>{newItemsCount()} new items available</span>
-          <button onClick={refresh} class="ui-button ui-button--primary">
-            Refresh
+          <button
+            type="button"
+            class="ui-button ui-button--xs"
+            onClick={refresh}
+          >
+            {"refresh ->"}
           </button>
         </div>
       </Show>
 
-      <Show when={!loading()} fallback={<p>Loading...</p>}>
-        <Show when={!err() || items().length > 0} fallback={<p>{err()}</p>}>
-          <ul class="recommender-feed__list">
-            <For each={items()}>
-              {(item) => (
-                <li class="recommender-feed__entry">
-                  <span class="recommender-feed__date">
-                    {formatRelativeTime(item.submitted_at)}
-                  </span>
-                  <a
-                    href={item.url}
-                    rel="noopener noreferrer"
-                    class="recommender-feed__title"
-                  >
-                    {item.title}
-                  </a>
-                  <div class="recommender-feed__meta">
-                    <a
-                      href={`https://${getWebsiteUrl(item.url)}`}
-                      rel="noopener noreferrer"
-                      class="recommender-feed__source"
-                    >
-                      {getWebsiteUrl(item.url)}
-                    </a>
-                    <Show when={item.sources.length > 0}>
-                      <span class="recommender-feed__sources">
-                        via{" "}
+      <div class="recommender-feed__thead" aria-hidden="true">
+        <span>#</span>
+        <span>when</span>
+        <span>article</span>
+        <span class="recommender-feed__thead-right">match</span>
+      </div>
+
+      <Show
+        when={!loading()}
+        fallback={<p class="recommender-feed__status">loading…</p>}
+      >
+        <Show
+          when={!err() || items().length > 0}
+          fallback={<p class="recommender-feed__status">{err()}</p>}
+        >
+          <Show
+            when={items().length > 0}
+            fallback={<p class="recommender-feed__status">no items.</p>}
+          >
+            <ul class="recommender-feed__list">
+              <For each={items()}>
+                {(item, i) => {
+                  const when = formatRelativeShort(
+                    item.submitted_at ? new Date(item.submitted_at + "Z") : null
+                  );
+                  const domain = getWebsiteUrl(item.url);
+                  return (
+                    <li class="recommender-feed__entry">
+                      <span class="recommender-feed__index">
+                        {String(i() + 1).padStart(2, "0")}
+                      </span>
+                      <span class="recommender-feed__when">{when}</span>
+                      <span class="ui-meta recommender-feed__sources">
                         <For each={item.sources}>
-                          {(source, i) => {
+                          {(source, j) => {
                             const url = getSourceDiscussionUrl(source);
+                            const label = formatSourceKey(source.key);
+                            const score =
+                              source.score != null
+                                ? ` · ${Math.round(source.score)}`
+                                : "";
                             return (
                               <>
-                                {url ? (
-                                  <a
-                                    href={url}
-                                    rel="noopener noreferrer"
-                                    class="recommender-feed__source-tag recommender-feed__source-link"
-                                  >
-                                    {formatSourceLabel(source)}
-                                  </a>
-                                ) : (
-                                  <span class="recommender-feed__source-tag">
-                                    {formatSourceLabel(source)}
+                                {j() > 0 && (
+                                  <span class="recommender-feed__sources-sep">
+                                    ·
                                   </span>
                                 )}
-                                {i() < item.sources.length - 1 && ", "}
+                                <Show
+                                  when={url != null}
+                                  fallback={
+                                    <span>
+                                      {label}
+                                      {score}
+                                    </span>
+                                  }
+                                >
+                                  <a
+                                    class="ui-link ui-link--title"
+                                    href={url ?? "#"}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    {label}
+                                    {score}
+                                  </a>
+                                </Show>
                               </>
                             );
                           }}
                         </For>
                       </span>
-                    </Show>
-                    <span
-                      class="recommender-feed__similarity"
-                      title="Vector similarity to your reading history"
-                    >
-                      {formatSimilarity(item.similarity_score)}
-                    </span>
-                  </div>
-                </li>
-              )}
-            </For>
-          </ul>
-          <Show when={hasMore()}>
-            <button
-              onClick={loadMore}
-              disabled={loadingMore()}
-              class="ui-button recommender-feed__load-more"
-            >
-              {loadingMore() ? "Loading..." : "Load more"}
-            </button>
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="recommender-feed__title"
+                      >
+                        {item.title}
+                      </a>
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="ui-link ui-link--title recommender-feed__domain"
+                      >
+                        {domain}{" "}
+                        <span class="recommender-feed__domain-arrow">
+                          {"->"}
+                        </span>
+                      </a>
+                      <MatchDots match={item.similarity_score} />
+                    </li>
+                  );
+                }}
+              </For>
+            </ul>
           </Show>
         </Show>
       </Show>
+
+      <div
+        ref={sentinelRef}
+        class="recommender-feed__sentinel"
+        aria-hidden="true"
+      />
+
+      <div class="ui-meta recommender-feed__foot">
+        <span>
+          {items().length} rows{hasMore() ? " · more available" : " · EOF"}
+        </span>
+        <Show when={hasMore() && !loading()}>
+          <button
+            type="button"
+            class="ui-button ui-button--xs ui-button--muted"
+            onClick={loadMore}
+            disabled={loadingMore()}
+          >
+            {loadingMore() ? "loading…" : "load more ->"}
+          </button>
+        </Show>
+      </div>
     </div>
   );
 }

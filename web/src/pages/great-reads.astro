@@ -1,6 +1,8 @@
 ---
-import BlogRouteLayout from "../layouts/BlogRouteLayout.astro";
+import RootLayout from "@/layouts/Layout.astro";
+import "@/layouts/layout.scss";
 import GreatReadsFeed from "../components/GreatReadsFeedSolid.tsx";
+import NumberedNav from "@/components/NumberedNav.astro";
 import { JSDOM } from "jsdom";
 import type { RSSItem } from "@/shared/parseRssFeed";
 import type { HighlightItem } from "@/shared/parseHighlights";
@@ -19,13 +21,11 @@ export function parseFeedServer(xml: string): RSSItem[] {
   }));
 }
 
-// Build an initial RSS snapshot for stale-first rendering.
 let highlights: HighlightItem[] = [];
 let initialItems: RSSItem[] = [];
 
 try {
-  // This page can be rendered before the API is available, so bootstrap from
-  // the public RSS feed and let the client refresh through `/api` after load.
+  // Bootstrap from the public RSS feed so the page renders without the API.
   const FEED_URL = "https://bg.raindrop.io/rss/public/55948413";
   const rssRes = await fetch(FEED_URL);
   const xml = await rssRes.text();
@@ -36,18 +36,26 @@ try {
 }
 ---
 
-<BlogRouteLayout
+<RootLayout
   seoProps={{
-    title: "Great Reads",
-    description: "A collection of great reads curated by me.",
+    title: "bookmarks",
+    description: "articles i've saved, with the passages i highlighted",
   }}
 >
   <ToasterProvider client:only="solid-js" />
-  <main class="blog-main">
+  <main class="narrow-shell">
+    <NumberedNav active="bookmarks" class="narrow-shell__nav" />
+    <header class="narrow-shell__hero">
+      <h1 class="narrow-shell__title">great reads.</h1>
+      <p class="narrow-shell__lede">
+        articles i saved, with the passages i highlighted and the occasional
+        note on why.
+      </p>
+    </header>
     <GreatReadsFeed
       initialItems={initialItems}
       initialHighlights={highlights}
       client:idle
     />
   </main>
-</BlogRouteLayout>
+</RootLayout>

@@ -23,6 +23,7 @@
     "@astrojs/mdx": "5.0.3",
     "@astrojs/react": "^5.0.3",
     "@astrojs/solid-js": "^6.0.1",
+    "@fontsource-variable/cascadia-code": "^5.2.2",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource/inconsolata": "^5.2.8",
     "@microflash/remark-callout-directives": "^5.0.0",
@@ -48,9 +49,9 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.8",
+    "@types/jsdom": "^28.0.1",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
-    "@types/jsdom": "^28.0.1",
     "@types/remarkable": "^2.0.8",
     "jsdom": "^29.0.2",
     "typescript": "^5.9.3",

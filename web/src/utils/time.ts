@@ -22,3 +22,17 @@ export function timeSince(date: Date): string {
 
   return "just now";
 }
+
+export function formatRelativeShort(date: Date | null | undefined): string {
+  if (date == null) return "";
+  const t = date.getTime();
+  if (Number.isNaN(t)) return "";
+  const seconds = Math.floor((Date.now() - t) / 1000);
+  if (seconds < 60) return "now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d`;
+  if (seconds < 2592000) return `${Math.floor(seconds / 604800)}w`;
+  if (seconds < 31536000) return `${Math.floor(seconds / 2592000)}mo`;
+  return `${Math.floor(seconds / 31536000)}y`;
+}

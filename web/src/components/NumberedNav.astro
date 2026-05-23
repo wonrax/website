@@ -1,0 +1,87 @@
+---
+type ActiveKey = "home" | "blog" | "bookmarks";
+
+type Props = {
+  active?: ActiveKey;
+  class?: string;
+};
+
+const { active, class: extraClass } = Astro.props;
+
+const items: { key: ActiveKey; num: string; label: string; href: string }[] = [
+  { key: "home", num: "01", label: "home", href: "/" },
+  { key: "blog", num: "02", label: "blog", href: "/blog" },
+  { key: "bookmarks", num: "03", label: "great reads", href: "/great-reads" },
+];
+---
+
+<nav
+  class:list={["numbered-nav", extraClass]}
+  aria-label="primary"
+  data-active={active}
+>
+  {
+    items.map((item) => (
+      <a
+        href={item.href}
+        class:list={[
+          "numbered-nav__item",
+          { "is-active": active === item.key },
+        ]}
+        aria-current={active === item.key ? "page" : undefined}
+      >
+        <span class="numbered-nav__num">{item.num}</span>
+        <span class="numbered-nav__label">{item.label}</span>
+      </a>
+    ))
+  }
+</nav>
+
+<style lang="scss" is:global>
+  .numbered-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-12);
+
+    @media (max-width: 600px) {
+      gap: var(--space-10);
+    }
+  }
+
+  .numbered-nav__item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    color: var(--text-2);
+    text-decoration: none;
+    line-height: 1.2;
+    transition: color var(--duration-fast) ease;
+
+    .numbered-nav__num {
+      color: var(--text-3);
+      font-size: var(--font-size-xs);
+      letter-spacing: var(--tracking-loose);
+    }
+
+    &:hover,
+    &:hover .numbered-nav__num {
+      color: var(--accent);
+    }
+
+    &.is-active {
+      color: var(--text-1);
+      text-decoration: underline;
+      text-decoration-color: currentColor;
+      text-underline-offset: 5px;
+      text-decoration-thickness: 1px;
+    }
+
+    @media (max-width: 420px) {
+      .numbered-nav__num {
+        display: none;
+      }
+    }
+  }
+</style>
