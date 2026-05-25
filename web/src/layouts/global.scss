@@ -50,6 +50,12 @@ body {
   margin: 0;
   font-size: var(--font-size-base);
   min-height: 100vh;
+
+  // Hard cap at the page root so no descendant can introduce horizontal
+  // page scroll. Content that's genuinely wider (tables, code, embeds)
+  // must opt into its own scroll/clip behavior — anything else is clipped
+  // rather than allowed to overflow the viewport.
+  overflow-x: clip;
 }
 
 a,
