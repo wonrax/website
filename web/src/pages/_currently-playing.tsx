@@ -43,7 +43,6 @@ export default function CurrentlyPlaying(): JSXElement {
     <Suspense fallback={null}>
       {item() != null && (
         <div class="currently-playing">
-          <p>Listening to</p>
           <p>
             <span class="currently-playing__status" aria-hidden="true" />
             <a

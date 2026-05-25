@@ -61,7 +61,6 @@
           ];
         };
 
-
         LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
         certBundle = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
       in
@@ -236,6 +235,7 @@
             nativeBuildInputs = [
               diesel-cli
               rustToolchain
+              cargo-watch
             ];
 
             inputsFrom = [
