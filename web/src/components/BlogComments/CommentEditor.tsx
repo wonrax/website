@@ -252,11 +252,11 @@ export function CommentEditorBase(props: {
       fontFamily: "var(--font-family-sans)",
       fontSize: "var(--font-size-md)",
       lineHeight: "var(--line-height-relaxed)",
-      padding: "var(--space-4) 0",
+      padding: "var(--space-2) 0",
       mobile: {
         fontSize: "16px",
         lineHeight: "var(--line-height-normal)",
-        padding: "var(--space-3) 0",
+        padding: "3px 0",
       },
       placeholder: props.placeholder ?? "Start writing markdown...",
       value: props.content,

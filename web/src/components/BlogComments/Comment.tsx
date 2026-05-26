@@ -81,7 +81,7 @@ export default function CommentComponent(props: {
         <div class="ui-meta comment-action-row">
           <button
             type="button"
-            class="ui-button"
+            class="ui-button ui-button--ghost"
             onClick={() => setIsReplying(true)}
           >
             reply
@@ -97,7 +97,7 @@ export default function CommentComponent(props: {
               </button>
               <button
                 type="button"
-                class="ui-button ui-button--danger"
+                class="ui-button ui-button--ghost ui-button--danger"
                 onClick={() => {
                   if (
                     confirm("Are you sure you want to delete this comment?")

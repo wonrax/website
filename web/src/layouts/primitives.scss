@@ -202,7 +202,6 @@
 
 .ui-button--danger {
   color: var(--error-medium);
-  text-decoration-color: var(--fg-quiet);
 
   &:hover:not(:disabled),
   &:focus-visible:not(:disabled) {
