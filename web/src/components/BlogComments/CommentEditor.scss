@@ -230,3 +230,16 @@ html body .overtype-link-tooltip {
     animation: none !important;
   }
 }
+
+// iOS Safari zooms into any input whose font-size is <16px on focus.
+// OverType's built-in `mobile` breakpoint is `max-width: 640px`, so iPads
+// and larger iPhones still get the 14px desktop size and trigger the zoom.
+// Force 16px on coarse-pointer devices regardless of viewport width. Both
+// input and preview layers must match — OverType requires identical font
+// metrics to keep the overlay aligned.
+@media (pointer: coarse) {
+  .comment-submission .overtype-wrapper .overtype-input,
+  .comment-submission .overtype-wrapper .overtype-preview {
+    font-size: 16px !important;
+  }
+}
