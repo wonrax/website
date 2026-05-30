@@ -1,0 +1,117 @@
+---
+import Layout from "./Layout.astro";
+import NumberedNav from "@/components/NumberedNav.astro";
+// Scoped here (and in the thoughts index) so the Gowun Batang @font-face only
+// ships on the /thoughts route. Latin-script subsets only (no Korean payload);
+// each is unicode-range gated, so only latin is fetched up front and latin-ext
+// / vietnamese download on demand when those glyphs actually appear.
+import "@fontsource/gowun-batang/latin.css";
+import "@fontsource/gowun-batang/latin-ext.css";
+import "@fontsource/gowun-batang/vietnamese.css";
+import "katex/dist/katex.css";
+// Reuse the blog post's body typography (paragraphs, code, tables, callouts,
+// math) so a thought renders identically to a post. Everything *around* the
+// body — TOC rail, comments, series chrome — is intentionally dropped here.
+import "./BlogPostLayout.scss";
+
+export type Frontmatter = {
+  title?: string;
+  published: string;
+  updated?: string;
+  tags?: string[];
+  slug?: string;
+  isDraft?: boolean;
+  hidden?: boolean;
+  ogImageUrl?: string;
+};
+
+type Props = {
+  frontmatter: Frontmatter;
+};
+
+const t = Astro.props.frontmatter;
+
+const dateLabel = new Date(t.published).toLocaleDateString("en-UK", {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+});
+---
+
+<Layout
+  seoProps={{
+    title: t.title ?? `thought · ${dateLabel}`,
+    description: t.title ?? "a quick thought.",
+  }}
+>
+  <main class="narrow-shell thought">
+    <NumberedNav active="thoughts" class="narrow-shell__nav" />
+    <article>
+      <header class="thought__header">
+        <a class="thought__back" href="/thoughts">← thoughts</a>
+        <time class="ui-meta thought__date" datetime={t.published}>
+          {dateLabel}
+        </time>
+        {t.title ? <h1 class="thought__title">{t.title}</h1> : null}
+      </header>
+      {
+        t.isDraft ? (
+          <p class="ui-meta thought__draft">▲ draft · not yet public</p>
+        ) : null
+      }
+      <div class="blog-container thought__body">
+        <slot />
+      </div>
+    </article>
+  </main>
+</Layout>
+
+<style lang="scss">
+  .thought__header {
+    margin-bottom: var(--space-12);
+    padding-bottom: var(--space-7);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .thought__back {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    letter-spacing: var(--tracking-loose);
+    color: var(--text-3);
+    text-decoration: none;
+    transition: color var(--duration-fast) ease;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--accent);
+    }
+  }
+
+  .thought__date {
+    display: block;
+    margin-top: var(--space-6);
+    color: var(--text-2);
+  }
+
+  .thought__title {
+    margin: var(--space-3) 0 0;
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: var(--font-weight-medium);
+    letter-spacing: var(--tracking-snug);
+    line-height: 1.25;
+    color: var(--text-heading);
+  }
+
+  .thought__draft {
+    margin: 0 0 var(--space-8);
+    color: var(--warning-medium);
+  }
+
+  // Trim the inherited top margin off the first body block so it sits snug
+  // under the header rule instead of double-spacing.
+  .thought__body > :global(:first-child) {
+    margin-top: 0;
+  }
+</style>

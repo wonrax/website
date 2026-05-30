@@ -1,0 +1,39 @@
+---
+import { getCollection, render, type CollectionEntry } from "astro:content";
+import { getPostSlug } from "@/shared/blog";
+import ThoughtLayout from "@/layouts/ThoughtLayout.astro";
+import type { Frontmatter } from "@/layouts/ThoughtLayout.astro";
+import type { GetStaticPathsResult } from "astro";
+
+export async function getStaticPaths(): Promise<GetStaticPathsResult> {
+  const thoughts = await getCollection("thoughts");
+  return thoughts.map((t: CollectionEntry<"thoughts">) => ({
+    params: { slug: getPostSlug(t) },
+  }));
+}
+
+const { slug } = Astro.params;
+if (!slug) {
+  throw new Error("Missing thought slug.");
+}
+
+const thoughts = await getCollection("thoughts");
+const thought = thoughts.find(
+  (entry: CollectionEntry<"thoughts">) => getPostSlug(entry) === slug
+);
+
+if (!thought) {
+  throw new Error(`Missing thought entry for slug: ${slug}`);
+}
+
+const { Content } = await render(thought);
+
+const frontmatter = {
+  ...thought.data,
+  slug,
+} as Frontmatter;
+---
+
+<ThoughtLayout frontmatter={frontmatter}>
+  <Content />
+</ThoughtLayout>

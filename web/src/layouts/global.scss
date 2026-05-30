@@ -66,3 +66,22 @@ a:visited {
 button {
   font-family: var(--font-family-sans);
 }
+
+// On the /thoughts route the sans-serif type renders in the Gowun Batang serif
+// instead of Inter. Layout.astro adds this class only on that route, the
+// @font-face is imported only by the thoughts pages, and the latin woff2 is
+// preloaded only there. --font-display / --font-body must be redeclared here,
+// not just --font-family-sans: tokens.scss declares them at :root as
+// `var(--font-family-sans)`, so they're already computed to Inter there and
+// inherited as-is — redefining the base var lower down doesn't re-resolve them.
+// The explicit font-family catches text that inherits the base sans directly.
+// Mono chrome (nav, meta, footer stamp) keeps Cascadia, untouched.
+body.route-thoughts {
+  --font-family-sans: "Gowun Batang", Georgia, "Times New Roman", serif;
+  --font-display: var(--font-family-sans);
+  --font-body: var(--font-family-sans);
+  // Gowun Batang has a smaller x-height than Inter, so the base reading size
+  // bumps 16px -> 18px on this route to hold a comparable optical size.
+  --font-size-base: 18px;
+  font-family: var(--font-family-sans);
+}

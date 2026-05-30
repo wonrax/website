@@ -1,5 +1,5 @@
 ---
-type ActiveKey = "home" | "blog" | "bookmarks";
+type ActiveKey = "home" | "blog" | "thoughts" | "bookmarks";
 
 type Props = {
   active?: ActiveKey;
@@ -11,7 +11,8 @@ const { active, class: extraClass } = Astro.props;
 const items: { key: ActiveKey; num: string; label: string; href: string }[] = [
   { key: "home", num: "01", label: "home", href: "/" },
   { key: "blog", num: "02", label: "blog", href: "/blog" },
-  { key: "bookmarks", num: "03", label: "great reads", href: "/great-reads" },
+  { key: "thoughts", num: "03", label: "thoughts", href: "/thoughts" },
+  { key: "bookmarks", num: "04", label: "great reads", href: "/great-reads" },
 ];
 ---
 

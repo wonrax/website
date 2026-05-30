@@ -7,6 +7,8 @@ import "@fontsource-variable/cascadia-code";
 import interLatin from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
 import interLatinItalic from "@fontsource-variable/inter/files/inter-latin-wght-italic.woff2?url";
 import cascadiaLatin from "@fontsource-variable/cascadia-code/files/cascadia-code-latin-wght-normal.woff2?url";
+import gowunBatangLatin from "@fontsource/gowun-batang/files/gowun-batang-latin-400-normal.woff2?url";
+import gowunBatangVietnamese from "@fontsource/gowun-batang/files/gowun-batang-vietnamese-400-normal.woff2?url";
 import path from "path";
 import { SEO, type Props as SeoProps } from "astro-seo";
 import childProcess from "child_process";
@@ -22,6 +24,13 @@ export type Props = {
 };
 
 const seoProps = Astro.props.seoProps;
+
+// The /thoughts route renders its sans-serif type in the Gowun Batang serif
+// instead of the default Inter (see global.scss). This drives both the <body>
+// class that flips the font tokens and which webfont gets preloaded below.
+const pathname = Astro.url.pathname;
+const isThoughtsRoute =
+  pathname === "/thoughts" || pathname.startsWith("/thoughts/");
 
 const ogImageUrl =
   Astro.url.protocol +
@@ -87,24 +96,52 @@ try {
         ...seoProps?.twitter,
       }}
     />
-    <!-- Preload latin variants of both Inter (body/display) and Cascadia
-         (mono chrome) so the swap from system fallback to webfont happens
-         before paint, killing the layout shift on page nav. Italic Inter is
-         included because `<em>` shows up in body copy. -->
-    <link
-      rel="preload"
-      as="font"
-      type="font/woff2"
-      href={interLatin}
-      crossorigin="anonymous"
-    />
-    <link
-      rel="preload"
-      as="font"
-      type="font/woff2"
-      href={interLatinItalic}
-      crossorigin="anonymous"
-    />
+    <!-- Preload the latin webfonts used above the fold so the swap from system
+         fallback to webfont happens before paint, killing layout shift on nav.
+         The /thoughts route swaps the sans-serif (Inter) for the Gowun Batang
+         serif, so it preloads that instead and skips the now-unused Inter. Both
+         the latin and vietnamese Gowun subsets are preloaded there: the notes
+         are written in Vietnamese, and without the viet subset up front its
+         glyphs paint in the fallback serif and reflow once it loads late.
+         Cascadia (mono chrome) is preloaded on every route. Italic Inter is
+         included off-route because `<em>` shows up in body copy. -->
+    {
+      isThoughtsRoute ? (
+        <>
+          <link
+            rel="preload"
+            as="font"
+            type="font/woff2"
+            href={gowunBatangLatin}
+            crossorigin="anonymous"
+          />
+          <link
+            rel="preload"
+            as="font"
+            type="font/woff2"
+            href={gowunBatangVietnamese}
+            crossorigin="anonymous"
+          />
+        </>
+      ) : (
+        <>
+          <link
+            rel="preload"
+            as="font"
+            type="font/woff2"
+            href={interLatin}
+            crossorigin="anonymous"
+          />
+          <link
+            rel="preload"
+            as="font"
+            type="font/woff2"
+            href={interLatinItalic}
+            crossorigin="anonymous"
+          />
+        </>
+      )
+    }
     <link
       rel="preload"
       as="font"
@@ -115,7 +152,7 @@ try {
 
     <slot name="head" />
   </head>
-  <body>
+  <body class:list={[{ "route-thoughts": isThoughtsRoute }]}>
     <slot />
     <script>
       import type { BannerPayload } from "@/components/GlobalBanner/GlobalBanner";

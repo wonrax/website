@@ -1,0 +1,204 @@
+---
+import RootLayout from "@/layouts/Layout.astro";
+import NumberedNav from "@/components/NumberedNav.astro";
+import { getPostSlug } from "@/shared/blog";
+import { getCollection, type CollectionEntry } from "astro:content";
+// Scoped here (and in ThoughtLayout) so the Gowun Batang @font-face only ships
+// on the /thoughts route. Latin-script subsets only (no Korean payload); each
+// is unicode-range gated, so only latin is fetched up front and latin-ext /
+// vietnamese download on demand when those glyphs actually appear.
+import "@fontsource/gowun-batang/latin.css";
+import "@fontsource/gowun-batang/latin-ext.css";
+import "@fontsource/gowun-batang/vietnamese.css";
+
+type ThoughtEntry = CollectionEntry<"thoughts">;
+
+const all = (await getCollection("thoughts")) as ThoughtEntry[];
+const visible = all.filter(
+  (t) =>
+    process.env.NODE_ENV !== "production" ||
+    (t.data.isDraft !== true && t.data.hidden !== true)
+);
+
+const sorted = [...visible].sort(
+  (a, b) =>
+    new Date(b.data.published).getTime() - new Date(a.data.published).getTime()
+);
+
+function dateLabel(raw: string): string {
+  return new Date(raw).toLocaleDateString("en-UK", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+// Thoughts are often titleless, so the list falls back to a plain-text preview
+// of the body — strip the markdown syntax we don't want to read inline.
+function excerpt(md: string, max = 180): string {
+  const text = md
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/^\s{0,3}([#>]+|[-*+]|\d+\.)\s+/gm, "")
+    .replace(/[*_~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length > max ? `${text.slice(0, max).trimEnd()}…` : text;
+}
+---
+
+<RootLayout
+  seoProps={{
+    title: "thoughts",
+    description: "short notes, posted as they come",
+  }}
+>
+  <main class="narrow-shell">
+    <NumberedNav active="thoughts" class="narrow-shell__nav" />
+    <header class="narrow-shell__hero">
+      <h1 class="narrow-shell__title">thoughts.</h1>
+      <p class="narrow-shell__lede">short notes, half-formed</p>
+    </header>
+
+    {
+      sorted.length === 0 ? (
+        <p class="thoughts__empty">nothing here yet.</p>
+      ) : (
+        <ul class="thoughts">
+          {sorted.map((t) => {
+            const slug = getPostSlug(t);
+            const isHidden = t.data.isDraft === true || t.data.hidden === true;
+            const tags = (t.data.tags ?? []).filter(Boolean);
+            return (
+              <li class:list={["thoughts__entry", { "is-hidden": isHidden }]}>
+                <article class="thoughts__row">
+                  <time
+                    class="ui-meta thoughts__date"
+                    datetime={t.data.published}
+                  >
+                    {dateLabel(t.data.published)}
+                  </time>
+                  <div class="thoughts__main">
+                    {t.data.title ? (
+                      <h2 class="thoughts__title">
+                        <a
+                          class="ui-link ui-link--title"
+                          href={`/thoughts/${slug}`}
+                        >
+                          {t.data.title}
+                        </a>
+                      </h2>
+                    ) : (
+                      <p class="thoughts__excerpt">
+                        <a
+                          class="ui-link ui-link--title"
+                          href={`/thoughts/${slug}`}
+                        >
+                          {excerpt(t.body ?? "")}
+                        </a>
+                      </p>
+                    )}
+                    {tags.length ? (
+                      <span class="ui-meta thoughts__tags">
+                        {tags.map((tag) => `#${tag}`).join(" ")}
+                      </span>
+                    ) : null}
+                  </div>
+                </article>
+              </li>
+            );
+          })}
+        </ul>
+      )
+    }
+
+    <div class="ui-meta thoughts__foot">
+      {sorted.length} note{sorted.length === 1 ? "" : "s"}
+    </div>
+  </main>
+</RootLayout>
+
+<style lang="scss">
+  .thoughts {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .thoughts__entry {
+    border-bottom: 1px solid var(--rule);
+
+    &.is-hidden {
+      opacity: 0.55;
+    }
+  }
+
+  .thoughts__row {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    column-gap: var(--space-8);
+    align-items: baseline;
+    padding: var(--space-6) 0;
+  }
+
+  .thoughts__date {
+    color: var(--text-3);
+    white-space: nowrap;
+    padding-top: 2px;
+  }
+
+  .thoughts__main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .thoughts__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-medium);
+    letter-spacing: var(--tracking-snug);
+    line-height: 1.3;
+    color: var(--text-1);
+  }
+
+  .thoughts__excerpt {
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: var(--font-size-md);
+    line-height: 1.5;
+    color: var(--text-2);
+  }
+
+  .thoughts__tags {
+    color: var(--text-3);
+  }
+
+  .thoughts__empty {
+    padding: var(--space-12) 0;
+    border-top: 1px solid var(--rule);
+    color: var(--text-3);
+    font-family: var(--font-body);
+    text-align: center;
+  }
+
+  .thoughts__foot {
+    margin-top: var(--space-8);
+  }
+
+  @media (max-width: 600px) {
+    .thoughts__row {
+      grid-template-columns: 1fr;
+      row-gap: var(--space-3);
+    }
+
+    .thoughts__date {
+      padding-top: 0;
+    }
+  }
+</style>

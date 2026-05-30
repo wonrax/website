@@ -22,4 +22,18 @@ const blog = defineCollection({
   }),
 });
 
-export const collections = { blog };
+const thoughts = defineCollection({
+  loader: glob({ pattern: "**/*.{md,mdx}", base: "./src/content/thoughts" }),
+  schema: z.object({
+    title: z.string().optional(),
+    published: z.string(),
+    updated: z.string().optional(),
+    tags: z.array(z.string()).optional().default([]),
+    slug: z.string().optional(),
+    isDraft: z.boolean().optional(),
+    hidden: z.boolean().optional(),
+    ogImageUrl: z.string().optional(),
+  }),
+});
+
+export const collections = { blog, thoughts };
