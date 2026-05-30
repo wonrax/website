@@ -11,7 +11,7 @@ lâu.
 không nói với nhau một lời từ đầu tới cuối, trong đầu họ tiếp tục vẽ ra những ý
 tưởng tuyệt vời nhất về đối phương - như cái cách mà họ vẫn đã làm trong những
 khoảng thời gian vừa qua. không bị bó buộc về các trách nhiệm, họ có thể tận
-hưởng trọn vẹn cái ý niệm về một người bạn trai hay bạn gái hoàn hảo, hay bất
+hưởng trọn vẹn cái ý niệm về một người bạn trai và bạn gái hoàn hảo, hay bất
 cứ thứ gì cái thùy trán của họ có thể tưởng tượng ra.
 
 bởi vì ngôn ngữ, thứ dẫn đến các cuộc trò chuyện về sự thấu hiểu và nhận thức
