@@ -2,7 +2,7 @@
   description = "Development and build environment for wrx.sh monorepo";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/release-25.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/release-26.05";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
 
@@ -11,13 +11,9 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    prisma-utils = {
-      url = "github:VanCoding/nix-prisma-utils";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-        flake-utils.follows = "flake-utils";
-      };
-    };
+    # nix-prisma-utils declares no inputs of its own (its lib takes `pkgs`
+    # directly), so there is nothing to `follows` here.
+    prisma-utils.url = "github:VanCoding/nix-prisma-utils";
 
     crane.url = "github:ipetkov/crane";
   };
@@ -47,9 +43,9 @@
           inherit pkgs;
           hash =
             if pkgs.stdenv.hostPlatform.isLinux then
-              "sha256-snLKY3X1+XJDiM7b02JhwBw/6EMKjQTmkSKdRrn1OsY="
+              "sha256-8UgfgblhrvU6ISDZmdp7vKqE1eiRltATEF1AFzL3Yas="
             else
-              "sha256-9NubR/ofNXWTPXKX8xm1VSq5XNHmqCUo5aY2lImfpd4=";
+              "sha256-622mWEjkdbHwZC8hZe/6lHkekI/5evulFN+Zwdspc30=";
           npmLock = ./package-lock.json;
         };
 

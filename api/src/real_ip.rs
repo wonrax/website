@@ -55,7 +55,7 @@ async fn load_cloudflare_prefixes() -> Vec<IpNetwork> {
         fetch_list("https://www.cloudflare.com/ips-v6"),
     );
 
-    v4.into_iter().chain(v6.into_iter()).collect()
+    v4.into_iter().chain(v6).collect()
 }
 
 async fn get_cloudflare_prefixes() -> &'static Vec<IpNetwork> {

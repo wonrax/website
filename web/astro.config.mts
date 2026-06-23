@@ -1,6 +1,7 @@
 import mdx from "@astrojs/mdx";
 import react from "@astrojs/react";
 import remarkCalloutDirectives from "@microflash/remark-callout-directives";
+import { unified } from "@astrojs/markdown-remark";
 import { defineConfig, sharpImageService } from "astro/config";
 import rehypeKatex from "rehype-katex";
 import rehypePrettyCode from "rehype-pretty-code";
@@ -66,35 +67,44 @@ const codeHighlightOptions = {
 // https://astro.build/config
 export default defineConfig({
   site: "https://wrx.sh",
+  // Astro v7 changed the default to 'jsx'; keep v6's `true` behaviour so the
+  // upgrade doesn't alter rendered whitespace. Switch to 'jsx' deliberately if
+  // wanted.
+  compressHTML: true,
   markdown: {
     syntaxHighlight: false,
-    remarkPlugins: [
-      remarkMath,
-      remarkDirective,
-      [
-        remarkCalloutDirectives,
-        {
-          callouts: {
-            note: {
-              title: "Note",
-              hint: "",
-            },
-            warning: {
-              title: "Warning",
-              hint: "",
+    // Astro v7 defaults to the Sätteri pipeline; opt back into the unified
+    // remark/rehype processor (via @astrojs/markdown-remark) that these plugins
+    // target. gfm/smartypants still default to true, matching v6.
+    processor: unified({
+      remarkPlugins: [
+        remarkMath,
+        remarkDirective,
+        [
+          remarkCalloutDirectives,
+          {
+            callouts: {
+              note: {
+                title: "Note",
+                hint: "",
+              },
+              warning: {
+                title: "Warning",
+                hint: "",
+              },
             },
           },
-        },
+        ],
+        remarkDirectiveHtml,
+        remarkResponsiveImage,
       ],
-      remarkDirectiveHtml,
-      remarkResponsiveImage,
-    ],
-    rehypePlugins: [
-      rehypeKatex,
-      [rehypePrettyCode, codeHighlightOptions],
-      rehypeCodeGroup,
-      rehypeBlogPost,
-    ],
+      rehypePlugins: [
+        rehypeKatex,
+        [rehypePrettyCode, codeHighlightOptions],
+        rehypeCodeGroup,
+        rehypeBlogPost,
+      ],
+    }),
   },
   integrations: [
     mdx(),

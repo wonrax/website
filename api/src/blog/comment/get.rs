@@ -244,7 +244,7 @@ fn intermediate_tree_sort(comments: Vec<CommentTree>, sort: &SortType) -> Vec<Co
                     });
                 }
                 SortType::New => {
-                    children.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+                    children.sort_by_key(|b| std::cmp::Reverse(b.created_at));
                 }
             }
 

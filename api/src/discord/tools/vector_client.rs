@@ -242,8 +242,8 @@ impl VectorClient {
             query_result.distances.take().and_then(|mut v| v.pop()),
         ) {
             ids.into_iter()
-                .zip(documents.into_iter())
-                .zip(distances.into_iter())
+                .zip(documents)
+                .zip(distances)
                 .zip(
                     query_result
                         .metadatas

@@ -315,44 +315,42 @@ pub async fn insert_article(
     } = article;
 
     Ok(conn
-        .transaction(|conn| {
-            Box::pin(async move {
-                let new_item = crate::models::recommendation::NewOnlineArticle {
-                    url: canonical_url.to_string(),
-                    title,
-                    content_text: None,
-                    recommender_terms: (!recommender_terms.is_empty())
-                        .then_some(serde_json::json!(recommender_terms)),
+        .transaction(async move |conn| {
+            let new_item = crate::models::recommendation::NewOnlineArticle {
+                url: canonical_url.to_string(),
+                title,
+                content_text: None,
+                recommender_terms: (!recommender_terms.is_empty())
+                    .then_some(serde_json::json!(recommender_terms)),
+            };
+
+            let article_id = diesel::insert_into(articles_dsl::online_articles)
+                .values(&new_item)
+                .returning(articles_dsl::id)
+                .get_result::<i32>(conn)
+                .await?;
+
+            insert_article_chunks(conn, article_id, &embeddings).await?;
+
+            if let Some(source_entry) = source_entry {
+                let metadata_json = serde_json::json!({
+                    "editorialized_title": source_entry.title,
+                    "external_id": source_entry.external_id,
+                });
+                let new_metadata = crate::models::recommendation::NewArticleMetadata {
+                    online_article_id: article_id,
+                    source_id: source_entry.source_id,
+                    external_score: source_entry.external_score,
+                    metadata: Some(metadata_json),
+                    submitted_at: source_entry.submitted_at,
                 };
-
-                let article_id = diesel::insert_into(articles_dsl::online_articles)
-                    .values(&new_item)
-                    .returning(articles_dsl::id)
-                    .get_result::<i32>(conn)
+                diesel::insert_into(metadata_dsl::online_article_metadata)
+                    .values(&new_metadata)
+                    .execute(conn)
                     .await?;
+            }
 
-                insert_article_chunks(conn, article_id, &embeddings).await?;
-
-                if let Some(source_entry) = source_entry {
-                    let metadata_json = serde_json::json!({
-                        "editorialized_title": source_entry.title,
-                        "external_id": source_entry.external_id,
-                    });
-                    let new_metadata = crate::models::recommendation::NewArticleMetadata {
-                        online_article_id: article_id,
-                        source_id: source_entry.source_id,
-                        external_score: source_entry.external_score,
-                        metadata: Some(metadata_json),
-                        submitted_at: source_entry.submitted_at,
-                    };
-                    diesel::insert_into(metadata_dsl::online_article_metadata)
-                        .values(&new_metadata)
-                        .execute(conn)
-                        .await?;
-                }
-
-                Ok::<_, diesel::result::Error>(article_id)
-            })
+            Ok::<_, diesel::result::Error>(article_id)
         })
         .await?)
 }

@@ -206,7 +206,7 @@ fn sort_vec(comments: Vec<Rc<Comment>>) -> Vec<Rc<Comment>> {
         let sorted_children = sort_vec(children);
 
         // emplace the children back into the result array
-        result.splice(curr + 1..curr + 1, sorted_children.into_iter());
+        result.splice(curr + 1..curr + 1, sorted_children);
 
         curr += children_length + 1;
     }
