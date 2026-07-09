@@ -153,7 +153,7 @@ pub fn create_agent_session(
 
     // Create memory tools if Qdrant is configured
     let mut agent_builder = llm_client
-        .agent("z-ai/glm-5.2")
+        .agent("x-ai/grok-4.5")
         .preamble(SYSTEM_PROMPT)
         .tool(discord_tool)
         .tool(fetch_tool)
