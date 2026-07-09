@@ -83,6 +83,7 @@ impl AgentSession {
                 })
                 .with_history(&self.conversation_history)
                 .max_turns(MAX_AGENT_TURNS)
+                .extended_details()
                 .await
                 .inspect_err(|_| {
                     // remove all tool calls and tool results in case of this error:
@@ -102,7 +103,16 @@ impl AgentSession {
                     });
                 })?;
 
-            if response.trim().ends_with("[END]") {
+            // As of rig 0.39, `with_history` no longer folds the run's messages
+            // back into the passed history; the prompt, assistant replies, and
+            // tool calls/results come back only via `extended_details`. Persist
+            // them ourselves so the next round — and the next Discord message —
+            // can see what the agent did, including the replies it already posted.
+            if let Some(messages) = response.messages {
+                self.conversation_history.extend(messages);
+            }
+
+            if response.output.trim().ends_with("[END]") {
                 break;
             }
         }
