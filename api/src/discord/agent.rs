@@ -7,7 +7,7 @@ use rig::{
     agent::Agent,
     client::CompletionClient,
     completion::{Message as RigMessage, Prompt},
-    providers::gemini::{Client, completion::CompletionModel},
+    providers::openrouter::{Client, CompletionModel},
 };
 use serenity::all::{ChannelId, Context};
 use std::sync::Arc;
@@ -42,9 +42,9 @@ impl AgentSession {
         if self.conversation_history.len() > max_history {
             let mut excess = self.conversation_history.len() - max_history;
 
-            // Gemini API requires:
-            // 1. The conversation MUST start with a "user" role.
-            // 2. Tool results (function role) are treated as "user" messages in Rig's Gemini provider.
+            // Resume trimming at a clean turn boundary: the first User message
+            // that isn't a tool result. Starting on a tool result would orphan
+            // it from its originating tool call, which providers reject.
             while excess < self.conversation_history.len() {
                 // Must start with User (non-tool-result)
                 let is_valid_start = match &self.conversation_history[excess] {
@@ -129,8 +129,8 @@ pub fn create_agent_session(
     shared_vectordb_client: Option<SharedVectorClient>,
     initial_history: Vec<RigMessage>,
 ) -> Result<AgentSession, eyre::Error> {
-    // Create OpenAI client and build agent
-    let llm_client = Client::new(openai_api_key).context("Failed to create Gemini client")?;
+    // Create OpenRouter client (OpenAI-compatible) and build agent
+    let llm_client = Client::new(openai_api_key).context("Failed to create OpenRouter client")?;
 
     // Create tools with shared context
     let ctx_arc = Arc::new(discord_ctx.clone());
@@ -153,7 +153,7 @@ pub fn create_agent_session(
 
     // Create memory tools if Qdrant is configured
     let mut agent_builder = llm_client
-        .agent("gemini-3.5-flash")
+        .agent("z-ai/glm-5.2")
         .preamble(SYSTEM_PROMPT)
         .tool(discord_tool)
         .tool(fetch_tool)
