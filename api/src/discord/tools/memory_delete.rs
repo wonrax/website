@@ -58,7 +58,7 @@ impl Tool for MemoryDeleteTool {
         ToolDefinition {
             name: "memory_delete".to_string(),
             description: format!(
-                "Delete stored memories from the vector database for channel {} by specific memory IDs. Look them up first with memory_find. BE CAREFUL - deletions are permanent.",
+                "Permanently delete channel {} memories that are wrong, obsolete, or that a user asked to remove. Ids come from memory_find. After deleting, tell the channel in one short line via send_discord_message.",
                 self.channel_id
             ),
             parameters: json!({

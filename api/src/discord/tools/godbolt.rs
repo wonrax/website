@@ -120,7 +120,7 @@ impl Tool for Godbolt {
                 "type": "object",
                 "properties": {
                     "compiler_id": {"type": "string", "description": "Compiler id from /api/compilers/{language}"},
-                    "source": {"type": "string", "description": "Primary source code"},
+                    "source": {"type": "string", "description": "Primary source code. Symbols must be public/extern or Compiler Explorer emits no asm and no output (Rust: `pub fn main`, not `fn main`). Add the visibility yourself and mention it to the user."},
                     "user_arguments": {"type": ["string", "null"], "description": "Compiler flags"},
                     "files": {"type": ["array", "null"], "items": {"type": "object", "properties": {"filename": {"type": "string"}, "contents": {"type": "string"}}, "required": ["filename", "contents"]}},
                     "libraries": {"type": ["array", "null"], "items": {"type": "object", "properties": {"id": {"type": "string"}, "version": {"type": "string"}}, "required": ["id", "version"]}},

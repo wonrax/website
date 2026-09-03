@@ -39,18 +39,18 @@ impl Tool for DiscordSendMessageTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: "send_discord_message".to_string(),
-            description: "Send a message to the Discord channel. Use this to respond to users."
+            description: "Send a message to the Discord channel. This is the only way users see anything you produce; raw text output never reaches Discord. Mention users with <@USER_ID> using the IDs from the message headers. Several short messages beat one wall of text when the channel is chatting in short bursts."
                 .to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
                     "content": {
                         "type": "string",
-                        "description": "The message content to send"
+                        "description": "Message body. Discord markdown is supported; use it sparingly."
                     },
                     "reply_to_message_id": {
                         "type": ["string", "null"],
-                        "description": "The Discord message ID to reply to."
+                        "description": "The [Message ID] from the header of the message being answered. Set it when the reply targets a specific message rather than the channel at large; null otherwise."
                     }
                 },
                 "required": ["content", "reply_to_message_id"]

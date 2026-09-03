@@ -46,7 +46,7 @@ impl Tool for MemoryStoreTool {
         let properties = json!({
             "information": {
                 "type": "string",
-                "description": "Information to store in the vector database"
+                "description": "The fact, self-contained enough to make sense months later (name who it is about)."
             }
         });
 
@@ -55,7 +55,7 @@ impl Tool for MemoryStoreTool {
         ToolDefinition {
             name: "memory_store".to_string(),
             description: format!(
-                "Store information in the vector database for channel {}. Use this to save important details about users, conversations, preferences, or interesting facts for future reference in this channel.",
+                "Save a durable, future-useful fact about a user or channel {}. Most messages do not warrant a memory. Run memory_find first: if an entry on the same fact exists, use memory_update instead. After storing, tell the channel in one short line via send_discord_message.",
                 self.channel_id
             ),
             parameters: json!({

@@ -60,7 +60,7 @@ impl Tool for MemoryUpdateTool {
         ToolDefinition {
             name: "memory_update".to_string(),
             description: format!(
-                "Update existing information in the vector database for channel {}. Use this to modify or correct previously stored memories based on new information or corrections.",
+                "Replace the content of an existing channel {} memory that is outdated or incomplete. After updating, tell the channel in one short line via send_discord_message.",
                 self.channel_id
             ),
             parameters: json!({

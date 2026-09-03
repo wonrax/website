@@ -77,11 +77,11 @@ impl Tool for MemoryFindTool {
         let properties = json!({
             "query": {
                 "type": "string",
-                "description": "Query to search for in the vector database"
+                "description": "Natural-language query: a topic from the new messages, or an author's username."
             },
             "limit": {
                 "type": ["integer", "null"],
-                "description": "Maximum number of results to return (default: 10, max: 20)"
+                "description": "Result cap (default 10, max 20). Scale it with how much the response depends on what you remember."
             }
         });
 
@@ -90,7 +90,7 @@ impl Tool for MemoryFindTool {
         ToolDefinition {
             name: "memory_find".to_string(),
             description: format!(
-                "Retrieve relevant stored information from channel {} based on semantic similarity. Use this to find past conversations, user preferences, or relevant context. Note that the score from the result indicates the relevance of the memory to the query, with higher scores being more relevant on a scale from 0.0 to 1.0",
+                "Semantic search over channel {}'s memories: everything you know about these users and this channel. Query it for the new messages' authors and topics before deciding whether and how to respond, and once per session for the channel's chat preferences. Skip queries already answered in this session's tool history. Each result carries a 0.0-1.0 relevance score and the point id needed by memory_update/memory_delete. Retrieval is silent: never announce it in the channel.",
                 self.channel_id
             ),
             parameters: json!({
