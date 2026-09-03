@@ -7,7 +7,7 @@ use rig::{
     agent::Agent,
     client::CompletionClient,
     completion::{Message as RigMessage, Prompt},
-    providers::openrouter::{Client, CompletionModel},
+    providers::gemini::{Client, completion::CompletionModel},
 };
 use serenity::all::{ChannelId, Context};
 use std::sync::Arc;
@@ -129,8 +129,8 @@ pub fn create_agent_session(
     shared_vectordb_client: Option<SharedVectorClient>,
     initial_history: Vec<RigMessage>,
 ) -> Result<AgentSession, eyre::Error> {
-    // Create OpenRouter client (OpenAI-compatible) and build agent
-    let llm_client = Client::new(openai_api_key).context("Failed to create OpenRouter client")?;
+    // Create Gemini client and build agent
+    let llm_client = Client::new(openai_api_key).context("Failed to create Gemini client")?;
 
     // Create tools with shared context
     let ctx_arc = Arc::new(discord_ctx.clone());
@@ -153,7 +153,7 @@ pub fn create_agent_session(
 
     // Create memory tools if Qdrant is configured
     let mut agent_builder = llm_client
-        .agent("x-ai/grok-4.5")
+        .agent("gemini-3.8-flash")
         .preamble(SYSTEM_PROMPT)
         .tool(discord_tool)
         .tool(fetch_tool)
