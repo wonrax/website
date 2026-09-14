@@ -1,5 +1,5 @@
 use crate::discord::{
-    constants::{AGENT_HISTORY_MAX_MESSAGES, MAX_AGENT_TURNS, SYSTEM_PROMPT},
+    constants::{MAX_AGENT_TURNS, SYSTEM_PROMPT},
     tools::{
         DiscordSendMessageTool, FetchChannelHistoryTool, FetchPageContentTool,
         ViewMessageAttachmentsTool, WebSearchTool,
@@ -32,40 +32,11 @@ impl AgentSession {
         }
     }
 
-    /// Add messages to the conversation history, trimming excess if needed but new messages are
-    /// always kept
+    /// Append messages to the conversation history. Nothing is trimmed on purpose: an
+    /// append-only history keeps the prompt prefix stable, so provider prompt caching keeps
+    /// hitting. The idle timeout (`AGENT_SESSION_TIMEOUT`) is what bounds the session.
     pub fn add_messages(&mut self, messages: Vec<RigMessage>) {
-        let max_history = AGENT_HISTORY_MAX_MESSAGES.max(messages.len());
-
         self.conversation_history.extend(messages);
-
-        // TODO: leverage prompt caching to reduce cost
-        // https://platform.openai.com/docs/guides/prompt-caching
-        if self.conversation_history.len() > max_history {
-            let mut excess = self.conversation_history.len() - max_history;
-
-            // Resume trimming at a clean turn boundary: the first User message
-            // that isn't a tool result. Starting on a tool result would orphan
-            // it from its originating tool call, which providers reject.
-            while excess < self.conversation_history.len() {
-                // Must start with User (non-tool-result)
-                let is_valid_start = match &self.conversation_history[excess] {
-                    RigMessage::User { content } => !content
-                        .iter()
-                        .any(|c| matches!(c, rig::message::UserContent::ToolResult(_))),
-                    _ => false,
-                };
-
-                if !is_valid_start {
-                    excess += 1;
-                    continue;
-                }
-
-                break;
-            }
-
-            self.conversation_history.drain(0..excess);
-        }
     }
 
     /// Execute agent multi-turn conversation

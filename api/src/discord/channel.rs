@@ -106,9 +106,7 @@ struct ChannelState {
     // messages.
     discord_bot_mention_only: bool,
 
-    // Queue the incoming messages and only add them to the agent when debounced. This is because
-    // the AgentSession::add_messages handles context trimming which retains at most N new messages.
-    // We want to avoid trimming unhandled messages if called repeatedly.
+    // Incoming messages wait here until the debounce expires, then go to the agent as one batch.
     message_queue: Vec<(RigMessage, bool)>,
 }
 
