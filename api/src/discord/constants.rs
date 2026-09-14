@@ -3,9 +3,15 @@ use std::time::Duration;
 
 pub const WHITELIST_CHANNELS: [u64; 0] = [];
 
-pub const MESSAGE_CONTEXT_SIZE: usize = 20; // Number of previous messages to load for context
-pub const MESSAGE_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(15); // delay to collect messages
-pub const TYPING_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(15); // delay after typing stops
+/// Messages loaded from the channel when an agent session starts. Only a starting window: the
+/// agent pages further back on demand with `fetch_channel_history`.
+pub const MESSAGE_CONTEXT_SIZE: usize = 20;
+/// Cap on a session's conversation history, counted in rig messages: Discord messages, harness
+/// prompts, tool calls and tool results all count, and a history page is two of them. Decoupled
+/// from MESSAGE_CONTEXT_SIZE so paging tool results don't evict the Discord messages themselves.
+pub const AGENT_HISTORY_MAX_MESSAGES: usize = 60;
+pub const MESSAGE_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(5); // delay to collect messages
+pub const TYPING_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(5); // delay after typing stops
 pub const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 pub const DISCORD_BOT_NAME: &str = "The Irony Himself";
 pub const MAX_AGENT_TURNS: usize = 20; // Maximum turns for multi-turn reasoning

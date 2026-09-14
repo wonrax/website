@@ -1,16 +1,13 @@
-use std::iter::zip;
-
 use base64::Engine as _;
-use futures::StreamExt;
 use rig::{
     OneOrMany,
     completion::Message as RigMessage,
     message::{ImageDetail, ImageMediaType, MimeType, UserContent},
 };
 use scc::hash_map::OccupiedEntry;
-use serenity::all::{GuildId, Message};
+use serenity::all::{Attachment, GuildId, Message, UserId};
 
-use crate::discord::bot::Guild;
+use crate::discord::{bot::Guild, constants::URL_FETCH_TIMEOUT_SECS};
 
 // Message queue item for debouncing
 #[derive(Debug, Clone)]
@@ -18,45 +15,91 @@ pub struct QueuedMessage {
     pub message: Message,
 }
 
+/// What to do with a message's image attachments when converting it for the agent
+#[derive(Debug, Clone, Copy)]
+pub enum AttachmentMode {
+    /// Download the images into the message so the agent sees them immediately
+    Inline,
+    /// Leave them as `[Attachment: name]` placeholders the agent opens on demand with
+    /// `view_message_attachments`
+    Placeholder,
+}
+
+/// `[Message ID: id] [timestamp] Author (@author_id)`, the header the agent uses to reply
+/// to, page from, and attribute messages. Shared by the live context and the channel history
+/// tool so IDs look the same in both.
+fn message_header(msg: &Message) -> String {
+    format!(
+        "[Message ID: {}] [{}] {} (@{})",
+        msg.id.get(),
+        msg.timestamp
+            .to_rfc3339()
+            .unwrap_or_else(|| "N/A".to_string()),
+        msg.author.name,
+        msg.author.id
+    )
+}
+
+fn attachment_names(msg: &Message) -> String {
+    msg.attachments
+        .iter()
+        .map(|a| a.filename.as_str())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// `{header}: {content} [Attachment: names]`. Attachments are always named so the agent can
+/// open the ones it wasn't shown.
+fn message_line(msg: &Message, tag_as_self: bool) -> String {
+    let mut line = message_header(msg);
+    if tag_as_self {
+        line.push_str(" [you]");
+    }
+    line.push_str(": ");
+    line.push_str(&msg.content);
+    if !msg.attachments.is_empty() {
+        if !msg.content.is_empty() {
+            line.push(' ');
+        }
+        line.push_str(&format!("[Attachment: {}]", attachment_names(msg)));
+    }
+    line
+}
+
+/// `Author (message ID id): first 100 chars` of the message this one replies to. The ID lets
+/// the agent fetch the history around it.
+fn referenced_message_preview(msg: &Message) -> Option<String> {
+    const MAX_REF_MSG_LEN: usize = 100; // Maximum length for referenced message preview
+
+    msg.referenced_message.as_ref().map(|m| {
+        let mut chars = m.content.chars();
+        let mut content_preview: String = chars.by_ref().take(MAX_REF_MSG_LEN).collect();
+        if chars.next().is_some() {
+            content_preview.push_str("...");
+        }
+        format!(
+            "{} (message ID {}): {}",
+            m.author.name,
+            m.id.get(),
+            content_preview
+        )
+    })
+}
+
 /// Helper function to format Discord message content with message ID, timestamp, and username
 /// with optional bot user ID for accurate mention detection
 fn format_message_content_with_bot_id(
     msg: &Message,
-    bot_user_id: Option<serenity::model::id::UserId>,
+    bot_user_id: Option<UserId>,
     guild: &Option<OccupiedEntry<'_, GuildId, Guild>>,
 ) -> String {
-    const MAX_REF_MSG_LEN: usize = 100; // Maximum length for referenced message preview
-
-    let timestamp_str = msg.timestamp.to_rfc3339();
-    let author_name = &msg.author.name;
-    let message_id = msg.id.get();
-
     // Check if message mentions the bot
     let mentions_bot = bot_user_id
         .map(|bot_id| msg.mentions.iter().any(|u| u.id == bot_id))
         .unwrap_or(false);
 
-    // Get referenced message preview
-    let referenced_message_preview = msg
-        .referenced_message
-        .as_ref()
-        .map(|m| {
-            let content_preview = if m.content.len() > MAX_REF_MSG_LEN {
-                format!(
-                    "{}...",
-                    &m.content[..m
-                        .content
-                        .char_indices()
-                        .nth(MAX_REF_MSG_LEN)
-                        .map(|(n, _)| n)
-                        .unwrap_or(0)]
-                )
-            } else {
-                m.content.clone()
-            };
-            format!("{}: {}", m.author.name, content_preview)
-        })
-        .unwrap_or_else(|| "None".to_string());
+    let referenced_message_preview =
+        referenced_message_preview(msg).unwrap_or_else(|| "None".to_string());
 
     let user_mentions: String = msg
         .mentions
@@ -88,123 +131,92 @@ fn format_message_content_with_bot_id(
         "None".to_string()
     };
 
-    // Build context block
-    let context_block = format!(
-        "\n
+    format!(
+        "{}\n
 <<context>>
 * Replied To: [{}]
 * Mentions/Replies Bot: [{}]
 * Users mentioned in message: [{}]
 * User presence info: [{}]
 <</context>>",
-        referenced_message_preview, mentions_bot, user_mentions, user_presence
-    );
+        message_line(msg, false),
+        referenced_message_preview,
+        mentions_bot,
+        user_mentions,
+        user_presence
+    )
+}
 
-    let base_message = if msg.content.is_empty() && !msg.attachments.is_empty() {
-        // Handle attachments (images, files, etc.)
-        format!(
-            "[Message ID: {}] [{}] {} (@{}): [Attachment: {}]",
-            message_id,
-            timestamp_str.unwrap_or_else(|| "N/A".to_string()),
-            author_name,
-            msg.author.id,
-            msg.attachments
-                .iter()
-                .map(|a| a.filename.as_str())
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-    } else {
-        format!(
-            "[Message ID: {}] [{}] {} (@{}): {}",
-            message_id,
-            timestamp_str.unwrap_or_else(|| "N/A".to_string()),
-            author_name,
-            msg.author.id,
-            msg.content
-        )
-    };
+/// Rendering for history the agent fetches on demand: the same header as the live context,
+/// no context block, and the bot's own messages tagged `[you]`.
+pub fn format_message_compact(msg: &Message, bot_user_id: UserId) -> String {
+    let mut line = message_line(msg, msg.author.id == bot_user_id);
+    if let Some(reply) = referenced_message_preview(msg) {
+        line.push_str("\n  ↪ replying to ");
+        line.push_str(&reply);
+    }
+    line
+}
 
-    format!("{}{}", base_message, context_block)
+/// The image type of an attachment, when it is one the agent can view
+pub fn image_media_type(attachment: &Attachment) -> Option<ImageMediaType> {
+    attachment
+        .content_type
+        .as_deref()
+        .and_then(ImageMediaType::from_mime_type)
+}
+
+/// Downloads an attachment through Discord's media proxy
+pub async fn download_attachment(attachment: &Attachment) -> Result<Vec<u8>, eyre::Error> {
+    let client = reqwest::Client::builder()
+        .timeout(URL_FETCH_TIMEOUT_SECS)
+        .build()?;
+    let response = client
+        .get(&attachment.proxy_url)
+        .send()
+        .await?
+        .error_for_status()?;
+    Ok(response.bytes().await?.to_vec())
 }
 
 /// Helper function to convert a Discord message to a RigMessage
 pub async fn discord_message_to_rig_message(
     msg: &Message,
-    bot_user_id: serenity::model::id::UserId,
+    bot_user_id: UserId,
     guild: &Option<OccupiedEntry<'_, GuildId, Guild>>,
+    attachments: AttachmentMode,
 ) -> RigMessage {
-    let is_bot_message = msg.author.id == bot_user_id;
+    let text_content = format_message_content_with_bot_id(msg, Some(bot_user_id), guild);
 
-    if is_bot_message {
+    if msg.author.id == bot_user_id {
         // For bot messages, just use text content
-        let content = format_message_content_with_bot_id(msg, Some(bot_user_id), guild);
-        RigMessage::assistant(content)
-    } else {
-        // For user messages, handle both text and images
-        let mut content_parts = Vec::new();
+        return RigMessage::assistant(text_content);
+    }
 
-        // Add text content first
-        let text_content = format_message_content_with_bot_id(msg, Some(bot_user_id), guild);
-        content_parts.push(UserContent::text(text_content.clone()));
+    let mut content_parts = vec![UserContent::text(text_content.clone())];
 
-        // fetch images in batch
-        let images_iter = msg.attachments.iter().filter_map(|attachment| {
-            attachment
-                .content_type
-                .as_ref()
-                .and_then(|ct| ImageMediaType::from_mime_type(ct))
-                .map(|media_type| (&attachment.proxy_url, media_type))
-        });
-
-        let images: Vec<_> = futures::stream::iter(images_iter.clone())
-            .then(|(url, _)| reqwest::get(url))
-            .filter_map(async |resp| match resp {
-                Ok(r) if r.status().is_success() => Some(r.bytes()),
-                Ok(r) => {
-                    tracing::error!(
-                        status = r.status().as_u16(),
-                        "Failed to fetch image from Discord attachment due to non-success status"
-                    );
-
-                    None
-                }
-                Err(error) => {
-                    tracing::error!(
-                        ?error,
-                        "Failed to fetch image from Discord attachment due to HTTP error"
-                    );
-
-                    None
-                }
-            })
-            .filter_map(async |bytes_result| match bytes_result.await {
-                Ok(bytes) => Some(bytes),
-                Err(error) => {
-                    tracing::error!(
-                        ?error,
-                        "Failed to read image bytes from Discord attachment response"
-                    );
-
-                    None
-                }
-            })
-            .collect()
-            .await;
-
-        content_parts.extend(
-            zip(images, images_iter).map(|(image_bytes, (_, media_type))| {
-                UserContent::image_base64(
-                    base64::prelude::BASE64_STANDARD.encode(&image_bytes),
+    if let AttachmentMode::Inline = attachments {
+        for attachment in &msg.attachments {
+            let Some(media_type) = image_media_type(attachment) else {
+                continue;
+            };
+            match download_attachment(attachment).await {
+                Ok(bytes) => content_parts.push(UserContent::image_base64(
+                    base64::prelude::BASE64_STANDARD.encode(&bytes),
                     Some(media_type),
                     Some(ImageDetail::Auto),
-                )
-            }),
-        );
-
-        match OneOrMany::many(content_parts) {
-            Ok(content) => RigMessage::from(content),
-            Err(_) => RigMessage::user(text_content), // Fallback to text-only if content list is empty
+                )),
+                Err(error) => tracing::error!(
+                    ?error,
+                    filename = %attachment.filename,
+                    "Failed to fetch image from Discord attachment"
+                ),
+            }
         }
+    }
+
+    match OneOrMany::many(content_parts) {
+        Ok(content) => RigMessage::from(content),
+        Err(_) => RigMessage::user(text_content), // Fallback to text-only if content list is empty
     }
 }

@@ -1,3 +1,4 @@
+pub mod channel_history;
 pub mod discord_message;
 pub mod fetch_content;
 pub mod godbolt;
@@ -5,9 +6,11 @@ pub mod memory_delete;
 pub mod memory_find;
 pub mod memory_store;
 pub mod memory_update;
+pub mod message_attachments;
 pub mod vector_client;
 pub mod web_search;
 
+pub use channel_history::*;
 pub use discord_message::*;
 pub use fetch_content::*;
 pub use godbolt::*;
@@ -15,5 +18,6 @@ pub use memory_delete::*;
 pub use memory_find::*;
 pub use memory_store::*;
 pub use memory_update::*;
+pub use message_attachments::*;
 pub use vector_client::*;
 pub use web_search::*;

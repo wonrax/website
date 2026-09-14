@@ -1,6 +1,9 @@
 use crate::discord::{
-    constants::{MAX_AGENT_TURNS, MESSAGE_CONTEXT_SIZE, SYSTEM_PROMPT},
-    tools::{DiscordSendMessageTool, FetchPageContentTool, WebSearchTool},
+    constants::{AGENT_HISTORY_MAX_MESSAGES, MAX_AGENT_TURNS, SYSTEM_PROMPT},
+    tools::{
+        DiscordSendMessageTool, FetchChannelHistoryTool, FetchPageContentTool,
+        ViewMessageAttachmentsTool, WebSearchTool,
+    },
 };
 use eyre::Context as _;
 use rig::{
@@ -32,8 +35,7 @@ impl AgentSession {
     /// Add messages to the conversation history, trimming excess if needed but new messages are
     /// always kept
     pub fn add_messages(&mut self, messages: Vec<RigMessage>) {
-        let max_history =
-            ((MESSAGE_CONTEXT_SIZE as f32 * 1.5f32).floor() as usize).max(messages.len());
+        let max_history = AGENT_HISTORY_MAX_MESSAGES.max(messages.len());
 
         self.conversation_history.extend(messages);
 
@@ -138,6 +140,15 @@ pub fn create_agent_session(
         ctx: ctx_arc.clone(),
         channel_id,
     };
+    let history_tool = FetchChannelHistoryTool {
+        ctx: ctx_arc.clone(),
+        channel_id,
+        bot_user_id: discord_ctx.cache.current_user().id,
+    };
+    let attachments_tool = ViewMessageAttachmentsTool {
+        ctx: ctx_arc.clone(),
+        channel_id,
+    };
     let fetch_tool = FetchPageContentTool;
     let web_search_tool = WebSearchTool;
 
@@ -156,6 +167,8 @@ pub fn create_agent_session(
         .agent("gemini-3.8-flash")
         .preamble(SYSTEM_PROMPT)
         .tool(discord_tool)
+        .tool(history_tool)
+        .tool(attachments_tool)
         .tool(fetch_tool)
         .tool(web_search_tool)
         .tool(gb_compile)

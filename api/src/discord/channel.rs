@@ -18,7 +18,7 @@ use crate::discord::{
         AGENT_SESSION_TIMEOUT, MESSAGE_CONTEXT_SIZE, MESSAGE_DEBOUNCE_TIMEOUT,
         TYPING_DEBOUNCE_TIMEOUT,
     },
-    message::{QueuedMessage, discord_message_to_rig_message},
+    message::{AttachmentMode, QueuedMessage, discord_message_to_rig_message},
     tools,
 };
 
@@ -123,7 +123,15 @@ impl ChannelState {
                     .filter(|msg| !msg.content.trim().is_empty() || !msg.attachments.is_empty())
             })
             .take(MESSAGE_CONTEXT_SIZE)
-            .then(async |m| discord_message_to_rig_message(&m, self.bot_user_id, &None).await)
+            .then(async |m| {
+                discord_message_to_rig_message(
+                    &m,
+                    self.bot_user_id,
+                    &None,
+                    AttachmentMode::Placeholder,
+                )
+                .await
+            })
             .collect::<Vec<_>>()
             .await
             .into_iter()
@@ -188,6 +196,7 @@ impl ChannelState {
                                     &msg.message,
                                     self.bot_user_id,
                                     &guild,
+                                    AttachmentMode::Inline,
                                 ).await;
 
 
