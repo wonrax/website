@@ -39,56 +39,55 @@ impl AgentSession {
         self.conversation_history.extend(messages);
     }
 
-    /// Execute agent multi-turn conversation
+    /// Run the agent over the conversation: the newest history entry is the prompt and
+    /// everything before it is the history. rig drives the tool-call loop itself, up to
+    /// `MAX_AGENT_TURNS` model calls.
     #[instrument(skip(self))]
     pub async fn execute_agent_multi_turn(&mut self) -> Result<(), eyre::Error> {
-        if self.conversation_history.is_empty() {
+        let Some(prompt) = self.conversation_history.pop() else {
             return Err(eyre::eyre!("Empty conversation history"));
+        };
+        if !matches!(prompt, RigMessage::User { .. }) {
+            // Nothing to respond to: the newest message is the bot's own. Happens when a
+            // startup `ForceProcess` finds the channel already answered.
+            self.conversation_history.push(prompt);
+            tracing::debug!("Skipping agent run: newest message is not from a user");
+            return Ok(());
         }
 
-        for i in 0..MAX_AGENT_TURNS {
-            let response = self
-                .agent
-                .prompt(if i == 0 {
-                    "[SYSTEM]: New messages are added, respond appropriately. Output [END] if no further action is needed."
-                } else {
-                    "[SYSTEM]: Continue processing the conversation. Output [END] if no further action is needed."
-                })
-                .with_history(&self.conversation_history)
-                .max_turns(MAX_AGENT_TURNS)
-                .extended_details()
-                .await
-                .inspect_err(|_| {
-                    // remove all tool calls and tool results in case of this error:
-                    // "The following tool_call_ids did not have response messages: call_UZH253hv9o9RYVHjRxS"
-                    self.conversation_history.retain(|msg| match msg {
-                        RigMessage::System { .. } => true,
-                        RigMessage::User { content } => {
-                            !content.iter().any(|c| {
-                                matches!(c, rig::message::UserContent::ToolResult(_))
-                            })
-                        }
-                        RigMessage::Assistant { content, .. } => {
-                            !content.iter().any(|c| {
-                                matches!(c, rig::message::AssistantContent::ToolCall(_))
-                            })
-                        }
-                    });
-                })?;
+        let result = self
+            .agent
+            .prompt(&prompt)
+            .with_history(&self.conversation_history)
+            .max_turns(MAX_AGENT_TURNS)
+            .extended_details()
+            .await;
 
-            // As of rig 0.39, `with_history` no longer folds the run's messages
-            // back into the passed history; the prompt, assistant replies, and
-            // tool calls/results come back only via `extended_details`. Persist
-            // them ourselves so the next round — and the next Discord message —
-            // can see what the agent did, including the replies it already posted.
-            if let Some(messages) = response.messages {
-                self.conversation_history.extend(messages);
+        let response = match result {
+            Ok(response) => response,
+            Err(e) => {
+                self.conversation_history.push(prompt);
+                // remove all tool calls and tool results in case of this error:
+                // "The following tool_call_ids did not have response messages: call_UZH253hv9o9RYVHjRxS"
+                self.conversation_history.retain(|msg| match msg {
+                    RigMessage::System { .. } => true,
+                    RigMessage::User { content } => !content
+                        .iter()
+                        .any(|c| matches!(c, rig::message::UserContent::ToolResult(_))),
+                    RigMessage::Assistant { content, .. } => !content
+                        .iter()
+                        .any(|c| matches!(c, rig::message::AssistantContent::ToolCall(_))),
+                });
+                return Err(e.into());
             }
+        };
 
-            if response.output.trim().ends_with("[END]") {
-                break;
-            }
-        }
+        // As of rig 0.39, `with_history` no longer folds the run's messages back into the
+        // passed history; the prompt, assistant replies, and tool calls/results come back
+        // only via `extended_details`. Persist them ourselves so the next Discord message
+        // can see what the agent did, including the replies it already posted.
+        self.conversation_history
+            .extend(response.messages.unwrap_or_else(|| vec![prompt]));
 
         Ok(())
     }
