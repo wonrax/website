@@ -1,8 +1,8 @@
 use crate::discord::{
     constants::{MAX_AGENT_TURNS, SYSTEM_PROMPT},
     tools::{
-        DiscordSendMessageTool, FetchChannelHistoryTool, FetchPageContentTool,
-        ViewMessageAttachmentsTool, WebSearchTool,
+        DiscordSendMessageTool, FetchChannelHistoryTool, FetchMessageTool, FetchMessageUserIdsTool,
+        FetchPageContentTool, Firecrawl, ViewMessageAttachmentsTool, WebSearchTool,
     },
 };
 use eyre::Context as _;
@@ -100,6 +100,7 @@ pub fn create_agent_session(
     channel_id: ChannelId,
     openai_api_key: &str,
     shared_vectordb_client: Option<SharedVectorClient>,
+    firecrawl: Option<Firecrawl>,
     initial_history: Vec<RigMessage>,
 ) -> Result<AgentSession, eyre::Error> {
     // Create Gemini client and build agent
@@ -107,6 +108,7 @@ pub fn create_agent_session(
 
     // Create tools with shared context
     let ctx_arc = Arc::new(discord_ctx.clone());
+    let bot_user_id = discord_ctx.cache.current_user().id;
     let discord_tool = DiscordSendMessageTool {
         ctx: ctx_arc.clone(),
         channel_id,
@@ -114,14 +116,21 @@ pub fn create_agent_session(
     let history_tool = FetchChannelHistoryTool {
         ctx: ctx_arc.clone(),
         channel_id,
-        bot_user_id: discord_ctx.cache.current_user().id,
+        bot_user_id,
+    };
+    let message_tool = FetchMessageTool {
+        ctx: ctx_arc.clone(),
+        channel_id,
+        bot_user_id,
+    };
+    let user_ids_tool = FetchMessageUserIdsTool {
+        ctx: ctx_arc.clone(),
+        channel_id,
     };
     let attachments_tool = ViewMessageAttachmentsTool {
         ctx: ctx_arc.clone(),
         channel_id,
     };
-    let fetch_tool = FetchPageContentTool;
-    let web_search_tool = WebSearchTool;
 
     // Godbolt tools
     let gb_compile = crate::discord::tools::Godbolt;
@@ -139,9 +148,9 @@ pub fn create_agent_session(
         .preamble(SYSTEM_PROMPT)
         .tool(discord_tool)
         .tool(history_tool)
+        .tool(message_tool)
+        .tool(user_ids_tool)
         .tool(attachments_tool)
-        .tool(fetch_tool)
-        .tool(web_search_tool)
         .tool(gb_compile)
         .tool(gb_langs)
         .tool(gb_compilers)
@@ -150,6 +159,14 @@ pub fn create_agent_session(
         .tool(gb_format)
         .tool(gb_asm)
         .tool(gb_ver);
+
+    if let Some(firecrawl) = firecrawl {
+        agent_builder = agent_builder
+            .tool(WebSearchTool {
+                firecrawl: firecrawl.clone(),
+            })
+            .tool(FetchPageContentTool { firecrawl });
+    }
 
     if let Some(shared_vectordb_client) = shared_vectordb_client {
         let store_tool = crate::discord::tools::MemoryStoreTool::new_with_client(

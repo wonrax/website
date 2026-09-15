@@ -13,7 +13,7 @@ use serenity::prelude::*;
 use std::sync::Arc;
 use tracing::instrument;
 
-use super::tools::SharedVectorClient;
+use super::tools::{Firecrawl, SharedVectorClient};
 
 pub(crate) struct Guild {
     pub presences: scc::HashMap<UserId, Vec<Activity>>,
@@ -24,6 +24,7 @@ pub struct DiscordEventHandler {
     guilds: Arc<scc::HashMap<GuildId, Guild>>,
 
     shared_vectordb_client: Option<SharedVectorClient>,
+    firecrawl: Option<Firecrawl>,
     openai_api_key: String,
     whitelist_channels: Vec<ChannelId>,
     bot_user_id: ArcSwap<Option<serenity::model::id::UserId>>,
@@ -45,6 +46,18 @@ impl DiscordEventHandler {
             None => None,
         };
 
+        let firecrawl = match server_config.firecrawl_api_key.clone() {
+            Some(api_key) => Firecrawl::new(api_key)
+                .inspect_err(|e| tracing::error!(?e, "Failed to create the Firecrawl client"))
+                .ok(),
+            None => {
+                tracing::warn!(
+                    "FIRECRAWL_API_KEY is not set; the agent will have no web search or page fetching"
+                );
+                None
+            }
+        };
+
         Self {
             channel_handles: Arc::new(scc::HashMap::new()),
             guilds: Arc::new(scc::HashMap::new()),
@@ -54,6 +67,7 @@ impl DiscordEventHandler {
                 .map(|id| ChannelId::new(*id))
                 .collect(),
             shared_vectordb_client,
+            firecrawl,
             bot_user_id: ArcSwap::from_pointee(None),
             openai_api_key: server_config.openai_api_key.clone().unwrap_or_default(),
             discord_bot_mention_only: server_config.discord_mention_only,
@@ -121,8 +135,9 @@ impl DiscordEventHandler {
         Ok(())
     }
 
-    /// Check if a channel has a recent mention of the bot or a reply to the bot
-    /// in the last MESSAGE_CONTEXT_SIZE messages
+    /// Whether the last MESSAGE_CONTEXT_SIZE messages hold a mention of the bot, or a reply to
+    /// it, that the bot has not posted since. A newer message of its own means it already handled
+    /// the mention before this restart, and running the agent again would answer it twice.
     #[instrument(skip(self, ctx))]
     async fn has_recent_mention(
         &self,
@@ -137,29 +152,32 @@ impl DiscordEventHandler {
             None => return Ok(false),
         };
 
-        let has_mention = channel_id
-            .messages_iter(&ctx.http)
-            .take(MESSAGE_CONTEXT_SIZE)
-            .any(|msg_result| async move {
-                match msg_result {
-                    Ok(msg) => {
-                        // Check if message mentions the bot
-                        let mentions_bot = msg.mentions.iter().any(|user| user.id == bot_id);
+        // Newest first, so the first message that is either the bot's own or a mention decides
+        let mut messages = std::pin::pin!(
+            channel_id
+                .messages_iter(&ctx.http)
+                .take(MESSAGE_CONTEXT_SIZE)
+        );
+        while let Some(msg) = messages.next().await {
+            let Ok(msg) = msg else {
+                continue;
+            };
 
-                        // Check if message is replying to a bot message
-                        let replying_to_bot = msg
-                            .referenced_message
-                            .as_ref()
-                            .is_some_and(|replied_msg| replied_msg.author.id == bot_id);
+            if msg.author.id == bot_id {
+                return Ok(false);
+            }
 
-                        mentions_bot || replying_to_bot
-                    }
-                    Err(_) => false,
-                }
-            })
-            .await;
+            let mentions_bot = msg.mentions.iter().any(|user| user.id == bot_id);
+            let replying_to_bot = msg
+                .referenced_message
+                .as_ref()
+                .is_some_and(|replied_msg| replied_msg.author.id == bot_id);
+            if mentions_bot || replying_to_bot {
+                return Ok(true);
+            }
+        }
 
-        Ok(has_mention)
+        Ok(false)
     }
 
     /// Check if a channel has recent activity (messages within the last hour)
@@ -218,6 +236,7 @@ impl DiscordEventHandler {
                     channel_id,
                     self.openai_api_key.clone(),
                     self.shared_vectordb_client.clone(),
+                    self.firecrawl.clone(),
                     self.discord_bot_mention_only,
                     self.guilds.clone(),
                 )

@@ -1,21 +1,31 @@
-use crate::discord::constants::URL_FETCH_TIMEOUT_SECS;
+use crate::discord::tools::firecrawl::{Firecrawl, SearchHit};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
 
+/// Results when the agent doesn't ask for a count
+const DEFAULT_LIMIT: u32 = 5;
+/// Tool results are resent with every model turn for the rest of the session, so pages stay small
+const MAX_LIMIT: u32 = 10;
+
 #[derive(Debug, Clone)]
-pub struct WebSearchTool;
+pub struct WebSearchTool {
+    pub firecrawl: Firecrawl,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebSearchArgs {
     pub query: String,
+
+    #[serde(default)]
+    pub limit: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebSearchOutput {
-    pub content: String,
     pub success: bool,
+    pub results: Vec<SearchHit>,
     pub error: Option<String>,
 }
 
@@ -31,100 +41,43 @@ impl Tool for WebSearchTool {
 
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
-            name: "web_search".to_string(),
-            description: "Search the web using DuckDuckGo and extract readable content from the search results page. Returns the search results as readable text content. Use this tool sparingly to avoid being flagged as a bot".to_string(),
+            name: Self::NAME.to_string(),
+            description: "Search the web and get the top results as title, URL, and snippet. The snippets are not the pages; when a result looks relevant, read it with fetch_page_content."
+                .to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Search query"
+                        "description": "Search query, as typed into a search engine. Under 500 characters."
+                    },
+                    "limit": {
+                        "type": ["integer", "null"],
+                        "description": "Results to return, 1-10. Default 5."
                     }
                 },
-                "required": ["query"]
+                "required": ["query", "limit"]
             }),
         }
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        match perform_web_search(&args.query).await {
-            Ok(content) => Ok(WebSearchOutput {
-                content,
+        let limit = args.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT);
+        match self.firecrawl.search(&args.query, limit).await {
+            Ok(results) => Ok(WebSearchOutput {
                 success: true,
+                results,
                 error: None,
             }),
-            Err(e) => Ok(WebSearchOutput {
-                content: "[Failed to fetch search results]".to_string(),
-                success: false,
-                error: Some(e.to_string()),
-            }),
+            Err(e) => {
+                tracing::error!(error = ?e, query = %args.query, "web_search failed");
+                Ok(WebSearchOutput {
+                    success: false,
+                    results: vec![],
+                    // `{:#}` keeps the cause chain, e.g. the transport error under the wrap
+                    error: Some(format!("{e:#}")),
+                })
+            }
         }
     }
-}
-
-/// Performs a web search using DuckDuckGo and extracts readable content
-async fn perform_web_search(query: &str) -> Result<String, eyre::Error> {
-    use article_scraper::{ArticleScraper, Readability};
-    use reqwest::Client;
-    use url::Url;
-
-    let mut url = Url::parse("https://duckduckgo.com/html")?;
-    url.query_pairs_mut().append_pair("q", query);
-
-    let scraper = ArticleScraper::new(None).await;
-    let client = Client::builder()
-        .timeout(URL_FETCH_TIMEOUT_SECS)
-        .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        .build()?;
-
-    let article = scraper
-        .parse(&url, &client)
-        .await
-        .map_err(|e| eyre::eyre!("Failed to scrape search results for query '{query}': {e}"))?;
-
-    let mut result = String::new();
-    result.push_str(&format!("# Search Results for: {}\n\n", query));
-
-    if let Some(html) = article.html {
-        let content = Readability::extract(&html, None).await?;
-        let cleaned_content = clean_whitespace(&content);
-        result.push_str(&cleaned_content);
-    }
-
-    if result.trim() == format!("# Search Results for: {}", query).trim() {
-        Ok("[No readable search results found]".to_string())
-    } else {
-        Ok(result)
-    }
-}
-
-/// Cleans up multiple consecutive whitespaces, reducing them to single spaces
-/// while preserving paragraph breaks (double newlines)
-fn clean_whitespace(text: &str) -> String {
-    use regex::Regex;
-
-    // First, normalize line endings to \n
-    let normalized = text.replace("\r\n", "\n").replace("\r", "\n");
-
-    // Remove excessive whitespace around HTML-like patterns and clean up spacing
-    let pre_cleaned = normalized
-        .lines()
-        .map(|line| line.trim()) // Trim each line
-        .filter(|line| !line.is_empty()) // Remove empty lines
-        .collect::<Vec<&str>>()
-        .join("\n");
-
-    // Now handle paragraph spacing - replace single newlines with spaces, preserve double newlines
-    let paragraph_spaced = pre_cleaned.replace('\n', " ");
-
-    // Replace multiple consecutive whitespace with single spaces
-    let whitespace_regex = Regex::new(r"\s+").unwrap();
-    let cleaned = whitespace_regex.replace_all(&paragraph_spaced, " ");
-
-    // Add back some paragraph structure by looking for sentence endings followed by capital letters
-    let sentence_regex = Regex::new(r"([.!?])\s+([A-Z])").unwrap();
-    let with_paragraphs = sentence_regex.replace_all(&cleaned, "$1\n\n$2");
-
-    // Trim leading and trailing whitespace
-    with_paragraphs.trim().to_string()
 }

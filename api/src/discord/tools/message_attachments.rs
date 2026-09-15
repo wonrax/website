@@ -1,4 +1,4 @@
-use crate::discord::message::{download_attachment, image_media_type};
+use crate::discord::message::{download_attachment, image_media_type, parse_message_id};
 use base64::Engine as _;
 use rig::{completion::ToolDefinition, message::MimeType as _, tool::Tool};
 use serde::{Deserialize, Serialize};
@@ -96,14 +96,14 @@ impl Tool for ViewMessageAttachmentsTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Show yourself the image attachments on a message. Attachments in your starting context and in fetched history appear by name only, like [Attachment: cat.png]; call this with that message's [Message ID] to see them. Images on live messages are already shown to you inline, so those don't need fetching. Non-image attachments are reported by name but cannot be shown."
+            description: "Show yourself the image attachments on a message. Attachments in your starting context and in fetched history appear by name only, like [Attachment: cat.png]; call this with the ID from that message's [#ID] header to see them. Images on live messages are already shown to you inline, so those don't need fetching. Non-image attachments are reported by name but cannot be shown."
                 .to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
                     "message_id": {
                         "type": "string",
-                        "description": "The numeric [Message ID] from the header of the message whose attachments you want to see."
+                        "description": "The ID from the [#ID] header of the message whose attachments you want to see."
                     }
                 },
                 "required": ["message_id"]
@@ -112,14 +112,14 @@ impl Tool for ViewMessageAttachmentsTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        let Ok(message_id) = args.message_id.trim().parse::<u64>() else {
-            return Ok(ViewMessageAttachmentsOutput::failure(
-                args.message_id.clone(),
-                format!(
-                    "message_id must be the digits of a [Message ID] from a message header, got {:?}; retrying with the same value will not help",
-                    args.message_id
-                ),
-            ));
+        let message_id = match parse_message_id("message_id", &args.message_id) {
+            Ok(id) => id.get(),
+            Err(error) => {
+                return Ok(ViewMessageAttachmentsOutput::failure(
+                    args.message_id.clone(),
+                    error,
+                ));
+            }
         };
 
         let ctx = self.ctx.clone();

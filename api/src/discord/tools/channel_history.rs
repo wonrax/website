@@ -1,8 +1,8 @@
-use crate::discord::message::format_message_compact;
+use crate::discord::message::{format_message_compact, parse_message_id};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use serenity::all::{ChannelId, Context, GetMessages, MessageId, UserId};
+use serenity::all::{ChannelId, Context, GetMessages, UserId};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -93,7 +93,7 @@ impl Tool for FetchChannelHistoryTool {
                 "properties": {
                     "anchor_message_id": {
                         "type": "string",
-                        "description": "The numeric [Message ID] from a message header to page from."
+                        "description": "The ID from a [#ID] message header to page from."
                     },
                     "direction": {
                         "type": "string",
@@ -111,13 +111,10 @@ impl Tool for FetchChannelHistoryTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        let Ok(anchor) = args.anchor_message_id.trim().parse::<u64>() else {
-            return Ok(FetchChannelHistoryOutput::failure(format!(
-                "anchor_message_id must be the digits of a [Message ID] from a message header, got {:?}; retrying with the same value will not help",
-                args.anchor_message_id
-            )));
+        let anchor = match parse_message_id("anchor_message_id", &args.anchor_message_id) {
+            Ok(anchor) => anchor,
+            Err(error) => return Ok(FetchChannelHistoryOutput::failure(error)),
         };
-        let anchor = MessageId::new(anchor);
         let limit = args.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT);
 
         // MAX_LIMIT fits in a u8, so the cast cannot truncate

@@ -140,6 +140,7 @@ impl ChannelState {
     async fn main_loop(
         mut self,
         shared_vectordb_client: Option<tools::SharedVectorClient>,
+        firecrawl: Option<tools::Firecrawl>,
         openai_api_key: String,
     ) {
         loop {
@@ -258,6 +259,7 @@ impl ChannelState {
                     self.channel_id,
                     &openai_api_key,
                     shared_vectordb_client.clone(),
+                    firecrawl.clone(),
                     self.build_conversation_history().await,
                 ) {
                     Ok(session) => {
@@ -309,6 +311,7 @@ impl ChannelHandle {
         channel_id: ChannelId,
         openai_api_key: String,
         shared_vectordb_client: Option<tools::SharedVectorClient>,
+        firecrawl: Option<tools::Firecrawl>,
         discord_bot_mention_only: bool,
         guilds: Arc<scc::HashMap<serenity::model::id::GuildId, Guild>>,
     ) -> Self {
@@ -330,7 +333,7 @@ impl ChannelHandle {
 
         let main_loop_handle = tokio::spawn(
             state
-                .main_loop(shared_vectordb_client, openai_api_key)
+                .main_loop(shared_vectordb_client, firecrawl, openai_api_key)
                 .instrument(tracing::info_span!(
                     "channel_main_loop",
                     channel_id = channel_id.get(),

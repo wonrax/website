@@ -23,6 +23,9 @@ pub struct ServerConfig {
     pub discord_whitelist_channels: Option<Vec<u64>>,
     pub discord_mention_only: bool,
     pub openai_api_key: Option<String>,
+    /// Firecrawl key for the Discord agent's web search and page fetching; both tools are
+    /// left out without it
+    pub firecrawl_api_key: Option<String>,
     pub raindrop_api_token: Option<String>,
     pub vector_db: Option<VectorDbConfig>,
     pub recommender_raindrop_collections: Vec<RecommenderRaindropCollection>,
@@ -202,6 +205,9 @@ impl ServerConfig {
                 .and_then(|s| s.parse::<bool>().ok())
                 .unwrap_or(true),
             openai_api_key: var("OPENAI_API_KEY").unwrap_or(None),
+            firecrawl_api_key: var("FIRECRAWL_API_KEY")
+                .unwrap_or(None)
+                .filter(|key| !key.trim().is_empty()),
             raindrop_api_token: var("RAINDROP_API_TOKEN").unwrap_or(None),
             discord_whitelist_channels: var("DISCORD_WHITELIST_CHANNELS").unwrap_or(None).and_then(
                 |s| {
