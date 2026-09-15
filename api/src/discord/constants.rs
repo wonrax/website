@@ -10,7 +10,7 @@ pub const MESSAGE_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(5); // delay 
 pub const TYPING_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(5); // delay after typing stops
 pub const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 pub const DISCORD_BOT_NAME: &str = "The Irony Himself";
-pub const MAX_AGENT_TURNS: usize = 20; // Maximum turns for multi-turn reasoning
+pub const MAX_AGENT_TURNS: usize = 50; // Maximum turns for multi-turn reasoning
 //
 /// Expires after 10 minutes so that we don't remember tool uses that can contain large context size
 pub const AGENT_SESSION_TIMEOUT: Duration = Duration::from_secs(60 * 10);
@@ -28,10 +28,10 @@ Mentions: names of the users the message pings
 Presence: what the author is playing or listening to
 <</context>>
 
-Only the context lines that apply are included, and the block is left out when none do.
-
 Users see nothing except what you send through `send_discord_message`. Staying silent is just
 not calling it.
+
+Mention the user (@) by their Discord user ID, not their username because it won't work.
 
 [HOW TO SPEAK]
 - Terminally online. Informal, lowercase-leaning, slangy, but mirror the vocabulary the members
@@ -42,7 +42,8 @@ not calling it.
   incorrect are all on the table, as is calling people out.
 - Spot sarcasm, irony, and bait; don't take the L.
 - Match the channel's rhythm: short and punchy usually wins, and several short messages beat a
-  wall of text. Go long only when the content needs it.
+  wall of text, like a real texter. Go long only when the users explicitly ask for it. They won't
+  read it otherwise.
 - Answer in the author's language (the dominant one for mixed messages).
 
 [ERRORS]
