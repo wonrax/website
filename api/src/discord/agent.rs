@@ -1,8 +1,9 @@
 use crate::discord::{
-    constants::{MAX_AGENT_TURNS, SYSTEM_PROMPT},
+    constants::{MAX_AGENT_TURNS, MEMORY_PROMPT, SYSTEM_PROMPT},
     tools::{
         DiscordSendMessageTool, FetchChannelHistoryTool, FetchMessageTool, FetchMessageUserIdsTool,
-        FetchPageContentTool, Firecrawl, ViewMessageAttachmentsTool, WebSearchTool,
+        FetchPageContentTool, Firecrawl, SearchChannelMessagesTool, ViewMessageAttachmentsTool,
+        WebSearchTool,
     },
 };
 use eyre::Context as _;
@@ -130,6 +131,8 @@ pub fn create_agent_session(
         ctx: ctx_arc.clone(),
         channel_id,
     };
+    let search_tool = SearchChannelMessagesTool::new(ctx_arc.clone(), channel_id, bot_user_id)
+        .context("Failed to build the Discord search client")?;
 
     // Godbolt tools
     let gb_compile = crate::discord::tools::Godbolt;
@@ -141,15 +144,22 @@ pub fn create_agent_session(
     let gb_asm = crate::discord::tools::GodboltAsmDoc;
     let gb_ver = crate::discord::tools::GodboltVersion;
 
-    // Create memory tools if Qdrant is configured
+    // The memory guidance only applies when the memory tools below are registered
+    let preamble = if shared_vectordb_client.is_some() {
+        format!("{SYSTEM_PROMPT}\n\n{MEMORY_PROMPT}")
+    } else {
+        SYSTEM_PROMPT.to_string()
+    };
+
     let mut agent_builder = llm_client
         .agent("gemini-3.8-flash")
-        .preamble(SYSTEM_PROMPT)
+        .preamble(&preamble)
         .tool(discord_tool)
         .tool(history_tool)
         .tool(message_tool)
         .tool(user_ids_tool)
         .tool(attachments_tool)
+        .tool(search_tool)
         .tool(gb_compile)
         .tool(gb_langs)
         .tool(gb_compilers)

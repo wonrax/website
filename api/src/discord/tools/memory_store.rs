@@ -1,8 +1,8 @@
 use super::vector_client::SharedVectorClient;
-use chrono;
+use crate::discord::message::parse_message_ids;
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::json;
 use thiserror::Error;
 
 #[derive(Clone)]
@@ -21,15 +21,24 @@ impl MemoryStoreTool {
 pub struct MemoryStoreArgs {
     pub information: String,
     #[serde(default)]
-    pub metadata: Option<Value>,
+    pub source_message_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryStoreOutput {
     pub success: bool,
     pub point_id: Option<String>,
-    pub message: String,
     pub error: Option<String>,
+}
+
+impl MemoryStoreOutput {
+    fn failure(error: String) -> Self {
+        Self {
+            success: false,
+            point_id: None,
+            error: Some(error),
+        }
+    }
 }
 
 #[derive(Debug, Error)]
@@ -43,95 +52,61 @@ impl Tool for MemoryStoreTool {
     type Output = MemoryStoreOutput;
 
     async fn definition(&self, _prompt: String) -> ToolDefinition {
-        let properties = json!({
-            "information": {
-                "type": "string",
-                "description": "The fact, self-contained enough to make sense months later (name who it is about)."
-            }
-        });
-
-        let required = vec!["information"];
-
         ToolDefinition {
-            name: "memory_store".to_string(),
+            name: Self::NAME.to_string(),
             description: format!(
-                "Save a durable, future-useful fact about a user or channel {}. Most messages do not warrant a memory. Run memory_find first: if an entry on the same fact exists, use memory_update instead. After storing, tell the channel in one short line via send_discord_message.",
+                "Save something a future session should know about a user or channel {}. Run memory_find first: when an entry on the same fact exists, memory_update extends it instead of adding a duplicate. After storing, tell the channel in one short line via send_discord_message.",
                 self.channel_id
             ),
             parameters: json!({
                 "type": "object",
-                "properties": properties,
-                "required": required
+                "properties": {
+                    "information": {
+                        "type": "string",
+                        "description": "The fact, self-contained enough to make sense months later: name who it is about and what happened."
+                    },
+                    "source_message_ids": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "IDs from the [#ID] headers of the messages the fact comes from. A later session rereads the conversation around them, so cite the messages that carry the fact rather than the whole batch."
+                    }
+                },
+                "required": ["information", "source_message_ids"]
             }),
         }
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        let client = self.client.clone();
-        let information = args.information.clone();
-        let mut metadata = args.metadata.unwrap_or_else(|| serde_json::json!({}));
-        let channel_id = self.channel_id;
-        let collection_used = client.get_collection_name(self.channel_id);
-
-        // Add timestamp to metadata
-        if let serde_json::Value::Object(ref mut obj) = metadata {
-            obj.insert(
-                "timestamp".to_string(),
-                serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
-            );
-        }
-        let metadata = Some(metadata);
-
-        // Spawn the async work in a separate task to avoid Sync issues
-        let handle = tokio::spawn(async move {
-            // Use None for collection_name since it's hardcoded via channel_id in the config
-            let point_id = match client.store(&information, channel_id, metadata).await {
-                Ok(point_id) => {
-                    tracing::debug!(
-                        "Store operation completed successfully, point_id: {}",
-                        point_id
-                    );
-                    point_id
-                }
-                Err(e) => {
-                    tracing::error!(
-                        "Store operation failed (vector database may be unavailable): {}",
-                        e
-                    );
-                    return Ok(MemoryStoreOutput {
-                        success: false,
-                        point_id: None,
-                        message: "Failed to store information - vector database server unavailable"
-                            .to_string(),
-                        error: Some(format!("Vector database unavailable: {}", e)),
-                    });
-                }
+        let source_message_ids =
+            match parse_message_ids("source_message_ids", &args.source_message_ids) {
+                Ok(ids) => ids,
+                Err(error) => return Ok(MemoryStoreOutput::failure(error)),
             };
 
-            tracing::info!(
-                "memory_store completed successfully: stored in collection '{}'",
-                collection_used
-            );
-
-            Ok::<MemoryStoreOutput, MemoryStoreError>(MemoryStoreOutput {
-                success: true,
-                point_id: Some(point_id),
-                message: format!(
-                    "Information stored successfully in collection '{}'",
-                    collection_used
-                ),
-                error: None,
-            })
-        });
-
-        match handle.await {
-            Ok(result) => result,
-            Err(e) => Ok(MemoryStoreOutput {
-                success: false,
-                point_id: None,
-                message: "Failed to store information".to_string(),
-                error: Some(format!("Task execution error: {}", e)),
-            }),
+        match self
+            .client
+            .store(&args.information, self.channel_id, &source_message_ids)
+            .await
+        {
+            Ok(point_id) => {
+                tracing::info!(
+                    point_id,
+                    channel_id = self.channel_id,
+                    sources = source_message_ids.len(),
+                    "memory_store completed"
+                );
+                Ok(MemoryStoreOutput {
+                    success: true,
+                    point_id: Some(point_id),
+                    error: None,
+                })
+            }
+            Err(e) => {
+                tracing::error!(error = %e, channel_id = self.channel_id, "memory_store failed");
+                Ok(MemoryStoreOutput::failure(format!(
+                    "Failed to store the memory: {e}"
+                )))
+            }
         }
     }
 }

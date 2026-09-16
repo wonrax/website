@@ -1,8 +1,13 @@
 use super::vector_client::{SearchResult, SharedVectorClient};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::json;
 use thiserror::Error;
+
+/// Results when the agent doesn't ask for a count
+const DEFAULT_LIMIT: u64 = 10;
+/// Tool results are resent with every model turn for the rest of the session, so pages stay small
+const MAX_LIMIT: u64 = 20;
 
 #[derive(Clone)]
 pub struct MemoryFindTool {
@@ -19,7 +24,7 @@ impl MemoryFindTool {
     ) -> Self {
         Self {
             client,
-            limit: limit.unwrap_or(10),
+            limit: limit.unwrap_or(DEFAULT_LIMIT),
             channel_id,
         }
     }
@@ -37,8 +42,9 @@ pub struct MemoryResult {
     pub point_id: String,
     pub content: String,
     pub score: f32,
-    pub metadata: Option<Value>,
-    pub timestamp: Option<String>,
+    pub stored_at: Option<String>,
+    /// As strings, ready to be passed to the message tools
+    pub source_message_ids: Vec<String>,
 }
 
 impl From<SearchResult> for MemoryResult {
@@ -47,8 +53,13 @@ impl From<SearchResult> for MemoryResult {
             point_id: result.point_id,
             content: result.content,
             score: result.score,
-            metadata: result.metadata,
-            timestamp: result.timestamp,
+            stored_at: result.metadata.stored_at,
+            source_message_ids: result
+                .metadata
+                .source_message_ids
+                .iter()
+                .map(u64::to_string)
+                .collect(),
         }
     }
 }
@@ -57,9 +68,6 @@ impl From<SearchResult> for MemoryResult {
 pub struct MemoryFindOutput {
     pub success: bool,
     pub results: Vec<MemoryResult>,
-    pub total_found: usize,
-    pub query: String,
-    pub collection: String,
     pub error: Option<String>,
 }
 
@@ -74,88 +82,58 @@ impl Tool for MemoryFindTool {
     type Output = MemoryFindOutput;
 
     async fn definition(&self, _prompt: String) -> ToolDefinition {
-        let properties = json!({
-            "query": {
-                "type": "string",
-                "description": "Natural-language query: a topic from the new messages, or an author's username."
-            },
-            "limit": {
-                "type": ["integer", "null"],
-                "description": "Result cap (default 10, max 20). Scale it with how much the response depends on what you remember."
-            }
-        });
-
-        let required = vec!["query", "limit"];
-
         ToolDefinition {
-            name: "memory_find".to_string(),
+            name: Self::NAME.to_string(),
             description: format!(
-                "Semantic search over channel {}'s memories: everything you know about these users and this channel. Query it for the new messages' authors and topics before deciding whether and how to respond, and once per session for the channel's chat preferences. Skip queries already answered in this session's tool history. Each result carries a 0.0-1.0 relevance score and the point id needed by memory_update/memory_delete. Retrieval is silent: never announce it in the channel.",
+                "Semantic search over channel {}'s memories: everything you know about these users and this channel. Skip queries already answered in this session's tool history. Each result carries a 0.0-1.0 relevance score, the point_id that memory_update and memory_delete take, and source_message_ids: the messages the memory came from, which fetch_channel_history (direction around) rereads in detail. Retrieval is silent: never announce it in the channel.",
                 self.channel_id
             ),
             parameters: json!({
                 "type": "object",
-                "properties": properties,
-                "required": required
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Natural-language: a topic from the new messages, an author's username, or, once per session, the channel's chat preferences."
+                    },
+                    "limit": {
+                        "type": ["integer", "null"],
+                        "description": "Result cap (default 10, max 20). Scale it with how much the response depends on what you remember."
+                    }
+                },
+                "required": ["query", "limit"]
             }),
         }
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        let client = self.client.clone();
-        let query = args.query.clone();
-        let limit = args.limit.unwrap_or(self.limit);
-        let channel_id = self.channel_id;
-        let collection_used = client.get_collection_name(self.channel_id);
+        let limit = args.limit.unwrap_or(self.limit).clamp(1, MAX_LIMIT);
 
-        // Spawn the async work in a separate task to avoid Sync issues
-        let handle = tokio::spawn(async move {
-            // Use None for collection_name since it's hardcoded via channel_id in the config
-            let results = match client.search(&query, channel_id, limit).await {
-                Ok(results) => results,
-                Err(e) => {
-                    return Ok(MemoryFindOutput {
-                        success: false,
-                        results: vec![],
-                        total_found: 0,
-                        query: query.clone(),
-                        collection: "unknown".to_string(),
-                        error: Some(format!("Vector database unavailable: {}", e)),
-                    });
-                }
-            };
-
-            let memory_results: Vec<MemoryResult> =
-                results.into_iter().map(MemoryResult::from).collect();
-            let total_found = memory_results.len();
-
-            tracing::info!(
-                "memory_find completed: found {} results in collection '{}' for query '{}'",
-                total_found,
-                collection_used,
-                query
-            );
-
-            Ok::<MemoryFindOutput, MemoryFindError>(MemoryFindOutput {
-                success: true,
-                results: memory_results,
-                total_found,
-                query: query.clone(),
-                collection: collection_used,
-                error: None,
-            })
-        });
-
-        match handle.await {
-            Ok(result) => result,
-            Err(e) => Ok(MemoryFindOutput {
-                success: false,
-                results: vec![],
-                total_found: 0,
-                query: args.query,
-                collection: "unknown".to_string(),
-                error: Some(format!("Task execution error: {}", e)),
-            }),
+        match self
+            .client
+            .search(&args.query, self.channel_id, limit)
+            .await
+        {
+            Ok(results) => {
+                tracing::info!(
+                    found = results.len(),
+                    channel_id = self.channel_id,
+                    query = %args.query,
+                    "memory_find completed"
+                );
+                Ok(MemoryFindOutput {
+                    success: true,
+                    results: results.into_iter().map(MemoryResult::from).collect(),
+                    error: None,
+                })
+            }
+            Err(e) => {
+                tracing::error!(error = %e, channel_id = self.channel_id, "memory_find failed");
+                Ok(MemoryFindOutput {
+                    success: false,
+                    results: vec![],
+                    error: Some(format!("Vector database unavailable: {e}")),
+                })
+            }
         }
     }
 }

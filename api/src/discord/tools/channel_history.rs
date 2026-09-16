@@ -86,7 +86,7 @@ impl Tool for FetchChannelHistoryTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Fetch messages from this channel's history that are outside your context. Your context only holds the most recent stretch of the channel, so use this when the thread under discussion began earlier, when a reply points at a message you can't see, or when you need to check when you last spoke. Results use the same header format as your context, oldest first, with your own messages tagged [you]. Attachments are listed by name; view_message_attachments shows them. Keep paging by passing the returned oldest_message_id (or newest_message_id) as the next anchor while more_available is true."
+            description: "Page through this channel's history from a known message, for what is outside your context: when the thread under discussion began earlier, when a reply, a memory, or a search hit points at a message you can't see, or to check when you last spoke. To find messages by words, author, or time, use search_channel_messages. Results use the same header format as your context, oldest first, with your own messages tagged [you]. Attachments are listed by name; view_message_attachments shows them. Keep paging by passing the returned oldest_message_id (or newest_message_id) as the next anchor while more_available is true."
                 .to_string(),
             parameters: json!({
                 "type": "object",

@@ -1,4 +1,5 @@
 use base64::Engine as _;
+use chrono::{DateTime, Utc};
 use rig::{
     OneOrMany,
     completion::Message as RigMessage,
@@ -172,6 +173,25 @@ pub fn parse_message_id(param: &str, raw: &str) -> Result<MessageId, String> {
                 "{param} must be the digits of a [#ID] message header, got {raw:?}; retrying with the same value will not help"
             )
         })
+}
+
+/// `parse_message_id` over a list, for tools that take several IDs; the first bad one fails
+/// the whole call
+pub fn parse_message_ids(param: &str, raw: &[String]) -> Result<Vec<u64>, String> {
+    raw.iter()
+        .map(|id| parse_message_id(param, id).map(MessageId::get))
+        .collect()
+}
+
+/// Milliseconds of 2015-01-01T00:00:00Z, the zero of every snowflake
+const DISCORD_EPOCH_MS: u64 = 1_420_070_400_000;
+
+/// The snowflake a message sent at `at` would get. Discord accepts it as a position in the
+/// channel even though no message has it, which is how the tools page and search by time.
+pub fn snowflake_at(at: DateTime<Utc>) -> u64 {
+    let ms = u64::try_from(at.timestamp_millis()).unwrap_or(0);
+    // Masking the high bits first keeps the shift from overflowing on far-future dates
+    (ms.saturating_sub(DISCORD_EPOCH_MS) & (u64::MAX >> 22)) << 22
 }
 
 /// One message of the channel, for the lookup tools
@@ -350,5 +370,28 @@ mod tests {
             error.starts_with("message_id must be the digits"),
             "{error}"
         );
+    }
+
+    #[test]
+    fn message_id_lists_fail_on_the_first_bad_id() {
+        let ids = parse_message_ids("source_message_ids", &["[#1]".to_string(), "2".to_string()])
+            .expect("all IDs");
+        assert_eq!(ids, vec![1, 2]);
+
+        let error = parse_message_ids("source_message_ids", &["1".to_string(), "x".to_string()])
+            .expect_err("one bad ID");
+        assert!(error.starts_with("source_message_ids must be"), "{error}");
+    }
+
+    #[test]
+    fn snowflakes_round_trip_through_discord_time() {
+        let at = DateTime::parse_from_rfc3339("2026-09-14T12:03:30.469Z")
+            .expect("valid time")
+            .with_timezone(&Utc);
+        let id = MessageId::new(snowflake_at(at));
+        assert_eq!(id.created_at().timestamp_millis(), at.timestamp_millis());
+
+        // Before Discord existed there is nothing to point at
+        assert_eq!(snowflake_at(DateTime::<Utc>::MIN_UTC), 0);
     }
 }

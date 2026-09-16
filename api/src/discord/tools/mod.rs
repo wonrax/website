@@ -10,6 +10,7 @@ pub mod memory_store;
 pub mod memory_update;
 pub mod message_attachments;
 pub mod message_user_ids;
+pub mod search_messages;
 pub mod vector_client;
 pub mod web_search;
 
@@ -25,5 +26,6 @@ pub use memory_store::*;
 pub use memory_update::*;
 pub use message_attachments::*;
 pub use message_user_ids::*;
+pub use search_messages::*;
 pub use vector_client::*;
 pub use web_search::*;
