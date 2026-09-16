@@ -3,16 +3,22 @@ use std::time::Duration;
 
 pub const WHITELIST_CHANNELS: [u64; 0] = [];
 
-/// Messages loaded from the channel when an agent session starts. Only a starting window: the
-/// agent pages further back on demand with `fetch_channel_history`.
+/// The window a fresh agent session starts with: the queued messages plus older channel messages
+/// backfilled behind them. Only a starting window: the agent pages further back on demand with
+/// `fetch_channel_history`.
 pub const MESSAGE_CONTEXT_SIZE: usize = 20;
+// The backfill is a single Discord page, which caps at 100 messages
+const _: () = assert!(MESSAGE_CONTEXT_SIZE <= 100);
 pub const MESSAGE_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(5); // delay to collect messages
 pub const TYPING_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(5); // delay after typing stops
 pub const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 pub const DISCORD_BOT_NAME: &str = "The Irony Himself";
 pub const MAX_AGENT_TURNS: usize = 50; // Maximum turns for multi-turn reasoning
 //
-/// Expires after 10 minutes so that we don't remember tool uses that can contain large context size
+/// How long a channel goes without an agent run before its session is dropped, so tool results
+/// and images from an old conversation stop riding along in the prompt. Measured from the end of
+/// the last run rather than the last message: in mention-only mode users chat for hours without
+/// involving the bot.
 pub const AGENT_SESSION_TIMEOUT: Duration = Duration::from_secs(60 * 10);
 
 /// System prompt for the Discord bot agent. Tool usage guidance lives in the tool

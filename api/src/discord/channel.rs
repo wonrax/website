@@ -8,7 +8,7 @@ use futures::{
     channel::mpsc::{UnboundedReceiver, UnboundedSender},
 };
 use rig::message::Message as RigMessage;
-use serenity::all::{ChannelId, Context, Typing, UserId};
+use serenity::all::{ChannelId, Context, GetMessages, MessageId, Typing, UserId};
 use tracing::{Instrument as _, instrument};
 
 use crate::discord::{
@@ -62,15 +62,6 @@ impl ChannelActivity {
             (None, None) => None,
         }
     }
-
-    fn last_activity(&self) -> Option<Instant> {
-        match (self.last_message, self.last_typing) {
-            (Some(m), Some(t)) => Some(m.max(t)),
-            (Some(m), None) => Some(m),
-            (None, Some(t)) => Some(t),
-            (None, None) => None,
-        }
-    }
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -88,16 +79,30 @@ pub enum ChannelEvent {
     ForceProcess,
 }
 
+/// A channel message waiting for the debounce to hand it to the agent
+struct PendingMessage {
+    message: RigMessage,
+    /// Where the fresh-session backfill stops: the API only fills in what is older than the queue
+    id: MessageId,
+    mentions_bot: bool,
+    /// The bot's own message. A live session already holds it as a `send_discord_message` call,
+    /// so it only reaches the agent when seeding a fresh session.
+    from_bot: bool,
+}
+
 struct ChannelState {
     activity: ChannelActivity,
     event_recv: UnboundedReceiver<ChannelEvent>,
     agent: Option<AgentSession>,
+    /// When the agent last finished a run. The session expires once the channel goes
+    /// `AGENT_SESSION_TIMEOUT` without one, however much the users chat in between.
+    last_run_finished: Option<Instant>,
 
     // The latest discord context received from the event handler.
     // Note that each discord context is bound to a specific event and is destroyed after event
     // handler completes, so we should not rely on it being valid forever.
     discord_ctx: Context,
-    bot_user_id: serenity::model::id::UserId,
+    bot_user_id: UserId,
     channel_id: ChannelId,
     // All guilds the bot is in
     guilds: Arc<scc::HashMap<serenity::model::id::GuildId, Guild>>,
@@ -106,35 +111,61 @@ struct ChannelState {
     // messages.
     discord_bot_mention_only: bool,
 
-    // Incoming messages wait here until the debounce expires, then go to the agent as one batch.
-    message_queue: Vec<(RigMessage, bool)>,
+    /// Every message of the channel, the bot's own included, waits here until the debounce
+    /// expires. It is the only way into the agent for anything newer than its oldest entry: a
+    /// fresh session backfills strictly older messages from the API and appends the queue behind
+    /// them, so nothing can reach the agent twice.
+    message_queue: Vec<PendingMessage>,
 }
 
 impl ChannelState {
-    /// Build conversation history for agent context
+    /// Channel messages older than the queue, oldest first, enough to fill `MESSAGE_CONTEXT_SIZE`
+    /// together with it. Anchoring on the oldest queued message keeps a message that lands during
+    /// the fetch out of the result; it reaches the agent through the queue instead. Attachments
+    /// stay placeholders, the agent opens them on demand.
     #[instrument(skip(self))]
-    async fn build_conversation_history(&self) -> Vec<RigMessage> {
-        self.channel_id
-            .messages_iter(&self.discord_ctx.http)
-            .filter_map(|m| async {
-                m.ok()
-                    .filter(|msg| !msg.content.trim().is_empty() || !msg.attachments.is_empty())
-            })
-            .take(MESSAGE_CONTEXT_SIZE)
-            .then(async |m| {
+    async fn backfill_history(&self) -> Vec<RigMessage> {
+        let needed = MESSAGE_CONTEXT_SIZE.saturating_sub(self.message_queue.len());
+        if needed == 0 {
+            return vec![];
+        }
+
+        // Fetch a full window rather than `needed` so empty messages (stickers, bare embeds)
+        // don't eat into what the agent gets to see
+        let mut page = GetMessages::new().limit(MESSAGE_CONTEXT_SIZE as u8);
+        if let Some(oldest) = self.message_queue.first() {
+            page = page.before(oldest.id);
+        }
+        let messages = match self.channel_id.messages(&self.discord_ctx.http, page).await {
+            Ok(messages) => messages,
+            Err(e) => {
+                tracing::error!(
+                    ?e,
+                    "Failed to backfill channel history; seeding the session from the queue alone"
+                );
+                return vec![];
+            }
+        };
+
+        // Newest first from the API
+        let mut history = Vec::with_capacity(needed);
+        for msg in messages
+            .iter()
+            .filter(|m| !m.content.trim().is_empty() || !m.attachments.is_empty())
+            .take(needed)
+        {
+            history.push(
                 discord_message_to_rig_message(
-                    &m,
+                    msg,
                     self.bot_user_id,
                     &None,
                     AttachmentMode::Placeholder,
                 )
-                .await
-            })
-            .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .rev()
-            .collect()
+                .await,
+            );
+        }
+        history.reverse();
+        history
     }
 
     async fn main_loop(
@@ -144,16 +175,14 @@ impl ChannelState {
         openai_api_key: String,
     ) {
         loop {
-            let timer = if !self.message_queue.is_empty()
-                && (!self.discord_bot_mention_only
-                    || self
-                        .message_queue
-                        .iter()
-                        // Check if any queued message mentions the bot and not just the last
-                        // one because the user can send immediate subsequent messages after mentioning
-                        // the bot
-                        .any(|m| m.1))
-            {
+            // Whether anything queued deserves a run: the bot's own messages never do, and in
+            // mention-only mode neither do user messages that don't mention it. Checked over the
+            // whole queue, not just the newest entry, because users keep typing after the mention.
+            let has_pending_prompt = self
+                .message_queue
+                .iter()
+                .any(|m| !m.from_bot && (!self.discord_bot_mention_only || m.mentions_bot));
+            let timer = if has_pending_prompt {
                 tokio::time::sleep_until(
                     self.activity
                         .next_processing_time()
@@ -170,13 +199,11 @@ impl ChannelState {
                         match event {
                             ChannelEvent::Message(msg, ctx) => {
                                 self.discord_ctx = ctx;
-                                if msg.message.author.id == self.bot_user_id {
-                                    // No need to process messages from the bot itself, it will
-                                    // be represented as a tool call in the conversation
-                                    // history, so duplicating it here would be redundant.
-                                    continue;
+                                let from_bot = msg.message.author.id == self.bot_user_id;
+                                if !from_bot {
+                                    // The bot's own replies don't hold the debounce open
+                                    self.activity.update_message();
                                 }
-                                self.activity.update_message();
 
                                 let guild = self
                                     .channel_id
@@ -189,19 +216,24 @@ impl ChannelState {
                                     .and_then(|c| c.guild())
                                     .and_then(|g| self.guilds.get_sync(&g.guild_id));
 
-                                let mentions_bot = msg.message.mentions_user_id(self.bot_user_id);
+                                let mentions_bot =
+                                    !from_bot && msg.message.mentions_user_id(self.bot_user_id);
 
-                                let msg = discord_message_to_rig_message(
+                                let message = discord_message_to_rig_message(
                                     &msg.message,
                                     self.bot_user_id,
                                     &guild,
                                     AttachmentMode::Inline,
                                 ).await;
 
-
-                                self.message_queue.push((msg, mentions_bot));
-                                // truncate to MESSAGE_CONTEXT_SIZE to avoid accumulating too many
-                                // messages in case of no mentions
+                                self.message_queue.push(PendingMessage {
+                                    message,
+                                    id: msg.message.id,
+                                    mentions_bot,
+                                    from_bot,
+                                });
+                                // Keep only the newest window: in mention-only mode the backlog
+                                // would otherwise grow without bound
                                 if self.message_queue.len() > MESSAGE_CONTEXT_SIZE {
                                     self.message_queue.drain(0..self.message_queue.len() - MESSAGE_CONTEXT_SIZE);
                                 }
@@ -230,14 +262,10 @@ impl ChannelState {
                 _ = timer => (true, false),
             };
 
-            if !force_process {
-                if !timer_expired {
-                    continue;
-                }
-
-                if self.message_queue.is_empty() {
-                    continue;
-                }
+            // The timer is only armed while something queued deserves a run, so its expiry is
+            // enough on its own
+            if !force_process && !timer_expired {
+                continue;
             }
 
             let span = tracing::span!(tracing::Level::INFO, "process_discord_message");
@@ -245,55 +273,51 @@ impl ChannelState {
 
             let _typing = Typing::start(self.discord_ctx.http.clone(), self.channel_id);
 
+            // Idle since the bot last ran, not since the last message: in mention-only mode the
+            // messages keep coming while nobody involves the bot
             if self
-                .activity
-                .last_activity()
+                .last_run_finished
                 .is_some_and(|t| t.elapsed() > AGENT_SESSION_TIMEOUT)
             {
                 self.agent = None;
             }
 
-            if self.agent.is_none() {
-                match agent::create_agent_session(
-                    &self.discord_ctx,
-                    self.channel_id,
-                    &openai_api_key,
-                    shared_vectordb_client.clone(),
-                    firecrawl.clone(),
-                    self.build_conversation_history().await,
-                ) {
-                    Ok(session) => {
-                        self.agent = Some(session);
-                    }
-                    Err(e) => {
-                        tracing::error!(?e, "Failed to create agent session for channel");
-                        continue;
+            let fresh_session = self.agent.is_none();
+            let agent = match self.agent.as_mut() {
+                Some(agent) => agent,
+                None => {
+                    let history = self.backfill_history().await;
+                    match agent::create_agent_session(
+                        &self.discord_ctx,
+                        self.channel_id,
+                        &openai_api_key,
+                        shared_vectordb_client.clone(),
+                        firecrawl.clone(),
+                        history,
+                    ) {
+                        Ok(session) => self.agent.insert(session),
+                        Err(e) => {
+                            tracing::error!(?e, "Failed to create agent session for channel");
+                            continue;
+                        }
                     }
                 }
-            }
+            };
 
-            let agent = self.agent.as_mut().unwrap();
-
+            // A live session already holds the bot's replies as tool calls; only a fresh one
+            // needs them to see what it said
             agent.add_messages(
                 self.message_queue
-                    // Cap to MESSAGE_CONTEXT_SIZE most recent messages because if
-                    // discord_bot_mention_only is true, we may have a large backlog
-                    .split_at(if self.message_queue.len() > MESSAGE_CONTEXT_SIZE {
-                        self.message_queue.len() - MESSAGE_CONTEXT_SIZE
-                    } else {
-                        0
-                    })
-                    .1
-                    .iter()
-                    .map(|(m, _)| m.to_owned())
+                    .drain(..)
+                    .filter(|m| fresh_session || !m.from_bot)
+                    .map(|m| m.message)
                     .collect(),
             );
-
-            self.message_queue.clear();
 
             let _ = agent.execute_agent_multi_turn().await.inspect_err(|e| {
                 tracing::error!(?e, "Error executing agent session in channel main loop",);
             });
+            self.last_run_finished = Some(Instant::now());
         }
     }
 }
@@ -323,6 +347,7 @@ impl ChannelHandle {
             activity: ChannelActivity::new(),
             event_recv,
             agent: None,
+            last_run_finished: None,
             bot_user_id,
             discord_ctx: discord_ctx.clone(),
             message_queue: vec![],
