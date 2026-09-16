@@ -269,55 +269,61 @@ impl ChannelState {
             }
 
             let span = tracing::span!(tracing::Level::INFO, "process_discord_message");
-            let _ = span.enter();
+            let ran = async {
+                let _typing = Typing::start(self.discord_ctx.http.clone(), self.channel_id);
 
-            let _typing = Typing::start(self.discord_ctx.http.clone(), self.channel_id);
+                // Idle since the bot last ran, not since the last message: in mention-only mode
+                // the messages keep coming while nobody involves the bot
+                if self
+                    .last_run_finished
+                    .is_some_and(|t| t.elapsed() > AGENT_SESSION_TIMEOUT)
+                {
+                    self.agent = None;
+                }
 
-            // Idle since the bot last ran, not since the last message: in mention-only mode the
-            // messages keep coming while nobody involves the bot
-            if self
-                .last_run_finished
-                .is_some_and(|t| t.elapsed() > AGENT_SESSION_TIMEOUT)
-            {
-                self.agent = None;
-            }
-
-            let fresh_session = self.agent.is_none();
-            let agent = match self.agent.as_mut() {
-                Some(agent) => agent,
-                None => {
-                    let history = self.backfill_history().await;
-                    match agent::create_agent_session(
-                        &self.discord_ctx,
-                        self.channel_id,
-                        &openai_api_key,
-                        shared_vectordb_client.clone(),
-                        firecrawl.clone(),
-                        history,
-                    ) {
-                        Ok(session) => self.agent.insert(session),
-                        Err(e) => {
-                            tracing::error!(?e, "Failed to create agent session for channel");
-                            continue;
+                let fresh_session = self.agent.is_none();
+                let agent = match self.agent.as_mut() {
+                    Some(agent) => agent,
+                    None => {
+                        let history = self.backfill_history().await;
+                        match agent::create_agent_session(
+                            &self.discord_ctx,
+                            self.channel_id,
+                            &openai_api_key,
+                            shared_vectordb_client.clone(),
+                            firecrawl.clone(),
+                            history,
+                        ) {
+                            Ok(session) => self.agent.insert(session),
+                            Err(e) => {
+                                tracing::error!(?e, "Failed to create agent session for channel");
+                                return false;
+                            }
                         }
                     }
-                }
-            };
+                };
 
-            // A live session already holds the bot's replies as tool calls; only a fresh one
-            // needs them to see what it said
-            agent.add_messages(
-                self.message_queue
-                    .drain(..)
-                    .filter(|m| fresh_session || !m.from_bot)
-                    .map(|m| m.message)
-                    .collect(),
-            );
+                // A live session already holds the bot's replies as tool calls; only a fresh one
+                // needs them to see what it said
+                agent.add_messages(
+                    self.message_queue
+                        .drain(..)
+                        .filter(|m| fresh_session || !m.from_bot)
+                        .map(|m| m.message)
+                        .collect(),
+                );
 
-            let _ = agent.execute_agent_multi_turn().await.inspect_err(|e| {
-                tracing::error!(?e, "Error executing agent session in channel main loop",);
-            });
-            self.last_run_finished = Some(Instant::now());
+                let _ = agent.execute_agent_multi_turn().await.inspect_err(|e| {
+                    tracing::error!(?e, "Error executing agent session in channel main loop",);
+                });
+                self.last_run_finished = Some(Instant::now());
+                true
+            }
+            .instrument(span)
+            .await;
+            if !ran {
+                continue;
+            }
         }
     }
 }
