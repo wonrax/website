@@ -13,7 +13,7 @@ pub const MESSAGE_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(5); // delay 
 pub const TYPING_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(5); // delay after typing stops
 pub const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 pub const DISCORD_BOT_NAME: &str = "The Irony Himself";
-pub const CHATGPT_MODEL: &str = "gpt-6-luna";
+pub const CHATGPT_MODEL: &str = "gpt-6-sol";
 pub const GEMINI_MODEL: &str = "gemini-3.8-flash";
 pub const MAX_AGENT_TURNS: usize = 50; // Maximum turns for multi-turn reasoning
 //
