@@ -1,5 +1,5 @@
 use super::vector_client::{SearchResult, SharedVectorClient};
-use rig::{completion::ToolDefinition, tool::Tool};
+use rig::tool::PortableTool;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
@@ -75,34 +75,34 @@ pub struct MemoryFindOutput {
 #[error("Memory find error: {0}")]
 pub struct MemoryFindError(String);
 
-impl Tool for MemoryFindTool {
+impl PortableTool for MemoryFindTool {
     const NAME: &'static str = "memory_find";
     type Error = MemoryFindError;
     type Args = MemoryFindArgs;
     type Output = MemoryFindOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: format!(
-                "Semantic search over channel {}'s memories: everything you know about these users and this channel. Skip queries already answered in this session's tool history. Each result carries a 0.0-1.0 relevance score, the point_id that memory_update and memory_delete take, and source_message_ids: the messages the memory came from, which fetch_channel_history (direction around) rereads in detail. Retrieval is silent: never announce it in the channel.",
-                self.channel_id
-            ),
-            parameters: json!({
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Natural-language: a topic from the new messages, an author's username, or, once per session, the channel's chat preferences."
-                    },
-                    "limit": {
-                        "type": ["integer", "null"],
-                        "description": "Result cap (default 10, max 20). Scale it with how much the response depends on what you remember."
-                    }
+    fn description(&self) -> String {
+        format!(
+            "Semantic search over channel {}'s memories: everything you know about these users and this channel. Skip queries already answered in this session's tool history. Each result carries a 0.0-1.0 relevance score, the point_id that memory_update and memory_delete take, and source_message_ids: the messages the memory came from, which fetch_channel_history (direction around) rereads in detail. Retrieval is silent: never announce it in the channel.",
+            self.channel_id
+        )
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Natural-language: a topic from the new messages, an author's username, or, once per session, the channel's chat preferences."
                 },
-                "required": ["query", "limit"]
-            }),
-        }
+                "limit": {
+                    "type": ["integer", "null"],
+                    "description": "Result cap (default 10, max 20). Scale it with how much the response depends on what you remember."
+                }
+            },
+            "required": ["query", "limit"]
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {

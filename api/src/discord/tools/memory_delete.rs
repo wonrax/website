@@ -1,5 +1,5 @@
 use super::vector_client::SharedVectorClient;
-use rig::{completion::ToolDefinition, tool::Tool};
+use rig::tool::PortableTool;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use thiserror::Error;
@@ -38,13 +38,20 @@ pub struct MemoryDeleteOutput {
 #[error("Memory delete error: {0}")]
 pub struct MemoryDeleteError(String);
 
-impl Tool for MemoryDeleteTool {
+impl PortableTool for MemoryDeleteTool {
     const NAME: &'static str = "memory_delete";
     type Error = MemoryDeleteError;
     type Args = MemoryDeleteArgs;
     type Output = MemoryDeleteOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
+    fn description(&self) -> String {
+        format!(
+            "Permanently delete channel {} memories that are wrong, obsolete, or that a user asked to remove. Ids come from memory_find. After deleting, tell the channel in one short line via send_discord_message.",
+            self.channel_id
+        )
+    }
+
+    fn parameters(&self) -> serde_json::Value {
         let properties = json!({
             "ids": {
                 "type": "array",
@@ -55,18 +62,11 @@ impl Tool for MemoryDeleteTool {
             }
         });
 
-        ToolDefinition {
-            name: "memory_delete".to_string(),
-            description: format!(
-                "Permanently delete channel {} memories that are wrong, obsolete, or that a user asked to remove. Ids come from memory_find. After deleting, tell the channel in one short line via send_discord_message.",
-                self.channel_id
-            ),
-            parameters: json!({
-                "type": "object",
-                "properties": properties,
-                "required": ["ids"]
-            }),
-        }
+        json!({
+            "type": "object",
+            "properties": properties,
+            "required": ["ids"]
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {

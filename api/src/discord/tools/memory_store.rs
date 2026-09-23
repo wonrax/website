@@ -1,6 +1,6 @@
 use super::vector_client::SharedVectorClient;
 use crate::discord::message::parse_message_ids;
-use rig::{completion::ToolDefinition, tool::Tool};
+use rig::tool::PortableTool;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
@@ -45,35 +45,35 @@ impl MemoryStoreOutput {
 #[error("Memory store error: {0}")]
 pub struct MemoryStoreError(String);
 
-impl Tool for MemoryStoreTool {
+impl PortableTool for MemoryStoreTool {
     const NAME: &'static str = "memory_store";
     type Error = MemoryStoreError;
     type Args = MemoryStoreArgs;
     type Output = MemoryStoreOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: format!(
-                "Save something a future session should know about a user or channel {}. Run memory_find first: when an entry on the same fact exists, memory_update extends it instead of adding a duplicate. After storing, tell the channel in one short line via send_discord_message.",
-                self.channel_id
-            ),
-            parameters: json!({
-                "type": "object",
-                "properties": {
-                    "information": {
-                        "type": "string",
-                        "description": "The fact, self-contained enough to make sense months later: name who it is about and what happened."
-                    },
-                    "source_message_ids": {
-                        "type": "array",
-                        "items": { "type": "string" },
-                        "description": "IDs from the [#ID] headers of the messages the fact comes from. A later session rereads the conversation around them, so cite the messages that carry the fact rather than the whole batch."
-                    }
+    fn description(&self) -> String {
+        format!(
+            "Save something a future session should know about a user or channel {}. Run memory_find first: when an entry on the same fact exists, memory_update extends it instead of adding a duplicate. After storing, tell the channel in one short line via send_discord_message.",
+            self.channel_id
+        )
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "information": {
+                    "type": "string",
+                    "description": "The fact, self-contained enough to make sense months later: name who it is about and what happened."
                 },
-                "required": ["information", "source_message_ids"]
-            }),
-        }
+                "source_message_ids": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "IDs from the [#ID] headers of the messages the fact comes from. A later session rereads the conversation around them, so cite the messages that carry the fact rather than the whole batch."
+                }
+            },
+            "required": ["information", "source_message_ids"]
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {

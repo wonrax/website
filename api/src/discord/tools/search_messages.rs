@@ -8,7 +8,7 @@ use crate::discord::{
 };
 use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use reqwest::{StatusCode, header::AUTHORIZATION};
-use rig::{completion::ToolDefinition, tool::Tool};
+use rig::tool::PortableTool;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use serenity::all::{ChannelId, Context, GuildId, Message, UserId};
@@ -226,53 +226,53 @@ fn next_offset(offset: u32, limit: u32, total_results: u64) -> Option<u32> {
     (u64::from(next) < total_results && next <= MAX_OFFSET).then_some(next)
 }
 
-impl Tool for SearchChannelMessagesTool {
+impl PortableTool for SearchChannelMessagesTool {
     const NAME: &'static str = "search_channel_messages";
     type Error = SearchChannelMessagesError;
     type Args = SearchChannelMessagesArgs;
     type Output = SearchChannelMessagesOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: "Search this channel's whole history for messages outside your context, by words, author, or time. Reach for it when someone refers to something said earlier, when a memory names a topic but you need what was actually said, or to check whether something came up before. Hits use the same format and IDs as your context, so fetch_channel_history (direction around) rereads the conversation around one. Matching is by whole words, not meaning; what you know about people and topics lives in memory_find."
-                .to_string(),
-            parameters: json!({
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": ["string", "null"],
-                        "description": "Words the message must contain, in the language it was written in. Word matching, not meaning: distinctive words, not a question. null to filter by author or time only."
-                    },
-                    "author_id": {
-                        "type": ["string", "null"],
-                        "description": "Discord user ID of the author (from fetch_message_user_ids), or null for any author."
-                    },
-                    "after": {
-                        "type": ["string", "null"],
-                        "description": "Only messages sent after this time: an ISO 8601 timestamp as in message headers, or a YYYY-MM-DD date (its start, UTC). null for no lower bound."
-                    },
-                    "before": {
-                        "type": ["string", "null"],
-                        "description": "Only messages sent before this time, same formats as after. null for no upper bound."
-                    },
-                    "sort_by": {
-                        "type": ["string", "null"],
-                        "enum": ["relevance", "newest_first", "oldest_first"],
-                        "description": "null means relevance when query is set, newest_first otherwise."
-                    },
-                    "offset": {
-                        "type": ["integer", "null"],
-                        "description": "Hits to skip, for paging: the next_offset of the previous page. null starts from the first hit."
-                    },
-                    "limit": {
-                        "type": ["integer", "null"],
-                        "description": "Hits per page, 1-25. Default 10."
-                    }
+    fn description(&self) -> String {
+        "Search this channel's whole history for messages outside your context, by words, author, or time. Reach for it when someone refers to something said earlier, when a memory names a topic but you need what was actually said, or to check whether something came up before. Hits use the same format and IDs as your context, so fetch_channel_history (direction around) rereads the conversation around one. Matching is by whole words, not meaning; what you know about people and topics lives in memory_find."
+            .to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": ["string", "null"],
+                    "description": "Words the message must contain, in the language it was written in. Word matching, not meaning: distinctive words, not a question. null to filter by author or time only."
                 },
-                "required": ["query", "author_id", "after", "before", "sort_by", "offset", "limit"]
-            }),
-        }
+                "author_id": {
+                    "type": ["string", "null"],
+                    "description": "Discord user ID of the author (from fetch_message_user_ids), or null for any author."
+                },
+                "after": {
+                    "type": ["string", "null"],
+                    "description": "Only messages sent after this time: an ISO 8601 timestamp as in message headers, or a YYYY-MM-DD date (its start, UTC). null for no lower bound."
+                },
+                "before": {
+                    "type": ["string", "null"],
+                    "description": "Only messages sent before this time, same formats as after. null for no upper bound."
+                },
+                "sort_by": {
+                    "type": ["string", "null"],
+                    "enum": ["relevance", "newest_first", "oldest_first"],
+                    "description": "null means relevance when query is set, newest_first otherwise."
+                },
+                "offset": {
+                    "type": ["integer", "null"],
+                    "description": "Hits to skip, for paging: the next_offset of the previous page. null starts from the first hit."
+                },
+                "limit": {
+                    "type": ["integer", "null"],
+                    "description": "Hits per page, 1-25. Default 10."
+                }
+            },
+            "required": ["query", "author_id", "after", "before", "sort_by", "offset", "limit"]
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {

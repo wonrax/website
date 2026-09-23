@@ -1,5 +1,5 @@
 use crate::discord::message::{fetch_channel_message, format_message_compact, parse_message_id};
-use rig::{completion::ToolDefinition, tool::Tool};
+use rig::tool::PortableTool;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serenity::all::{ChannelId, Context, UserId};
@@ -40,28 +40,28 @@ impl FetchMessageOutput {
 #[error("Fetch message error: {0}")]
 pub struct FetchMessageError(String);
 
-impl Tool for FetchMessageTool {
+impl PortableTool for FetchMessageTool {
     const NAME: &'static str = "fetch_message";
     type Error = FetchMessageError;
     type Args = FetchMessageArgs;
     type Output = FetchMessageOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: "Read one message of this channel by ID when it is not in your context, typically the target of a Replied To line. Returns it in the same format as your context, attachments listed by name only; view_message_attachments shows them. For a stretch of the conversation use fetch_channel_history instead."
-                .to_string(),
-            parameters: json!({
-                "type": "object",
-                "properties": {
-                    "message_id": {
-                        "type": "string",
-                        "description": "The ID from a [#ID] message header or a Replied To line."
-                    }
-                },
-                "required": ["message_id"]
-            }),
-        }
+    fn description(&self) -> String {
+        "Read one message of this channel by ID when it is not in your context, typically the target of a Replied To line. Returns it in the same format as your context, attachments listed by name only; view_message_attachments shows them. For a stretch of the conversation use fetch_channel_history instead."
+            .to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "message_id": {
+                    "type": "string",
+                    "description": "The ID from a [#ID] message header or a Replied To line."
+                }
+            },
+            "required": ["message_id"]
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {

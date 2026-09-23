@@ -8,12 +8,15 @@ use futures::{
     channel::mpsc::{UnboundedReceiver, UnboundedSender},
 };
 use rig::message::Message as RigMessage;
+use rig_agent::ModelHandle;
 use serenity::all::{ChannelId, Context, GetMessages, MessageId, Typing, UserId};
+use tokio::sync::watch;
 use tracing::{Instrument as _, instrument};
 
 use crate::discord::{
-    agent::{self, AgentSession},
+    agent::{self, AgentSession, LlmBackend},
     bot::Guild,
+    chatgpt::{self, AuthState, Grant},
     constants::{
         AGENT_SESSION_TIMEOUT, MESSAGE_CONTEXT_SIZE, MESSAGE_DEBOUNCE_TIMEOUT,
         TYPING_DEBOUNCE_TIMEOUT,
@@ -90,10 +93,22 @@ struct PendingMessage {
     from_bot: bool,
 }
 
+/// The model for one agent run
+struct RunModel {
+    handle: ModelHandle,
+    /// The ChatGPT token the run authenticates with
+    grant: Option<Grant>,
+}
+
 struct ChannelState {
     activity: ChannelActivity,
     event_recv: UnboundedReceiver<ChannelEvent>,
     agent: Option<AgentSession>,
+    /// ChatGPT has no usable sign-in, and the channel has said so. Runs wait for the sign-in to
+    /// change, or for a new message asking for another try.
+    awaiting_auth: bool,
+    /// ChatGPT sign-in changes; `None` on other backends
+    auth_updates: Option<watch::Receiver<AuthState>>,
     /// When the agent last finished a run. The session expires once the channel goes
     /// `AGENT_SESSION_TIMEOUT` without one, however much the users chat in between.
     last_run_finished: Option<Instant>,
@@ -168,11 +183,51 @@ impl ChannelState {
         history
     }
 
+    /// The model for the next run. `None` when there is none: ChatGPT without a usable sign-in,
+    /// which the channel is then told about and waits out.
+    async fn run_model(&mut self, llm: &LlmBackend) -> Option<RunModel> {
+        match llm {
+            LlmBackend::Gemini { api_key } => agent::gemini_model(api_key)
+                .inspect_err(|e| tracing::error!(?e, "Failed to create the Gemini model"))
+                .ok()
+                .map(|handle| RunModel {
+                    handle,
+                    grant: None,
+                }),
+            LlmBackend::Chatgpt(auth) => {
+                // Taken as seen before looking, so a change during the checks still wakes us
+                if let Some(updates) = self.auth_updates.as_mut() {
+                    updates.mark_unchanged();
+                }
+                match auth.access().await {
+                    Ok(grant) => auth
+                        .model(&grant)
+                        .inspect_err(|e| tracing::error!(?e, "Failed to create the ChatGPT model"))
+                        .ok()
+                        .map(|handle| RunModel {
+                            handle,
+                            grant: Some(grant),
+                        }),
+                    Err(unavailable) => {
+                        self.awaiting_auth = true;
+                        auth.report_unavailable(
+                            &self.discord_ctx.http,
+                            self.channel_id,
+                            &unavailable,
+                        )
+                        .await;
+                        None
+                    }
+                }
+            }
+        }
+    }
+
     async fn main_loop(
         mut self,
         shared_vectordb_client: Option<tools::SharedVectorClient>,
         firecrawl: Option<tools::Firecrawl>,
-        openai_api_key: String,
+        llm: LlmBackend,
     ) {
         loop {
             // Whether anything queued deserves a run: the bot's own messages never do, and in
@@ -182,7 +237,7 @@ impl ChannelState {
                 .message_queue
                 .iter()
                 .any(|m| !m.from_bot && (!self.discord_bot_mention_only || m.mentions_bot));
-            let timer = if has_pending_prompt {
+            let timer = if has_pending_prompt && !self.awaiting_auth {
                 tokio::time::sleep_until(
                     self.activity
                         .next_processing_time()
@@ -200,6 +255,10 @@ impl ChannelState {
                             ChannelEvent::Message(msg, ctx) => {
                                 self.discord_ctx = ctx;
                                 let from_bot = msg.message.author.id == self.bot_user_id;
+                                // The bot's text-less posts are its ChatGPT notices, not conversation
+                                if from_bot && msg.message.content.trim().is_empty() {
+                                    continue;
+                                }
                                 if !from_bot {
                                     // The bot's own replies don't hold the debounce open
                                     self.activity.update_message();
@@ -218,6 +277,11 @@ impl ChannelState {
 
                                 let mentions_bot =
                                     !from_bot && msg.message.mentions_user_id(self.bot_user_id);
+                                // Someone asking again gets another try, e.g. a new sign-in code
+                                // once the last one expired
+                                if !from_bot && (!self.discord_bot_mention_only || mentions_bot) {
+                                    self.awaiting_auth = false;
+                                }
 
                                 let message = discord_message_to_rig_message(
                                     &msg.message,
@@ -260,6 +324,11 @@ impl ChannelState {
                     }
                 }
                 _ = timer => (true, false),
+                // Signed in, refreshed, or signed out for good: worth another look either way
+                _ = auth_changed(self.auth_updates.as_mut()), if self.awaiting_auth => {
+                    self.awaiting_auth = false;
+                    (false, true)
+                }
             };
 
             // The timer is only armed while something queued deserves a run, so its expiry is
@@ -270,6 +339,10 @@ impl ChannelState {
 
             let span = tracing::span!(tracing::Level::INFO, "process_discord_message");
             let ran = async {
+                let Some(model) = self.run_model(&llm).await else {
+                    return false;
+                };
+
                 let _typing = Typing::start(self.discord_ctx.http.clone(), self.channel_id);
 
                 // Idle since the bot last ran, not since the last message: in mention-only mode
@@ -283,13 +356,24 @@ impl ChannelState {
 
                 let fresh_session = self.agent.is_none();
                 let agent = match self.agent.as_mut() {
-                    Some(agent) => agent,
+                    Some(agent) => {
+                        // A refreshed ChatGPT token only reaches a live session this way
+                        agent.agent.set_model_handle(model.handle.clone());
+                        agent
+                    }
                     None => {
                         let history = self.backfill_history().await;
+                        // Routes the channel's requests to where its long, stable prefix is cached
+                        let additional_params = matches!(llm, LlmBackend::Chatgpt(_)).then(|| {
+                            serde_json::json!({
+                                "prompt_cache_key": format!("discord-channel-{}", self.channel_id),
+                            })
+                        });
                         match agent::create_agent_session(
                             &self.discord_ctx,
                             self.channel_id,
-                            &openai_api_key,
+                            model.handle.clone(),
+                            additional_params,
                             shared_vectordb_client.clone(),
                             firecrawl.clone(),
                             history,
@@ -313,9 +397,43 @@ impl ChannelState {
                         .collect(),
                 );
 
-                let _ = agent.execute_agent_multi_turn().await.inspect_err(|e| {
-                    tracing::error!(?e, "Error executing agent session in channel main loop",);
-                });
+                let mut result = agent.execute_agent_multi_turn().await;
+
+                // ChatGPT refused a token that should have been good: refresh it and give the
+                // run one more go
+                if let (Err(e), LlmBackend::Chatgpt(auth), Some(grant)) =
+                    (&result, &llm, &model.grant)
+                    && chatgpt::is_unauthorized(e)
+                {
+                    tracing::warn!("ChatGPT rejected the access token; refreshing and retrying");
+                    match auth.recover_from_unauthorized(grant).await {
+                        Ok(grant) => match auth.model(&grant) {
+                            Ok(handle) => {
+                                agent.agent.set_model_handle(handle);
+                                result = agent.execute_agent_multi_turn().await;
+                            }
+                            Err(e) => tracing::error!(?e, "Failed to create the ChatGPT model"),
+                        },
+                        Err(unavailable) => {
+                            self.awaiting_auth = true;
+                            auth.report_unavailable(
+                                &self.discord_ctx.http,
+                                self.channel_id,
+                                &unavailable,
+                            )
+                            .await;
+                        }
+                    }
+                }
+
+                if let Err(e) = &result {
+                    tracing::error!(?e, "Error executing agent session in channel main loop");
+                    // Already explained if the run ended in a sign-in prompt
+                    if matches!(llm, LlmBackend::Chatgpt(_)) && !self.awaiting_auth {
+                        chatgpt::report_run_failure(&self.discord_ctx.http, self.channel_id, e)
+                            .await;
+                    }
+                }
                 self.last_run_finished = Some(Instant::now());
                 true
             }
@@ -339,7 +457,7 @@ impl ChannelHandle {
     pub fn new(
         discord_ctx: Context,
         channel_id: ChannelId,
-        openai_api_key: String,
+        llm: LlmBackend,
         shared_vectordb_client: Option<tools::SharedVectorClient>,
         firecrawl: Option<tools::Firecrawl>,
         discord_bot_mention_only: bool,
@@ -353,6 +471,11 @@ impl ChannelHandle {
             activity: ChannelActivity::new(),
             event_recv,
             agent: None,
+            awaiting_auth: false,
+            auth_updates: match &llm {
+                LlmBackend::Chatgpt(auth) => Some(auth.subscribe()),
+                LlmBackend::Gemini { .. } => None,
+            },
             last_run_finished: None,
             bot_user_id,
             discord_ctx: discord_ctx.clone(),
@@ -364,7 +487,7 @@ impl ChannelHandle {
 
         let main_loop_handle = tokio::spawn(
             state
-                .main_loop(shared_vectordb_client, firecrawl, openai_api_key)
+                .main_loop(shared_vectordb_client, firecrawl, llm)
                 .instrument(tracing::info_span!(
                     "channel_main_loop",
                     channel_id = channel_id.get(),
@@ -384,4 +507,14 @@ impl ChannelHandle {
             .await
             .map_err(|e| eyre::eyre!(e))
     }
+}
+
+/// Resolves when the ChatGPT sign-in changes, and never without one to watch
+async fn auth_changed(updates: Option<&mut watch::Receiver<AuthState>>) {
+    if let Some(updates) = updates
+        && updates.changed().await.is_ok()
+    {
+        return;
+    }
+    std::future::pending().await
 }

@@ -1,5 +1,6 @@
 use crate::discord::{
-    constants::{MAX_AGENT_TURNS, MEMORY_PROMPT, SYSTEM_PROMPT},
+    chatgpt::ChatgptAuth,
+    constants::{GEMINI_MODEL, MAX_AGENT_TURNS, MEMORY_PROMPT, SYSTEM_PROMPT},
     tools::{
         DiscordSendMessageTool, FetchChannelHistoryTool, FetchMessageTool, FetchMessageUserIdsTool,
         FetchPageContentTool, Firecrawl, SearchChannelMessagesTool, ViewMessageAttachmentsTool,
@@ -7,11 +8,10 @@ use crate::discord::{
     },
 };
 use eyre::Context as _;
-use rig::{
-    agent::Agent,
-    client::CompletionClient,
-    completion::{Message as RigMessage, Prompt},
-    providers::gemini::{Client, completion::CompletionModel},
+use rig::{client::CompletionClient as _, completion::Message as RigMessage, providers::gemini};
+use rig_agent::{
+    Agent, AgentBuilder, ModelHandle,
+    completion::{Prompt as _, PromptError},
 };
 use serenity::all::{ChannelId, Context};
 use std::sync::Arc;
@@ -19,14 +19,26 @@ use tracing::instrument;
 
 use super::tools::SharedVectorClient;
 
+/// The LLM the agent runs on, picked at startup by `DISCORD_LLM_BACKEND`
+#[derive(Clone)]
+pub enum LlmBackend {
+    Chatgpt(Arc<ChatgptAuth>),
+    Gemini { api_key: String },
+}
+
+pub fn gemini_model(api_key: &str) -> Result<ModelHandle, eyre::Error> {
+    let client = gemini::Client::new(api_key).context("Failed to create Gemini client")?;
+    Ok(ModelHandle::new(client.completion_model(GEMINI_MODEL)))
+}
+
 /// Agent session for persistent multi-turn conversations
 pub struct AgentSession {
-    pub agent: Agent<CompletionModel>,
+    pub agent: Agent,
     pub conversation_history: Vec<RigMessage>,
 }
 
 impl AgentSession {
-    pub fn new(agent: Agent<CompletionModel>, initial_history: Vec<RigMessage>) -> Self {
+    pub fn new(agent: Agent, initial_history: Vec<RigMessage>) -> Self {
         Self {
             agent,
             conversation_history: initial_history,
@@ -44,9 +56,10 @@ impl AgentSession {
     /// everything before it is the history. rig drives the tool-call loop itself, up to
     /// `MAX_AGENT_TURNS` model calls.
     #[instrument(skip(self))]
-    pub async fn execute_agent_multi_turn(&mut self) -> Result<(), eyre::Error> {
+    pub async fn execute_agent_multi_turn(&mut self) -> Result<(), PromptError> {
         let Some(prompt) = self.conversation_history.pop() else {
-            return Err(eyre::eyre!("Empty conversation history"));
+            tracing::warn!("Skipping agent run: empty conversation history");
+            return Ok(());
         };
         if !matches!(prompt, RigMessage::User { .. }) {
             // Nothing to respond to: the newest message is the bot's own. Happens when a
@@ -59,7 +72,7 @@ impl AgentSession {
         let result = self
             .agent
             .prompt(&prompt)
-            .with_history(&self.conversation_history)
+            .history(self.conversation_history.clone())
             .max_turns(MAX_AGENT_TURNS)
             .extended_details()
             .await;
@@ -79,7 +92,7 @@ impl AgentSession {
                         .iter()
                         .any(|c| matches!(c, rig::message::AssistantContent::ToolCall(_))),
                 });
-                return Err(e.into());
+                return Err(e);
             }
         };
 
@@ -94,18 +107,18 @@ impl AgentSession {
     }
 }
 
-/// Create a new agent session for a channel
+/// Create a new agent session for a channel. `additional_params` go to the provider verbatim with
+/// every request.
+#[allow(clippy::too_many_arguments)]
 pub fn create_agent_session(
     discord_ctx: &Context,
     channel_id: ChannelId,
-    openai_api_key: &str,
+    model: ModelHandle,
+    additional_params: Option<serde_json::Value>,
     shared_vectordb_client: Option<SharedVectorClient>,
     firecrawl: Option<Firecrawl>,
     initial_history: Vec<RigMessage>,
 ) -> Result<AgentSession, eyre::Error> {
-    // Create Gemini client and build agent
-    let llm_client = Client::new(openai_api_key).context("Failed to create Gemini client")?;
-
     // Create tools with shared context
     let ctx_arc = Arc::new(discord_ctx.clone());
     let bot_user_id = discord_ctx.cache.current_user().id;
@@ -151,9 +164,11 @@ pub fn create_agent_session(
         SYSTEM_PROMPT.to_string()
     };
 
-    let mut agent_builder = llm_client
-        .agent("gemini-3.8-flash")
-        .preamble(&preamble)
+    let mut agent_builder = AgentBuilder::from_model_handle(model).preamble(&preamble);
+    if let Some(params) = additional_params {
+        agent_builder = agent_builder.additional_params(params);
+    }
+    let mut agent_builder = agent_builder
         .tool(discord_tool)
         .tool(history_tool)
         .tool(message_tool)
@@ -205,14 +220,7 @@ pub fn create_agent_session(
         tracing::info!("Memory tools enabled for channel {}", channel_id,);
     };
 
-    let agent = agent_builder
-        // OpenAI params
-        // .additional_params(json!({
-        //     "max_completion_tokens": 4096,
-        //     "reasoning_effort": "medium",
-        //     "verbosity": "low"
-        // }))
-        .build();
+    let agent = agent_builder.build();
 
     // Store the history in the session rather than initializing the agent with it
     tracing::debug!(

@@ -60,6 +60,19 @@ diesel::table! {
 }
 
 diesel::table! {
+    chatgpt_auth (id) {
+        id -> Int4,
+        access_token -> Text,
+        refresh_token -> Text,
+        id_token -> Nullable<Text>,
+        account_id -> Nullable<Text>,
+        expires_at -> Timestamptz,
+        refreshed_at -> Timestamptz,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
     counters (id) {
         id -> Int4,
         key -> Text,
@@ -181,6 +194,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     blog_comment_votes,
     blog_comments,
     blog_posts,
+    chatgpt_auth,
     counters,
     identities,
     identity_credential_types,

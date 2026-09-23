@@ -1,5 +1,5 @@
 use crate::discord::tools::firecrawl::{Firecrawl, SearchHit};
-use rig::{completion::ToolDefinition, tool::Tool};
+use rig::tool::PortableTool;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
@@ -33,32 +33,32 @@ pub struct WebSearchOutput {
 #[error("Web search error: {0}")]
 pub struct WebSearchError(String);
 
-impl Tool for WebSearchTool {
+impl PortableTool for WebSearchTool {
     const NAME: &'static str = "web_search";
     type Error = WebSearchError;
     type Args = WebSearchArgs;
     type Output = WebSearchOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: "Search the web and get the top results as title, URL, and snippet. The snippets are not the pages; when a result looks relevant, read it with fetch_page_content."
-                .to_string(),
-            parameters: json!({
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search query, as typed into a search engine. Under 500 characters."
-                    },
-                    "limit": {
-                        "type": ["integer", "null"],
-                        "description": "Results to return, 1-10. Default 5."
-                    }
+    fn description(&self) -> String {
+        "Search the web and get the top results as title, URL, and snippet. The snippets are not the pages; when a result looks relevant, read it with fetch_page_content."
+            .to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query, as typed into a search engine. Under 500 characters."
                 },
-                "required": ["query", "limit"]
-            }),
-        }
+                "limit": {
+                    "type": ["integer", "null"],
+                    "description": "Results to return, 1-10. Default 5."
+                }
+            },
+            "required": ["query", "limit"]
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {

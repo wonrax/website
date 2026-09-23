@@ -1,4 +1,4 @@
-use rig::{completion::ToolDefinition, tool::Tool};
+use rig::tool::PortableTool;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
@@ -106,31 +106,31 @@ impl Godbolt {
     }
 }
 
-impl Tool for Godbolt {
+impl PortableTool for Godbolt {
     const NAME: &'static str = "godbolt_compile";
     type Error = GodboltError;
     type Args = CompileArgs;
     type Output = serde_json::Value;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "godbolt_compile".to_string(),
-            description: "Compile code to assembly via Compiler Explorer (Godbolt). Returns asm and diagnostics. Use compilers/libraries discovery helpers to choose ids.".to_string(),
-            parameters: json!({
-                "type": "object",
-                "properties": {
-                    "compiler_id": {"type": "string", "description": "Compiler id from /api/compilers/{language}"},
-                    "source": {"type": "string", "description": "Primary source code. Symbols must be public/extern or Compiler Explorer emits no asm and no output (Rust: `pub fn main`, not `fn main`). Add the visibility yourself and mention it to the user."},
-                    "user_arguments": {"type": ["string", "null"], "description": "Compiler flags"},
-                    "files": {"type": ["array", "null"], "items": {"type": "object", "properties": {"filename": {"type": "string"}, "contents": {"type": "string"}}, "required": ["filename", "contents"]}},
-                    "libraries": {"type": ["array", "null"], "items": {"type": "object", "properties": {"id": {"type": "string"}, "version": {"type": "string"}}, "required": ["id", "version"]}},
-                    "lang": {"type": "string", "description": "Language id (e.g., rust)"},
-                    "execute": {"type": "boolean", "description": "Whether to run the program and capture output"},
-                    "asm": {"type": ["boolean", "null"], "description": "Whether to return assembly output"},
-                },
-                "required": ["compiler_id", "source", "user_arguments", "files", "libraries", "lang", "execute", "asm"]
-            }),
-        }
+    fn description(&self) -> String {
+        "Compile code to assembly via Compiler Explorer (Godbolt). Returns asm and diagnostics. Use compilers/libraries discovery helpers to choose ids.".to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "compiler_id": {"type": "string", "description": "Compiler id from /api/compilers/{language}"},
+                "source": {"type": "string", "description": "Primary source code. Symbols must be public/extern or Compiler Explorer emits no asm and no output (Rust: `pub fn main`, not `fn main`). Add the visibility yourself and mention it to the user."},
+                "user_arguments": {"type": ["string", "null"], "description": "Compiler flags"},
+                "files": {"type": ["array", "null"], "items": {"type": "object", "properties": {"filename": {"type": "string"}, "contents": {"type": "string"}}, "required": ["filename", "contents"]}},
+                "libraries": {"type": ["array", "null"], "items": {"type": "object", "properties": {"id": {"type": "string"}, "version": {"type": "string"}}, "required": ["id", "version"]}},
+                "lang": {"type": "string", "description": "Language id (e.g., rust)"},
+                "execute": {"type": "boolean", "description": "Whether to run the program and capture output"},
+                "asm": {"type": ["boolean", "null"], "description": "Whether to return assembly output"},
+            },
+            "required": ["compiler_id", "source", "user_arguments", "files", "libraries", "lang", "execute", "asm"]
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -284,18 +284,18 @@ impl Tool for Godbolt {
 #[derive(Debug, Clone)]
 pub struct GodboltFormats;
 
-impl Tool for GodboltFormats {
+impl PortableTool for GodboltFormats {
     const NAME: &'static str = "godbolt_formatters";
     type Error = GodboltError;
     type Args = serde_json::Value; // No arguments needed for this tool
     type Output = serde_json::Value;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "godbolt_formatters".to_string(),
-            description: "List available code formatters from Compiler Explorer.".to_string(),
-            parameters: json!({"type": "object", "properties": {}, "additionalProperties": false}),
-        }
+    fn description(&self) -> String {
+        "List available code formatters from Compiler Explorer.".to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({"type": "object", "properties": {}, "additionalProperties": false})
     }
 
     async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -313,26 +313,25 @@ impl Tool for GodboltFormats {
 #[derive(Debug, Clone)]
 pub struct GodboltFormat;
 
-impl Tool for GodboltFormat {
+impl PortableTool for GodboltFormat {
     const NAME: &'static str = "godbolt_format";
     type Error = GodboltError;
     type Args = FormatArgs;
     type Output = FormatOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "godbolt_format".to_string(),
-            description: "Format source code using a specified formatter on Compiler Explorer."
-                .to_string(),
-            parameters: json!({
-                "type": "object",
-                "properties": {
-                    "formatter": {"type": "string"},
-                    "source": {"type": "string"}
-                },
-                "required": ["formatter", "source"]
-            }),
-        }
+    fn description(&self) -> String {
+        "Format source code using a specified formatter on Compiler Explorer.".to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "formatter": {"type": "string"},
+                "source": {"type": "string"}
+            },
+            "required": ["formatter", "source"]
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -357,18 +356,18 @@ impl Tool for GodboltFormat {
 
 #[derive(Debug, Clone)]
 pub struct GodboltLanguages;
-impl Tool for GodboltLanguages {
+impl PortableTool for GodboltLanguages {
     const NAME: &'static str = "godbolt_languages";
     type Error = GodboltError;
     type Args = serde_json::Value; // No arguments needed for this tool
     type Output = LangsOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "godbolt_languages".to_string(),
-            description: "List supported languages on Compiler Explorer.".to_string(),
-            parameters: json!({"type": "object", "properties": {}}),
-        }
+    fn description(&self) -> String {
+        "List supported languages on Compiler Explorer.".to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({"type": "object", "properties": {}})
     }
 
     async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -387,18 +386,18 @@ impl Tool for GodboltLanguages {
 
 #[derive(Debug, Clone)]
 pub struct GodboltCompilers;
-impl Tool for GodboltCompilers {
+impl PortableTool for GodboltCompilers {
     const NAME: &'static str = "godbolt_compilers";
     type Error = GodboltError;
     type Args = CompilersArgs;
     type Output = serde_json::Value;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "godbolt_compilers".to_string(),
-            description: "List compilers for a given language id (e.g., c++, rust).".to_string(),
-            parameters: json!({"type": "object", "properties": {"language_id": {"type": "string"}}, "required": ["language_id"]}),
-        }
+    fn description(&self) -> String {
+        "List compilers for a given language id (e.g., c++, rust).".to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({"type": "object", "properties": {"language_id": {"type": "string"}}, "required": ["language_id"]})
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -415,18 +414,18 @@ impl Tool for GodboltCompilers {
 
 #[derive(Debug, Clone)]
 pub struct GodboltLibraries;
-impl Tool for GodboltLibraries {
+impl PortableTool for GodboltLibraries {
     const NAME: &'static str = "godbolt_libraries";
     type Error = GodboltError;
     type Args = LibrariesArgs;
     type Output = serde_json::Value;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "godbolt_libraries".to_string(),
-            description: "List libraries for a given language id.".to_string(),
-            parameters: json!({"type": "object", "properties": {"language_id": {"type": "string"}}, "required": ["language_id"]}),
-        }
+    fn description(&self) -> String {
+        "List libraries for a given language id.".to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({"type": "object", "properties": {"language_id": {"type": "string"}}, "required": ["language_id"]})
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -443,19 +442,18 @@ impl Tool for GodboltLibraries {
 
 #[derive(Debug, Clone)]
 pub struct GodboltAsmDoc;
-impl Tool for GodboltAsmDoc {
+impl PortableTool for GodboltAsmDoc {
     const NAME: &'static str = "godbolt_asm_doc";
     type Error = GodboltError;
     type Args = InstructionArgs;
     type Output = String;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "godbolt_asm_doc".to_string(),
-            description: "Get documentation for a specific assembly instruction (x86/arm/etc)."
-                .to_string(),
-            parameters: json!({"type": "object", "properties": {"instruction_set": {"type": "string"}, "opcode": {"type": "string"}}, "required": ["instruction_set", "opcode"]}),
-        }
+    fn description(&self) -> String {
+        "Get documentation for a specific assembly instruction (x86/arm/etc).".to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({"type": "object", "properties": {"instruction_set": {"type": "string"}, "opcode": {"type": "string"}}, "required": ["instruction_set", "opcode"]})
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -475,18 +473,18 @@ impl Tool for GodboltAsmDoc {
 
 #[derive(Debug, Clone)]
 pub struct GodboltVersion;
-impl Tool for GodboltVersion {
+impl PortableTool for GodboltVersion {
     const NAME: &'static str = "godbolt_version";
     type Error = GodboltError;
     type Args = serde_json::Value; // No arguments needed for this tool
     type Output = String;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "godbolt_version".to_string(),
-            description: "Get Compiler Explorer instance version.".to_string(),
-            parameters: json!({"type": "object", "properties": {}}),
-        }
+    fn description(&self) -> String {
+        "Get Compiler Explorer instance version.".to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({"type": "object", "properties": {}})
     }
 
     async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {

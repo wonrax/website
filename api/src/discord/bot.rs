@@ -1,5 +1,8 @@
+use crate::config::DiscordLlmBackend;
 use crate::discord::{
+    agent::LlmBackend,
     channel::{ChannelEvent, ChannelHandle},
+    chatgpt::{ChatgptAuth, DbPool},
     constants::{MESSAGE_CONTEXT_SIZE, WHITELIST_CHANNELS},
     message::QueuedMessage,
 };
@@ -25,14 +28,14 @@ pub struct DiscordEventHandler {
 
     shared_vectordb_client: Option<SharedVectorClient>,
     firecrawl: Option<Firecrawl>,
-    openai_api_key: String,
+    llm: LlmBackend,
     whitelist_channels: Vec<ChannelId>,
     bot_user_id: ArcSwap<Option<serenity::model::id::UserId>>,
     discord_bot_mention_only: bool,
 }
 
 impl DiscordEventHandler {
-    pub async fn new(server_config: crate::config::ServerConfig) -> Self {
+    pub async fn new(server_config: crate::config::ServerConfig, db: DbPool) -> Self {
         let shared_vectordb_client = match &server_config.vector_db {
             Some(conf) => SharedVectorClient::new(conf.clone())
                 .await
@@ -58,6 +61,14 @@ impl DiscordEventHandler {
             }
         };
 
+        let llm = match server_config.discord_llm_backend {
+            DiscordLlmBackend::Chatgpt => LlmBackend::Chatgpt(ChatgptAuth::load(db).await),
+            DiscordLlmBackend::Gemini => LlmBackend::Gemini {
+                api_key: server_config.openai_api_key.clone().unwrap_or_default(),
+            },
+        };
+        tracing::info!(backend = ?server_config.discord_llm_backend, "Discord agent LLM backend");
+
         Self {
             channel_handles: Arc::new(scc::HashMap::new()),
             guilds: Arc::new(scc::HashMap::new()),
@@ -69,7 +80,7 @@ impl DiscordEventHandler {
             shared_vectordb_client,
             firecrawl,
             bot_user_id: ArcSwap::from_pointee(None),
-            openai_api_key: server_config.openai_api_key.clone().unwrap_or_default(),
+            llm,
             discord_bot_mention_only: server_config.discord_mention_only,
         }
     }
@@ -234,7 +245,7 @@ impl DiscordEventHandler {
                 ChannelHandle::new(
                     discord_ctx,
                     channel_id,
-                    self.openai_api_key.clone(),
+                    self.llm.clone(),
                     self.shared_vectordb_client.clone(),
                     self.firecrawl.clone(),
                     self.discord_bot_mention_only,

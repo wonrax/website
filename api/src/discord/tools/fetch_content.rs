@@ -1,5 +1,5 @@
 use crate::discord::tools::firecrawl::Firecrawl;
-use rig::{completion::ToolDefinition, tool::Tool};
+use rig::tool::PortableTool;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
@@ -46,32 +46,32 @@ impl FetchPageContentOutput {
 #[error("Fetch page content error: {0}")]
 pub struct FetchPageContentError(String);
 
-impl Tool for FetchPageContentTool {
+impl PortableTool for FetchPageContentTool {
     const NAME: &'static str = "fetch_page_content";
     type Error = FetchPageContentError;
     type Args = FetchPageContentArgs;
     type Output = FetchPageContentOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: "Read a web page as markdown, main content only: a link someone posted, or a web_search result whose snippet is not enough. Long pages are cut off with a marker that says how to read on."
-                .to_string(),
-            parameters: json!({
-                "type": "object",
-                "properties": {
-                    "url": {
-                        "type": "string",
-                        "description": "Absolute http(s) URL of the page."
-                    },
-                    "start": {
-                        "type": ["integer", "null"],
-                        "description": "Character offset to start reading from, to continue past a truncation marker. Default 0."
-                    }
+    fn description(&self) -> String {
+        "Read a web page as markdown, main content only: a link someone posted, or a web_search result whose snippet is not enough. Long pages are cut off with a marker that says how to read on."
+            .to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "Absolute http(s) URL of the page."
                 },
-                "required": ["url", "start"]
-            }),
-        }
+                "start": {
+                    "type": ["integer", "null"],
+                    "description": "Character offset to start reading from, to continue past a truncation marker. Default 0."
+                }
+            },
+            "required": ["url", "start"]
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {

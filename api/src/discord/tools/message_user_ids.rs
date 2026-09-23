@@ -1,5 +1,5 @@
 use crate::discord::message::{fetch_channel_message, parse_message_id};
-use rig::{completion::ToolDefinition, tool::Tool};
+use rig::tool::PortableTool;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serenity::all::{ChannelId, Context, User};
@@ -55,28 +55,28 @@ impl FetchMessageUserIdsOutput {
 #[error("Fetch message user IDs error: {0}")]
 pub struct FetchMessageUserIdsError(String);
 
-impl Tool for FetchMessageUserIdsTool {
+impl PortableTool for FetchMessageUserIdsTool {
     const NAME: &'static str = "fetch_message_user_ids";
     type Error = FetchMessageUserIdsError;
     type Args = FetchMessageUserIdsArgs;
     type Output = FetchMessageUserIdsOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: "Get the user IDs behind a message: its author and every user it mentions. Message headers show names only, so call this before pinging someone with <@USER_ID> in send_discord_message."
-                .to_string(),
-            parameters: json!({
-                "type": "object",
-                "properties": {
-                    "message_id": {
-                        "type": "string",
-                        "description": "The ID from the [#ID] header of a message written by, or mentioning, the user you need."
-                    }
-                },
-                "required": ["message_id"]
-            }),
-        }
+    fn description(&self) -> String {
+        "Get the user IDs behind a message: its author and every user it mentions. Message headers show names only, so call this before pinging someone with <@USER_ID> in send_discord_message."
+            .to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "message_id": {
+                    "type": "string",
+                    "description": "The ID from the [#ID] header of a message written by, or mentioning, the user you need."
+                }
+            },
+            "required": ["message_id"]
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {

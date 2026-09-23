@@ -5,6 +5,15 @@ pub enum Env {
     Production,
 }
 
+/// The LLM behind the Discord bot
+#[derive(Clone, Copy, Debug)]
+pub enum DiscordLlmBackend {
+    /// A ChatGPT subscription, signed in from the Discord channel
+    Chatgpt,
+    /// The Gemini API, keyed by `OPENAI_API_KEY`
+    Gemini,
+}
+
 #[derive(Clone)]
 pub struct ServerConfig {
     pub env: Env,
@@ -22,6 +31,7 @@ pub struct ServerConfig {
     pub discord_token: Option<String>,
     pub discord_whitelist_channels: Option<Vec<u64>>,
     pub discord_mention_only: bool,
+    pub discord_llm_backend: DiscordLlmBackend,
     pub openai_api_key: Option<String>,
     /// Firecrawl key for the Discord agent's web search and page fetching; both tools are
     /// left out without it
@@ -204,6 +214,16 @@ impl ServerConfig {
                 .unwrap_or(None)
                 .and_then(|s| s.parse::<bool>().ok())
                 .unwrap_or(true),
+            discord_llm_backend: match var("DISCORD_LLM_BACKEND").unwrap_or(None).as_deref() {
+                None | Some("chatgpt") => DiscordLlmBackend::Chatgpt,
+                Some("gemini") => DiscordLlmBackend::Gemini,
+                Some(other) => {
+                    tracing::error!(
+                        "Unknown DISCORD_LLM_BACKEND `{other}`, expected `chatgpt` or `gemini`"
+                    );
+                    std::process::exit(1)
+                }
+            },
             openai_api_key: var("OPENAI_API_KEY").unwrap_or(None),
             firecrawl_api_key: var("FIRECRAWL_API_KEY")
                 .unwrap_or(None)

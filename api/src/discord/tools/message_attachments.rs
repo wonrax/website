@@ -1,6 +1,9 @@
 use crate::discord::message::{download_attachment, image_media_type, parse_message_id};
 use base64::Engine as _;
-use rig::{completion::ToolDefinition, message::MimeType as _, tool::Tool};
+use rig::{
+    message::{ImageMediaType, ToolResultContent},
+    tool::{PortableTool, ToolOutput},
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serenity::all::{ChannelId, Context, MessageId};
@@ -24,9 +27,9 @@ pub struct ViewMessageAttachmentsArgs {
     pub message_id: String,
 }
 
-/// rig's hybrid tool output: `response` becomes the text part of the tool result and each entry
-/// of `parts` an image part, so the model sees the pixels rather than a base64 string.
-#[derive(Debug, Clone, Serialize)]
+/// Becomes a JSON part holding `response` followed by one image part per entry of `parts`, so the
+/// model sees the pixels rather than a base64 string.
+#[derive(Debug, Clone)]
 pub struct ViewMessageAttachmentsOutput {
     pub response: AttachmentsResponse,
     pub parts: Vec<ImagePart>,
@@ -49,13 +52,10 @@ pub struct SkippedAttachment {
     pub reason: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub struct ImagePart {
-    #[serde(rename = "type")]
-    pub kind: &'static str,
     pub data: String,
-    #[serde(rename = "mimeType")]
-    pub mime_type: &'static str,
+    pub media_type: ImageMediaType,
 }
 
 impl ViewMessageAttachmentsOutput {
@@ -81,44 +81,59 @@ impl ViewMessageAttachmentsOutput {
     fn failure(message_id: String, error: String) -> Self {
         Self::text_only(message_id, false, None, Some(error))
     }
+
+    fn into_tool_output(self) -> ToolOutput {
+        let response = match serde_json::to_value(&self.response) {
+            Ok(response) => response,
+            Err(e) => return ToolOutput::text(format!("failed to serialize the result: {e}")),
+        };
+        let mut content = vec![ToolResultContent::json(response)];
+        content.extend(
+            self.parts.into_iter().map(|part| {
+                ToolResultContent::image_base64(part.data, Some(part.media_type), None)
+            }),
+        );
+        // Never empty: the JSON part always leads
+        ToolOutput::content(content).unwrap_or_else(|e| ToolOutput::text(e.to_string()))
+    }
 }
 
 #[derive(Debug, Error)]
 #[error("View message attachments error: {0}")]
 pub struct ViewMessageAttachmentsError(String);
 
-impl Tool for ViewMessageAttachmentsTool {
+impl PortableTool for ViewMessageAttachmentsTool {
     const NAME: &'static str = "view_message_attachments";
     type Error = ViewMessageAttachmentsError;
     type Args = ViewMessageAttachmentsArgs;
-    type Output = ViewMessageAttachmentsOutput;
+    type Output = ToolOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: "Show yourself the image attachments on a message. Attachments in your starting context and in fetched history appear by name only, like [Attachment: cat.png]; call this with the ID from that message's [#ID] header to see them. Images on live messages are already shown to you inline, so those don't need fetching. Non-image attachments are reported by name but cannot be shown."
-                .to_string(),
-            parameters: json!({
-                "type": "object",
-                "properties": {
-                    "message_id": {
-                        "type": "string",
-                        "description": "The ID from the [#ID] header of the message whose attachments you want to see."
-                    }
-                },
-                "required": ["message_id"]
-            }),
-        }
+    fn description(&self) -> String {
+        "Show yourself the image attachments on a message. Attachments in your starting context and in fetched history appear by name only, like [Attachment: cat.png]; call this with the ID from that message's [#ID] header to see them. Images on live messages are already shown to you inline, so those don't need fetching. Non-image attachments are reported by name but cannot be shown."
+            .to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "message_id": {
+                    "type": "string",
+                    "description": "The ID from the [#ID] header of the message whose attachments you want to see."
+                }
+            },
+            "required": ["message_id"]
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let message_id = match parse_message_id("message_id", &args.message_id) {
             Ok(id) => id.get(),
             Err(error) => {
-                return Ok(ViewMessageAttachmentsOutput::failure(
-                    args.message_id.clone(),
-                    error,
-                ));
+                return Ok(
+                    ViewMessageAttachmentsOutput::failure(args.message_id.clone(), error)
+                        .into_tool_output(),
+                );
             }
         };
 
@@ -195,9 +210,8 @@ impl Tool for ViewMessageAttachmentsTool {
                         budget =
                             budget.saturating_sub(u32::try_from(bytes.len()).unwrap_or(u32::MAX));
                         parts.push(ImagePart {
-                            kind: "image",
                             data: base64::prelude::BASE64_STANDARD.encode(&bytes),
-                            mime_type: media_type.to_mime_type(),
+                            media_type,
                         });
                         shown.push(filename);
                     }
@@ -231,15 +245,16 @@ impl Tool for ViewMessageAttachmentsTool {
             }
         });
 
-        match handle.await {
-            Ok(output) => Ok(output),
+        let output = match handle.await {
+            Ok(output) => output,
             Err(e) => {
                 tracing::error!(?e, "Task join error while viewing message attachments");
-                Ok(ViewMessageAttachmentsOutput::failure(
+                ViewMessageAttachmentsOutput::failure(
                     message_id.to_string(),
                     format!("Task execution failed: {e}"),
-                ))
+                )
             }
-        }
+        };
+        Ok(output.into_tool_output())
     }
 }

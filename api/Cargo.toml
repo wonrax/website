@@ -36,7 +36,8 @@ const_format = "0.2.36"
 futures = "0.3.32"
 article_scraper = "2.3.1"
 url = "2.5.8"
-rig = { package = "rig-core", version = "0.39.0" }
+rig = { package = "rig-core", version = "0.42.0" }
+rig-agent = "0.42.0"
 chromadb = "2.3.0"
 fastembed = "=5.17.2"
 uuid = { version = "1.23.3", features = ["v4"] }

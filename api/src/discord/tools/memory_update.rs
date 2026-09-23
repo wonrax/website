@@ -1,6 +1,6 @@
 use super::vector_client::{SharedVectorClient, VectorClientError};
 use crate::discord::message::parse_message_ids;
-use rig::{completion::ToolDefinition, tool::Tool};
+use rig::tool::PortableTool;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
@@ -49,39 +49,39 @@ impl MemoryUpdateOutput {
 #[error("Memory update error: {0}")]
 pub struct MemoryUpdateError(String);
 
-impl Tool for MemoryUpdateTool {
+impl PortableTool for MemoryUpdateTool {
     const NAME: &'static str = "memory_update";
     type Error = MemoryUpdateError;
     type Args = MemoryUpdateArgs;
     type Output = MemoryUpdateOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: format!(
-                "Extend or correct an existing memory of channel {}: the new text replaces the old, and the messages you cite join the ones it already has. After updating, tell the channel in one short line via send_discord_message.",
-                self.channel_id
-            ),
-            parameters: json!({
-                "type": "object",
-                "properties": {
-                    "point_id": {
-                        "type": "string",
-                        "description": "The point_id of the memory, from memory_find."
-                    },
-                    "information": {
-                        "type": "string",
-                        "description": "The complete updated fact. It replaces the old text, so carry over whatever still holds."
-                    },
-                    "source_message_ids": {
-                        "type": "array",
-                        "items": { "type": "string" },
-                        "description": "IDs from the [#ID] headers of the messages behind this update. Added to the sources the memory already cites."
-                    }
+    fn description(&self) -> String {
+        format!(
+            "Extend or correct an existing memory of channel {}: the new text replaces the old, and the messages you cite join the ones it already has. After updating, tell the channel in one short line via send_discord_message.",
+            self.channel_id
+        )
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "point_id": {
+                    "type": "string",
+                    "description": "The point_id of the memory, from memory_find."
                 },
-                "required": ["point_id", "information", "source_message_ids"]
-            }),
-        }
+                "information": {
+                    "type": "string",
+                    "description": "The complete updated fact. It replaces the old text, so carry over whatever still holds."
+                },
+                "source_message_ids": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "IDs from the [#ID] headers of the messages behind this update. Added to the sources the memory already cites."
+                }
+            },
+            "required": ["point_id", "information", "source_message_ids"]
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {

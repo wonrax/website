@@ -168,3 +168,16 @@ model online_articles {
 
   @@index([created_at])
 }
+
+/// The ChatGPT sign-in the Discord bot runs its LLM on. Holds a single row, id 1.
+model chatgpt_auth {
+  id            Int      @id
+  access_token  String
+  /// Single use: every refresh rotates it, and replaying an old one revokes the sign-in
+  refresh_token String
+  id_token      String?
+  account_id    String?
+  expires_at    DateTime @db.Timestamptz(6)
+  refreshed_at  DateTime @db.Timestamptz(6)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+}

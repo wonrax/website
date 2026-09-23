@@ -1,5 +1,5 @@
 use crate::discord::message::{format_message_compact, parse_message_id};
-use rig::{completion::ToolDefinition, tool::Tool};
+use rig::tool::PortableTool;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serenity::all::{ChannelId, Context, GetMessages, UserId};
@@ -77,37 +77,37 @@ impl FetchChannelHistoryOutput {
 #[error("Fetch channel history error: {0}")]
 pub struct FetchChannelHistoryError(String);
 
-impl Tool for FetchChannelHistoryTool {
+impl PortableTool for FetchChannelHistoryTool {
     const NAME: &'static str = "fetch_channel_history";
     type Error = FetchChannelHistoryError;
     type Args = FetchChannelHistoryArgs;
     type Output = FetchChannelHistoryOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: "Page through this channel's history from a known message, for what is outside your context: when the thread under discussion began earlier, when a reply, a memory, or a search hit points at a message you can't see, or to check when you last spoke. To find messages by words, author, or time, use search_channel_messages. Results use the same header format as your context, oldest first, with your own messages tagged [you]. Attachments are listed by name; view_message_attachments shows them. Keep paging by passing the returned oldest_message_id (or newest_message_id) as the next anchor while more_available is true."
-                .to_string(),
-            parameters: json!({
-                "type": "object",
-                "properties": {
-                    "anchor_message_id": {
-                        "type": "string",
-                        "description": "The ID from a [#ID] message header to page from."
-                    },
-                    "direction": {
-                        "type": "string",
-                        "enum": ["before", "after", "around"],
-                        "description": "before: messages older than the anchor (the usual choice, anchored at the oldest message you can see). after: messages newer than the anchor. around: both sides of the anchor, for the context of a message someone replied to."
-                    },
-                    "limit": {
-                        "type": ["integer", "null"],
-                        "description": "Messages to fetch, 1-100. Default 30."
-                    }
+    fn description(&self) -> String {
+        "Page through this channel's history from a known message, for what is outside your context: when the thread under discussion began earlier, when a reply, a memory, or a search hit points at a message you can't see, or to check when you last spoke. To find messages by words, author, or time, use search_channel_messages. Results use the same header format as your context, oldest first, with your own messages tagged [you]. Attachments are listed by name; view_message_attachments shows them. Keep paging by passing the returned oldest_message_id (or newest_message_id) as the next anchor while more_available is true."
+            .to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "anchor_message_id": {
+                    "type": "string",
+                    "description": "The ID from a [#ID] message header to page from."
                 },
-                "required": ["anchor_message_id", "direction", "limit"]
-            }),
-        }
+                "direction": {
+                    "type": "string",
+                    "enum": ["before", "after", "around"],
+                    "description": "before: messages older than the anchor (the usual choice, anchored at the oldest message you can see). after: messages newer than the anchor. around: both sides of the anchor, for the context of a message someone replied to."
+                },
+                "limit": {
+                    "type": ["integer", "null"],
+                    "description": "Messages to fetch, 1-100. Default 30."
+                }
+            },
+            "required": ["anchor_message_id", "direction", "limit"]
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {

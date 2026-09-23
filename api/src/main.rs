@@ -171,6 +171,7 @@ async fn main() {
     }));
 
     recommendation::start_background_crawl(shared_state.clone());
+    let discord_db = shared_state.diesel.clone();
 
     let site_url = config.site_url.clone();
     let cors = CorsLayer::new()
@@ -252,7 +253,7 @@ async fn main() {
         );
 
     tokio::spawn(async move {
-        if let Err(e) = start_discord_service(config).await {
+        if let Err(e) = start_discord_service(config, discord_db).await {
             error!("Error starting Discord service: {e:?}");
         }
     });
@@ -267,7 +268,10 @@ async fn main() {
     .unwrap();
 }
 
-async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> {
+async fn start_discord_service(
+    config: ServerConfig,
+    db: discord::chatgpt::DbPool,
+) -> Result<(), eyre::Error> {
     use serenity::all::GatewayIntents;
 
     if let Some(discord_token) = config.discord_token.clone() {
@@ -281,7 +285,7 @@ async fn start_discord_service(config: ServerConfig) -> Result<(), eyre::Error> 
         // Create a new instance of the Client, logging in as a bot. This will automatically prepend
         // your bot token with "Bot ", which is a requirement by Discord for bot users.
         let mut discord_client = serenity::Client::builder(&discord_token, intents)
-            .event_handler(discord::DiscordEventHandler::new(config.clone()).await)
+            .event_handler(discord::DiscordEventHandler::new(config.clone(), db).await)
             .await
             .map_err(|e| eyre::eyre!("Error creating Discord client: {e:?}"))?;
 

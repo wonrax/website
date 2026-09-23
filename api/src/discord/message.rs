@@ -1,7 +1,6 @@
 use base64::Engine as _;
 use chrono::{DateTime, Utc};
 use rig::{
-    OneOrMany,
     completion::Message as RigMessage,
     message::{ImageDetail, ImageMediaType, MimeType, UserContent},
 };
@@ -246,7 +245,7 @@ pub async fn discord_message_to_rig_message(
         return RigMessage::assistant(text_content);
     }
 
-    let mut content_parts = vec![UserContent::text(text_content.clone())];
+    let mut content_parts = vec![UserContent::text(text_content)];
 
     if let AttachmentMode::Inline = attachments {
         for attachment in &msg.attachments {
@@ -268,10 +267,7 @@ pub async fn discord_message_to_rig_message(
         }
     }
 
-    match OneOrMany::many(content_parts) {
-        Ok(content) => RigMessage::from(content),
-        Err(_) => RigMessage::user(text_content), // Fallback to text-only if content list is empty
-    }
+    RigMessage::from(content_parts)
 }
 
 #[cfg(test)]
