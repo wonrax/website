@@ -16,8 +16,12 @@ use eyre::Context as _;
 use reqwest::StatusCode;
 use rig::{
     client::CompletionClient as _,
-    completion::CompletionError,
+    completion::{
+        CompletionError, CompletionModel, CompletionRequest, CompletionResponse,
+        ProviderCapabilities, Usage,
+    },
     providers::chatgpt::{self, ChatGPTAuth},
+    streaming::StreamingCompletionResponse,
 };
 use rig_agent::{ModelHandle, completion::PromptError};
 use serenity::all::{
@@ -45,6 +49,9 @@ const MAX_POLL_NETWORK_FAILURES: u32 = 6;
 const MIN_CODE_TIME_LEFT: TimeDelta = TimeDelta::minutes(2);
 /// Cap on error details quoted in the channel
 const MAX_DETAIL_CHARS: usize = 300;
+/// How rig's ChatGPT provider fails a turn that holds no text and no tool call
+/// (`completion_response_from_sse_body` in rig-core's Responses streaming module)
+const EMPTY_TURN_ERROR: &str = "Response contained no parts";
 
 /// A live sign-in
 pub struct Session {
@@ -201,7 +208,9 @@ impl ChatgptAuth {
             .allow_device_flow(false)
             .build()
             .context("Failed to build the ChatGPT client")?;
-        Ok(ModelHandle::new(client.completion_model(CHATGPT_MODEL)))
+        Ok(ModelHandle::new(ChatgptModel(
+            client.completion_model(CHATGPT_MODEL),
+        )))
     }
 
     /// Tell the channel why ChatGPT can't be used. Signed out, that is a sign-in prompt: a new
@@ -503,6 +512,43 @@ impl ChatgptAuth {
     }
 }
 
+/// rig's ChatGPT model, except that a turn with nothing in it ends the run instead of failing it.
+///
+/// The ChatGPT backend leaves a turn's items out of its final `response.completed` event, so rig
+/// rebuilds the turn from the streamed events, and fails it when they hold no text and no tool
+/// call. For this bot that is how a run normally ends: the reply already went out through
+/// `send_discord_message` and the model has nothing to add. Other providers return an empty turn
+/// there, which the agent loop takes as the end of the run and keeps out of history. A failed run
+/// instead loses its tool calls from the session, replies included.
+#[derive(Clone)]
+struct ChatgptModel(chatgpt::ResponsesCompletionModel);
+
+impl CompletionModel for ChatgptModel {
+    async fn completion(
+        &self,
+        request: CompletionRequest,
+    ) -> Result<CompletionResponse, CompletionError> {
+        match self.0.completion(request).await {
+            Err(CompletionError::ResponseError(message)) if message == EMPTY_TURN_ERROR => {
+                tracing::debug!("ChatGPT ended the turn without output");
+                Ok(CompletionResponse::new(Vec::new(), Usage::new(), "chatgpt"))
+            }
+            result => result,
+        }
+    }
+
+    async fn stream(
+        &self,
+        request: CompletionRequest,
+    ) -> Result<StreamingCompletionResponse, CompletionError> {
+        self.0.stream(request).await
+    }
+
+    fn capabilities(&self) -> ProviderCapabilities {
+        self.0.capabilities()
+    }
+}
+
 #[derive(Queryable, Selectable, Insertable, AsChangeset)]
 #[diesel(table_name = crate::schema::chatgpt_auth)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
@@ -798,6 +844,96 @@ async fn replace(http: &Arc<Http>, channel_id: ChannelId, message_id: MessageId,
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+    /// A turn as the ChatGPT backend streams it when the model has nothing to add: no output
+    /// events, and an empty `output` on the terminal event as always
+    const EMPTY_TURN_SSE: &str = r#"data: {"type":"response.completed","response":{"id":"resp_1","object":"response","created_at":1,"status":"completed","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-6-luna","usage":{"input_tokens":1,"input_tokens_details":{"cached_tokens":0},"output_tokens":0,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":1},"output":[],"tools":[]}}
+
+data: [DONE]
+
+"#;
+
+    /// Answers one HTTP request with `sse` and returns the base URL it listens on
+    async fn serve_once(sse: &'static str) -> String {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind a local port");
+        let address = listener.local_addr().expect("local address");
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.expect("accept");
+            // Read the whole request so the client never writes into a closed socket
+            let mut request = Vec::new();
+            let mut buf = [0u8; 4096];
+            loop {
+                let n = socket.read(&mut buf).await.expect("read request");
+                request.extend_from_slice(&buf[..n]);
+                let text = String::from_utf8_lossy(&request);
+                if let Some(header_end) = text.find("\r\n\r\n") {
+                    let body_len = text[..header_end]
+                        .lines()
+                        .find_map(|line| {
+                            let (name, value) = line.split_once(':')?;
+                            name.eq_ignore_ascii_case("content-length")
+                                .then(|| value.trim().parse::<usize>().ok())?
+                        })
+                        .unwrap_or(0);
+                    if request.len() >= header_end + 4 + body_len {
+                        break;
+                    }
+                }
+                if n == 0 {
+                    break;
+                }
+            }
+            let response = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{sse}",
+                sse.len()
+            );
+            socket
+                .write_all(response.as_bytes())
+                .await
+                .expect("write response");
+        });
+        format!("http://{address}")
+    }
+
+    async fn model_serving(sse: &'static str) -> ChatgptModel {
+        let client = chatgpt::Client::builder()
+            .api_key(ChatGPTAuth::AccessToken {
+                access_token: "token".to_string(),
+                account_id: None,
+            })
+            .base_url(serve_once(sse).await)
+            .default_instructions("")
+            .allow_device_flow(false)
+            .build()
+            .expect("client");
+        ChatgptModel(client.completion_model(CHATGPT_MODEL))
+    }
+
+    #[tokio::test]
+    async fn rig_fails_an_empty_chatgpt_turn_with_the_expected_error() {
+        let ChatgptModel(inner) = model_serving(EMPTY_TURN_SSE).await;
+        let request = inner.completion_request("hi").build();
+
+        match inner.completion(request).await {
+            Err(CompletionError::ResponseError(message)) => assert_eq!(message, EMPTY_TURN_ERROR),
+            other => panic!(
+                "rig no longer fails an empty turn the way EMPTY_TURN_ERROR expects: {:?}",
+                other.map(|response| response.choice)
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn an_empty_chatgpt_turn_ends_the_run() {
+        let model = model_serving(EMPTY_TURN_SSE).await;
+        let request = model.completion_request("hi").build();
+
+        let response = model.completion(request).await.expect("an empty turn");
+        assert!(response.choice.is_empty());
+    }
 
     fn session(refreshed_at: DateTime<Utc>, expires_at: DateTime<Utc>) -> Session {
         Session {
