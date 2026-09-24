@@ -44,9 +44,22 @@ pub enum Role {
     Responder,
 }
 
+/// Names `role`'s sessions in `channel_id` to the provider, which keeps their cached prefix under it
+fn session_key(role: Role, channel_id: ChannelId) -> String {
+    match role {
+        Role::Watcher => format!("discord-channel-{channel_id}-watcher"),
+        Role::Responder => format!("discord-channel-{channel_id}"),
+    }
+}
+
 impl LlmBackend {
-    /// The model `role` runs on. ChatGPT authenticates it as the run's `grant`.
-    pub fn model(&self, role: Role, grant: Option<&Grant>) -> eyre::Result<ModelHandle> {
+    /// The model `role` runs on in `channel_id`. ChatGPT authenticates it as the run's `grant`.
+    pub fn model(
+        &self,
+        role: Role,
+        channel_id: ChannelId,
+        grant: Option<&Grant>,
+    ) -> eyre::Result<ModelHandle> {
         match self {
             Self::Gemini { api_key } => gemini_model(api_key),
             Self::Chatgpt(auth) => {
@@ -55,7 +68,7 @@ impl LlmBackend {
                     Role::Watcher => CHATGPT_WATCHER_MODEL,
                     Role::Responder => CHATGPT_RESPONDER_MODEL,
                 };
-                auth.model(grant, name)
+                auth.model(grant, name, &session_key(role, channel_id))
             }
         }
     }
@@ -70,13 +83,8 @@ impl LlmBackend {
     /// Sent to the provider verbatim with every request of `role`'s session in the channel
     fn session_params(&self, role: Role, channel_id: ChannelId) -> Option<serde_json::Value> {
         // Routes each session's requests to where its long, stable prefix is cached
-        matches!(self, Self::Chatgpt(_)).then(|| {
-            let key = match role {
-                Role::Watcher => format!("discord-channel-{channel_id}-watcher"),
-                Role::Responder => format!("discord-channel-{channel_id}"),
-            };
-            serde_json::json!({ "prompt_cache_key": key })
-        })
+        matches!(self, Self::Chatgpt(_))
+            .then(|| serde_json::json!({ "prompt_cache_key": session_key(role, channel_id) }))
     }
 }
 

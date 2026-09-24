@@ -112,6 +112,7 @@ dependencies = [
  "axum-extra",
  "backtrace",
  "base64 0.22.1",
+ "bytes",
  "chromadb",
  "chrono",
  "const_format",

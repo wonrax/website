@@ -250,7 +250,7 @@ impl ChannelState {
         tracing::warn!("ChatGPT rejected the access token; refreshing and retrying");
         let auth = auth.clone();
         match auth.recover_from_unauthorized(grant).await {
-            Ok(grant) => match self.llm.model(role, Some(&grant)) {
+            Ok(grant) => match self.llm.model(role, self.channel_id, Some(&grant)) {
                 Ok(handle) => {
                     session.agent.set_model_handle(handle);
                     run_auth.grant = Some(grant);
@@ -341,7 +341,10 @@ impl ChannelState {
         run_auth: &mut RunAuth,
     ) -> bool {
         let before = batch.first().map(|m| m.id);
-        let model = match self.llm.model(Role::Watcher, run_auth.grant.as_ref()) {
+        let model = match self
+            .llm
+            .model(Role::Watcher, self.channel_id, run_auth.grant.as_ref())
+        {
             Ok(model) => model,
             Err(e) => {
                 tracing::error!(?e, "Failed to create the watcher model");
@@ -461,7 +464,10 @@ impl ChannelState {
                 .map(|m| message::observed(&m.message))
                 .collect(),
         );
-        match self.llm.model(Role::Watcher, grant.as_ref()) {
+        match self
+            .llm
+            .model(Role::Watcher, self.channel_id, grant.as_ref())
+        {
             Ok(model) => {
                 watcher.agent.set_model_handle(model);
                 self.spawn_memory_pass(watcher);
@@ -536,7 +542,10 @@ impl ChannelState {
         batch_len: usize,
         run_auth: &mut RunAuth,
     ) -> Option<(AgentSession, bool)> {
-        let model = match self.llm.model(Role::Responder, run_auth.grant.as_ref()) {
+        let model = match self
+            .llm
+            .model(Role::Responder, self.channel_id, run_auth.grant.as_ref())
+        {
             Ok(model) => model,
             Err(e) => {
                 tracing::error!(?e, "Failed to create the responder model");

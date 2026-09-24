@@ -9,6 +9,7 @@ mod oauth;
 
 use std::{sync::Arc, time::Duration};
 
+use bytes::Bytes;
 use chrono::{DateTime, TimeDelta, Utc};
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
@@ -20,8 +21,13 @@ use rig::{
         CompletionError, CompletionModel, CompletionRequest, CompletionResponse,
         ProviderCapabilities, Usage,
     },
+    http_client::{
+        self, HeaderValue, HttpClientExt, LazyBody, MultipartForm, Request, Response,
+        StreamingResponse,
+    },
     providers::chatgpt::{self, ChatGPTAuth},
     streaming::StreamingCompletionResponse,
+    wasm_compat::WasmCompatSend,
 };
 use rig_agent::{ModelHandle, completion::PromptError};
 use serenity::all::{
@@ -192,15 +198,15 @@ impl ChatgptAuth {
         self.refresh(&session).await.map(|fresh| fresh.grant())
     }
 
-    /// The ChatGPT model `name`, authenticated as `grant`. Built for every run, so live agent
-    /// sessions pick up refreshed tokens.
-    pub fn model(&self, grant: &Grant, name: &str) -> eyre::Result<ModelHandle> {
+    /// The ChatGPT model `name`, authenticated as `grant`, for the agent session `session`. Built
+    /// for every run, so live agent sessions pick up refreshed tokens.
+    pub fn model(&self, grant: &Grant, name: &str, session: &str) -> eyre::Result<ModelHandle> {
         let client = chatgpt::Client::builder()
             .api_key(ChatGPTAuth::AccessToken {
                 access_token: grant.access_token.clone(),
                 account_id: grant.account_id.clone(),
             })
-            .http_client(self.http.clone())
+            .http_client(PinnedSession::new(self.http.clone(), session))
             // rig prepends a stock "You are ChatGPT" line unless this is empty
             .default_instructions("")
             .allow_device_flow(false)
@@ -510,6 +516,66 @@ impl ChatgptAuth {
     }
 }
 
+/// rig's HTTP client with the `session_id` header held to one value per agent session. rig makes up
+/// a new one for every ChatGPT request, where Codex keeps one per conversation, and requests that
+/// each carry a new one rarely hit the backend's prompt cache past the instructions and tools.
+#[derive(Clone, Debug, Default)]
+struct PinnedSession {
+    http: reqwest::Client,
+    session_id: Option<HeaderValue>,
+}
+
+impl PinnedSession {
+    fn new(http: reqwest::Client, session: &str) -> Self {
+        let session_id = HeaderValue::from_str(session)
+            .inspect_err(|e| tracing::warn!(?e, session, "Unusable ChatGPT session ID"))
+            .ok();
+        Self { http, session_id }
+    }
+
+    fn pin<T>(&self, mut request: Request<T>) -> Request<T> {
+        if let Some(session_id) = &self.session_id {
+            request
+                .headers_mut()
+                .insert("session_id", session_id.clone());
+        }
+        request
+    }
+}
+
+impl HttpClientExt for PinnedSession {
+    fn send<T, U>(
+        &self,
+        request: Request<T>,
+    ) -> impl Future<Output = http_client::Result<Response<LazyBody<U>>>> + WasmCompatSend + 'static
+    where
+        T: Into<Bytes> + WasmCompatSend,
+        U: From<Bytes> + WasmCompatSend + 'static,
+    {
+        self.http.send(self.pin(request))
+    }
+
+    fn send_multipart<U>(
+        &self,
+        request: Request<MultipartForm>,
+    ) -> impl Future<Output = http_client::Result<Response<LazyBody<U>>>> + WasmCompatSend + 'static
+    where
+        U: From<Bytes> + WasmCompatSend + 'static,
+    {
+        self.http.send_multipart(self.pin(request))
+    }
+
+    fn send_streaming<T>(
+        &self,
+        request: Request<T>,
+    ) -> impl Future<Output = http_client::Result<StreamingResponse>> + WasmCompatSend
+    where
+        T: Into<Bytes> + WasmCompatSend,
+    {
+        self.http.send_streaming(self.pin(request))
+    }
+}
+
 /// rig's ChatGPT model, except that a turn with nothing in it ends the run instead of failing it.
 ///
 /// The ChatGPT backend leaves a turn's items out of its final `response.completed` event, so rig
@@ -519,7 +585,7 @@ impl ChatgptAuth {
 /// there, which the agent loop takes as the end of the run and keeps out of history. A failed run
 /// instead loses its tool calls from the session, replies included.
 #[derive(Clone)]
-struct ChatgptModel(chatgpt::ResponsesCompletionModel);
+struct ChatgptModel(chatgpt::ResponsesCompletionModel<PinnedSession>);
 
 impl CompletionModel for ChatgptModel {
     async fn completion(
@@ -853,62 +919,100 @@ data: [DONE]
 
 "#;
 
-    /// Answers one HTTP request with `sse` and returns the base URL it listens on
-    async fn serve_once(sse: &'static str) -> String {
+    /// Answers `count` HTTP requests with `sse`. Returns the base URL it listens on and the raw
+    /// requests it has received so far.
+    async fn serve(
+        sse: &'static str,
+        count: usize,
+    ) -> (String, Arc<std::sync::Mutex<Vec<String>>>) {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind a local port");
         let address = listener.local_addr().expect("local address");
+        let received = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let log = received.clone();
         tokio::spawn(async move {
-            let (mut socket, _) = listener.accept().await.expect("accept");
-            // Read the whole request so the client never writes into a closed socket
-            let mut request = Vec::new();
-            let mut buf = [0u8; 4096];
-            loop {
-                let n = socket.read(&mut buf).await.expect("read request");
-                request.extend_from_slice(&buf[..n]);
-                let text = String::from_utf8_lossy(&request);
-                if let Some(header_end) = text.find("\r\n\r\n") {
-                    let body_len = text[..header_end]
-                        .lines()
-                        .find_map(|line| {
-                            let (name, value) = line.split_once(':')?;
-                            name.eq_ignore_ascii_case("content-length")
-                                .then(|| value.trim().parse::<usize>().ok())?
-                        })
-                        .unwrap_or(0);
-                    if request.len() >= header_end + 4 + body_len {
+            for _ in 0..count {
+                let (mut socket, _) = listener.accept().await.expect("accept");
+                // Read the whole request so the client never writes into a closed socket
+                let mut request = Vec::new();
+                let mut buf = [0u8; 4096];
+                loop {
+                    let n = socket.read(&mut buf).await.expect("read request");
+                    request.extend_from_slice(&buf[..n]);
+                    let text = String::from_utf8_lossy(&request);
+                    if let Some(header_end) = text.find("\r\n\r\n") {
+                        let body_len = text[..header_end]
+                            .lines()
+                            .find_map(|line| {
+                                let (name, value) = line.split_once(':')?;
+                                name.eq_ignore_ascii_case("content-length")
+                                    .then(|| value.trim().parse::<usize>().ok())?
+                            })
+                            .unwrap_or(0);
+                        if request.len() >= header_end + 4 + body_len {
+                            break;
+                        }
+                    }
+                    if n == 0 {
                         break;
                     }
                 }
-                if n == 0 {
-                    break;
-                }
+                log.lock()
+                    .expect("request log")
+                    .push(String::from_utf8_lossy(&request).into_owned());
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{sse}",
+                    sse.len()
+                );
+                socket
+                    .write_all(response.as_bytes())
+                    .await
+                    .expect("write response");
             }
-            let response = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{sse}",
-                sse.len()
-            );
-            socket
-                .write_all(response.as_bytes())
-                .await
-                .expect("write response");
         });
-        format!("http://{address}")
+        (format!("http://{address}"), received)
     }
 
-    async fn model_serving(sse: &'static str) -> ChatgptModel {
+    fn model_at(url: String, session: &str) -> ChatgptModel {
         let client = chatgpt::Client::builder()
             .api_key(ChatGPTAuth::AccessToken {
                 access_token: "token".to_string(),
                 account_id: None,
             })
-            .base_url(serve_once(sse).await)
+            .base_url(url)
+            .http_client(PinnedSession::new(reqwest::Client::new(), session))
             .default_instructions("")
             .allow_device_flow(false)
             .build()
             .expect("client");
         ChatgptModel(client.completion_model(CHATGPT_RESPONDER_MODEL))
+    }
+
+    async fn model_serving(sse: &'static str) -> ChatgptModel {
+        model_at(serve(sse, 1).await.0, "session")
+    }
+
+    #[tokio::test]
+    async fn requests_of_a_session_share_its_session_id() {
+        let (url, received) = serve(EMPTY_TURN_SSE, 2).await;
+        let model = model_at(url, "discord-channel-1-watcher");
+        for _ in 0..2 {
+            let request = model.completion_request("hi").build();
+            model.completion(request).await.expect("an empty turn");
+        }
+
+        let received = received.lock().expect("request log");
+        assert_eq!(received.len(), 2);
+        for request in received.iter() {
+            let session_ids: Vec<&str> = request
+                .lines()
+                .filter_map(|line| line.split_once(':'))
+                .filter(|(name, _)| name.eq_ignore_ascii_case("session_id"))
+                .map(|(_, value)| value.trim())
+                .collect();
+            assert_eq!(session_ids, ["discord-channel-1-watcher"], "{request}");
+        }
     }
 
     #[tokio::test]
