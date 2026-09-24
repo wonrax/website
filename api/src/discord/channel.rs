@@ -129,7 +129,8 @@ struct ChannelState {
     /// ChatGPT sign-in changes; `None` on other backends
     auth_updates: Option<watch::Receiver<AuthState>>,
     /// When the responder last finished a run. Its session expires once the channel goes
-    /// `AGENT_SESSION_TIMEOUT` without one, however much the users chat in between.
+    /// `AGENT_SESSION_TIMEOUT` without one, however much the users chat in between. `None`, and
+    /// so never expiring, while an `unanswered` run waits for its retry.
     last_run_finished: Option<Instant>,
 
     llm: LlmBackend,
@@ -437,6 +438,22 @@ impl ChannelState {
             return;
         }
 
+        // No sign-in prompt for this: nobody is waiting on it
+        let grant = match &self.llm {
+            LlmBackend::Chatgpt(auth) => match auth.access().await {
+                Ok(grant) => Some(grant),
+                Err(_) => {
+                    // Kept for the next idle deadline, so the conversation's memories outlast
+                    // the sign-in outage
+                    tracing::warn!("Postponing the watcher's memory pass: ChatGPT has no sign-in");
+                    self.watcher = Some(watcher);
+                    self.watcher_last_input = Some(Instant::now());
+                    return;
+                }
+            },
+            LlmBackend::Gemini { .. } => None,
+        };
+
         // Quiet means nobody else spoke, but the bot's last replies may still wait in the queue
         watcher.add_messages(
             self.message_queue
@@ -444,17 +461,6 @@ impl ChannelState {
                 .map(|m| message::observed(&m.message))
                 .collect(),
         );
-        // No sign-in prompt for this: nobody is waiting on it
-        let grant = match &self.llm {
-            LlmBackend::Chatgpt(auth) => match auth.access().await {
-                Ok(grant) => Some(grant),
-                Err(_) => {
-                    tracing::warn!("Skipping the watcher's memory pass: ChatGPT has no sign-in");
-                    return;
-                }
-            },
-            LlmBackend::Gemini { .. } => None,
-        };
         match self.llm.model(Role::Watcher, grant.as_ref()) {
             Ok(model) => {
                 watcher.agent.set_model_handle(model);
@@ -518,7 +524,8 @@ impl ChannelState {
             }
         }
         self.responder = Some(responder);
-        self.last_run_finished = Some(Instant::now());
+        // An unanswered session must not expire before its retry, however long the sign-in takes
+        self.last_run_finished = (!self.unanswered).then(Instant::now);
     }
 
     /// The responder session for a batch of `batch_len` starting at `before`: the live one,
@@ -622,9 +629,11 @@ impl ChannelState {
             } else {
                 tokio::time::sleep(Duration::from_secs(u64::MAX))
             };
+            // A channel with a batch waiting for its debounce isn't quiet, whenever the watcher last
+            // ran
             let watcher_idle = sleep_until_some(
                 self.watcher_last_input
-                    .filter(|_| self.watcher.is_some())
+                    .filter(|_| self.watcher.is_some() && !has_pending_prompt)
                     .map(|t| t + WATCHER_SESSION_TIMEOUT),
             );
 
