@@ -213,7 +213,7 @@ impl ServerConfig {
             discord_mention_only: var("DISCORD_MENTION_ONLY")
                 .unwrap_or(None)
                 .and_then(|s| s.parse::<bool>().ok())
-                .unwrap_or(true),
+                .unwrap_or(false),
             discord_llm_backend: match var("DISCORD_LLM_BACKEND").unwrap_or(None).as_deref() {
                 None | Some("chatgpt") => DiscordLlmBackend::Chatgpt,
                 Some("gemini") => DiscordLlmBackend::Gemini,

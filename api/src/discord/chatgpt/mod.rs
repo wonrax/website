@@ -31,8 +31,6 @@ use serenity::all::{
 use tokio::sync::{Mutex, watch};
 use tracing::Instrument as _;
 
-use crate::discord::constants::CHATGPT_MODEL;
-
 pub type DbPool = diesel_async::pooled_connection::deadpool::Pool<diesel_async::AsyncPgConnection>;
 
 /// The table holds a single sign-in
@@ -194,9 +192,9 @@ impl ChatgptAuth {
         self.refresh(&session).await.map(|fresh| fresh.grant())
     }
 
-    /// The ChatGPT model, authenticated as `grant`. Built for every run, so live agent sessions
-    /// pick up refreshed tokens.
-    pub fn model(&self, grant: &Grant) -> eyre::Result<ModelHandle> {
+    /// The ChatGPT model `name`, authenticated as `grant`. Built for every run, so live agent
+    /// sessions pick up refreshed tokens.
+    pub fn model(&self, grant: &Grant, name: &str) -> eyre::Result<ModelHandle> {
         let client = chatgpt::Client::builder()
             .api_key(ChatGPTAuth::AccessToken {
                 access_token: grant.access_token.clone(),
@@ -209,7 +207,7 @@ impl ChatgptAuth {
             .build()
             .context("Failed to build the ChatGPT client")?;
         Ok(ModelHandle::new(ChatgptModel(
-            client.completion_model(CHATGPT_MODEL),
+            client.completion_model(name),
         )))
     }
 
@@ -844,6 +842,7 @@ async fn replace(http: &Arc<Http>, channel_id: ChannelId, message_id: MessageId,
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::discord::constants::CHATGPT_RESPONDER_MODEL;
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
     /// A turn as the ChatGPT backend streams it when the model has nothing to add: no output
@@ -909,7 +908,7 @@ data: [DONE]
             .allow_device_flow(false)
             .build()
             .expect("client");
-        ChatgptModel(client.completion_model(CHATGPT_MODEL))
+        ChatgptModel(client.completion_model(CHATGPT_RESPONDER_MODEL))
     }
 
     #[tokio::test]

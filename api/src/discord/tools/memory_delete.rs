@@ -46,7 +46,7 @@ impl PortableTool for MemoryDeleteTool {
 
     fn description(&self) -> String {
         format!(
-            "Permanently delete channel {} memories that are wrong, obsolete, or that a user asked to remove. Ids come from memory_find. After deleting, tell the channel in one short line via send_discord_message.",
+            "Permanently delete channel {} memories that are wrong, obsolete, or that a user asked to remove. Ids come from memory_find.",
             self.channel_id
         )
     }

@@ -4,7 +4,7 @@ use crate::discord::{
     channel::{ChannelEvent, ChannelHandle},
     chatgpt::{ChatgptAuth, DbPool},
     constants::{MESSAGE_CONTEXT_SIZE, WHITELIST_CHANNELS},
-    message::QueuedMessage,
+    message::{self, QueuedMessage},
 };
 use arc_swap::ArcSwap;
 use async_trait::async_trait;
@@ -94,52 +94,51 @@ impl DiscordEventHandler {
         for channel_id in &self.whitelist_channels {
             let channel_id = *channel_id;
 
-            // In mention-only mode, check if bot was mentioned in recent messages
-            // In auto mode, check if channel has recent activity (messages in the last hour)
-            let should_process = if self.discord_bot_mention_only {
-                self.has_recent_mention(ctx, channel_id).await
-            } else {
-                self.has_recent_activity(ctx, channel_id).await
-            };
-
-            match should_process {
-                Ok(true) => {
-                    self.get_or_create_channel(channel_id, ctx.clone())
-                        .send_event(ChannelEvent::ForceProcess)
-                        .await
-                        .inspect_err(|e| {
-                            tracing::error!(
-                                "Failed to send ForceProcess event to channel {} upon \
-                                reevaluating recent conversation on service startup: {}",
-                                channel_id,
-                                e
-                            );
-                        })?;
-                }
-                Ok(false) => {
-                    tracing::debug!(
-                        "Skipping channel {} - no recent {}",
-                        channel_id,
-                        if self.discord_bot_mention_only {
-                            "mentions"
-                        } else {
-                            "activity"
-                        }
-                    );
-                }
+            // An unanswered mention goes straight to the responder. Otherwise, in auto mode, recent
+            // activity is the watcher's to judge.
+            let addressed = match self.has_recent_mention(ctx, channel_id).await {
+                Ok(addressed) => addressed,
                 Err(e) => {
                     tracing::error!(
-                        "Failed to check recent {} for channel {}: {}",
-                        if self.discord_bot_mention_only {
-                            "mentions"
-                        } else {
-                            "activity"
-                        },
+                        "Failed to check recent mentions for channel {}: {}",
                         channel_id,
                         e
                     );
+                    false
                 }
+            };
+            let should_process = addressed
+                || (!self.discord_bot_mention_only
+                    && self
+                        .has_recent_activity(ctx, channel_id)
+                        .await
+                        .inspect_err(|e| {
+                            tracing::error!(
+                                "Failed to check recent activity for channel {}: {}",
+                                channel_id,
+                                e
+                            );
+                        })
+                        .unwrap_or(false));
+            if !should_process {
+                tracing::debug!(
+                    "Skipping channel {} - nothing recent to process",
+                    channel_id
+                );
+                continue;
             }
+
+            self.get_or_create_channel(channel_id, ctx.clone())
+                .send_event(ChannelEvent::ForceProcess { addressed })
+                .await
+                .inspect_err(|e| {
+                    tracing::error!(
+                        "Failed to send ForceProcess event to channel {} upon \
+                        reevaluating recent conversation on service startup: {}",
+                        channel_id,
+                        e
+                    );
+                })?;
         }
 
         tracing::info!("Channel initialization complete");
@@ -177,13 +176,7 @@ impl DiscordEventHandler {
             if msg.author.id == bot_id {
                 return Ok(false);
             }
-
-            let mentions_bot = msg.mentions.iter().any(|user| user.id == bot_id);
-            let replying_to_bot = msg
-                .referenced_message
-                .as_ref()
-                .is_some_and(|replied_msg| replied_msg.author.id == bot_id);
-            if mentions_bot || replying_to_bot {
+            if message::addresses(&msg, bot_id) {
                 return Ok(true);
             }
         }
@@ -321,7 +314,7 @@ impl EventHandler for DiscordEventHandler {
         if self.discord_bot_mention_only {
             tracing::info!("Bot is in mention-only mode - will only respond to mentions");
         } else {
-            tracing::info!("Bot is in auto mode - will process all messages");
+            tracing::info!("Bot is in auto mode - the watcher decides when to respond");
         }
 
         // Initialize agent sessions for active channels after startup

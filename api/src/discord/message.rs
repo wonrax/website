@@ -2,7 +2,7 @@ use base64::Engine as _;
 use chrono::{DateTime, Utc};
 use rig::{
     completion::Message as RigMessage,
-    message::{ImageDetail, ImageMediaType, MimeType, UserContent},
+    message::{AssistantContent, ImageDetail, ImageMediaType, MimeType, UserContent},
 };
 use scc::hash_map::OccupiedEntry;
 use serenity::all::{
@@ -229,6 +229,32 @@ pub async fn download_attachment(attachment: &Attachment) -> Result<Vec<u8>, eyr
         .await?
         .error_for_status()?;
     Ok(response.bytes().await?.to_vec())
+}
+
+/// Whether `msg` pings `user_id` or replies to one of their messages
+pub fn addresses(msg: &Message, user_id: UserId) -> bool {
+    msg.mentions_user_id(user_id)
+        || msg
+            .referenced_message
+            .as_ref()
+            .is_some_and(|replied| replied.author.id == user_id)
+}
+
+/// A channel message as the watcher reads it. The watcher never posts, so the bot's messages are
+/// channel input to it like everyone else's rather than turns of its own.
+pub fn observed(message: &RigMessage) -> RigMessage {
+    match message {
+        RigMessage::Assistant { content, .. } => RigMessage::User {
+            content: content
+                .iter()
+                .filter_map(|part| match part {
+                    AssistantContent::Text(text) => Some(UserContent::text(text.text.clone())),
+                    _ => None,
+                })
+                .collect(),
+        },
+        other => other.clone(),
+    }
 }
 
 /// Helper function to convert a Discord message to a RigMessage

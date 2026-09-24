@@ -57,7 +57,7 @@ impl PortableTool for MemoryUpdateTool {
 
     fn description(&self) -> String {
         format!(
-            "Extend or correct an existing memory of channel {}: the new text replaces the old, and the messages you cite join the ones it already has. After updating, tell the channel in one short line via send_discord_message.",
+            "Extend or correct an existing memory of channel {}: the new text replaces the old, and the messages you cite join the ones it already has. After updating, react 🧠 to the newest message behind the change with react_to_message.",
             self.channel_id
         )
     }

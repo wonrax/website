@@ -53,7 +53,7 @@ impl PortableTool for MemoryStoreTool {
 
     fn description(&self) -> String {
         format!(
-            "Save something a future session should know about a user or channel {}. Run memory_find first: when an entry on the same fact exists, memory_update extends it instead of adding a duplicate. After storing, tell the channel in one short line via send_discord_message.",
+            "Save something a future session should know about a user or channel {}. Run memory_find first: when an entry on the same fact exists, memory_update extends it instead of adding a duplicate. After storing, react 🧠 to the message it came from with react_to_message.",
             self.channel_id
         )
     }
