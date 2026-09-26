@@ -16,7 +16,7 @@ pub const DISCORD_BOT_NAME: &str = "The Irony Himself";
 /// Writes the bot's replies
 pub const CHATGPT_RESPONDER_MODEL: &str = "gpt-6-sol";
 /// Reads everything to decide when the bot speaks, and keeps the memories
-pub const CHATGPT_WATCHER_MODEL: &str = "gpt-6-luna";
+pub const CHATGPT_WATCHER_MODEL: &str = "gpt-6-sol";
 /// Both ChatGPT models' window, per the backend's `/models`
 pub const CHATGPT_CONTEXT_WINDOW: u64 = 272_000;
 pub const GEMINI_MODEL: &str = "gemini-3.8-flash";
