@@ -37,7 +37,6 @@ pub struct ServerConfig {
     /// left out without it
     pub firecrawl_api_key: Option<String>,
     pub raindrop_api_token: Option<String>,
-    pub vector_db: Option<VectorDbConfig>,
     pub recommender_raindrop_collections: Vec<RecommenderRaindropCollection>,
 }
 
@@ -51,14 +50,6 @@ pub struct GitHubOauth {
 pub struct SpotifyOauth {
     pub client_id: String,
     pub client_secret: String,
-}
-
-#[derive(Clone)]
-pub struct VectorDbConfig {
-    pub url: String,
-    pub token: String,
-    pub database: String,
-    pub default_collection: Option<String>,
 }
 
 #[derive(Clone)]
@@ -160,19 +151,6 @@ impl ServerConfig {
             .unwrap_or(Some("http://localhost:4321".to_string()))
             .unwrap_or("http://localhost:4321".to_string());
 
-        let vector_db = var("CHROMADB_URL")
-            .unwrap_or(None)
-            .map(|url| VectorDbConfig {
-                url,
-                token: var("CHROMADB_API_TOKEN")
-                    .unwrap_or(None)
-                    .unwrap_or("".to_string()),
-                database: var("CHROMADB_DATABASE")
-                    .unwrap_or(Some("wrx-sh-discord-memory".to_string()))
-                    .unwrap_or("wrx-sh".to_string()),
-                default_collection: var("CHROMADB_DEFAULT_COLLECTION").unwrap_or(None),
-            });
-
         let recommender_raindrop_collections = var("RECOMMENDER_RAINDROP_COLLECTIONS")
             .unwrap_or(None)
             .map(|s| {
@@ -237,7 +215,6 @@ impl ServerConfig {
                         .ok()
                 },
             ),
-            vector_db,
             recommender_raindrop_collections,
         }
     }

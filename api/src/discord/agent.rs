@@ -1,15 +1,16 @@
 use crate::discord::{
     chatgpt::{ChatgptAuth, Grant},
     constants::{
-        CHATGPT_CONTEXT_WINDOW, CHATGPT_RESPONDER_MODEL, CHATGPT_WATCHER_MODEL,
-        COMPACTION_THRESHOLD_PERCENT, GEMINI_CONTEXT_WINDOW, GEMINI_MODEL, MAX_AGENT_TURNS,
-        MEMORY_PROMPT, RECALL_PROMPT, SYSTEM_PROMPT, WATCHER_PROMPT,
+        CHATGPT_CONTEXT_WINDOW, CHATGPT_DREAMER_MODEL, CHATGPT_RESPONDER_MODEL,
+        CHATGPT_WATCHER_MODEL, COMPACTION_THRESHOLD_PERCENT, GEMINI_CONTEXT_WINDOW, GEMINI_MODEL,
+        MAX_AGENT_TURNS, MEMORY_PROMPT, RECALL_PROMPT, SYSTEM_PROMPT, WATCHER_PROMPT,
     },
+    memory::ChannelMemory,
     tools::{
         DiscordSendMessageTool, FetchChannelHistoryTool, FetchMessageTool, FetchMessageUserIdsTool,
-        FetchPageContentTool, Firecrawl, MemoryDeleteTool, MemoryFindTool, MemoryStoreTool,
-        MemoryUpdateTool, ReactToMessageTool, SearchChannelMessagesTool,
-        ViewMessageAttachmentsTool, WebSearchTool,
+        FetchPageContentTool, Firecrawl, MemorySearchTool, ReactToMessageTool,
+        RecordObservationsTool, SearchChannelMessagesTool, ViewMessageAttachmentsTool,
+        WebSearchTool,
     },
 };
 use eyre::Context as _;
@@ -22,11 +23,9 @@ use rig_agent::{
     agent::WithBuilderTools,
     completion::{Prompt as _, PromptError},
 };
-use serenity::all::{ChannelId, Context};
-use std::sync::Arc;
+use serenity::all::{ChannelId, Context, GuildId, UserId};
+use std::{collections::HashSet, sync::Arc};
 use tracing::instrument;
-
-use super::tools::SharedVectorClient;
 
 /// The LLM the agents run on, picked at startup by `DISCORD_LLM_BACKEND`
 #[derive(Clone)]
@@ -73,6 +72,25 @@ impl LlmBackend {
         }
     }
 
+    /// The model that rewrites the memory docs of `guild_id`
+    pub fn dreamer_model(
+        &self,
+        guild_id: GuildId,
+        grant: Option<&Grant>,
+    ) -> eyre::Result<ModelHandle> {
+        match self {
+            Self::Gemini { api_key } => gemini_model(api_key),
+            Self::Chatgpt(auth) => {
+                let grant = grant.ok_or_else(|| eyre::eyre!("A ChatGPT model needs a sign-in"))?;
+                auth.model(
+                    grant,
+                    CHATGPT_DREAMER_MODEL,
+                    &format!("discord-guild-{guild_id}-dreamer"),
+                )
+            }
+        }
+    }
+
     fn context_window(&self) -> u64 {
         match self {
             Self::Chatgpt(_) => CHATGPT_CONTEXT_WINDOW,
@@ -110,6 +128,11 @@ pub struct AgentSession {
     /// Tokens the biggest model call of the last run held, roughly what the next run starts from
     context_tokens: u64,
     context_window: u64,
+    /// People whose profiles the preamble's memory notes hold
+    seeded_people: HashSet<UserId>,
+    /// People whose profiles the session holds: the seeded ones, and those noted since in
+    /// messages of their own
+    pub noted_people: HashSet<UserId>,
 }
 
 impl AgentSession {
@@ -212,18 +235,31 @@ impl AgentSession {
             conversation_history: std::mem::replace(&mut self.conversation_history, history),
             context_tokens: std::mem::take(&mut self.context_tokens),
             context_window: self.context_window,
+            seeded_people: self.seeded_people.clone(),
+            // Profiles noted in messages went with the old history
+            noted_people: std::mem::replace(&mut self.noted_people, self.seeded_people.clone()),
         }
     }
 }
 
 /// The responder's hold on the channel's memories
 pub enum Memories {
-    /// No vector database is configured
+    /// The channel isn't in a server, which the memories are kept by
     Off,
-    /// Reads them while the watcher keeps them
-    Recall(SharedVectorClient),
-    /// Keeps them itself, when the channel has no watcher
-    Keep(SharedVectorClient),
+    /// Reads them while the watcher records them
+    Recall(ChannelMemory),
+    /// Records them itself, when the channel has no watcher
+    Keep(ChannelMemory),
+}
+
+/// What a fresh session starts from
+pub struct Seed {
+    /// The channel messages right before the batch that starts it
+    pub history: Vec<RigMessage>,
+    /// The memory notes its preamble ends with; empty without memories
+    pub notes: String,
+    /// Whose profiles the notes hold
+    pub people: HashSet<UserId>,
 }
 
 /// Create the session that writes the channel's replies
@@ -234,7 +270,7 @@ pub fn create_responder_session(
     model: ModelHandle,
     memories: Memories,
     firecrawl: Option<Firecrawl>,
-    initial_history: Vec<RigMessage>,
+    seed: Seed,
 ) -> Result<AgentSession, eyre::Error> {
     // Create tools with shared context
     let ctx_arc = Arc::new(discord_ctx.clone());
@@ -281,8 +317,8 @@ pub fn create_responder_session(
     // The memory guidance only applies when the memory tools below are registered
     let preamble = match &memories {
         Memories::Off => SYSTEM_PROMPT.to_string(),
-        Memories::Recall(_) => format!("{SYSTEM_PROMPT}\n\n{RECALL_PROMPT}"),
-        Memories::Keep(_) => format!("{SYSTEM_PROMPT}\n\n{MEMORY_PROMPT}"),
+        Memories::Recall(_) => format!("{SYSTEM_PROMPT}\n\n{RECALL_PROMPT}\n\n{}", seed.notes),
+        Memories::Keep(_) => format!("{SYSTEM_PROMPT}\n\n{MEMORY_PROMPT}\n\n{}", seed.notes),
     };
 
     let mut agent_builder = AgentBuilder::from_model_handle(model).preamble(&preamble);
@@ -316,16 +352,11 @@ pub fn create_responder_session(
 
     match memories {
         Memories::Off => {}
-        Memories::Recall(client) => {
-            agent_builder = agent_builder.tool(MemoryFindTool::new_with_client(
-                client,
-                channel_id.get(),
-                None,
-            ));
+        Memories::Recall(memory) => {
+            agent_builder = agent_builder.tool(MemorySearchTool { memory });
         }
-        Memories::Keep(client) => {
-            agent_builder = with_memory_curation(agent_builder, client, channel_id);
-            tracing::info!("Memory tools enabled for channel {}", channel_id);
+        Memories::Keep(memory) => {
+            agent_builder = with_memory_recording(agent_builder, ctx_arc, memory, bot_user_id);
         }
     }
 
@@ -334,74 +365,77 @@ pub fn create_responder_session(
     // Store the history in the session rather than initializing the agent with it
     tracing::debug!(
         "Creating new responder session with {} messages of context",
-        initial_history.len()
+        seed.history.len()
     );
 
     Ok(AgentSession {
         agent,
-        conversation_history: initial_history,
+        conversation_history: seed.history,
         context_tokens: 0,
         context_window: llm.context_window(),
+        noted_people: seed.people.clone(),
+        seeded_people: seed.people,
     })
 }
 
 /// Create the session that reads every message of the channel, decides when the responder
-/// speaks, and keeps the memories when there is a vector database to keep them in
+/// speaks, and records the memories when the channel has them
 pub fn create_watcher_session(
     discord_ctx: &Context,
     channel_id: ChannelId,
     llm: &LlmBackend,
     model: ModelHandle,
-    vectordb: Option<SharedVectorClient>,
-    initial_history: Vec<RigMessage>,
+    memory: Option<ChannelMemory>,
+    seed: Seed,
 ) -> AgentSession {
-    let mut agent_builder = AgentBuilder::from_model_handle(model).preamble(WATCHER_PROMPT);
+    let preamble = if memory.is_some() {
+        format!("{WATCHER_PROMPT}\n\n{}", seed.notes)
+    } else {
+        WATCHER_PROMPT.to_string()
+    };
+    let mut agent_builder = AgentBuilder::from_model_handle(model).preamble(&preamble);
     if let Some(params) = llm.session_params(Role::Watcher, channel_id) {
         agent_builder = agent_builder.additional_params(params);
     }
     let ctx_arc = Arc::new(discord_ctx.clone());
-    let mut agent_builder = agent_builder
-        // Rereads the conversation behind a memory's `source_message_ids`
-        .tool(FetchChannelHistoryTool {
-            ctx: ctx_arc.clone(),
-            channel_id,
-            bot_user_id: discord_ctx.cache.current_user().id,
-        })
-        .tool(ReactToMessageTool {
-            ctx: ctx_arc,
-            channel_id,
-        });
-    if let Some(client) = vectordb {
-        agent_builder = with_memory_curation(agent_builder, client, channel_id);
+    let bot_user_id = discord_ctx.cache.current_user().id;
+    // Rereads the conversation behind the memories' `source_message_ids`
+    let mut agent_builder = agent_builder.tool(FetchChannelHistoryTool {
+        ctx: ctx_arc.clone(),
+        channel_id,
+        bot_user_id,
+    });
+    if let Some(memory) = memory {
+        agent_builder = with_memory_recording(agent_builder, ctx_arc, memory, bot_user_id);
     }
 
     tracing::debug!(
         "Creating new watcher session with {} messages of context",
-        initial_history.len()
+        seed.history.len()
     );
 
     AgentSession {
         agent: agent_builder.build(),
-        conversation_history: initial_history,
+        conversation_history: seed.history,
         context_tokens: 0,
         context_window: llm.context_window(),
+        noted_people: seed.people.clone(),
+        seeded_people: seed.people,
     }
 }
 
-/// Registers the tools that read and write the channel's memories
-fn with_memory_curation(
+/// Registers the tools that record the channel's memories and search them
+fn with_memory_recording(
     agent_builder: AgentBuilder<WithBuilderTools>,
-    client: SharedVectorClient,
-    channel_id: ChannelId,
+    ctx: Arc<Context>,
+    memory: ChannelMemory,
+    bot_user_id: UserId,
 ) -> AgentBuilder<WithBuilderTools> {
-    let channel = channel_id.get();
     agent_builder
-        .tool(MemoryStoreTool::new_with_client(client.clone(), channel))
-        .tool(MemoryFindTool::new_with_client(
-            client.clone(),
-            channel,
-            None,
-        ))
-        .tool(MemoryUpdateTool::new_with_client(client.clone(), channel))
-        .tool(MemoryDeleteTool::new_with_client(client, channel))
+        .tool(RecordObservationsTool {
+            ctx,
+            memory: memory.clone(),
+            bot_user_id,
+        })
+        .tool(MemorySearchTool { memory })
 }

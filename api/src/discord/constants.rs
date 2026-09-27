@@ -17,6 +17,8 @@ pub const DISCORD_BOT_NAME: &str = "The Irony Himself";
 pub const CHATGPT_RESPONDER_MODEL: &str = "gpt-6-sol";
 /// Reads everything to decide when the bot speaks, and keeps the memories
 pub const CHATGPT_WATCHER_MODEL: &str = "gpt-6-sol";
+/// Rewrites the memory docs from the observation log
+pub const CHATGPT_DREAMER_MODEL: &str = "gpt-6-sol";
 /// Both ChatGPT models' window, per the backend's `/models`
 pub const CHATGPT_CONTEXT_WINDOW: u64 = 272_000;
 pub const GEMINI_MODEL: &str = "gemini-3.8-flash";
@@ -38,6 +40,12 @@ pub const AGENT_SESSION_TIMEOUT: Duration = Duration::from_secs(60 * 10);
 /// How long a channel stays quiet before the watcher takes the conversation as over: it updates
 /// the memories from it and drops its session
 pub const WATCHER_SESSION_TIMEOUT: Duration = Duration::from_secs(60 * 10);
+/// How long the dreamer lets a server's new observations settle before rewriting its docs, so a
+/// memory pass that records in several calls is distilled at once
+pub const DREAM_SETTLE: Duration = Duration::from_secs(60);
+/// How often the dreamer looks for docs due a rewrite without being woken: the ones whose revisit
+/// date has come, and the ones a failed dream left behind
+pub const DREAM_SWEEP_INTERVAL: Duration = Duration::from_secs(60 * 60 * 6);
 
 const MESSAGE_FORMAT: &str = r#"[#MESSAGE_ID] [ISO timestamp] AuthorName: message content
 <<context>>
@@ -82,23 +90,22 @@ stop retrying and say that instead."#,
 
 const MEMORY_INTRO: &str = r#"[MEMORY]
 A session is forgotten minutes after the chat goes quiet, and the next one starts with only the
-latest stretch of the channel. Memories are what carry over: who these people are, what they like
-and hate, their running jokes and lore, what happened here."#;
+latest stretch of the channel. What carries over is in the memory notes: the channel's lore and
+profiles of the people talking, distilled from everything said here. They're below for whoever
+was around when the session started, and arrive as messages of their own for people who join
+later. Let what you know shape what you say, the way a friend's memory would, without announcing
+that you remember."#;
 
-/// Appended to `SYSTEM_PROMPT` when the bot keeps the memories itself (mention-only mode). The
-/// mechanics (what to query, store versus update, citing messages) live in the memory tools'
-/// definitions.
+/// Appended to `SYSTEM_PROMPT` when the bot records the memories itself (mention-only mode). What
+/// to record and how lives in the memory tools' definitions.
 pub const MEMORY_PROMPT: &str = formatcp!(
-    r#"{MEMORY_INTRO} Recall what you know about the authors and topics in front of you before you
-respond, and store what a future you would want to know in the same run you learn it, citing the
-messages it came from so it can reread the original conversation."#
+    r#"{MEMORY_INTRO} Record what a future you should know in the same run you learn it."#
 );
 
-/// Appended to `SYSTEM_PROMPT` when the watcher keeps the memories and the bot only reads them
+/// Appended to `SYSTEM_PROMPT` when the watcher records the memories and the bot only reads them
 pub const RECALL_PROMPT: &str = formatcp!(
-    r#"{MEMORY_INTRO} Recall what you know about the authors and topics in front of you before you
-respond. Writing them isn't on you: they're distilled from the whole channel once a conversation
-winds down, including whatever someone asks you to remember."#
+    r#"{MEMORY_INTRO} Recording isn't on you: observations are taken from the whole channel once a
+conversation winds down, including whatever someone asks you to remember."#
 );
 
 /// System prompt for the watcher: the small model that reads every batch and decides whether the
@@ -122,14 +129,47 @@ weighed in on is a PASS, and so is anything you're unsure about."#
 
 /// Sent to the watcher when a conversation ends or its session compacts
 pub const MEMORY_PASS_PROMPT: &str = formatcp!(
-    r#"[Memory pass] This stretch of the channel is wrapping up. Before it's forgotten, bring the
-channel's memories up to date with it, then answer DONE.
+    r#"[Memory pass] This stretch of the channel is wrapping up. Record what {DISCORD_BOT_NAME}
+should carry into its next conversations, then answer DONE.
 
-Memories are what {DISCORD_BOT_NAME} knows about this place in its next conversations: who these
-people are, what they like and hate, their running jokes and lore, what happened here. Keep what a
-future conversation would be poorer without; most chatter isn't that, and a stretch with nothing
-worth keeping is normal. Check what's stored on the people and topics that came up, since this
-conversation may have made some of it wrong or stale."#
+The memory notes you've seen are what's already known; record what they lack and what this
+stretch changed. Worth keeping is what a future conversation would be poorer without: who these
+people are, what they like and hate, what's going on in their lives, their running jokes and
+lore, and anything someone asked the bot to remember. Most chatter isn't that, and a stretch with
+nothing worth keeping is normal."#
+);
+
+/// System prompt for the dreamer, which rewrites one memory doc per request
+pub const DREAM_PROMPT: &str = formatcp!(
+    r#"You keep the memory of {DISCORD_BOT_NAME}, a bot member of a casual, chaotic Discord
+server. Its agents start conversations by reading two kinds of docs: a profile of each user,
+shared by all the server's channels, and the lore of each channel. You rewrite one doc at a time
+from its last version and the observations recorded since: dated notes, taken from the chat, on
+what was said and who it's about.
+
+A profile is about one person: their life, tastes and opinions, how they talk and treat others
+and the bot, the jokes about them. Lore is about the group: shared history and events, running
+jokes and references, recurring topics, how the channel wants the bot to behave. Each doc keeps
+to its own; the other kind takes the rest.
+
+Write the doc as it should read today:
+- Things change. A plan whose date has passed is a past plan ("going to Đà Lạt on 2026-10-04"
+  becomes "planned to go to Đà Lạt on 2026-10-04") until an observation says how it went, a
+  passing state becomes history or goes, and a newer observation beats an older one it
+  contradicts. What one person claims about another stays a claim, attributed, next to any
+  denial.
+- Be conservative about what gets in. The doc rides along in every conversation, so it keeps what
+  is durable and characteristic, not every passing remark; a one-off event earns a place when it
+  will come up again. Fold new facts into what's there, merge repeats, and cut what no longer
+  holds. Leaving an observation out loses nothing: the log stays searchable.
+- Dates stay absolute (2026-10-04, or 2026-10 when the day isn't known); readers see how far each
+  is from their own today.
+- Write in English, keeping names, nicknames, slang, and quotes as they were said.
+- A person's instructions about themselves, like a topic the bot should drop, are kept as given.
+
+Answer with the doc between <doc> and </doc>, as markdown without a title, then a line
+`REVISIT: YYYY-MM-DD` naming the earliest date something in it will go stale, such as a plan's
+date or the end of a trip, or `REVISIT: none`. A doc with nothing worth keeping is empty."#
 );
 
 /// Sent to a session about to be compacted; its answer seeds the fresh session

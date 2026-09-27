@@ -1,3 +1,5 @@
+use std::num::NonZeroU64;
+
 use base64::Engine as _;
 use chrono::{DateTime, Utc};
 use rig::{
@@ -165,8 +167,8 @@ pub fn format_message_compact(msg: &Message, bot_user_id: UserId) -> String {
 pub fn parse_message_id(param: &str, raw: &str) -> Result<MessageId, String> {
     raw.trim()
         .trim_matches(|c| c == '[' || c == ']' || c == '#')
-        .parse::<u64>()
-        .map(MessageId::new)
+        .parse::<NonZeroU64>()
+        .map(MessageId::from)
         .map_err(|_| {
             format!(
                 "{param} must be the digits of a [#ID] message header, got {raw:?}; retrying with the same value will not help"
@@ -176,10 +178,8 @@ pub fn parse_message_id(param: &str, raw: &str) -> Result<MessageId, String> {
 
 /// `parse_message_id` over a list, for tools that take several IDs; the first bad one fails
 /// the whole call
-pub fn parse_message_ids(param: &str, raw: &[String]) -> Result<Vec<u64>, String> {
-    raw.iter()
-        .map(|id| parse_message_id(param, id).map(MessageId::get))
-        .collect()
+pub fn parse_message_ids(param: &str, raw: &[String]) -> Result<Vec<MessageId>, String> {
+    raw.iter().map(|id| parse_message_id(param, id)).collect()
 }
 
 /// Milliseconds of 2015-01-01T00:00:00Z, the zero of every snowflake
@@ -238,6 +238,23 @@ pub fn addresses(msg: &Message, user_id: UserId) -> bool {
             .referenced_message
             .as_ref()
             .is_some_and(|replied| replied.author.id == user_id)
+}
+
+/// The users a message brings into the conversation: its author, the people it pings, and the
+/// author it replies to, leaving out the bot
+pub fn participants(msg: &Message, bot_user_id: UserId) -> Vec<UserId> {
+    let mut people: Vec<UserId> = std::iter::once(msg.author.id)
+        .chain(msg.mentions.iter().map(|user| user.id))
+        .chain(
+            msg.referenced_message
+                .as_ref()
+                .map(|replied| replied.author.id),
+        )
+        .filter(|id| *id != bot_user_id)
+        .collect();
+    people.sort_unstable();
+    people.dedup();
+    people
 }
 
 /// A channel message as the watcher reads it. The watcher never posts, so the bot's messages are
@@ -387,18 +404,20 @@ mod tests {
             assert_eq!(id.get(), 42, "{raw}");
         }
 
-        let error = parse_message_id("message_id", "forty-two").expect_err("not an ID");
-        assert!(
-            error.starts_with("message_id must be the digits"),
-            "{error}"
-        );
+        for raw in ["forty-two", "0"] {
+            let error = parse_message_id("message_id", raw).expect_err("not an ID");
+            assert!(
+                error.starts_with("message_id must be the digits"),
+                "{error}"
+            );
+        }
     }
 
     #[test]
     fn message_id_lists_fail_on_the_first_bad_id() {
         let ids = parse_message_ids("source_message_ids", &["[#1]".to_string(), "2".to_string()])
             .expect("all IDs");
-        assert_eq!(ids, vec![1, 2]);
+        assert_eq!(ids, vec![MessageId::new(1), MessageId::new(2)]);
 
         let error = parse_message_ids("source_message_ids", &["1".to_string(), "x".to_string()])
             .expect_err("one bad ID");

@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -9,12 +10,12 @@ use futures::{
 };
 use rig::message::Message as RigMessage;
 use rig_agent::completion::PromptError;
-use serenity::all::{ChannelId, Context, GetMessages, MessageId, Typing, UserId};
+use serenity::all::{ChannelId, Context, GetMessages, GuildId, MessageId, Typing, UserId};
 use tokio::sync::watch;
 use tracing::{Instrument as _, instrument};
 
 use crate::discord::{
-    agent::{self, AgentSession, LlmBackend, Memories, Role, Turn},
+    agent::{self, AgentSession, LlmBackend, Memories, Role, Seed, Turn},
     bot::Guild,
     chatgpt::{self, AuthState, Grant},
     constants::{
@@ -22,6 +23,7 @@ use crate::discord::{
         MESSAGE_CONTEXT_SIZE, MESSAGE_DEBOUNCE_TIMEOUT, TYPING_DEBOUNCE_TIMEOUT,
         WATCHER_SESSION_TIMEOUT,
     },
+    memory::{ChannelMemory, MemorySystem},
     message::{self, AttachmentMode, QueuedMessage, discord_message_to_rig_message},
     tools,
 };
@@ -91,6 +93,8 @@ struct PendingMessage {
     id: MessageId,
     /// A user message that pings the bot or replies to it
     addresses_bot: bool,
+    /// Who it brings into the conversation, for their memory profiles
+    people: Vec<UserId>,
     /// The bot's own message. A live responder already holds it as a `send_discord_message` call,
     /// so it only reaches the responder when seeding a fresh session. The watcher reads it always.
     from_bot: bool,
@@ -134,8 +138,10 @@ struct ChannelState {
     last_run_finished: Option<Instant>,
 
     llm: LlmBackend,
-    vectordb: Option<tools::SharedVectorClient>,
+    memory: MemorySystem,
     firecrawl: Option<tools::Firecrawl>,
+    /// The server the channel belongs to, which keeps its memories. Looked up once.
+    guild_id: Option<GuildId>,
 
     // The latest discord context received from the event handler.
     // Note that each discord context is bound to a specific event and is destroyed after event
@@ -161,11 +167,16 @@ impl ChannelState {
     /// Up to `count` channel messages from right before `before` (the newest when `None`), oldest
     /// first. Callers anchor on the oldest message they are about to add, which keeps a message
     /// that lands during the fetch out of the result; it reaches the agent through the queue
-    /// instead. Attachments stay placeholders, the agent opens them on demand.
+    /// instead. Attachments stay placeholders, the agent opens them on demand. Comes with the
+    /// people the messages bring into the conversation.
     #[instrument(skip(self))]
-    async fn backfill_history(&self, before: Option<MessageId>, count: usize) -> Vec<RigMessage> {
+    async fn backfill_history(
+        &self,
+        before: Option<MessageId>,
+        count: usize,
+    ) -> (Vec<RigMessage>, HashSet<UserId>) {
         if count == 0 {
-            return vec![];
+            return (vec![], HashSet::new());
         }
 
         // Fetch a full window rather than `count` so empty messages (stickers, bare embeds)
@@ -181,17 +192,19 @@ impl ChannelState {
                     ?e,
                     "Failed to backfill channel history; seeding the session from the queue alone"
                 );
-                return vec![];
+                return (vec![], HashSet::new());
             }
         };
 
         // Newest first from the API
         let mut history = Vec::with_capacity(count);
+        let mut people = HashSet::new();
         for msg in messages
             .iter()
             .filter(|m| !m.content.trim().is_empty() || !m.attachments.is_empty())
             .take(count)
         {
+            people.extend(message::participants(msg, self.bot_user_id));
             history.push(
                 discord_message_to_rig_message(
                     msg,
@@ -203,7 +216,97 @@ impl ChannelState {
             );
         }
         history.reverse();
-        history
+        (history, people)
+    }
+
+    /// The server the channel belongs to, looked up the first time it's needed
+    async fn resolve_guild(&mut self) {
+        if self.guild_id.is_some() {
+            return;
+        }
+        match self.channel_id.to_channel(&self.discord_ctx.http).await {
+            Ok(channel) => self.guild_id = channel.guild().map(|channel| channel.guild_id),
+            Err(e) => tracing::error!(
+                ?e,
+                "Failed to look up the channel's server; no memories this time"
+            ),
+        }
+    }
+
+    /// The channel's memories, once its server is known
+    fn memory(&self) -> Option<ChannelMemory> {
+        Some(self.memory.channel(self.guild_id?, self.channel_id))
+    }
+
+    /// What a fresh session starts from: `history`, and memory notes on the channel and `people`
+    async fn seed(&self, history: Vec<RigMessage>, people: HashSet<UserId>) -> Seed {
+        let Some(memory) = self.memory() else {
+            return Seed {
+                history,
+                notes: String::new(),
+                people: HashSet::new(),
+            };
+        };
+        let wanted: Vec<UserId> = people.iter().copied().collect();
+        match memory
+            .store
+            .notes(memory.guild_id, Some(self.channel_id), &wanted)
+            .await
+        {
+            Ok(notes) => Seed {
+                history,
+                notes: notes.render(chrono::Utc::now().date_naive()),
+                people,
+            },
+            Err(e) => {
+                // Nobody counts as noted, so each person's profile gets another try when they speak
+                tracing::error!(
+                    ?e,
+                    "Failed to load the memory notes; the session starts without them"
+                );
+                Seed {
+                    history,
+                    notes: String::new(),
+                    people: HashSet::new(),
+                }
+            }
+        }
+    }
+
+    /// Hands `session` the profiles of those of `people` it hasn't seen, in a message ahead of the
+    /// ones that bring them in
+    async fn note_newcomers(
+        &self,
+        session: &mut AgentSession,
+        people: impl IntoIterator<Item = UserId>,
+    ) {
+        let Some(memory) = self.memory() else {
+            return;
+        };
+        let newcomers: Vec<UserId> = people
+            .into_iter()
+            .filter(|id| session.noted_people.insert(*id))
+            .collect();
+        if newcomers.is_empty() {
+            return;
+        }
+        match memory.store.notes(memory.guild_id, None, &newcomers).await {
+            Ok(notes) => {
+                if let Some(text) = notes.render_newcomers(chrono::Utc::now().date_naive()) {
+                    session.add_messages(vec![RigMessage::user(text)]);
+                }
+            }
+            Err(e) => {
+                tracing::error!(
+                    ?e,
+                    "Failed to load the profiles of people joining the conversation"
+                );
+                // Another try when they next speak
+                for id in &newcomers {
+                    session.noted_people.remove(id);
+                }
+            }
+        }
     }
 
     /// The sign-in for the next runs. `None` when ChatGPT has none usable, which the channel is
@@ -298,13 +401,15 @@ impl ChannelState {
             }
         };
 
-        let mut recent = self
+        let (mut recent, people) = self
             .backfill_history(before, COMPACTION_KEPT_MESSAGES)
             .await;
         if matches!(role, Role::Watcher) {
             recent = recent.iter().map(message::observed).collect();
         }
-        Some(session.start_over(&summary, recent))
+        let finished = session.start_over(&summary, recent);
+        self.note_newcomers(session, people).await;
+        Some(finished)
     }
 
     /// Hands the queued messages to the agents. The watcher reads all of them; the responder
@@ -313,6 +418,7 @@ impl ChannelState {
         let Some(mut run_auth) = self.authorize().await else {
             return;
         };
+        self.resolve_guild().await;
 
         let batch: Vec<PendingMessage> = self.message_queue.drain(..).collect();
         let addressed = forced_address
@@ -328,7 +434,7 @@ impl ChannelState {
         if respond {
             self.respond(batch, &mut run_auth).await;
         } else {
-            self.pass_to_responder(batch);
+            self.pass_to_responder(batch).await;
         }
     }
 
@@ -365,7 +471,7 @@ impl ChannelState {
                     }
                     None => {
                         self.spawn_memory_pass(watcher);
-                        self.new_watcher(model, before, batch.len()).await
+                        self.new_watcher(model, batch).await
                     }
                 }
             }
@@ -373,9 +479,10 @@ impl ChannelState {
                 watcher.agent.set_model_handle(model);
                 watcher
             }
-            None => self.new_watcher(model, before, batch.len()).await,
+            None => self.new_watcher(model, batch).await,
         };
 
+        self.note_newcomers(&mut watcher, batch_people(batch)).await;
         watcher.add_messages(
             batch
                 .iter()
@@ -408,26 +515,27 @@ impl ChannelState {
         respond
     }
 
-    /// A watcher session seeded with the messages right before a batch of `batch_len` at `before`
+    /// A watcher session seeded with the messages right before `batch`
     async fn new_watcher(
         &self,
         model: rig_agent::ModelHandle,
-        before: Option<MessageId>,
-        batch_len: usize,
+        batch: &[PendingMessage],
     ) -> AgentSession {
-        let history = self
-            .backfill_history(before, MESSAGE_CONTEXT_SIZE.saturating_sub(batch_len))
-            .await
-            .iter()
-            .map(message::observed)
-            .collect();
+        let (history, mut people) = self
+            .backfill_history(
+                batch.first().map(|m| m.id),
+                MESSAGE_CONTEXT_SIZE.saturating_sub(batch.len()),
+            )
+            .await;
+        people.extend(batch_people(batch));
+        let history = history.iter().map(message::observed).collect();
         agent::create_watcher_session(
             &self.discord_ctx,
             self.channel_id,
             &self.llm,
             model,
-            self.vectordb.clone(),
-            history,
+            self.memory(),
+            self.seed(history, people).await,
         )
     }
 
@@ -437,7 +545,7 @@ impl ChannelState {
             return;
         };
         self.watcher_last_input = None;
-        if self.vectordb.is_none() {
+        if self.memory().is_none() {
             return;
         }
 
@@ -479,7 +587,7 @@ impl ChannelState {
     /// Updates the memories from a finished watcher session in the background: nothing waits on
     /// it, and the channel's next watcher can't write memories until its own session ends
     fn spawn_memory_pass(&self, mut session: AgentSession) {
-        if self.vectordb.is_none() {
+        if self.memory().is_none() {
             return;
         }
         tokio::spawn(
@@ -500,12 +608,11 @@ impl ChannelState {
     /// is waiting on the reply now, which isn't so while only the watcher runs.
     async fn respond(&mut self, batch: Vec<PendingMessage>, run_auth: &mut RunAuth) {
         let typing = Typing::start(self.discord_ctx.http.clone(), self.channel_id);
-        let before = batch.first().map(|m| m.id);
-        let Some((mut responder, seeded)) =
-            self.ready_responder(before, batch.len(), run_auth).await
-        else {
+        let Some((mut responder, seeded)) = self.ready_responder(&batch, run_auth).await else {
             return;
         };
+        self.note_newcomers(&mut responder, batch_people(&batch))
+            .await;
 
         // A live session already holds the bot's replies as tool calls; only a freshly seeded
         // one needs them to see what it said
@@ -534,14 +641,14 @@ impl ChannelState {
         self.last_run_finished = (!self.unanswered).then(Instant::now);
     }
 
-    /// The responder session for a batch of `batch_len` starting at `before`: the live one,
-    /// compacted first when due, or a fresh one. The flag tells whether it was seeded just now.
+    /// The responder session for `batch`: the live one, compacted first when due, or a fresh one.
+    /// The flag tells whether it was seeded just now.
     async fn ready_responder(
         &mut self,
-        before: Option<MessageId>,
-        batch_len: usize,
+        batch: &[PendingMessage],
         run_auth: &mut RunAuth,
     ) -> Option<(AgentSession, bool)> {
+        let before = batch.first().map(|m| m.id);
         let model = match self
             .llm
             .model(Role::Responder, self.channel_id, run_auth.grant.as_ref())
@@ -568,13 +675,15 @@ impl ChannelState {
             }
         }
 
-        let history = self
-            .backfill_history(before, MESSAGE_CONTEXT_SIZE.saturating_sub(batch_len))
+        let (history, mut people) = self
+            .backfill_history(before, MESSAGE_CONTEXT_SIZE.saturating_sub(batch.len()))
             .await;
-        let memories = match self.vectordb.clone() {
+        people.extend(batch_people(batch));
+        let seed = self.seed(history, people).await;
+        let memories = match self.memory() {
             None => Memories::Off,
-            Some(client) if self.discord_bot_mention_only => Memories::Keep(client),
-            Some(client) => Memories::Recall(client),
+            Some(memory) if self.discord_bot_mention_only => Memories::Keep(memory),
+            Some(memory) => Memories::Recall(memory),
         };
         match agent::create_responder_session(
             &self.discord_ctx,
@@ -583,7 +692,7 @@ impl ChannelState {
             model,
             memories,
             self.firecrawl.clone(),
-            history,
+            seed,
         ) {
             Ok(session) => Some((session, true)),
             Err(e) => {
@@ -606,9 +715,10 @@ impl ChannelState {
 
     /// Keeps a live responder up to date with a batch it didn't run for, so its next run has no
     /// hole where these messages were. Appending leaves its cached prefix intact.
-    fn pass_to_responder(&mut self, batch: Vec<PendingMessage>) {
-        self.responder = self.live_responder();
-        if let Some(responder) = self.responder.as_mut() {
+    async fn pass_to_responder(&mut self, batch: Vec<PendingMessage>) {
+        let mut responder = self.live_responder();
+        if let Some(responder) = responder.as_mut() {
+            self.note_newcomers(responder, batch_people(&batch)).await;
             responder.add_messages(
                 batch
                     .into_iter()
@@ -617,6 +727,7 @@ impl ChannelState {
                     .collect(),
             );
         }
+        self.responder = responder;
     }
 
     async fn main_loop(mut self) {
@@ -662,6 +773,9 @@ impl ChannelState {
                                     self.activity.update_message();
                                 }
 
+                                if let Some(guild_id) = msg.message.guild_id {
+                                    self.guild_id = Some(guild_id);
+                                }
                                 let guild = self
                                     .channel_id
                                     .to_channel(self.discord_ctx.http.clone())
@@ -692,6 +806,7 @@ impl ChannelState {
                                     message,
                                     id: msg.message.id,
                                     addresses_bot,
+                                    people: message::participants(&msg.message, self.bot_user_id),
                                     from_bot,
                                 });
                                 // Keep only the newest window: in mention-only mode the backlog
@@ -756,6 +871,14 @@ enum Wake {
     WatcherIdle,
 }
 
+/// Everyone the messages of `batch` bring into the conversation
+fn batch_people(batch: &[PendingMessage]) -> Vec<UserId> {
+    batch
+        .iter()
+        .flat_map(|m| m.people.iter().copied())
+        .collect()
+}
+
 /// Whether the watcher's answer calls for the responder: it opens with RESPOND or PASS
 fn wants_response(answer: &str) -> bool {
     answer
@@ -776,7 +899,7 @@ impl ChannelHandle {
         discord_ctx: Context,
         channel_id: ChannelId,
         llm: LlmBackend,
-        vectordb: Option<tools::SharedVectorClient>,
+        memory: MemorySystem,
         firecrawl: Option<tools::Firecrawl>,
         discord_bot_mention_only: bool,
         guilds: Arc<scc::HashMap<serenity::model::id::GuildId, Guild>>,
@@ -799,8 +922,9 @@ impl ChannelHandle {
             },
             last_run_finished: None,
             llm,
-            vectordb,
+            memory,
             firecrawl,
+            guild_id: None,
             bot_user_id,
             discord_ctx: discord_ctx.clone(),
             message_queue: vec![],

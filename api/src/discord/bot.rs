@@ -4,6 +4,7 @@ use crate::discord::{
     channel::{ChannelEvent, ChannelHandle},
     chatgpt::{ChatgptAuth, DbPool},
     constants::{MESSAGE_CONTEXT_SIZE, WHITELIST_CHANNELS},
+    memory::MemorySystem,
     message::{self, QueuedMessage},
 };
 use arc_swap::ArcSwap;
@@ -16,7 +17,7 @@ use serenity::prelude::*;
 use std::sync::Arc;
 use tracing::instrument;
 
-use super::tools::{Firecrawl, SharedVectorClient};
+use super::tools::Firecrawl;
 
 pub(crate) struct Guild {
     pub presences: scc::HashMap<UserId, Vec<Activity>>,
@@ -26,7 +27,7 @@ pub struct DiscordEventHandler {
     channel_handles: Arc<scc::HashMap<ChannelId, ChannelHandle>>,
     guilds: Arc<scc::HashMap<GuildId, Guild>>,
 
-    shared_vectordb_client: Option<SharedVectorClient>,
+    memory: MemorySystem,
     firecrawl: Option<Firecrawl>,
     llm: LlmBackend,
     whitelist_channels: Vec<ChannelId>,
@@ -36,19 +37,6 @@ pub struct DiscordEventHandler {
 
 impl DiscordEventHandler {
     pub async fn new(server_config: crate::config::ServerConfig, db: DbPool) -> Self {
-        let shared_vectordb_client = match &server_config.vector_db {
-            Some(conf) => SharedVectorClient::new(conf.clone())
-                .await
-                .inspect_err(|e| {
-                    tracing::error!(
-                        "Failed to create shared vector client, defaulting to None: {}",
-                        e
-                    );
-                })
-                .ok(),
-            None => None,
-        };
-
         let firecrawl = match server_config.firecrawl_api_key.clone() {
             Some(api_key) => Firecrawl::new(api_key)
                 .inspect_err(|e| tracing::error!(?e, "Failed to create the Firecrawl client"))
@@ -62,12 +50,13 @@ impl DiscordEventHandler {
         };
 
         let llm = match server_config.discord_llm_backend {
-            DiscordLlmBackend::Chatgpt => LlmBackend::Chatgpt(ChatgptAuth::load(db).await),
+            DiscordLlmBackend::Chatgpt => LlmBackend::Chatgpt(ChatgptAuth::load(db.clone()).await),
             DiscordLlmBackend::Gemini => LlmBackend::Gemini {
                 api_key: server_config.openai_api_key.clone().unwrap_or_default(),
             },
         };
         tracing::info!(backend = ?server_config.discord_llm_backend, "Discord agent LLM backend");
+        let memory = MemorySystem::start(db, llm.clone());
 
         Self {
             channel_handles: Arc::new(scc::HashMap::new()),
@@ -77,7 +66,7 @@ impl DiscordEventHandler {
                 .iter()
                 .map(|id| ChannelId::new(*id))
                 .collect(),
-            shared_vectordb_client,
+            memory,
             firecrawl,
             bot_user_id: ArcSwap::from_pointee(None),
             llm,
@@ -239,7 +228,7 @@ impl DiscordEventHandler {
                     discord_ctx,
                     channel_id,
                     self.llm.clone(),
-                    self.shared_vectordb_client.clone(),
+                    self.memory.clone(),
                     self.firecrawl.clone(),
                     self.discord_bot_mention_only,
                     self.guilds.clone(),

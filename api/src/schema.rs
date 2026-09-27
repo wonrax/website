@@ -84,6 +84,42 @@ diesel::table! {
 }
 
 diesel::table! {
+    discord_memory_docs (id) {
+        id -> Int8,
+        guild_id -> Int8,
+        kind -> Text,
+        subject_id -> Int8,
+        content -> Text,
+        dreamed_through -> Int8,
+        revisit_on -> Nullable<Date>,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    discord_memory_observations (id) {
+        id -> Int8,
+        guild_id -> Int8,
+        channel_id -> Int8,
+        about_user_ids -> Array<Int8>,
+        content -> Text,
+        keywords -> Text,
+        source_message_ids -> Array<Int8>,
+        observed_at -> Timestamptz,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    discord_memory_people (guild_id, user_id) {
+        guild_id -> Int8,
+        user_id -> Int8,
+        name -> Text,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
     identities (id) {
         id -> Int4,
         traits -> Jsonb,
@@ -196,6 +232,9 @@ diesel::allow_tables_to_appear_in_same_query!(
     blog_posts,
     chatgpt_auth,
     counters,
+    discord_memory_docs,
+    discord_memory_observations,
+    discord_memory_people,
     identities,
     identity_credential_types,
     identity_credentials,
