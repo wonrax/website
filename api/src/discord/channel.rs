@@ -306,7 +306,6 @@ impl ChannelState {
                     self.bot_user_id,
                     None,
                     AttachmentMode::Placeholder,
-                    &self.discord_ctx.http,
                 )
                 .await,
             );
@@ -341,7 +340,6 @@ impl ChannelState {
             self.bot_user_id,
             presence.as_deref(),
             AttachmentMode::Inline,
-            &self.discord_ctx.http,
         )
         .await
     }

@@ -50,7 +50,6 @@ pub const DREAM_SWEEP_INTERVAL: Duration = Duration::from_secs(60 * 60 * 6);
 const MESSAGE_FORMAT: &str = r#"[#MESSAGE_ID] [ISO timestamp] AuthorName: message content
 <<context>>
 Replied To: AuthorName (#MESSAGE_ID)
-Cites: a message it links to, in the same format
 Mentions: names of the users the message pings
 Presence: what the author is playing or listening to
 <</context>>

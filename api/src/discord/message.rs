@@ -7,7 +7,7 @@ use rig::{
     message::{AssistantContent, ImageDetail, ImageMediaType, MimeType, UserContent},
 };
 use serenity::all::{
-    Activity, ActivityType, Attachment, ChannelId, Context, GuildId, Http, Message, MessageId,
+    Activity, ActivityType, Attachment, ChannelId, Context, GuildId, Message, MessageId,
     ReactionType, UserId,
 };
 
@@ -74,9 +74,9 @@ fn message_line(msg: &Message, tag_as_self: bool) -> String {
 
 /// Where a message link points
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct MessageLink {
-    pub channel_id: ChannelId,
-    pub message_id: MessageId,
+struct MessageLink {
+    channel_id: ChannelId,
+    message_id: MessageId,
 }
 
 /// The message links in `text`, what people paste to cite a message, with the bytes each spans.
@@ -184,58 +184,6 @@ pub fn expand_citations(text: &str, guild_id: Option<GuildId>, channel_id: Chann
     expanded
 }
 
-/// Most of a message's links whose messages are shown with it
-const MAX_CITATIONS: usize = 3;
-/// Characters a cited message is cut to
-const CITATION_CHARS: usize = 500;
-
-/// The messages `msg` links to, each as a line in the format of the context, so the agent reads
-/// what's cited without looking it up. Links it can't open are left out.
-async fn citations(http: &Http, msg: &Message) -> Vec<String> {
-    let mut cited: Vec<MessageLink> = Vec::new();
-    let mut lines = Vec::new();
-    for (_, link) in message_links(&msg.content) {
-        if cited.contains(&link) || cited.len() >= MAX_CITATIONS {
-            continue;
-        }
-        cited.push(link);
-        let message = match link.channel_id.message(http, link.message_id).await {
-            Ok(message) => message,
-            Err(e) => {
-                tracing::warn!(
-                    ?e,
-                    message_id = link.message_id.get(),
-                    "Failed to fetch a cited message"
-                );
-                continue;
-            }
-        };
-        let mut line = truncate(&message_line(&message, false), CITATION_CHARS);
-        if link.channel_id != msg.channel_id {
-            let name = match link.channel_id.to_channel(http).await {
-                Ok(channel) => channel.guild().map(|channel| channel.name),
-                Err(_) => None,
-            };
-            line.push_str(&format!(
-                " [in #{}]",
-                name.unwrap_or_else(|| link.channel_id.to_string())
-            ));
-        }
-        lines.push(line);
-    }
-    lines
-}
-
-/// `text` cut to `max` characters, marked with an ellipsis when cut
-fn truncate(text: &str, max: usize) -> String {
-    if text.chars().count() <= max {
-        return text.to_string();
-    }
-    let mut cut: String = text.chars().take(max.saturating_sub(1)).collect();
-    cut.push('…');
-    cut
-}
-
 /// `Author (#id)` of the message this one replies to. No content preview: the agent fetches the
 /// message with `fetch_message` when the reply target matters.
 fn reply_reference(msg: &Message) -> Option<String> {
@@ -295,18 +243,18 @@ fn describe_activity(activity: &Activity) -> String {
     text
 }
 
-/// The message line followed by a `<<context>>` block with the reply target, the `cited`
-/// messages, mentions, and the author's `presence`. Lines with nothing to say are dropped, and so is
-/// the block when none remain.
-fn format_message_with_context(msg: &Message, presence: Option<&str>, cited: &[String]) -> String {
+/// The message line followed by a `<<context>>` block with the reply target, mentions, and the
+/// author's `presence`. Lines with nothing to say are dropped, and so is the block when none remain.
+fn format_message_with_context(msg: &Message, presence: Option<&str>) -> String {
     let mut text = message_line(msg, false);
-    let context: Vec<String> = reply_reference(msg)
-        .map(|reply| format!("Replied To: {reply}"))
-        .into_iter()
-        .chain(cited.iter().map(|line| format!("Cites: {line}")))
-        .chain(mentioned_names(msg).map(|names| format!("Mentions: {names}")))
-        .chain(presence.map(|activities| format!("Presence: {activities}")))
-        .collect();
+    let context: Vec<String> = [
+        reply_reference(msg).map(|reply| format!("Replied To: {reply}")),
+        mentioned_names(msg).map(|names| format!("Mentions: {names}")),
+        presence.map(|activities| format!("Presence: {activities}")),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
     if !context.is_empty() {
         text.push_str("\n<<context>>\n");
         text.push_str(&context.join("\n"));
@@ -484,10 +432,8 @@ pub async fn discord_message_to_rig_message(
     bot_user_id: UserId,
     presence: Option<&str>,
     attachments: AttachmentMode,
-    http: &Http,
 ) -> RigMessage {
-    let cited = citations(http, msg).await;
-    let text_content = format_message_with_context(msg, presence, &cited);
+    let text_content = format_message_with_context(msg, presence);
 
     if msg.author.id == bot_user_id {
         // For bot messages, just use text content
@@ -558,7 +504,7 @@ mod tests {
             user(350884319360712705, "wonrax"),
             "hello",
         ));
-        let text = format_message_with_context(&msg, None, &[]);
+        let text = format_message_with_context(&msg, None);
 
         assert!(
             text.starts_with("[#1549027814278434918] [2026-09-14T12:03:30"),
@@ -580,7 +526,7 @@ mod tests {
         value["mentions"] = json!([bot]);
         value["type"] = json!(19);
         value["referenced_message"] = message(1549023175818354742, bot, "thì khỏi gửi");
-        let text = format_message_with_context(&parse(value), None, &[]);
+        let text = format_message_with_context(&parse(value), None);
 
         let expected = "\n<<context>>\n\
             Replied To: The Irony Himself (#1549023175818354742)\n\
@@ -687,26 +633,14 @@ mod tests {
     }
 
     #[test]
-    fn cited_messages_show_in_the_context_block() {
+    fn links_to_messages_of_the_channel_render_as_ids() {
         let msg = parse(message(
             4,
             user(350884319360712705, "wonrax"),
-            "https://discord.com/channels/7/1/3",
+            "như https://discord.com/channels/7/1/3 nói",
         ));
-        let cited = "[#3] [2026-09-01T08:00:00Z] gabins: đi Đà Lạt".to_string();
-        let text = format_message_with_context(&msg, None, &[cited]);
-        assert!(
-            text.ends_with(
-                "wonrax: [#3]\n<<context>>\nCites: [#3] [2026-09-01T08:00:00Z] gabins: đi Đà Lạt\n<</context>>"
-            ),
-            "{text}"
-        );
-    }
-
-    #[test]
-    fn long_text_is_cut_on_characters() {
-        assert_eq!(truncate("Đà Lạt", 10), "Đà Lạt");
-        assert_eq!(truncate("Đà Lạt", 4), "Đà …");
+        let text = format_message_with_context(&msg, None);
+        assert!(text.ends_with("wonrax: như [#3] nói"), "{text}");
     }
 
     #[test]

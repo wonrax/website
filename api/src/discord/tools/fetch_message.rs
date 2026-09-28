@@ -47,7 +47,7 @@ impl PortableTool for FetchMessageTool {
     type Output = FetchMessageOutput;
 
     fn description(&self) -> String {
-        "Read one message of this channel by ID when it is not in your context, typically the target of a Replied To line. Returns it in the same format as your context, attachments listed by name only; view_message_attachments shows them. For a stretch of the conversation use fetch_channel_history instead."
+        "Read one message of this channel by ID when it is not in your context, typically the target of a Replied To line or a [#ID] link in a message. Returns it in the same format as your context, attachments listed by name only; view_message_attachments shows them. For a stretch of the conversation use fetch_channel_history instead."
             .to_string()
     }
 
@@ -57,7 +57,7 @@ impl PortableTool for FetchMessageTool {
             "properties": {
                 "message_id": {
                     "type": "string",
-                    "description": "The ID from a [#ID] message header or a Replied To line."
+                    "description": "The ID from a [#ID] message header or link, or from a Replied To line."
                 }
             },
             "required": ["message_id"]
