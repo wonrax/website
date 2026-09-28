@@ -11,7 +11,8 @@ use arc_swap::ArcSwap;
 use async_trait::async_trait;
 use scc::hash_map::OccupiedEntry;
 use serenity::all::{
-    Activity, ChannelId, GuildId, Message, Presence, Ready, TypingStartEvent, UserId,
+    Activity, ChannelId, GuildId, Message, MessageId, MessageUpdateEvent, Presence, Reaction,
+    Ready, TypingStartEvent, UserId,
 };
 use serenity::prelude::*;
 use std::sync::Arc;
@@ -216,6 +217,44 @@ impl DiscordEventHandler {
         Ok(has_recent)
     }
 
+    /// Hands `event` to the channel's loop, when the channel is one the bot works in
+    async fn send_event(&self, channel_id: ChannelId, ctx: &Context, event: ChannelEvent) {
+        if !self.whitelist_channels.contains(&channel_id) {
+            return;
+        }
+        let _ = self
+            .get_or_create_channel(channel_id, ctx.clone())
+            .send_event(event)
+            .await
+            .inspect_err(|e| {
+                tracing::error!(
+                    ?e,
+                    channel_id = channel_id.get(),
+                    "Failed to send a channel event"
+                );
+            });
+    }
+
+    /// Deleted messages leave the agents' context, and the evidence of the memories
+    async fn deleted(
+        &self,
+        ctx: Context,
+        channel_id: ChannelId,
+        message_ids: Vec<MessageId>,
+        guild_id: Option<GuildId>,
+    ) {
+        if !self.whitelist_channels.contains(&channel_id) {
+            return;
+        }
+        if let Some(guild_id) = guild_id {
+            self.memory
+                .forget_messages(guild_id, channel_id, &message_ids)
+                .await;
+        }
+        self.send_event(channel_id, &ctx, ChannelEvent::Deletion(message_ids))
+            .await;
+    }
+
     fn get_or_create_channel<'a>(
         &'a self,
         channel_id: ChannelId,
@@ -269,6 +308,60 @@ impl EventHandler for DiscordEventHandler {
                     e
                 );
             });
+    }
+
+    async fn reaction_add(&self, ctx: Context, reaction: Reaction) {
+        self.send_event(
+            reaction.channel_id,
+            &ctx,
+            ChannelEvent::Reaction(reaction, ctx.clone()),
+        )
+        .await;
+    }
+
+    async fn reaction_remove(&self, ctx: Context, reaction: Reaction) {
+        self.send_event(
+            reaction.channel_id,
+            &ctx,
+            ChannelEvent::ReactionRemoved(reaction),
+        )
+        .await;
+    }
+
+    async fn message_update(
+        &self,
+        ctx: Context,
+        _old: Option<Message>,
+        _new: Option<Message>,
+        update: MessageUpdateEvent,
+    ) {
+        self.send_event(
+            update.channel_id,
+            &ctx,
+            ChannelEvent::Edit(update, ctx.clone()),
+        )
+        .await;
+    }
+
+    async fn message_delete(
+        &self,
+        ctx: Context,
+        channel_id: ChannelId,
+        message_id: MessageId,
+        guild_id: Option<GuildId>,
+    ) {
+        self.deleted(ctx, channel_id, vec![message_id], guild_id)
+            .await;
+    }
+
+    async fn message_delete_bulk(
+        &self,
+        ctx: Context,
+        channel_id: ChannelId,
+        message_ids: Vec<MessageId>,
+        guild_id: Option<GuildId>,
+    ) {
+        self.deleted(ctx, channel_id, message_ids, guild_id).await;
     }
 
     async fn presence_update(&self, _ctx: Context, new_presence: Presence) {

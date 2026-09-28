@@ -280,6 +280,8 @@ async fn start_discord_service(
             | GatewayIntents::MESSAGE_CONTENT
             | GatewayIntents::GUILD_MESSAGE_TYPING
             | GatewayIntents::DIRECT_MESSAGE_TYPING
+            | GatewayIntents::GUILD_MESSAGE_REACTIONS
+            | GatewayIntents::DIRECT_MESSAGE_REACTIONS
             | GatewayIntents::GUILD_PRESENCES;
 
         // Create a new instance of the Client, logging in as a bot. This will automatically prepend

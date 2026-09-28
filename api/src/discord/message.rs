@@ -1,4 +1,4 @@
-use std::num::NonZeroU64;
+use std::{num::NonZeroU64, ops::Range};
 
 use base64::Engine as _;
 use chrono::{DateTime, Utc};
@@ -6,9 +6,9 @@ use rig::{
     completion::Message as RigMessage,
     message::{AssistantContent, ImageDetail, ImageMediaType, MimeType, UserContent},
 };
-use scc::hash_map::OccupiedEntry;
 use serenity::all::{
-    Activity, ActivityType, Attachment, ChannelId, Context, GuildId, Message, MessageId, UserId,
+    Activity, ActivityType, Attachment, ChannelId, Context, GuildId, Http, Message, MessageId,
+    ReactionType, UserId,
 };
 
 use crate::discord::{bot::Guild, constants::URL_FETCH_TIMEOUT_SECS};
@@ -43,30 +43,197 @@ fn message_header(msg: &Message) -> String {
     )
 }
 
-fn attachment_names(msg: &Message) -> String {
-    msg.attachments
-        .iter()
-        .map(|a| a.filename.as_str())
-        .collect::<Vec<_>>()
-        .join(", ")
+/// `{content} [Attachment: names]`, with links to messages of `channel_id` written as `[#ID]`.
+/// Attachments are always named so the agent can open the ones it wasn't shown.
+fn message_body(content: &str, attachments: &[Attachment], channel_id: ChannelId) -> String {
+    let mut body = shorten_links(content, channel_id);
+    if !attachments.is_empty() {
+        if !body.is_empty() {
+            body.push(' ');
+        }
+        let names: Vec<&str> = attachments.iter().map(|a| a.filename.as_str()).collect();
+        body.push_str(&format!("[Attachment: {}]", names.join(", ")));
+    }
+    body
 }
 
-/// `{header}: {content} [Attachment: names]`. Attachments are always named so the agent can
-/// open the ones it wasn't shown.
+/// `{header}: {body}`
 fn message_line(msg: &Message, tag_as_self: bool) -> String {
     let mut line = message_header(msg);
     if tag_as_self {
         line.push_str(" [you]");
     }
     line.push_str(": ");
-    line.push_str(&msg.content);
-    if !msg.attachments.is_empty() {
-        if !msg.content.is_empty() {
-            line.push(' ');
-        }
-        line.push_str(&format!("[Attachment: {}]", attachment_names(msg)));
-    }
+    line.push_str(&message_body(
+        &msg.content,
+        &msg.attachments,
+        msg.channel_id,
+    ));
     line
+}
+
+/// Where a message link points
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MessageLink {
+    pub channel_id: ChannelId,
+    pub message_id: MessageId,
+}
+
+/// The message links in `text`, what people paste to cite a message, with the bytes each spans.
+/// A link wrapped in `<>` to keep Discord from previewing it spans the brackets too.
+fn message_links(text: &str) -> Vec<(Range<usize>, MessageLink)> {
+    const PREFIXES: [&str; 4] = [
+        "discord.com/channels/",
+        "ptb.discord.com/channels/",
+        "canary.discord.com/channels/",
+        "discordapp.com/channels/",
+    ];
+    let mut links = Vec::new();
+    let mut from = 0;
+    while let Some(found) = text.get(from..).and_then(|rest| rest.find("https://")) {
+        let start = from + found;
+        from = start + "https://".len();
+        let rest = text.get(from..).unwrap_or_default();
+        let Some(path) = PREFIXES.iter().find_map(|prefix| rest.strip_prefix(prefix)) else {
+            continue;
+        };
+        let Some((link, len)) = parse_link_path(path) else {
+            continue;
+        };
+        // `path` is the tail of `text`
+        let mut span = start..text.len() - path.len() + len;
+        if text.get(..span.start).is_some_and(|t| t.ends_with('<'))
+            && text.get(span.end..).is_some_and(|t| t.starts_with('>'))
+        {
+            span = span.start - 1..span.end + 1;
+        }
+        from = span.end;
+        links.push((span, link));
+    }
+    links
+}
+
+/// `GUILD/CHANNEL/MESSAGE` at the start of `path` (`@me` for the guild in DMs), and its length
+fn parse_link_path(path: &str) -> Option<(MessageLink, usize)> {
+    let digits = |s: &str| s.bytes().take_while(u8::is_ascii_digit).count();
+    let guild = if path.starts_with("@me") {
+        3
+    } else {
+        digits(path)
+    };
+    let rest = path.get(guild..)?.strip_prefix('/').filter(|_| guild > 0)?;
+    let channel = digits(rest);
+    let channel_id = rest.get(..channel)?.parse::<NonZeroU64>().ok()?;
+    let rest = rest.get(channel..)?.strip_prefix('/')?;
+    let message = digits(rest);
+    let message_id = rest.get(..message)?.parse::<NonZeroU64>().ok()?;
+    Some((
+        MessageLink {
+            channel_id: channel_id.into(),
+            message_id: message_id.into(),
+        },
+        guild + 1 + channel + 1 + message,
+    ))
+}
+
+/// `text` with its links to messages of `channel_id` written as `[#ID]`, the way the agents see
+/// messages and cite them
+fn shorten_links(text: &str, channel_id: ChannelId) -> String {
+    let mut shortened = String::with_capacity(text.len());
+    let mut copied = 0;
+    for (span, link) in message_links(text) {
+        if link.channel_id != channel_id {
+            continue;
+        }
+        shortened.push_str(text.get(copied..span.start).unwrap_or_default());
+        shortened.push_str(&format!("[#{}]", link.message_id));
+        copied = span.end;
+    }
+    shortened.push_str(text.get(copied..).unwrap_or_default());
+    shortened
+}
+
+/// `text` with each `[#ID]` written as a link to that message of the channel, which Discord shows
+/// the way it shows a link a person pasted
+pub fn expand_citations(text: &str, guild_id: Option<GuildId>, channel_id: ChannelId) -> String {
+    let guild = guild_id.map_or_else(|| "@me".to_string(), |id| id.to_string());
+    let mut expanded = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("[#") {
+        expanded.push_str(rest.get(..start).unwrap_or_default());
+        let after = rest.get(start + 2..).unwrap_or_default();
+        let len = after.bytes().take_while(u8::is_ascii_digit).count();
+        let id = after
+            .get(..len)
+            .and_then(|digits| digits.parse::<NonZeroU64>().ok())
+            .filter(|_| after.get(len..).is_some_and(|t| t.starts_with(']')));
+        match id {
+            Some(id) => {
+                expanded.push_str(&format!(
+                    "https://discord.com/channels/{guild}/{channel_id}/{id}"
+                ));
+                rest = after.get(len + 1..).unwrap_or_default();
+            }
+            None => {
+                expanded.push_str("[#");
+                rest = after;
+            }
+        }
+    }
+    expanded.push_str(rest);
+    expanded
+}
+
+/// Most of a message's links whose messages are shown with it
+const MAX_CITATIONS: usize = 3;
+/// Characters a cited message is cut to
+const CITATION_CHARS: usize = 500;
+
+/// The messages `msg` links to, each as a line in the format of the context, so the agent reads
+/// what's cited without looking it up. Links it can't open are left out.
+async fn citations(http: &Http, msg: &Message) -> Vec<String> {
+    let mut cited: Vec<MessageLink> = Vec::new();
+    let mut lines = Vec::new();
+    for (_, link) in message_links(&msg.content) {
+        if cited.contains(&link) || cited.len() >= MAX_CITATIONS {
+            continue;
+        }
+        cited.push(link);
+        let message = match link.channel_id.message(http, link.message_id).await {
+            Ok(message) => message,
+            Err(e) => {
+                tracing::warn!(
+                    ?e,
+                    message_id = link.message_id.get(),
+                    "Failed to fetch a cited message"
+                );
+                continue;
+            }
+        };
+        let mut line = truncate(&message_line(&message, false), CITATION_CHARS);
+        if link.channel_id != msg.channel_id {
+            let name = match link.channel_id.to_channel(http).await {
+                Ok(channel) => channel.guild().map(|channel| channel.name),
+                Err(_) => None,
+            };
+            line.push_str(&format!(
+                " [in #{}]",
+                name.unwrap_or_else(|| link.channel_id.to_string())
+            ));
+        }
+        lines.push(line);
+    }
+    lines
+}
+
+/// `text` cut to `max` characters, marked with an ellipsis when cut
+fn truncate(text: &str, max: usize) -> String {
+    if text.chars().count() <= max {
+        return text.to_string();
+    }
+    let mut cut: String = text.chars().take(max.saturating_sub(1)).collect();
+    cut.push('…');
+    cut
 }
 
 /// `Author (#id)` of the message this one replies to. No content preview: the agent fetches the
@@ -92,8 +259,8 @@ fn mentioned_names(msg: &Message) -> Option<String> {
 }
 
 /// The author's current activities from the guild presence cache, when it has any
-fn presence(author: UserId, guild: &Option<OccupiedEntry<'_, GuildId, Guild>>) -> Option<String> {
-    let entry = guild.as_ref()?.get().presences.get_sync(&author)?;
+pub fn presence(author: UserId, guild: &Guild) -> Option<String> {
+    let entry = guild.presences.get_sync(&author)?;
     let activities = entry.get();
     if activities.is_empty() {
         return None;
@@ -128,21 +295,18 @@ fn describe_activity(activity: &Activity) -> String {
     text
 }
 
-/// The message line followed by a `<<context>>` block with the reply target, mentions, and the
-/// author's presence. Lines with nothing to say are dropped, and so is the block when none remain.
-fn format_message_with_context(
-    msg: &Message,
-    guild: &Option<OccupiedEntry<'_, GuildId, Guild>>,
-) -> String {
+/// The message line followed by a `<<context>>` block with the reply target, the `cited`
+/// messages, mentions, and the author's `presence`. Lines with nothing to say are dropped, and so is
+/// the block when none remain.
+fn format_message_with_context(msg: &Message, presence: Option<&str>, cited: &[String]) -> String {
     let mut text = message_line(msg, false);
-    let context: Vec<String> = [
-        reply_reference(msg).map(|reply| format!("Replied To: {reply}")),
-        mentioned_names(msg).map(|names| format!("Mentions: {names}")),
-        presence(msg.author.id, guild).map(|activities| format!("Presence: {activities}")),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
+    let context: Vec<String> = reply_reference(msg)
+        .map(|reply| format!("Replied To: {reply}"))
+        .into_iter()
+        .chain(cited.iter().map(|line| format!("Cites: {line}")))
+        .chain(mentioned_names(msg).map(|names| format!("Mentions: {names}")))
+        .chain(presence.map(|activities| format!("Presence: {activities}")))
+        .collect();
     if !context.is_empty() {
         text.push_str("\n<<context>>\n");
         text.push_str(&context.join("\n"));
@@ -191,6 +355,11 @@ pub fn snowflake_at(at: DateTime<Utc>) -> u64 {
     let ms = u64::try_from(at.timestamp_millis()).unwrap_or(0);
     // Masking the high bits first keeps the shift from overflowing on far-future dates
     (ms.saturating_sub(DISCORD_EPOCH_MS) & (u64::MAX >> 22)) << 22
+}
+
+/// The snowflake a message sent now would get, which places what happens now among the messages
+pub fn snowflake_now() -> MessageId {
+    NonZeroU64::new(snowflake_at(Utc::now())).map_or(MessageId::new(1), MessageId::from)
 }
 
 /// One message of the channel, for the lookup tools
@@ -274,14 +443,51 @@ pub fn observed(message: &RigMessage) -> RigMessage {
     }
 }
 
-/// Helper function to convert a Discord message to a RigMessage
+/// A reaction as the agents read it, between the messages. `author` wrote the message, when
+/// that's known.
+pub fn reaction_line(
+    reactor: &str,
+    emoji: &ReactionType,
+    author: Option<&str>,
+    message_id: MessageId,
+) -> String {
+    let message = match author {
+        Some(author) => format!("{author}'s message"),
+        None => "a message".to_string(),
+    };
+    format!("[reaction] {reactor} reacted {emoji} to {message} (#{message_id})")
+}
+
+/// An edit of a message the agents have seen, with what the message says now
+pub fn edit_line(
+    author: &str,
+    message_id: MessageId,
+    channel_id: ChannelId,
+    content: &str,
+    attachments: &[Attachment],
+) -> String {
+    format!(
+        "[edit] {author} edited their message (#{message_id}): {}",
+        message_body(content, attachments, channel_id)
+    )
+}
+
+/// The deletion of a message the agents have seen
+pub fn deletion_line(author: &str, message_id: MessageId) -> String {
+    format!("[deletion] {author}'s message (#{message_id}) was deleted")
+}
+
+/// Helper function to convert a Discord message to a RigMessage. `presence` is the author's,
+/// when known.
 pub async fn discord_message_to_rig_message(
     msg: &Message,
     bot_user_id: UserId,
-    guild: &Option<OccupiedEntry<'_, GuildId, Guild>>,
+    presence: Option<&str>,
     attachments: AttachmentMode,
+    http: &Http,
 ) -> RigMessage {
-    let text_content = format_message_with_context(msg, guild);
+    let cited = citations(http, msg).await;
+    let text_content = format_message_with_context(msg, presence, &cited);
 
     if msg.author.id == bot_user_id {
         // For bot messages, just use text content
@@ -352,7 +558,7 @@ mod tests {
             user(350884319360712705, "wonrax"),
             "hello",
         ));
-        let text = format_message_with_context(&msg, &None);
+        let text = format_message_with_context(&msg, None, &[]);
 
         assert!(
             text.starts_with("[#1549027814278434918] [2026-09-14T12:03:30"),
@@ -374,7 +580,7 @@ mod tests {
         value["mentions"] = json!([bot]);
         value["type"] = json!(19);
         value["referenced_message"] = message(1549023175818354742, bot, "thì khỏi gửi");
-        let text = format_message_with_context(&parse(value), &None);
+        let text = format_message_with_context(&parse(value), None, &[]);
 
         let expected = "\n<<context>>\n\
             Replied To: The Irony Himself (#1549023175818354742)\n\
@@ -422,6 +628,113 @@ mod tests {
         let error = parse_message_ids("source_message_ids", &["1".to_string(), "x".to_string()])
             .expect_err("one bad ID");
         assert!(error.starts_with("source_message_ids must be"), "{error}");
+    }
+
+    #[test]
+    fn message_links_are_found_however_people_paste_them() {
+        let text = "xem https://discord.com/channels/1/2/3 với \
+            <https://ptb.discord.com/channels/@me/4/5>, https://discord.com/channels/1/2 thì không";
+        let links: Vec<(String, u64, u64)> = message_links(text)
+            .into_iter()
+            .map(|(span, link)| {
+                (
+                    text.get(span).unwrap_or_default().to_string(),
+                    link.channel_id.get(),
+                    link.message_id.get(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            links,
+            vec![
+                ("https://discord.com/channels/1/2/3".to_string(), 2, 3),
+                (
+                    "<https://ptb.discord.com/channels/@me/4/5>".to_string(),
+                    4,
+                    5
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn links_to_the_channel_read_as_message_ids() {
+        let text = "như đã nói https://discord.com/channels/1/2/3 và \
+            <https://discordapp.com/channels/1/2/4>, còn https://discord.com/channels/1/9/5";
+        assert_eq!(
+            shorten_links(text, ChannelId::new(2)),
+            "như đã nói [#3] và [#4], còn https://discord.com/channels/1/9/5"
+        );
+    }
+
+    #[test]
+    fn cited_ids_become_links() {
+        let channel_id = ChannelId::new(2);
+        assert_eq!(
+            expand_citations(
+                "như [#1549027814278434918] nói, [#abc] với [#0] và [#12",
+                Some(GuildId::new(7)),
+                channel_id
+            ),
+            "như https://discord.com/channels/7/2/1549027814278434918 nói, [#abc] với [#0] và [#12"
+        );
+        assert_eq!(
+            expand_citations("[#5]", None, channel_id),
+            "https://discord.com/channels/@me/2/5"
+        );
+        let sent = expand_citations("[#5]!", Some(GuildId::new(7)), channel_id);
+        assert_eq!(shorten_links(&sent, channel_id), "[#5]!");
+    }
+
+    #[test]
+    fn cited_messages_show_in_the_context_block() {
+        let msg = parse(message(
+            4,
+            user(350884319360712705, "wonrax"),
+            "https://discord.com/channels/7/1/3",
+        ));
+        let cited = "[#3] [2026-09-01T08:00:00Z] gabins: đi Đà Lạt".to_string();
+        let text = format_message_with_context(&msg, None, &[cited]);
+        assert!(
+            text.ends_with(
+                "wonrax: [#3]\n<<context>>\nCites: [#3] [2026-09-01T08:00:00Z] gabins: đi Đà Lạt\n<</context>>"
+            ),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn long_text_is_cut_on_characters() {
+        assert_eq!(truncate("Đà Lạt", 10), "Đà Lạt");
+        assert_eq!(truncate("Đà Lạt", 4), "Đà …");
+    }
+
+    #[test]
+    fn events_name_the_message_they_happened_to() {
+        let id = MessageId::new(3);
+        let emoji = ReactionType::Unicode("💀".to_string());
+        assert_eq!(
+            reaction_line("gabins", &emoji, Some("The Irony Himself"), id),
+            "[reaction] gabins reacted 💀 to The Irony Himself's message (#3)"
+        );
+        assert_eq!(
+            reaction_line("gabins", &emoji, None, id),
+            "[reaction] gabins reacted 💀 to a message (#3)"
+        );
+        assert_eq!(
+            edit_line(
+                "wonrax",
+                id,
+                ChannelId::new(2),
+                "như https://discord.com/channels/7/2/1",
+                &[]
+            ),
+            "[edit] wonrax edited their message (#3): như [#1]"
+        );
+        assert_eq!(
+            deletion_line("wonrax", id),
+            "[deletion] wonrax's message (#3) was deleted"
+        );
     }
 
     #[test]

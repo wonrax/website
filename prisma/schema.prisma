@@ -201,9 +201,14 @@ model discord_memory_observations {
   search_vector      Unsupported("tsvector")?
   /// Generated from content and keywords
   search_text        String?
+  /// When its source messages were all deleted
+  withdrawn_at       DateTime?                @db.Timestamptz(6)
+  /// The withdrawal's place in the log, from the ID sequence
+  withdrawn_seq      BigInt?
 
   @@index([guild_id, channel_id])
   @@index([about_user_ids], type: Gin)
+  @@index([source_message_ids], type: Gin)
   @@index([search_text(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 

@@ -6,7 +6,7 @@ pub mod dream;
 mod store;
 
 use chrono::{DateTime, Datelike as _, NaiveDate, Utc};
-use serenity::all::{ChannelId, GuildId, UserId};
+use serenity::all::{ChannelId, GuildId, MessageId, UserId};
 
 use crate::discord::{agent::LlmBackend, chatgpt::DbPool, constants::DISCORD_BOT_NAME};
 
@@ -26,6 +26,33 @@ impl MemorySystem {
         let store = MemoryStore::new(db);
         let dreamer = Dreamer::spawn(store.clone(), llm);
         Self { store, dreamer }
+    }
+
+    /// Takes deleted messages out of the evidence of the observations citing them. An
+    /// observation left without any is withdrawn: search stops finding it, and the docs let go
+    /// of it at their next dream.
+    pub async fn forget_messages(
+        &self,
+        guild_id: GuildId,
+        channel_id: ChannelId,
+        message_ids: &[MessageId],
+    ) {
+        match self
+            .store
+            .withdraw_sources(guild_id, channel_id, message_ids)
+            .await
+        {
+            Ok(0) => {}
+            Ok(withdrawn) => {
+                tracing::info!(
+                    withdrawn,
+                    channel_id = channel_id.get(),
+                    "Withdrew memories whose messages were deleted"
+                );
+                self.dreamer.wake(guild_id);
+            }
+            Err(e) => tracing::error!(?e, "Failed to forget deleted messages"),
+        }
     }
 
     pub fn channel(&self, guild_id: GuildId, channel_id: ChannelId) -> ChannelMemory {

@@ -66,8 +66,9 @@ impl PortableTool for RecordObservationsTool {
         "Add observations to the bot's memory: what future conversations should know about the \
          people of this server and about this channel. The log is append-only evidence that \
          the memory notes are periodically rewritten from, so a correction or a change is just \
-         a new observation of how things stand now. Each recorded observation reacts 🧠 to the \
-         newest message it cites."
+         a new observation of how things stand now. Search the log first: what's already recorded \
+         needs no second copy, only what changed about it. Each recorded observation reacts 🧠 \
+         to the newest message it cites."
             .to_string()
     }
 

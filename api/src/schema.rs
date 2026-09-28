@@ -107,6 +107,8 @@ diesel::table! {
         source_message_ids -> Array<Int8>,
         observed_at -> Timestamptz,
         created_at -> Timestamptz,
+        withdrawn_at -> Nullable<Timestamptz>,
+        withdrawn_seq -> Nullable<Int8>,
     }
 }
 

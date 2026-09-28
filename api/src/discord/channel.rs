@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -10,7 +10,10 @@ use futures::{
 };
 use rig::message::Message as RigMessage;
 use rig_agent::completion::PromptError;
-use serenity::all::{ChannelId, Context, GetMessages, GuildId, MessageId, Typing, UserId};
+use serenity::all::{
+    ChannelId, Context, GetMessages, GuildId, Message, MessageId, MessageUpdateEvent, Reaction,
+    ReactionType, Typing, UserId,
+};
 use tokio::sync::watch;
 use tracing::{Instrument as _, instrument};
 
@@ -84,13 +87,25 @@ pub enum ChannelEvent {
     /// messages right away. `addressed` sends it straight to the responder, as a message pinging
     /// the bot would; otherwise the watcher decides.
     ForceProcess { addressed: bool },
+
+    /// Someone reacted to a message of the channel
+    Reaction(Reaction, Context),
+
+    /// Someone took a reaction back
+    ReactionRemoved(Reaction),
+
+    /// A message of the channel changed
+    Edit(MessageUpdateEvent, Context),
+
+    /// Messages of the channel were deleted
+    Deletion(Vec<MessageId>),
 }
 
 /// A channel message waiting for the debounce to hand it to the agents
 struct PendingMessage {
     message: RigMessage,
-    /// Where the fresh-session backfill stops: the API only fills in what is older than the queue
-    id: MessageId,
+    /// As Discord sent it, to render again when it's edited before the batch goes out
+    raw: Box<Message>,
     /// A user message that pings the bot or replies to it
     addresses_bot: bool,
     /// Who it brings into the conversation, for their memory profiles
@@ -98,6 +113,82 @@ struct PendingMessage {
     /// The bot's own message. A live responder already holds it as a `send_discord_message` call,
     /// so it only reaches the responder when seeding a fresh session. The watcher reads it always.
     from_bot: bool,
+}
+
+/// Something that happened to a message the agents may have read: a reaction, an edit, or a
+/// deletion. It reaches them with the next batch, appended like the messages so their cached
+/// prefix stays intact, and never makes a batch on its own.
+struct PendingEvent {
+    /// When it happened, as a snowflake
+    at: MessageId,
+    /// How the agents read it
+    line: String,
+    /// The reaction it is, which taking back before the batch goes out cancels
+    reaction: Option<ReactionKey>,
+}
+
+#[derive(PartialEq, Eq)]
+struct ReactionKey {
+    user_id: UserId,
+    message_id: MessageId,
+    emoji: ReactionType,
+}
+
+/// What waits in the queue for the debounce
+enum Pending {
+    Message(PendingMessage),
+    Event(PendingEvent),
+}
+
+impl Pending {
+    /// Where a fresh session's backfill stops when this opens the batch: the API only fills in
+    /// what is older than the queue
+    fn anchor(&self) -> MessageId {
+        match self {
+            Self::Message(message) => message.raw.id,
+            Self::Event(event) => event.at,
+        }
+    }
+
+    fn message(&self) -> Option<&PendingMessage> {
+        match self {
+            Self::Message(message) => Some(message),
+            Self::Event(_) => None,
+        }
+    }
+}
+
+/// Messages and events a queue holds at most. Messages alone are capped at the context window;
+/// this keeps a reaction spree from growing it without bound.
+const MAX_QUEUED: usize = 3 * MESSAGE_CONTEXT_SIZE;
+
+/// Recent messages the agents may hold, by ID, to name them in what happens to them
+#[derive(Default)]
+struct KnownMessages(BTreeMap<MessageId, KnownMessage>);
+
+struct KnownMessage {
+    author: String,
+    /// As the agents last read it
+    content: String,
+}
+
+/// Messages `KnownMessages` remembers, the oldest forgotten first. A session can outgrow it, but
+/// what happens to messages that old rarely matters to the conversation.
+const MAX_KNOWN_MESSAGES: usize = 1000;
+
+impl KnownMessages {
+    fn add(&mut self, msg: &Message) {
+        self.0.insert(
+            msg.id,
+            KnownMessage {
+                author: msg.author.name.clone(),
+                content: msg.content.clone(),
+            },
+        );
+        while self.0.len() > MAX_KNOWN_MESSAGES {
+            self.0.pop_first();
+        }
+    }
 }
 
 /// What a batch's runs authenticate with
@@ -157,10 +248,13 @@ struct ChannelState {
     discord_bot_mention_only: bool,
 
     /// Every message of the channel, the bot's own included, waits here until the debounce
-    /// expires. It is the only way into the agents for anything newer than its oldest entry: a
-    /// fresh session backfills strictly older messages from the API and appends the queue behind
-    /// them, so nothing can reach an agent twice.
-    message_queue: Vec<PendingMessage>,
+    /// expires, along with what happens to messages meanwhile. It is the only way into the agents
+    /// for anything newer than its oldest entry: a fresh session backfills strictly older
+    /// messages from the API and appends the queue behind them, so nothing can reach an agent
+    /// twice.
+    message_queue: Vec<Pending>,
+    /// The messages the agents may hold, for the events about them
+    known: KnownMessages,
 }
 
 impl ChannelState {
@@ -171,7 +265,7 @@ impl ChannelState {
     /// people the messages bring into the conversation.
     #[instrument(skip(self))]
     async fn backfill_history(
-        &self,
+        &mut self,
         before: Option<MessageId>,
         count: usize,
     ) -> (Vec<RigMessage>, HashSet<UserId>) {
@@ -205,12 +299,14 @@ impl ChannelState {
             .take(count)
         {
             people.extend(message::participants(msg, self.bot_user_id));
+            self.known.add(msg);
             history.push(
                 discord_message_to_rig_message(
                     msg,
                     self.bot_user_id,
-                    &None,
+                    None,
                     AttachmentMode::Placeholder,
+                    &self.discord_ctx.http,
                 )
                 .await,
             );
@@ -230,6 +326,171 @@ impl ChannelState {
                 ?e,
                 "Failed to look up the channel's server; no memories this time"
             ),
+        }
+    }
+
+    /// A message as the agents read it, with its author's presence in the server
+    async fn render(&self, msg: &Message) -> RigMessage {
+        // Read up front: the cache entry stays locked while it's held
+        let presence = self
+            .guild_id
+            .and_then(|guild_id| self.guilds.get_sync(&guild_id))
+            .and_then(|guild| message::presence(msg.author.id, guild.get()));
+        discord_message_to_rig_message(
+            msg,
+            self.bot_user_id,
+            presence.as_deref(),
+            AttachmentMode::Inline,
+            &self.discord_ctx.http,
+        )
+        .await
+    }
+
+    /// Queues a channel message
+    async fn queue_message(&mut self, msg: Message) {
+        let from_bot = msg.author.id == self.bot_user_id;
+        let addresses_bot = !from_bot && message::addresses(&msg, self.bot_user_id);
+        let message = self.render(&msg).await;
+        self.known.add(&msg);
+        self.enqueue(Pending::Message(PendingMessage {
+            message,
+            addresses_bot,
+            people: message::participants(&msg, self.bot_user_id),
+            from_bot,
+            raw: Box::new(msg),
+        }));
+    }
+
+    fn enqueue(&mut self, entry: Pending) {
+        self.message_queue.push(entry);
+        trim_queue(&mut self.message_queue);
+    }
+
+    fn queue_event(&mut self, line: String, reaction: Option<ReactionKey>) {
+        self.enqueue(Pending::Event(PendingEvent {
+            at: message::snowflake_now(),
+            line,
+            reaction,
+        }));
+    }
+
+    /// Queues a reaction. The bot's own are left out: the responder reacts through a tool, and
+    /// the rest are the memory's 🧠 marks.
+    async fn queue_reaction(&mut self, reaction: Reaction) {
+        let Some(user_id) = reaction.user_id.filter(|id| *id != self.bot_user_id) else {
+            return;
+        };
+        let reactor = match &reaction.member {
+            Some(member) => member.user.name.clone(),
+            None => match user_id.to_user(&self.discord_ctx).await {
+                Ok(user) => user.name,
+                Err(e) => {
+                    tracing::warn!(?e, "Failed to look up who reacted");
+                    return;
+                }
+            },
+        };
+        let line = message::reaction_line(
+            &reactor,
+            &reaction.emoji,
+            self.known
+                .0
+                .get(&reaction.message_id)
+                .map(|m| m.author.as_str()),
+            reaction.message_id,
+        );
+        self.queue_event(
+            line,
+            Some(ReactionKey {
+                user_id,
+                message_id: reaction.message_id,
+                emoji: reaction.emoji,
+            }),
+        );
+    }
+
+    /// Drops a queued reaction taken back before the batch goes out. One the agents already read
+    /// stays: taking a reaction back rarely changes what the conversation means.
+    fn unqueue_reaction(&mut self, reaction: Reaction) {
+        let Some(user_id) = reaction.user_id else {
+            return;
+        };
+        let key = ReactionKey {
+            user_id,
+            message_id: reaction.message_id,
+            emoji: reaction.emoji,
+        };
+        if let Some(position) = self.message_queue.iter().position(
+            |entry| matches!(entry, Pending::Event(event) if event.reaction.as_ref() == Some(&key)),
+        ) {
+            self.message_queue.remove(position);
+        }
+    }
+
+    /// A queued message is rendered again, and the edit of one the agents may hold is queued.
+    /// Updates that leave the text alone, like Discord adding a link preview, are no edit.
+    async fn queue_edit(&mut self, update: MessageUpdateEvent) {
+        let Some(content) = update.content.clone() else {
+            return;
+        };
+
+        let queued = self.message_queue.iter_mut().find_map(|entry| match entry {
+            Pending::Message(queued) if queued.raw.id == update.id => Some(queued),
+            _ => None,
+        });
+        if let Some(queued) = queued {
+            if queued.raw.content == content {
+                return;
+            }
+            update.apply_to_message(&mut queued.raw);
+            let msg = Message::clone(&queued.raw);
+            let from_bot = queued.from_bot;
+            let message = self.render(&msg).await;
+            self.known.add(&msg);
+            // Looked up again, since rendering needed all of `self`
+            if let Some(Pending::Message(queued)) = self
+                .message_queue
+                .iter_mut()
+                .find(|entry| matches!(entry, Pending::Message(m) if m.raw.id == msg.id))
+            {
+                queued.message = message;
+                queued.addresses_bot = !from_bot && message::addresses(&msg, self.bot_user_id);
+                queued.people = message::participants(&msg, self.bot_user_id);
+            }
+            return;
+        }
+
+        let Some(known) = self.known.0.get_mut(&update.id) else {
+            return;
+        };
+        if known.content == content {
+            return;
+        }
+        known.content = content;
+        let line = message::edit_line(
+            &known.author,
+            update.id,
+            self.channel_id,
+            &known.content,
+            update.attachments.as_deref().unwrap_or_default(),
+        );
+        self.queue_event(line, None);
+    }
+
+    /// A queued message is dropped before the agents read it, and the deletion of one they may
+    /// hold is queued
+    fn queue_deletions(&mut self, message_ids: &[MessageId]) {
+        for id in message_ids {
+            let known = self.known.0.remove(id);
+            if let Some(position) = self
+                .message_queue
+                .iter()
+                .position(|entry| matches!(entry, Pending::Message(m) if m.raw.id == *id))
+            {
+                self.message_queue.remove(position);
+            } else if let Some(known) = known {
+                self.queue_event(message::deletion_line(&known.author, *id), None);
+            }
         }
     }
 
@@ -420,10 +681,13 @@ impl ChannelState {
         };
         self.resolve_guild().await;
 
-        let batch: Vec<PendingMessage> = self.message_queue.drain(..).collect();
+        let batch: Vec<Pending> = self.message_queue.drain(..).collect();
         let addressed = forced_address
             || std::mem::take(&mut self.unanswered)
-            || batch.iter().any(|m| m.addresses_bot);
+            || batch
+                .iter()
+                .filter_map(Pending::message)
+                .any(|m| m.addresses_bot);
 
         let respond = if self.discord_bot_mention_only {
             addressed
@@ -440,13 +704,8 @@ impl ChannelState {
 
     /// Feeds the batch to the watcher and asks whether the responder should run. A batch that
     /// addresses the bot runs it regardless, so the watcher only reads that one.
-    async fn watch(
-        &mut self,
-        batch: &[PendingMessage],
-        addressed: bool,
-        run_auth: &mut RunAuth,
-    ) -> bool {
-        let before = batch.first().map(|m| m.id);
+    async fn watch(&mut self, batch: &[Pending], addressed: bool, run_auth: &mut RunAuth) -> bool {
+        let before = batch.first().map(Pending::anchor);
         let model = match self
             .llm
             .model(Role::Watcher, self.channel_id, run_auth.grant.as_ref())
@@ -483,12 +742,7 @@ impl ChannelState {
         };
 
         self.note_newcomers(&mut watcher, batch_people(batch)).await;
-        watcher.add_messages(
-            batch
-                .iter()
-                .map(|m| message::observed(&m.message))
-                .collect(),
-        );
+        watcher.add_messages(observed(batch));
         self.watcher_last_input = Some(Instant::now());
 
         let respond = if addressed {
@@ -517,14 +771,14 @@ impl ChannelState {
 
     /// A watcher session seeded with the messages right before `batch`
     async fn new_watcher(
-        &self,
+        &mut self,
         model: rig_agent::ModelHandle,
-        batch: &[PendingMessage],
+        batch: &[Pending],
     ) -> AgentSession {
         let (history, mut people) = self
             .backfill_history(
-                batch.first().map(|m| m.id),
-                MESSAGE_CONTEXT_SIZE.saturating_sub(batch.len()),
+                batch.first().map(Pending::anchor),
+                MESSAGE_CONTEXT_SIZE.saturating_sub(batch_messages(batch)),
             )
             .await;
         people.extend(batch_people(batch));
@@ -565,13 +819,9 @@ impl ChannelState {
             LlmBackend::Gemini { .. } => None,
         };
 
-        // Quiet means nobody else spoke, but the bot's last replies may still wait in the queue
-        watcher.add_messages(
-            self.message_queue
-                .iter()
-                .map(|m| message::observed(&m.message))
-                .collect(),
-        );
+        // Quiet means nobody else spoke, but the bot's last replies may still wait in the queue,
+        // and so may what happened to the messages since
+        watcher.add_messages(observed(&self.message_queue));
         match self
             .llm
             .model(Role::Watcher, self.channel_id, grant.as_ref())
@@ -606,7 +856,7 @@ impl ChannelState {
 
     /// Runs the responder over the batch. Typing shows from here on, compaction included: someone
     /// is waiting on the reply now, which isn't so while only the watcher runs.
-    async fn respond(&mut self, batch: Vec<PendingMessage>, run_auth: &mut RunAuth) {
+    async fn respond(&mut self, batch: Vec<Pending>, run_auth: &mut RunAuth) {
         let typing = Typing::start(self.discord_ctx.http.clone(), self.channel_id);
         let Some((mut responder, seeded)) = self.ready_responder(&batch, run_auth).await else {
             return;
@@ -616,13 +866,7 @@ impl ChannelState {
 
         // A live session already holds the bot's replies as tool calls; only a freshly seeded
         // one needs them to see what it said
-        responder.add_messages(
-            batch
-                .into_iter()
-                .filter(|m| seeded || !m.from_bot)
-                .map(|m| m.message)
-                .collect(),
-        );
+        responder.add_messages(agent_input(&batch, |m| seeded || !m.from_bot));
 
         let result = self
             .run_session(&mut responder, Turn::Agentic, Role::Responder, run_auth)
@@ -645,10 +889,10 @@ impl ChannelState {
     /// The flag tells whether it was seeded just now.
     async fn ready_responder(
         &mut self,
-        batch: &[PendingMessage],
+        batch: &[Pending],
         run_auth: &mut RunAuth,
     ) -> Option<(AgentSession, bool)> {
-        let before = batch.first().map(|m| m.id);
+        let before = batch.first().map(Pending::anchor);
         let model = match self
             .llm
             .model(Role::Responder, self.channel_id, run_auth.grant.as_ref())
@@ -676,7 +920,10 @@ impl ChannelState {
         }
 
         let (history, mut people) = self
-            .backfill_history(before, MESSAGE_CONTEXT_SIZE.saturating_sub(batch.len()))
+            .backfill_history(
+                before,
+                MESSAGE_CONTEXT_SIZE.saturating_sub(batch_messages(batch)),
+            )
             .await;
         people.extend(batch_people(batch));
         let seed = self.seed(history, people).await;
@@ -715,17 +962,11 @@ impl ChannelState {
 
     /// Keeps a live responder up to date with a batch it didn't run for, so its next run has no
     /// hole where these messages were. Appending leaves its cached prefix intact.
-    async fn pass_to_responder(&mut self, batch: Vec<PendingMessage>) {
+    async fn pass_to_responder(&mut self, batch: Vec<Pending>) {
         let mut responder = self.live_responder();
         if let Some(responder) = responder.as_mut() {
             self.note_newcomers(responder, batch_people(&batch)).await;
-            responder.add_messages(
-                batch
-                    .into_iter()
-                    .filter(|m| !m.from_bot)
-                    .map(|m| m.message)
-                    .collect(),
-            );
+            responder.add_messages(agent_input(&batch, |m| !m.from_bot));
         }
         self.responder = responder;
     }
@@ -738,6 +979,7 @@ impl ChannelState {
             let has_pending_prompt = self
                 .message_queue
                 .iter()
+                .filter_map(Pending::message)
                 .any(|m| !m.from_bot && (!self.discord_bot_mention_only || m.addresses_bot));
             let timer = if has_pending_prompt && !self.awaiting_auth {
                 tokio::time::sleep_until(
@@ -776,45 +1018,16 @@ impl ChannelState {
                                 if let Some(guild_id) = msg.message.guild_id {
                                     self.guild_id = Some(guild_id);
                                 }
-                                let guild = self
-                                    .channel_id
-                                    .to_channel(self.discord_ctx.http.clone())
-                                    .await
-                                    .inspect_err(|e| {
-                                        tracing::error!(?e, "Failed to fetch channel for guild ID lookup");
-                                    })
-                                    .ok()
-                                    .and_then(|c| c.guild())
-                                    .and_then(|g| self.guilds.get_sync(&g.guild_id));
-
-                                let addresses_bot =
-                                    !from_bot && message::addresses(&msg.message, self.bot_user_id);
                                 // Someone asking again gets another try, e.g. a new sign-in code
                                 // once the last one expired
-                                if !from_bot && (!self.discord_bot_mention_only || addresses_bot) {
+                                if !from_bot
+                                    && (!self.discord_bot_mention_only
+                                        || message::addresses(&msg.message, self.bot_user_id))
+                                {
                                     self.awaiting_auth = false;
                                 }
 
-                                let message = discord_message_to_rig_message(
-                                    &msg.message,
-                                    self.bot_user_id,
-                                    &guild,
-                                    AttachmentMode::Inline,
-                                ).await;
-
-                                self.message_queue.push(PendingMessage {
-                                    message,
-                                    id: msg.message.id,
-                                    addresses_bot,
-                                    people: message::participants(&msg.message, self.bot_user_id),
-                                    from_bot,
-                                });
-                                // Keep only the newest window: in mention-only mode the backlog
-                                // would otherwise grow without bound
-                                if self.message_queue.len() > MESSAGE_CONTEXT_SIZE {
-                                    self.message_queue.drain(0..self.message_queue.len() - MESSAGE_CONTEXT_SIZE);
-                                }
-
+                                self.queue_message(msg.message).await;
                                 Wake::Idle
                             }
                             ChannelEvent::Typing(uid, ctx) => {
@@ -827,6 +1040,24 @@ impl ChannelState {
                                 Wake::Idle
                             }
                             ChannelEvent::ForceProcess { addressed } => Wake::Process { addressed },
+                            ChannelEvent::Reaction(reaction, ctx) => {
+                                self.discord_ctx = ctx;
+                                self.queue_reaction(reaction).await;
+                                Wake::Idle
+                            }
+                            ChannelEvent::ReactionRemoved(reaction) => {
+                                self.unqueue_reaction(reaction);
+                                Wake::Idle
+                            }
+                            ChannelEvent::Edit(update, ctx) => {
+                                self.discord_ctx = ctx;
+                                self.queue_edit(update).await;
+                                Wake::Idle
+                            }
+                            ChannelEvent::Deletion(message_ids) => {
+                                self.queue_deletions(&message_ids);
+                                Wake::Idle
+                            }
                         }
                     }
                     else {
@@ -872,10 +1103,55 @@ enum Wake {
 }
 
 /// Everyone the messages of `batch` bring into the conversation
-fn batch_people(batch: &[PendingMessage]) -> Vec<UserId> {
+fn batch_people(batch: &[Pending]) -> Vec<UserId> {
     batch
         .iter()
+        .filter_map(Pending::message)
         .flat_map(|m| m.people.iter().copied())
+        .collect()
+}
+
+fn batch_messages(batch: &[Pending]) -> usize {
+    batch.iter().filter_map(Pending::message).count()
+}
+
+/// Keeps only the newest window of the queue: in mention-only mode the backlog would otherwise
+/// grow without bound
+fn trim_queue(queue: &mut Vec<Pending>) {
+    while batch_messages(queue) > MESSAGE_CONTEXT_SIZE || queue.len() > MAX_QUEUED {
+        queue.remove(0);
+    }
+}
+
+/// `batch` as an agent reads it: the messages `keep` lets through, each on its own, and the events
+/// between them gathered into one message per stretch
+fn agent_input(batch: &[Pending], keep: impl Fn(&PendingMessage) -> bool) -> Vec<RigMessage> {
+    let mut input = Vec::new();
+    let mut events: Vec<&str> = Vec::new();
+    for entry in batch {
+        match entry {
+            Pending::Event(event) => events.push(&event.line),
+            Pending::Message(message) if keep(message) => {
+                if !events.is_empty() {
+                    input.push(RigMessage::user(events.join("\n")));
+                    events.clear();
+                }
+                input.push(message.message.clone());
+            }
+            Pending::Message(_) => {}
+        }
+    }
+    if !events.is_empty() {
+        input.push(RigMessage::user(events.join("\n")));
+    }
+    input
+}
+
+/// `batch` as the watcher reads it, the bot's messages included
+fn observed(batch: &[Pending]) -> Vec<RigMessage> {
+    agent_input(batch, |_| true)
+        .iter()
+        .map(message::observed)
         .collect()
 }
 
@@ -928,6 +1204,7 @@ impl ChannelHandle {
             bot_user_id,
             discord_ctx: discord_ctx.clone(),
             message_queue: vec![],
+            known: KnownMessages::default(),
             channel_id,
             discord_bot_mention_only,
             guilds,
@@ -973,7 +1250,7 @@ async fn sleep_until_some(deadline: Option<Instant>) {
 
 #[cfg(test)]
 mod tests {
-    use super::wants_response;
+    use super::*;
 
     #[test]
     fn watcher_answers_open_with_the_decision() {
@@ -988,5 +1265,93 @@ mod tests {
         for answer in ["PASS: chatter", "", "RESPONSE", "I'd say RESPOND", "rés"] {
             assert!(!wants_response(answer), "{answer}");
         }
+    }
+
+    fn message(id: u64, from_bot: bool) -> Pending {
+        let raw: Message = serde_json::from_value(serde_json::json!({
+            "id": id.to_string(),
+            "channel_id": "1",
+            "author": { "id": "2", "username": "wonrax" },
+            "content": format!("message {id}"),
+            "timestamp": "2026-09-14T12:03:30.469Z",
+            "tts": false,
+            "mention_everyone": false,
+            "mentions": [],
+            "mention_roles": [],
+            "attachments": [],
+            "embeds": [],
+            "pinned": false,
+            "type": 0
+        }))
+        .expect("test message should deserialize");
+        Pending::Message(PendingMessage {
+            message: RigMessage::user(raw.content.clone()),
+            raw: Box::new(raw),
+            addresses_bot: false,
+            people: vec![],
+            from_bot,
+        })
+    }
+
+    fn event(line: &str) -> Pending {
+        Pending::Event(PendingEvent {
+            at: MessageId::new(1),
+            line: line.to_string(),
+            reaction: None,
+        })
+    }
+
+    fn texts(input: &[RigMessage]) -> Vec<String> {
+        input
+            .iter()
+            .map(|message| match message {
+                RigMessage::User { content } => content
+                    .iter()
+                    .filter_map(|part| match part {
+                        rig::message::UserContent::Text(text) => Some(text.text.clone()),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => String::new(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn events_between_messages_arrive_as_one_message() {
+        let batch = vec![
+            event("[reaction] a"),
+            message(10, false),
+            event("[edit] b"),
+            message(11, true),
+            event("[deletion] c"),
+            message(12, false),
+        ];
+        assert_eq!(
+            texts(&agent_input(&batch, |m| !m.from_bot)),
+            vec![
+                "[reaction] a",
+                "message 10",
+                "[edit] b\n[deletion] c",
+                "message 12"
+            ]
+        );
+        assert_eq!(agent_input(&batch, |_| true).len(), 6);
+    }
+
+    #[test]
+    fn the_queue_keeps_the_newest_window() {
+        let mut queue: Vec<Pending> = (0..MESSAGE_CONTEXT_SIZE as u64 + 2)
+            .map(|id| message(id + 1, false))
+            .collect();
+        trim_queue(&mut queue);
+        assert_eq!(batch_messages(&queue), MESSAGE_CONTEXT_SIZE);
+        assert_eq!(queue.first().map(Pending::anchor), Some(MessageId::new(3)));
+
+        let mut queue: Vec<Pending> = (0..MAX_QUEUED + 5).map(|_| event("[reaction]")).collect();
+        queue.push(message(99, false));
+        trim_queue(&mut queue);
+        assert_eq!(queue.len(), MAX_QUEUED);
+        assert_eq!(queue.last().map(Pending::anchor), Some(MessageId::new(99)));
     }
 }

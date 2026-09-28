@@ -10,7 +10,7 @@ use tracing::Instrument as _;
 
 use super::{
     MemoryStore, Subject,
-    store::{Doc, DreamInput},
+    store::{Doc, DreamInput, DreamObservation},
 };
 use crate::discord::{
     agent::LlmBackend,
@@ -203,20 +203,37 @@ fn dream_prompt(subject: Subject, input: &DreamInput, today: NaiveDate) -> Strin
         )),
         None => prompt.push_str("There is no doc yet.\n\n"),
     }
-    if input.observations.is_empty() {
+    let (withdrawn, recorded): (Vec<&DreamObservation>, Vec<&DreamObservation>) =
+        input.observations.iter().partition(|o| o.withdrawn);
+    if recorded.is_empty() && withdrawn.is_empty() {
         prompt.push_str("Nothing was recorded since; the doc is due for today's date.");
-    } else {
+    }
+    if !recorded.is_empty() {
         prompt.push_str("Observations recorded since, oldest first:");
-        for observation in &input.observations {
-            prompt.push_str(&format!("\n- {}", observation.observed_at.date_naive()));
-            if !observation.about.is_empty() {
-                prompt.push_str(&format!(", about {}", observation.about.join(", ")));
-            }
-            prompt.push_str(": ");
-            prompt.push_str(&observation.content);
+        push_observations(&mut prompt, &recorded);
+    }
+    if !withdrawn.is_empty() {
+        if !recorded.is_empty() {
+            prompt.push_str("\n\n");
         }
+        prompt.push_str(
+            "Withdrawn since, because the messages they came from were deleted; take out what \
+             rests on them alone:",
+        );
+        push_observations(&mut prompt, &withdrawn);
     }
     prompt
+}
+
+fn push_observations(prompt: &mut String, observations: &[&DreamObservation]) {
+    for observation in observations {
+        prompt.push_str(&format!("\n- {}", observation.observed_at.date_naive()));
+        if !observation.about.is_empty() {
+            prompt.push_str(&format!(", about {}", observation.about.join(", ")));
+        }
+        prompt.push_str(": ");
+        prompt.push_str(&observation.content);
+    }
 }
 
 struct Dreamed {

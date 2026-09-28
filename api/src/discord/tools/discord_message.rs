@@ -1,7 +1,8 @@
+use crate::discord::message::expand_citations;
 use rig::tool::PortableTool;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use serenity::all::{ChannelId, Context, CreateMessage, MessageId};
+use serenity::all::{ChannelId, Context, CreateMessage, GuildId, MessageId};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -9,6 +10,8 @@ use thiserror::Error;
 pub struct DiscordSendMessageTool {
     pub ctx: Arc<Context>,
     pub channel_id: ChannelId,
+    /// The channel's server, which links to its messages name; `None` in DMs
+    pub guild_id: Option<GuildId>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,7 +40,7 @@ impl PortableTool for DiscordSendMessageTool {
     type Output = DiscordSendMessageOutput;
 
     fn description(&self) -> String {
-        "Send a message to the Discord channel. This is the only way users see anything you produce; raw text output never reaches Discord. To ping someone write <@USER_ID> with an ID from fetch_message_user_ids; a bare name does not ping. Several short messages beat one wall of text when the channel is chatting in short bursts."
+        "Send a message to the Discord channel. This is the only way users see anything you produce; raw text output never reaches Discord. To ping someone write <@USER_ID> with an ID from fetch_message_user_ids; a bare name does not ping. To point at a message of this channel, the way people paste a message link, write its ID as [#ID]. Several short messages beat one wall of text when the channel is chatting in short bursts."
             .to_string()
     }
 
@@ -47,7 +50,7 @@ impl PortableTool for DiscordSendMessageTool {
             "properties": {
                 "content": {
                     "type": "string",
-                    "description": "Message body. Discord markdown is supported; use it sparingly."
+                    "description": "Message body. Discord markdown is supported; use it sparingly. Each [#ID] becomes a link to that message."
                 },
                 "reply_to_message_id": {
                     "type": ["string", "null"],
@@ -62,7 +65,7 @@ impl PortableTool for DiscordSendMessageTool {
         // Clone values to move into the spawned task
         let ctx = self.ctx.clone();
         let channel_id = self.channel_id;
-        let content = args.content.clone();
+        let content = expand_citations(&args.content, self.guild_id, channel_id);
 
         // Spawn the Discord API operations in a separate task to avoid Sync issues
         let handle = tokio::spawn(async move {

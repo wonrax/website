@@ -252,6 +252,16 @@ pub enum Memories {
     Keep(ChannelMemory),
 }
 
+impl Memories {
+    /// The server of the channel
+    fn guild_id(&self) -> Option<GuildId> {
+        match self {
+            Self::Off => None,
+            Self::Recall(memory) | Self::Keep(memory) => Some(memory.guild_id),
+        }
+    }
+}
+
 /// What a fresh session starts from
 pub struct Seed {
     /// The channel messages right before the batch that starts it
@@ -278,6 +288,7 @@ pub fn create_responder_session(
     let discord_tool = DiscordSendMessageTool {
         ctx: ctx_arc.clone(),
         channel_id,
+        guild_id: memories.guild_id(),
     };
     let reaction_tool = ReactToMessageTool {
         ctx: ctx_arc.clone(),

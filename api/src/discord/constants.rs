@@ -50,9 +50,17 @@ pub const DREAM_SWEEP_INTERVAL: Duration = Duration::from_secs(60 * 60 * 6);
 const MESSAGE_FORMAT: &str = r#"[#MESSAGE_ID] [ISO timestamp] AuthorName: message content
 <<context>>
 Replied To: AuthorName (#MESSAGE_ID)
+Cites: a message it links to, in the same format
 Mentions: names of the users the message pings
 Presence: what the author is playing or listening to
-<</context>>"#;
+<</context>>
+
+A [#MESSAGE_ID] in the content is a link to that message. What happens to messages already
+posted comes in between, as lines like:
+
+[reaction] Name reacted EMOJI to AuthorName's message (#MESSAGE_ID)
+[edit] AuthorName edited their message (#MESSAGE_ID): its new content
+[deletion] AuthorName's message (#MESSAGE_ID) was deleted"#;
 
 /// System prompt for the Discord bot agent. Tool usage guidance lives in the tool
 /// definitions under `tools/`, not here.
@@ -65,8 +73,9 @@ batches of messages, oldest first, each formatted as:
 Users see nothing except what you send through `send_discord_message`. Staying silent is just
 not calling it.
 
-Your context is only the latest stretch of the channel; the rest of its history is a search or a
-page away when someone refers to something you can't see.
+Your context is only the latest stretch of the channel. The rest of its history is a search or a
+page away: read what a reply answers or a message refers to before you answer it, when it isn't
+in front of you.
 
 Mention the user (@) by their Discord user ID, not their username because it won't work.
 
@@ -90,11 +99,18 @@ stop retrying and say that instead."#,
 
 const MEMORY_INTRO: &str = r#"[MEMORY]
 A session is forgotten minutes after the chat goes quiet, and the next one starts with only the
-latest stretch of the channel. What carries over is in the memory notes: the channel's lore and
-profiles of the people talking, distilled from everything said here. They're below for whoever
-was around when the session started, and arrive as messages of their own for people who join
-later. Let what you know shape what you say, the way a friend's memory would, without announcing
-that you remember."#;
+latest stretch of the channel. What carries over is the memory: a log of observations about the
+people of this server and this channel, and the notes distilled from it, the channel's lore and
+profiles of the people talking. The notes are below for whoever was around when the session
+started, and arrive as messages of their own for people who join later.
+
+The notes are a digest. They keep the gist and lose the details, the history, and what was
+actually said. When the conversation turns to something they touch or should (someone's news, a
+person or event in their life, a plan, a fight, a running bit, anything from before your
+context), search the log with `memory_search` before you weigh in, and reopen the conversations
+behind what you find when the details matter. A take built on the digest alone sounds like a
+stranger who skimmed a file. Let what you know shape what you say, the way a friend's memory
+would, without announcing that you remember."#;
 
 /// Appended to `SYSTEM_PROMPT` when the bot records the memories itself (mention-only mode). What
 /// to record and how lives in the memory tools' definitions.

@@ -6,7 +6,7 @@ use std::{collections::HashMap, num::NonZeroU64};
 use chrono::{DateTime, NaiveDate, Utc};
 use diesel::{
     prelude::*,
-    sql_types::{Array, BigInt, Nullable, Text, Timestamptz},
+    sql_types::{Array, BigInt, Bool, Nullable, Text, Timestamptz},
     upsert::excluded,
 };
 use diesel_async::{AsyncConnection as _, RunQueryDsl};
@@ -63,16 +63,17 @@ pub struct DreamInput {
     pub doc: Option<Doc>,
     /// The user's name, for a profile
     pub name: Option<String>,
-    /// Recorded since the doc was written, oldest first
+    /// What the log gained since the doc was written, in log order: new observations, and the
+    /// withdrawals of ones the doc took in
     pub observations: Vec<DreamObservation>,
 }
 
 impl DreamInput {
-    /// The newest observation the rewritten doc accounts for
+    /// How far into the log the rewritten doc accounts for
     pub fn dreamed_through(&self) -> i64 {
         self.observations
             .last()
-            .map(|o| o.id)
+            .map(|o| o.position)
             .or(self.doc.as_ref().map(|d| d.dreamed_through))
             .unwrap_or(0)
     }
@@ -80,8 +81,12 @@ impl DreamInput {
 
 #[derive(QueryableByName)]
 pub struct DreamObservation {
+    /// Its place in the log: its ID, or its withdrawal's
     #[diesel(sql_type = BigInt)]
-    id: i64,
+    position: i64,
+    /// Its source messages were deleted, and the doc should let go of it
+    #[diesel(sql_type = Bool)]
+    pub withdrawn: bool,
     #[diesel(sql_type = Text)]
     pub content: String,
     #[diesel(sql_type = Array<Text>)]
@@ -185,6 +190,12 @@ struct NoteRow {
 }
 
 #[derive(QueryableByName)]
+struct WithdrawnRow {
+    #[diesel(sql_type = Bool)]
+    withdrawn: bool,
+}
+
+#[derive(QueryableByName)]
 struct PersonIdRow {
     #[diesel(sql_type = BigInt)]
     user_id: i64,
@@ -273,6 +284,47 @@ impl MemoryStore {
         .await
     }
 
+    /// Takes deleted messages of the channel out of the sources of the observations citing them,
+    /// and withdraws the observations left with none. Returns how many it withdrew.
+    pub async fn withdraw_sources(
+        &self,
+        guild_id: GuildId,
+        channel_id: ChannelId,
+        message_ids: &[MessageId],
+    ) -> eyre::Result<usize> {
+        let mut conn = self.db.get().await.context("No database connection")?;
+        let rows: Vec<WithdrawnRow> = diesel::sql_query(
+            r#"
+            UPDATE discord_memory_observations
+            SET source_message_ids = ARRAY(
+                    SELECT id FROM unnest(source_message_ids) WITH ORDINALITY AS s(id, position)
+                    WHERE id <> ALL($3)
+                    ORDER BY position
+                ),
+                -- The right-hand sides read the row as it was
+                withdrawn_at = CASE WHEN source_message_ids <@ $3 THEN now() END,
+                withdrawn_seq = CASE WHEN source_message_ids <@ $3
+                    THEN nextval(pg_get_serial_sequence('discord_memory_observations', 'id'))
+                END
+            WHERE guild_id = $1 AND channel_id = $2 AND withdrawn_at IS NULL
+                AND source_message_ids && $3
+            RETURNING withdrawn_at IS NOT NULL AS withdrawn
+            "#,
+        )
+        .bind::<BigInt, _>(guild_id.get().cast_signed())
+        .bind::<BigInt, _>(channel_id.get().cast_signed())
+        .bind::<Array<BigInt>, _>(
+            message_ids
+                .iter()
+                .map(|id| id.get().cast_signed())
+                .collect::<Vec<_>>(),
+        )
+        .load(&mut conn)
+        .await
+        .context("Failed to withdraw the deleted messages from the memories")?;
+        Ok(rows.iter().filter(|row| row.withdrawn).count())
+    }
+
     /// The user of the server last seen as `name`, ignoring case
     pub async fn find_person(&self, guild_id: GuildId, name: &str) -> eyre::Result<Option<UserId>> {
         let mut conn = self.db.get().await.context("No database connection")?;
@@ -321,7 +373,8 @@ impl MemoryStore {
             ),
             scope AS (
                 SELECT o.* FROM discord_memory_observations o
-                WHERE o.guild_id = $1 AND (o.channel_id = $2 OR cardinality(o.about_user_ids) > 0)
+                WHERE o.guild_id = $1 AND o.withdrawn_at IS NULL
+                    AND (o.channel_id = $2 OR cardinality(o.about_user_ids) > 0)
             ),
             by_words AS (
                 SELECT s.id, row_number() OVER (
@@ -440,8 +493,9 @@ impl MemoryStore {
         Ok(notes)
     }
 
-    /// The docs due a dream, in `guild_id` or in every server: those with observations newer than
-    /// their last version, the ones that don't exist yet, and those whose revisit date has come
+    /// The docs due a dream, in `guild_id` or in every server: those the log gained anything for
+    /// since their last version, the ones that don't exist yet, and those whose revisit date has
+    /// come
     pub async fn pending_subjects(
         &self,
         guild_id: Option<GuildId>,
@@ -451,19 +505,20 @@ impl MemoryStore {
         let rows: Vec<SubjectRow> = diesel::sql_query(
             r#"
             WITH settled AS (
-                SELECT * FROM discord_memory_observations
+                SELECT id, guild_id, channel_id, about_user_ids,
+                    CASE WHEN withdrawn_at < now() - INTERVAL '5 seconds' THEN withdrawn_seq END
+                        AS withdrawn_seq
+                FROM discord_memory_observations
                 WHERE ($1::BIGINT IS NULL OR guild_id = $1)
                     -- Newer ones may still be committing, out of ID order
                     AND created_at < now() - INTERVAL '5 seconds'
             ),
-            subjects AS (
-                SELECT o.guild_id, 'user' AS kind, a.user_id AS subject_id, max(o.id) AS newest
+            entries AS (
+                SELECT o.guild_id, 'user' AS kind, a.user_id AS subject_id, o.id, o.withdrawn_seq
                 FROM settled o CROSS JOIN LATERAL unnest(o.about_user_ids) AS a(user_id)
-                GROUP BY o.guild_id, a.user_id
                 UNION ALL
-                SELECT guild_id, 'channel', channel_id, max(id)
+                SELECT guild_id, 'channel', channel_id, id, withdrawn_seq
                 FROM settled
-                GROUP BY guild_id, channel_id
             ),
             docs AS (
                 SELECT DISTINCT ON (guild_id, kind, subject_id)
@@ -471,11 +526,16 @@ impl MemoryStore {
                 FROM discord_memory_docs
                 ORDER BY guild_id, kind, subject_id, id DESC
             )
-            SELECT s.guild_id, s.kind, s.subject_id
-            FROM subjects s
+            SELECT DISTINCT e.guild_id, e.kind, e.subject_id
+            FROM entries e
             LEFT JOIN docs d USING (guild_id, kind, subject_id)
-            WHERE d.subject_id IS NULL OR s.newest > d.dreamed_through OR d.revisit_on <= $2
-            ORDER BY s.guild_id, s.kind, s.subject_id
+            WHERE CASE
+                    WHEN e.withdrawn_seq IS NULL THEN e.id > coalesce(d.dreamed_through, 0)
+                    -- A withdrawal only matters to the docs that took the observation in
+                    ELSE e.id <= d.dreamed_through AND e.withdrawn_seq > d.dreamed_through
+                END
+                OR d.revisit_on <= $2
+            ORDER BY e.guild_id, e.kind, e.subject_id
             "#,
         )
         .bind::<Nullable<BigInt>, _>(guild_id.map(|id| id.get().cast_signed()))
@@ -496,7 +556,7 @@ impl MemoryStore {
             .collect())
     }
 
-    /// The doc of `subject` and the observations recorded since, up to a batch of them
+    /// The doc of `subject` and what the log gained for it since, up to a batch
     pub async fn dream_input(
         &self,
         guild_id: GuildId,
@@ -533,17 +593,25 @@ impl MemoryStore {
             Subject::Channel(_) => None,
         };
 
+        // A new observation withdrawn before the doc took it in is skipped altogether
         let observations: Vec<DreamObservation> = diesel::sql_query(format!(
             r#"
-            SELECT o.id, o.content, {ABOUT_NAMES} AS about, o.observed_at
+            SELECT coalesce(o.withdrawn_seq, o.id) AS position,
+                o.withdrawn_seq IS NOT NULL AS withdrawn,
+                o.content, {ABOUT_NAMES} AS about, o.observed_at
             FROM discord_memory_observations o
-            WHERE o.guild_id = $1 AND o.id > $2
+            WHERE o.guild_id = $1
                 AND o.created_at < now() - INTERVAL '5 seconds'
                 AND CASE $3
                     WHEN 'user' THEN $4 = ANY(o.about_user_ids)
                     ELSE o.channel_id = $4
                 END
-            ORDER BY o.id
+                AND CASE
+                    WHEN o.withdrawn_seq IS NULL THEN o.id > $2
+                    ELSE o.id <= $2 AND o.withdrawn_seq > $2
+                        AND o.withdrawn_at < now() - INTERVAL '5 seconds'
+                END
+            ORDER BY position
             LIMIT $5
             "#
         ))
