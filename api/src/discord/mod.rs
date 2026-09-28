@@ -5,6 +5,7 @@ pub mod chatgpt;
 pub mod constants;
 pub mod memory;
 pub mod message;
+pub mod sandbox;
 pub mod tools;
 
 pub use bot::DiscordEventHandler;

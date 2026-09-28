@@ -122,6 +122,13 @@ diesel::table! {
 }
 
 diesel::table! {
+    discord_sandboxes (channel_id) {
+        channel_id -> Int8,
+        last_used_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
     identities (id) {
         id -> Int4,
         traits -> Jsonb,
@@ -237,6 +244,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     discord_memory_docs,
     discord_memory_observations,
     discord_memory_people,
+    discord_sandboxes,
     identities,
     identity_credential_types,
     identity_credentials,

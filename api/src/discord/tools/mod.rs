@@ -9,6 +9,7 @@ pub mod memory_search;
 pub mod message_attachments;
 pub mod message_user_ids;
 pub mod reaction;
+pub mod sandbox;
 pub mod search_messages;
 pub mod web_search;
 
@@ -23,5 +24,6 @@ pub use memory_search::*;
 pub use message_attachments::*;
 pub use message_user_ids::*;
 pub use reaction::*;
+pub use sandbox::*;
 pub use search_messages::*;
 pub use web_search::*;

@@ -36,6 +36,11 @@ pub struct ServerConfig {
     /// Firecrawl key for the Discord agent's web search and page fetching; both tools are
     /// left out without it
     pub firecrawl_api_key: Option<String>,
+    /// Podman API socket of the sandboxes the Discord agent runs code in, one per channel; the
+    /// sandbox tools are left out without it
+    pub discord_sandbox_socket: Option<String>,
+    /// Image the sandboxes are created from, loaded into the sandbox podman beforehand
+    pub discord_sandbox_image: String,
     pub raindrop_api_token: Option<String>,
     pub recommender_raindrop_collections: Vec<RecommenderRaindropCollection>,
 }
@@ -206,6 +211,13 @@ impl ServerConfig {
             firecrawl_api_key: var("FIRECRAWL_API_KEY")
                 .unwrap_or(None)
                 .filter(|key| !key.trim().is_empty()),
+            discord_sandbox_socket: var("DISCORD_SANDBOX_SOCKET")
+                .unwrap_or(None)
+                .filter(|path| !path.trim().is_empty()),
+            discord_sandbox_image: var("DISCORD_SANDBOX_IMAGE")
+                .unwrap_or(None)
+                .filter(|image| !image.trim().is_empty())
+                .unwrap_or_else(|| "localhost/wrx-sandbox:latest".to_string()),
             raindrop_api_token: var("RAINDROP_API_TOKEN").unwrap_or(None),
             discord_whitelist_channels: var("DISCORD_WHITELIST_CHANNELS").unwrap_or(None).and_then(
                 |s| {

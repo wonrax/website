@@ -51,9 +51,14 @@ text-splitter = { version = "0.32.0", features = ["markdown"] }
 tokio-stream = { version = "0.1.18", features = ["sync"] }
 deadpool-runtime = { version = "0.3.1", features = ["tokio_1"] }
 bytes = "1.12.0"
+bollard = "0.21.1"
+tar = "0.4.46"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 
 [dev-dependencies]
 criterion = "0.8.2"
+# Scripted models for the agent run tests
+rig-agent = { version = "0.42.0", features = ["test-utils"] }
 
 [[bench]]
 name = "blog_comments"

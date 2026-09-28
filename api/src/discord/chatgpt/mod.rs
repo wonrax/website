@@ -189,24 +189,27 @@ impl ChatgptAuth {
         }
     }
 
-    /// ChatGPT refused `rejected`: refresh unless that already happened, and return the new grant
-    pub async fn recover_from_unauthorized(&self, rejected: &Grant) -> Result<Grant, Unavailable> {
+    /// ChatGPT refused the current token, which every request carries: refresh it, unless another
+    /// caller is doing so already, and return the new grant
+    pub async fn recover_from_unauthorized(&self) -> Result<Grant, Unavailable> {
         let session = self.session()?;
-        if session.tokens.access_token != rejected.access_token {
-            return Ok(session.grant());
-        }
         self.refresh(&session).await.map(|fresh| fresh.grant())
     }
 
-    /// The ChatGPT model `name`, authenticated as `grant`, for the agent session `session`. Built
-    /// for every run, so live agent sessions pick up refreshed tokens.
+    /// The ChatGPT model `name` for the agent session `session`. Every request carries the newest
+    /// token, so a run outlives the `grant` it started on as long as the background refresh keeps
+    /// up.
     pub fn model(&self, grant: &Grant, name: &str, session: &str) -> eyre::Result<ModelHandle> {
         let client = chatgpt::Client::builder()
             .api_key(ChatGPTAuth::AccessToken {
                 access_token: grant.access_token.clone(),
                 account_id: grant.account_id.clone(),
             })
-            .http_client(PinnedSession::new(self.http.clone(), session))
+            .http_client(PinnedSession::new(
+                self.http.clone(),
+                session,
+                Some(self.state.subscribe()),
+            ))
             // rig prepends a stock "You are ChatGPT" line unless this is empty
             .default_instructions("")
             .allow_device_flow(false)
@@ -519,25 +522,63 @@ impl ChatgptAuth {
 /// rig's HTTP client with the `session_id` header held to one value per agent session. rig makes up
 /// a new one for every ChatGPT request, where Codex keeps one per conversation, and requests that
 /// each carry a new one rarely hit the backend's prompt cache past the instructions and tools.
-#[derive(Clone, Debug, Default)]
+///
+/// It also swaps in the newest access token: rig authenticates every request of a run with the
+/// token the run started on, which an hour-long run can outlive.
+#[derive(Clone, Default)]
 struct PinnedSession {
     http: reqwest::Client,
     session_id: Option<HeaderValue>,
+    /// The sign-in whose token requests carry; without it they keep the client's own
+    auth: Option<watch::Receiver<AuthState>>,
+}
+
+impl std::fmt::Debug for PinnedSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PinnedSession")
+            .field("session_id", &self.session_id)
+            .finish_non_exhaustive()
+    }
 }
 
 impl PinnedSession {
-    fn new(http: reqwest::Client, session: &str) -> Self {
+    fn new(
+        http: reqwest::Client,
+        session: &str,
+        auth: Option<watch::Receiver<AuthState>>,
+    ) -> Self {
         let session_id = HeaderValue::from_str(session)
             .inspect_err(|e| tracing::warn!(?e, session, "Unusable ChatGPT session ID"))
             .ok();
-        Self { http, session_id }
+        Self {
+            http,
+            session_id,
+            auth,
+        }
     }
 
     fn pin<T>(&self, mut request: Request<T>) -> Request<T> {
+        let headers = request.headers_mut();
         if let Some(session_id) = &self.session_id {
-            request
-                .headers_mut()
-                .insert("session_id", session_id.clone());
+            headers.insert("session_id", session_id.clone());
+        }
+        // Signed out, the request goes with the old token and fails the way a run expects
+        let grant = self.auth.as_ref().and_then(|auth| match &*auth.borrow() {
+            AuthState::SignedIn(session) => Some(session.grant()),
+            AuthState::SignedOut { .. } => None,
+        });
+        if let Some(grant) = grant {
+            match HeaderValue::from_str(&format!("Bearer {}", grant.access_token)) {
+                Ok(value) => {
+                    headers.insert("authorization", value);
+                }
+                Err(e) => tracing::warn!(?e, "Unusable ChatGPT access token"),
+            }
+            if let Some(account_id) = grant.account_id
+                && let Ok(value) = HeaderValue::from_str(&account_id)
+            {
+                headers.insert("ChatGPT-Account-Id", value);
+            }
         }
         request
     }
@@ -974,14 +1015,18 @@ data: [DONE]
         (format!("http://{address}"), received)
     }
 
-    fn model_at(url: String, session: &str) -> ChatgptModel {
+    fn model_at(
+        url: String,
+        session: &str,
+        auth: Option<watch::Receiver<AuthState>>,
+    ) -> ChatgptModel {
         let client = chatgpt::Client::builder()
             .api_key(ChatGPTAuth::AccessToken {
                 access_token: "token".to_string(),
                 account_id: None,
             })
             .base_url(url)
-            .http_client(PinnedSession::new(reqwest::Client::new(), session))
+            .http_client(PinnedSession::new(reqwest::Client::new(), session, auth))
             .default_instructions("")
             .allow_device_flow(false)
             .build()
@@ -990,13 +1035,13 @@ data: [DONE]
     }
 
     async fn model_serving(sse: &'static str) -> ChatgptModel {
-        model_at(serve(sse, 1).await.0, "session")
+        model_at(serve(sse, 1).await.0, "session", None)
     }
 
     #[tokio::test]
     async fn requests_of_a_session_share_its_session_id() {
         let (url, received) = serve(EMPTY_TURN_SSE, 2).await;
-        let model = model_at(url, "discord-channel-1-watcher");
+        let model = model_at(url, "discord-channel-1-watcher", None);
         for _ in 0..2 {
             let request = model.completion_request("hi").build();
             model.completion(request).await.expect("an empty turn");
@@ -1013,6 +1058,36 @@ data: [DONE]
                 .collect();
             assert_eq!(session_ids, ["discord-channel-1-watcher"], "{request}");
         }
+    }
+
+    #[tokio::test]
+    async fn requests_carry_the_newest_token() {
+        let (url, received) = serve(EMPTY_TURN_SSE, 1).await;
+        let start = Utc::now();
+        let state = watch::Sender::new(AuthState::SignedIn(Arc::new(session(
+            start,
+            start + TimeDelta::days(8),
+        ))));
+        let model = model_at(url, "session", Some(state.subscribe()));
+
+        let mut refreshed = session(start, start + TimeDelta::days(8));
+        refreshed.tokens.access_token = "refreshed".to_string();
+        refreshed.tokens.account_id = Some("account".to_string());
+        state.send_replace(AuthState::SignedIn(Arc::new(refreshed)));
+        let request = model.completion_request("hi").build();
+        model.completion(request).await.expect("an empty turn");
+
+        let received = received.lock().expect("request log");
+        let header = |wanted: &str| -> Vec<String> {
+            received[0]
+                .lines()
+                .filter_map(|line| line.split_once(':'))
+                .filter(|(name, _)| name.eq_ignore_ascii_case(wanted))
+                .map(|(_, value)| value.trim().to_string())
+                .collect()
+        };
+        assert_eq!(header("authorization"), ["Bearer refreshed"]);
+        assert_eq!(header("chatgpt-account-id"), ["account"]);
     }
 
     #[tokio::test]

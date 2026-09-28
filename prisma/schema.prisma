@@ -238,3 +238,11 @@ model discord_memory_docs {
 
   @@index([guild_id, kind, subject_id, id(sort: Desc)])
 }
+
+/// The Discord channels that have a sandbox for the bot to run code in. A sandbox left unused for
+/// long enough is wiped.
+model discord_sandboxes {
+  channel_id   BigInt   @id
+  /// When it last started or stopped
+  last_used_at DateTime @db.Timestamptz(6)
+}

@@ -1,11 +1,12 @@
 use crate::config::DiscordLlmBackend;
 use crate::discord::{
-    agent::LlmBackend,
+    agent::{LlmBackend, ToolBackends},
     channel::{ChannelEvent, ChannelHandle},
     chatgpt::{ChatgptAuth, DbPool},
     constants::{MESSAGE_CONTEXT_SIZE, WHITELIST_CHANNELS},
     memory::MemorySystem,
     message::{self, QueuedMessage},
+    sandbox::Sandboxes,
 };
 use arc_swap::ArcSwap;
 use async_trait::async_trait;
@@ -30,6 +31,7 @@ pub struct DiscordEventHandler {
 
     memory: MemorySystem,
     firecrawl: Option<Firecrawl>,
+    sandboxes: Option<Sandboxes>,
     llm: LlmBackend,
     whitelist_channels: Vec<ChannelId>,
     bot_user_id: ArcSwap<Option<serenity::model::id::UserId>>,
@@ -45,6 +47,22 @@ impl DiscordEventHandler {
             None => {
                 tracing::warn!(
                     "FIRECRAWL_API_KEY is not set; the agent will have no web search or page fetching"
+                );
+                None
+            }
+        };
+
+        let sandboxes = match server_config.discord_sandbox_socket.as_deref() {
+            Some(socket) => Sandboxes::start(
+                socket,
+                server_config.discord_sandbox_image.clone(),
+                db.clone(),
+            )
+            .inspect_err(|e| tracing::error!(?e, "Failed to set up the sandboxes"))
+            .ok(),
+            None => {
+                tracing::warn!(
+                    "DISCORD_SANDBOX_SOCKET is not set; the agent will have no sandbox to run code in"
                 );
                 None
             }
@@ -69,6 +87,7 @@ impl DiscordEventHandler {
                 .collect(),
             memory,
             firecrawl,
+            sandboxes,
             bot_user_id: ArcSwap::from_pointee(None),
             llm,
             discord_bot_mention_only: server_config.discord_mention_only,
@@ -268,7 +287,13 @@ impl DiscordEventHandler {
                     channel_id,
                     self.llm.clone(),
                     self.memory.clone(),
-                    self.firecrawl.clone(),
+                    ToolBackends {
+                        firecrawl: self.firecrawl.clone(),
+                        sandbox: self
+                            .sandboxes
+                            .as_ref()
+                            .map(|sandboxes| sandboxes.channel(channel_id)),
+                    },
                     self.discord_bot_mention_only,
                     self.guilds.clone(),
                 )

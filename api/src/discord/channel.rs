@@ -11,14 +11,17 @@ use futures::{
 use rig::message::Message as RigMessage;
 use rig_agent::completion::PromptError;
 use serenity::all::{
-    ChannelId, Context, GetMessages, GuildId, Message, MessageId, MessageUpdateEvent, Reaction,
-    ReactionType, Typing, UserId,
+    ChannelId, Colour, Context, CreateEmbed, CreateMessage, GetMessages, GuildId, Message,
+    MessageId, MessageUpdateEvent, Reaction, ReactionType, Typing, UserId,
 };
 use tokio::sync::watch;
 use tracing::{Instrument as _, instrument};
 
 use crate::discord::{
-    agent::{self, AgentSession, LlmBackend, Memories, Role, Seed, Turn},
+    agent::{
+        self, AgentSession, LlmBackend, Memories, Role, RunFailure, RunLimit, Seed, ToolBackends,
+        Turn,
+    },
     bot::Guild,
     chatgpt::{self, AuthState, Grant},
     constants::{
@@ -28,7 +31,7 @@ use crate::discord::{
     },
     memory::{ChannelMemory, MemorySystem},
     message::{self, AttachmentMode, QueuedMessage, discord_message_to_rig_message},
-    tools,
+    sandbox::ChannelSandbox,
 };
 
 /// Dual-timestamp activity tracker for proper debouncing
@@ -200,7 +203,18 @@ struct RunAuth {
 enum RunError {
     /// ChatGPT has no usable sign-in any more, and the channel has been told
     SignedOut,
+    /// The run reached one of its limits; the session keeps what it did
+    Stopped(RunLimit),
     Failed(PromptError),
+}
+
+impl From<RunFailure> for RunError {
+    fn from(failure: RunFailure) -> Self {
+        match failure {
+            RunFailure::Stopped(limit) => Self::Stopped(limit),
+            RunFailure::Failed(e) => Self::Failed(e),
+        }
+    }
 }
 
 struct ChannelState {
@@ -230,7 +244,8 @@ struct ChannelState {
 
     llm: LlmBackend,
     memory: MemorySystem,
-    firecrawl: Option<tools::Firecrawl>,
+    /// What the responder's optional tools use, the sandbox it runs code on among them
+    backends: ToolBackends,
     /// The server the channel belongs to, which keeps its memories. Looked up once.
     guild_id: Option<GuildId>,
 
@@ -600,27 +615,27 @@ impl ChannelState {
         run_auth: &mut RunAuth,
     ) -> Result<String, RunError> {
         let result = session.run(turn).await;
-        let (Err(e), LlmBackend::Chatgpt(auth), Some(grant)) =
+        let (Err(RunFailure::Failed(e)), LlmBackend::Chatgpt(auth), Some(_)) =
             (&result, &self.llm, &run_auth.grant)
         else {
-            return result.map_err(RunError::Failed);
+            return result.map_err(RunError::from);
         };
         if !chatgpt::is_unauthorized(e) {
-            return result.map_err(RunError::Failed);
+            return result.map_err(RunError::from);
         }
 
         tracing::warn!("ChatGPT rejected the access token; refreshing and retrying");
         let auth = auth.clone();
-        match auth.recover_from_unauthorized(grant).await {
+        match auth.recover_from_unauthorized().await {
             Ok(grant) => match self.llm.model(role, self.channel_id, Some(&grant)) {
                 Ok(handle) => {
                     session.agent.set_model_handle(handle);
                     run_auth.grant = Some(grant);
-                    session.run(turn).await.map_err(RunError::Failed)
+                    session.run(turn).await.map_err(RunError::from)
                 }
                 Err(e) => {
                     tracing::error!(?e, "Failed to create the ChatGPT model");
-                    result.map_err(RunError::Failed)
+                    result.map_err(RunError::from)
                 }
             },
             Err(unavailable) => {
@@ -654,6 +669,10 @@ impl ChannelState {
                 return None;
             }
             Err(RunError::SignedOut) => return None,
+            Err(RunError::Stopped(limit)) => {
+                tracing::error!(?limit, ?role, "Summarizing the session for compaction stopped");
+                return None;
+            }
             Err(RunError::Failed(e)) => {
                 tracing::error!(?e, ?role, "Failed to summarize the session for compaction");
                 return None;
@@ -756,6 +775,10 @@ impl ChannelState {
                     respond
                 }
                 Err(RunError::SignedOut) => false,
+                Err(RunError::Stopped(limit)) => {
+                    tracing::error!(?limit, "Watcher run stopped; staying quiet");
+                    false
+                }
                 Err(RunError::Failed(e)) => {
                     tracing::error!(?e, "Watcher run failed; staying quiet");
                     false
@@ -872,15 +895,45 @@ impl ChannelState {
         typing.stop();
 
         self.unanswered = matches!(result, Err(RunError::SignedOut));
-        if let Err(RunError::Failed(e)) = &result {
-            tracing::error!(?e, "Error executing agent session in channel main loop");
-            if matches!(self.llm, LlmBackend::Chatgpt(_)) {
-                chatgpt::report_run_failure(&self.discord_ctx.http, self.channel_id, e).await;
+        match &result {
+            Err(RunError::Failed(e)) => {
+                tracing::error!(?e, "Error executing agent session in channel main loop");
+                if matches!(self.llm, LlmBackend::Chatgpt(_)) {
+                    chatgpt::report_run_failure(&self.discord_ctx.http, self.channel_id, e).await;
+                }
             }
+            Err(RunError::Stopped(limit)) => self.report_stopped(*limit).await,
+            Ok(_) | Err(RunError::SignedOut) => {}
         }
         self.responder = Some(responder);
         // An unanswered session must not expire before its retry, however long the sign-in takes
         self.last_run_finished = (!self.unanswered).then(Instant::now);
+        // The channel didn't go quiet while the bot worked, however long the run took. The
+        // watcher's idle clock starts over now, or a long run would end its session on the spot.
+        if self.watcher.is_some() {
+            self.watcher_last_input = Some(Instant::now());
+        }
+    }
+
+    /// Tells the channel the responder stopped before finishing. An embed without text, like the
+    /// ChatGPT notices, so the agents never read it as conversation.
+    async fn report_stopped(&self, limit: RunLimit) {
+        let why = match limit {
+            RunLimit::Turns => "I used up the steps I get for one go.",
+            RunLimit::Time => "I hit the time limit for one go.",
+            RunLimit::Context => "my context filled up, so I'll carry on from a summary.",
+        };
+        let embed = CreateEmbed::new()
+            .title("Stopped before finishing")
+            .description(format!("{why} Mention me to keep going."))
+            .colour(Colour::ORANGE);
+        if let Err(e) = self
+            .channel_id
+            .send_message(&self.discord_ctx.http, CreateMessage::new().embed(embed))
+            .await
+        {
+            tracing::error!(?e, "Failed to tell the channel the run stopped");
+        }
     }
 
     /// The responder session for `batch`: the live one, compacted first when due, or a fresh one.
@@ -936,7 +989,7 @@ impl ChannelState {
             &self.llm,
             model,
             memories,
-            self.firecrawl.clone(),
+            self.backends.clone(),
             seed,
         ) {
             Ok(session) => Some((session, true)),
@@ -996,6 +1049,13 @@ impl ChannelState {
                     .filter(|_| self.watcher.is_some() && !has_pending_prompt)
                     .map(|t| t + WATCHER_SESSION_TIMEOUT),
             );
+            // Runs hold the loop, so this never fires while a tool is using the sandbox
+            let sandbox_idle = sleep_until_some(
+                self.backends
+                    .sandbox
+                    .as_ref()
+                    .and_then(ChannelSandbox::idle_deadline),
+            );
 
             let wake = tokio::select! {
                 event = self.event_recv.next() => {
@@ -1004,8 +1064,12 @@ impl ChannelState {
                             ChannelEvent::Message(msg, ctx) => {
                                 self.discord_ctx = ctx;
                                 let from_bot = msg.message.author.id == self.bot_user_id;
-                                // The bot's text-less posts are its ChatGPT notices, not conversation
-                                if from_bot && msg.message.content.trim().is_empty() {
+                                // The bot's posts without text or files are its notices, not
+                                // conversation
+                                if from_bot
+                                    && msg.message.content.trim().is_empty()
+                                    && msg.message.attachments.is_empty()
+                                {
                                     continue;
                                 }
                                 if !from_bot {
@@ -1071,6 +1135,7 @@ impl ChannelState {
                     Wake::Process { addressed: false }
                 }
                 _ = watcher_idle => Wake::WatcherIdle,
+                _ = sandbox_idle => Wake::SandboxIdle,
             };
 
             match wake {
@@ -1084,6 +1149,11 @@ impl ChannelState {
                         .await;
                 }
                 Wake::WatcherIdle => self.retire_watcher().await,
+                Wake::SandboxIdle => {
+                    if let Some(sandbox) = &self.backends.sandbox {
+                        sandbox.stop().await;
+                    }
+                }
             }
         }
     }
@@ -1098,6 +1168,8 @@ enum Wake {
     },
     /// The watcher went `WATCHER_SESSION_TIMEOUT` without new messages
     WatcherIdle,
+    /// The sandbox went `SANDBOX_IDLE_TIMEOUT` without a tool using it
+    SandboxIdle,
 }
 
 /// Everyone the messages of `batch` bring into the conversation
@@ -1174,7 +1246,7 @@ impl ChannelHandle {
         channel_id: ChannelId,
         llm: LlmBackend,
         memory: MemorySystem,
-        firecrawl: Option<tools::Firecrawl>,
+        backends: ToolBackends,
         discord_bot_mention_only: bool,
         guilds: Arc<scc::HashMap<serenity::model::id::GuildId, Guild>>,
     ) -> Self {
@@ -1197,7 +1269,7 @@ impl ChannelHandle {
             last_run_finished: None,
             llm,
             memory,
-            firecrawl,
+            backends,
             guild_id: None,
             bot_user_id,
             discord_ctx: discord_ctx.clone(),

@@ -23,7 +23,16 @@ pub const CHATGPT_DREAMER_MODEL: &str = "gpt-6-sol";
 pub const CHATGPT_CONTEXT_WINDOW: u64 = 272_000;
 pub const GEMINI_MODEL: &str = "gemini-3.8-flash";
 pub const GEMINI_CONTEXT_WINDOW: u64 = 1_048_576;
-pub const MAX_AGENT_TURNS: usize = 50; // Maximum turns for multi-turn reasoning
+/// Model calls one run may make. Work in the sandbox takes a call per command, and a coding task
+/// can take a couple hundred.
+pub const MAX_AGENT_TURNS: usize = 250;
+/// A run still going this long stops before its next model call. What it did stays in the session,
+/// so asking it to go on picks up from there.
+pub const MAX_AGENT_RUN_DURATION: Duration = Duration::from_secs(60 * 60);
+/// A run whose last model call filled this much of the context window stops before the next one
+/// overflows it. Compaction only happens between runs, and a long run can outgrow the headroom
+/// `COMPACTION_THRESHOLD_PERCENT` leaves.
+pub const RUN_CONTEXT_LIMIT_PERCENT: u64 = 95;
 /// A session whose last model call filled this much of the context window is summarized into a
 /// fresh one, leaving the rest as headroom for the next run's messages and tool results
 pub const COMPACTION_THRESHOLD_PERCENT: u64 = 85;
@@ -40,6 +49,13 @@ pub const AGENT_SESSION_TIMEOUT: Duration = Duration::from_secs(60 * 10);
 /// How long a channel stays quiet before the watcher takes the conversation as over: it updates
 /// the memories from it and drops its session
 pub const WATCHER_SESSION_TIMEOUT: Duration = Duration::from_secs(60 * 10);
+/// How long a channel's sandbox runs without a sandbox tool call before it's stopped. Its home
+/// directory stays; everything else starts over at the next start.
+pub const SANDBOX_IDLE_TIMEOUT: Duration = Duration::from_secs(60 * 20);
+/// How long a sandbox goes unused before it's deleted, home directory included
+pub const SANDBOX_RETENTION: Duration = Duration::from_secs(60 * 60 * 24 * 14);
+/// How often the sandboxes unused for `SANDBOX_RETENTION` are looked for
+pub const SANDBOX_SWEEP_INTERVAL: Duration = Duration::from_secs(60 * 60);
 /// How long the dreamer lets a server's new observations settle before rewriting its docs, so a
 /// memory pass that records in several calls is distilled at once
 pub const DREAM_SETTLE: Duration = Duration::from_secs(60);

@@ -3,14 +3,16 @@ use crate::discord::{
     constants::{
         CHATGPT_CONTEXT_WINDOW, CHATGPT_DREAMER_MODEL, CHATGPT_RESPONDER_MODEL,
         CHATGPT_WATCHER_MODEL, COMPACTION_THRESHOLD_PERCENT, GEMINI_CONTEXT_WINDOW, GEMINI_MODEL,
-        MAX_AGENT_TURNS, MEMORY_PROMPT, RECALL_PROMPT, SYSTEM_PROMPT, WATCHER_PROMPT,
+        MAX_AGENT_RUN_DURATION, MAX_AGENT_TURNS, MEMORY_PROMPT, RECALL_PROMPT,
+        RUN_CONTEXT_LIMIT_PERCENT, SYSTEM_PROMPT, WATCHER_PROMPT,
     },
     memory::ChannelMemory,
+    sandbox::ChannelSandbox,
     tools::{
         DiscordSendMessageTool, FetchChannelHistoryTool, FetchMessageTool, FetchMessageUserIdsTool,
         FetchPageContentTool, Firecrawl, MemorySearchTool, ReactToMessageTool,
-        RecordObservationsTool, SearchChannelMessagesTool, ViewMessageAttachmentsTool,
-        WebSearchTool,
+        RecordObservationsTool, SandboxRunTool, SandboxViewImageTool, SandboxWriteFileTool,
+        SearchChannelMessagesTool, ViewMessageAttachmentsTool, WebSearchTool,
     },
 };
 use eyre::Context as _;
@@ -20,11 +22,21 @@ use rig::{
 };
 use rig_agent::{
     Agent, AgentBuilder, ModelHandle,
-    agent::WithBuilderTools,
+    agent::{
+        AgentHook, CompletionCallAction, CompletionCallEvent, CompletionResponseEvent,
+        HookContext, ObservationAction, WithBuilderTools,
+    },
     completion::{Prompt as _, PromptError},
 };
 use serenity::all::{ChannelId, Context, GuildId, UserId};
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::HashSet,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Instant,
+};
 use tracing::instrument;
 
 /// The LLM the agents run on, picked at startup by `DISCORD_LLM_BACKEND`
@@ -121,6 +133,90 @@ pub enum Turn {
     TextOnly,
 }
 
+/// Why a run ended without finishing
+#[derive(Debug)]
+pub enum RunFailure {
+    /// It reached one of its limits. What it did stays in the session, so the next run can pick
+    /// up from there.
+    Stopped(RunLimit),
+    Failed(PromptError),
+}
+
+/// A limit that stops an agentic run
+#[derive(Clone, Copy, Debug)]
+pub enum RunLimit {
+    /// `MAX_AGENT_TURNS` model calls
+    Turns,
+    /// `MAX_AGENT_RUN_DURATION`
+    Time,
+    /// `RUN_CONTEXT_LIMIT_PERCENT` of the context window
+    Context,
+}
+
+impl RunLimit {
+    /// How the stopped session tells the agent
+    fn note(self) -> String {
+        let reason = match self {
+            Self::Turns => format!("it used up its {MAX_AGENT_TURNS} model calls"),
+            Self::Time => format!(
+                "it ran for {} minutes, its limit",
+                MAX_AGENT_RUN_DURATION.as_secs() / 60
+            ),
+            Self::Context => "your context window is nearly full, so the session will be \
+                              summarized before your next run"
+                .to_string(),
+        };
+        format!(
+            "[Run stopped] Your run stopped here before you finished: {reason}. If someone asks \
+             you to go on, pick up where you left off."
+        )
+    }
+}
+
+/// How `RunGuard` names the limit it stops a run at
+const STOPPED_AT_TIME: &str = "run time limit";
+const STOPPED_AT_CONTEXT: &str = "context window nearly full";
+
+/// Stops an agentic run before a model call once it has run for `MAX_AGENT_RUN_DURATION`, or when
+/// the last call nearly filled the context window. The run ends with the history it has made so
+/// far, every tool call answered.
+struct RunGuard {
+    started: Instant,
+    context_window: u64,
+    /// Tokens the latest model call held
+    context_tokens: Arc<AtomicU64>,
+}
+
+impl AgentHook for RunGuard {
+    async fn on_completion_call(
+        &self,
+        _ctx: &HookContext,
+        _event: CompletionCallEvent<'_>,
+    ) -> CompletionCallAction {
+        if self.started.elapsed() >= MAX_AGENT_RUN_DURATION {
+            return CompletionCallAction::stop(STOPPED_AT_TIME);
+        }
+        let context_tokens = self.context_tokens.load(Ordering::Relaxed);
+        if context_tokens * 100 >= self.context_window * RUN_CONTEXT_LIMIT_PERCENT {
+            return CompletionCallAction::stop(STOPPED_AT_CONTEXT);
+        }
+        CompletionCallAction::continue_run()
+    }
+
+    async fn on_completion_response(
+        &self,
+        _ctx: &HookContext,
+        event: CompletionResponseEvent<'_>,
+    ) -> ObservationAction {
+        // The ChatGPT wrapper reports an empty closing turn as zero usage
+        let tokens = event.usage.input_tokens + event.usage.output_tokens;
+        if tokens > 0 {
+            self.context_tokens.store(tokens, Ordering::Relaxed);
+        }
+        ObservationAction::continue_run()
+    }
+}
+
 /// Agent session for persistent multi-turn conversations
 pub struct AgentSession {
     pub agent: Agent,
@@ -151,7 +247,7 @@ impl AgentSession {
     /// Run the agent over the conversation: the newest history entry is the prompt and
     /// everything before it is the history. Returns the text of the final model turn.
     #[instrument(skip(self))]
-    pub async fn run(&mut self, turn: Turn) -> Result<String, PromptError> {
+    pub async fn run(&mut self, turn: Turn) -> Result<String, RunFailure> {
         let Some(prompt) = self.conversation_history.pop() else {
             tracing::warn!("Skipping agent run: empty conversation history");
             return Ok(String::new());
@@ -169,27 +265,49 @@ impl AgentSession {
             .prompt(&prompt)
             .history(self.conversation_history.clone())
             .extended_details();
+        let context_tokens = Arc::new(AtomicU64::new(self.context_tokens));
         let result = match turn {
-            Turn::Agentic => request.max_turns(MAX_AGENT_TURNS).await,
+            Turn::Agentic => {
+                request
+                    .add_hook(RunGuard {
+                        started: Instant::now(),
+                        context_window: self.context_window,
+                        context_tokens: context_tokens.clone(),
+                    })
+                    .max_turns(MAX_AGENT_TURNS)
+                    .await
+            }
             Turn::TextOnly => request.tool_choice(ToolChoice::None).max_turns(1).await,
         };
 
         let response = match result {
             Ok(response) => response,
             Err(e) => {
-                self.conversation_history.push(prompt);
-                // remove all tool calls and tool results in case of this error:
-                // "The following tool_call_ids did not have response messages: call_UZH253hv9o9RYVHjRxS"
-                self.conversation_history.retain(|msg| match msg {
-                    RigMessage::System { .. } => true,
-                    RigMessage::User { content } => !content
-                        .iter()
-                        .any(|c| matches!(c, rig::message::UserContent::ToolResult(_))),
-                    RigMessage::Assistant { content, .. } => !content
-                        .iter()
-                        .any(|c| matches!(c, rig::message::AssistantContent::ToolCall(_))),
-                });
-                return Err(e);
+                let (limit, history) = match e {
+                    PromptError::MaxTurnsError { chat_history, .. } => {
+                        (RunLimit::Turns, *chat_history)
+                    }
+                    PromptError::PromptCancelled {
+                        chat_history,
+                        reason,
+                    } if reason == STOPPED_AT_TIME => (RunLimit::Time, chat_history),
+                    PromptError::PromptCancelled {
+                        chat_history,
+                        reason,
+                    } if reason == STOPPED_AT_CONTEXT => (RunLimit::Context, chat_history),
+                    e => return Err(RunFailure::Failed(self.drop_failed_run(prompt, e))),
+                };
+                tracing::warn!(?limit, "Agent run stopped at its limit");
+                // Everything before the stop: the history it started from, then the prompt and
+                // the run's own turns up to its last tool results
+                self.conversation_history = history;
+                self.conversation_history
+                    .push(RigMessage::user(limit.note()));
+                let context_tokens = context_tokens.load(Ordering::Relaxed);
+                if context_tokens > 0 {
+                    self.context_tokens = context_tokens;
+                }
+                return Err(RunFailure::Stopped(limit));
             }
         };
 
@@ -221,6 +339,23 @@ impl AgentSession {
             .extend(response.messages.unwrap_or_else(|| vec![prompt]));
 
         Ok(response.output)
+    }
+
+    /// Puts `prompt` back for a retry after the run over it failed, and hands back the error
+    fn drop_failed_run(&mut self, prompt: RigMessage, error: PromptError) -> PromptError {
+        self.conversation_history.push(prompt);
+        // remove all tool calls and tool results in case of this error:
+        // "The following tool_call_ids did not have response messages: call_UZH253hv9o9RYVHjRxS"
+        self.conversation_history.retain(|msg| match msg {
+            RigMessage::System { .. } => true,
+            RigMessage::User { content } => !content
+                .iter()
+                .any(|c| matches!(c, rig::message::UserContent::ToolResult(_))),
+            RigMessage::Assistant { content, .. } => !content
+                .iter()
+                .any(|c| matches!(c, rig::message::AssistantContent::ToolCall(_))),
+        });
+        error
     }
 
     /// Starts the session over from `summary` followed by the latest channel messages, and hands
@@ -262,6 +397,13 @@ impl Memories {
     }
 }
 
+/// The services behind the responder's optional tools, which are left out without them
+#[derive(Clone, Default)]
+pub struct ToolBackends {
+    pub firecrawl: Option<Firecrawl>,
+    pub sandbox: Option<ChannelSandbox>,
+}
+
 /// What a fresh session starts from
 pub struct Seed {
     /// The channel messages right before the batch that starts it
@@ -279,9 +421,10 @@ pub fn create_responder_session(
     llm: &LlmBackend,
     model: ModelHandle,
     memories: Memories,
-    firecrawl: Option<Firecrawl>,
+    backends: ToolBackends,
     seed: Seed,
 ) -> Result<AgentSession, eyre::Error> {
+    let ToolBackends { firecrawl, sandbox } = backends;
     // Create tools with shared context
     let ctx_arc = Arc::new(discord_ctx.clone());
     let bot_user_id = discord_ctx.cache.current_user().id;
@@ -289,6 +432,7 @@ pub fn create_responder_session(
         ctx: ctx_arc.clone(),
         channel_id,
         guild_id: memories.guild_id(),
+        sandbox: sandbox.clone(),
     };
     let reaction_tool = ReactToMessageTool {
         ctx: ctx_arc.clone(),
@@ -359,6 +503,17 @@ pub fn create_responder_session(
                 firecrawl: firecrawl.clone(),
             })
             .tool(FetchPageContentTool { firecrawl });
+    }
+
+    if let Some(sandbox) = sandbox {
+        agent_builder = agent_builder
+            .tool(SandboxRunTool {
+                sandbox: sandbox.clone(),
+            })
+            .tool(SandboxWriteFileTool {
+                sandbox: sandbox.clone(),
+            })
+            .tool(SandboxViewImageTool { sandbox });
     }
 
     match memories {
@@ -449,4 +604,83 @@ fn with_memory_recording(
             bot_user_id,
         })
         .tool(MemorySearchTool { memory })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rig::completion::Usage;
+    use rig_agent::test_utils::{MockAddTool, MockCompletionModel, MockTurn};
+
+    const WINDOW: u64 = 1000;
+
+    fn session(turns: impl IntoIterator<Item = MockTurn>) -> AgentSession {
+        let model = MockCompletionModel::from_turns(turns);
+        AgentSession {
+            agent: AgentBuilder::from_model_handle(ModelHandle::new(model))
+                .tool(MockAddTool)
+                .build(),
+            conversation_history: vec![RigMessage::user("before"), RigMessage::user("go")],
+            context_tokens: 0,
+            context_window: WINDOW,
+            seeded_people: HashSet::new(),
+            noted_people: HashSet::new(),
+        }
+    }
+
+    fn add(call: usize) -> MockTurn {
+        MockTurn::tool_call(
+            format!("call_{call}"),
+            "add",
+            serde_json::json!({ "x": 1, "y": 2 }),
+        )
+    }
+
+    fn tool_results(history: &[RigMessage]) -> usize {
+        history
+            .iter()
+            .filter(|message| {
+                matches!(message, RigMessage::User { content } if content
+                    .iter()
+                    .any(|part| matches!(part, rig::message::UserContent::ToolResult(_))))
+            })
+            .count()
+    }
+
+    #[tokio::test]
+    async fn a_run_out_of_turns_keeps_its_work() {
+        let mut session = session((0..MAX_AGENT_TURNS).map(add));
+        let result = session.run(Turn::Agentic).await;
+
+        assert!(matches!(result, Err(RunFailure::Stopped(RunLimit::Turns))));
+        let history = &session.conversation_history;
+        assert_eq!(tool_results(history), MAX_AGENT_TURNS);
+        assert!(matches!(history.last(), Some(RigMessage::User { .. })));
+        assert!(matches!(history.first(), Some(RigMessage::User { .. })));
+    }
+
+    #[tokio::test]
+    async fn a_run_stops_before_overflowing_its_context() {
+        let full = Usage {
+            input_tokens: WINDOW,
+            total_tokens: WINDOW,
+            ..Usage::new()
+        };
+        let mut session = session([add(0).with_usage(full), add(1), add(2)]);
+        let result = session.run(Turn::Agentic).await;
+
+        assert!(matches!(result, Err(RunFailure::Stopped(RunLimit::Context))));
+        // The first call's tool result made it in; the call that would overflow never went out
+        assert_eq!(tool_results(&session.conversation_history), 1);
+        assert!(session.needs_compaction());
+    }
+
+    #[tokio::test]
+    async fn a_failed_run_puts_its_prompt_back() {
+        let mut session = session([MockTurn::error("provider down")]);
+        let result = session.run(Turn::Agentic).await;
+
+        assert!(matches!(result, Err(RunFailure::Failed(_))));
+        assert_eq!(session.conversation_history.len(), 2);
+    }
 }

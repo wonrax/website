@@ -1,10 +1,18 @@
-use crate::discord::message::expand_citations;
+use crate::discord::{
+    message::expand_citations,
+    sandbox::{ChannelSandbox, HOME},
+};
 use rig::tool::PortableTool;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use serenity::all::{ChannelId, Context, CreateMessage, GuildId, MessageId};
+use serenity::all::{ChannelId, Context, CreateAttachment, CreateMessage, GuildId, MessageId};
 use std::sync::Arc;
 use thiserror::Error;
+
+/// Discord's cap on the files of one message
+const MAX_ATTACHMENTS: usize = 10;
+/// Discord's upload limit for bots, across the files of a message in a server without boosts
+const MAX_ATTACHMENT_BYTES: u64 = 10_000_000;
 
 #[derive(Debug, Clone)]
 pub struct DiscordSendMessageTool {
@@ -12,6 +20,8 @@ pub struct DiscordSendMessageTool {
     pub channel_id: ChannelId,
     /// The channel's server, which links to its messages name; `None` in DMs
     pub guild_id: Option<GuildId>,
+    /// Where attached files come from; without it, messages carry text only
+    pub sandbox: Option<ChannelSandbox>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,6 +30,9 @@ pub struct DiscordSendMessageArgs {
 
     #[serde(default)]
     pub reply_to_message_id: Option<String>,
+
+    #[serde(default)]
+    pub attachments: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,7 +58,7 @@ impl PortableTool for DiscordSendMessageTool {
     }
 
     fn parameters(&self) -> serde_json::Value {
-        json!({
+        let mut parameters = json!({
             "type": "object",
             "properties": {
                 "content": {
@@ -58,10 +71,37 @@ impl PortableTool for DiscordSendMessageTool {
                 }
             },
             "required": ["content", "reply_to_message_id"]
-        })
+        });
+        if self.sandbox.is_some() {
+            parameters["properties"]["attachments"] = json!({
+                "type": ["array", "null"],
+                "items": { "type": "string" },
+                "description": format!("Files from your sandbox to attach, by path: absolute, or relative to {HOME}. Images show inline. At most {MAX_ATTACHMENTS} files and 10 MB in all; null for none.")
+            });
+            if let Some(required) = parameters["required"].as_array_mut() {
+                required.push(json!("attachments"));
+            }
+        }
+        parameters
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        // Read before anything is sent, so a bad path fails the whole message and a retry
+        // doesn't post its text twice
+        let files = match self
+            .attachments(args.attachments.clone().unwrap_or_default())
+            .await
+        {
+            Ok(files) => files,
+            Err(error) => {
+                return Ok(DiscordSendMessageOutput {
+                    success: false,
+                    message_id: None,
+                    error: Some(error),
+                });
+            }
+        };
+
         // Clone values to move into the spawned task
         let ctx = self.ctx.clone();
         let channel_id = self.channel_id;
@@ -69,7 +109,7 @@ impl PortableTool for DiscordSendMessageTool {
 
         // Spawn the Discord API operations in a separate task to avoid Sync issues
         let handle = tokio::spawn(async move {
-            let mut message_builder = CreateMessage::new().content(&content);
+            let mut message_builder = CreateMessage::new().content(&content).add_files(files);
 
             if let Some(reply_to_message_id) = args.reply_to_message_id
                 && let Some(target_message_id) = reply_to_message_id.parse::<u64>().ok()
@@ -116,5 +156,35 @@ impl PortableTool for DiscordSendMessageTool {
                 })
             }
         }
+    }
+}
+
+impl DiscordSendMessageTool {
+    /// The sandbox files at `paths`, ready to upload
+    async fn attachments(&self, paths: Vec<String>) -> Result<Vec<CreateAttachment>, String> {
+        if paths.is_empty() {
+            return Ok(vec![]);
+        }
+        let Some(sandbox) = &self.sandbox else {
+            return Err("attachments come from the sandbox, which isn't available".to_string());
+        };
+        if paths.len() > MAX_ATTACHMENTS {
+            return Err(format!(
+                "{} files is over Discord's limit of {MAX_ATTACHMENTS} per message",
+                paths.len()
+            ));
+        }
+
+        let mut files = Vec::with_capacity(paths.len());
+        let mut budget = MAX_ATTACHMENT_BYTES;
+        for path in paths {
+            let file = sandbox
+                .read_file(&path, budget)
+                .await
+                .map_err(|e| format!("{e:#}"))?;
+            budget = budget.saturating_sub(u64::try_from(file.bytes.len()).unwrap_or(u64::MAX));
+            files.push(CreateAttachment::bytes(file.bytes, file.name));
+        }
+        Ok(files)
     }
 }
