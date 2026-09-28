@@ -233,7 +233,7 @@ impl PortableTool for SearchChannelMessagesTool {
     type Output = SearchChannelMessagesOutput;
 
     fn description(&self) -> String {
-        "Search this channel's whole history for messages outside your context, by words, author, or time. Reach for it when someone refers to something said earlier, when a memory names a topic but you need what was actually said, or to check whether something came up before. Hits use the same format and IDs as your context, so fetch_channel_history (direction around) rereads the conversation around one. Matching is by whole words, not meaning; what you know about people and topics lives in memory_find."
+        "Search this channel's whole history for messages outside your context, by words, author, or time. Reach for it when someone refers to something said earlier, when a memory names a topic but you need what was actually said, or to check whether something came up before. Hits use the same format and IDs as your context, so fetch_channel_history (direction around) rereads the conversation around one. Matching is by whole words, not meaning; what you know about people and topics lives in memory_search."
             .to_string()
     }
 

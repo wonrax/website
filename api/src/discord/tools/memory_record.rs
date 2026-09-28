@@ -63,12 +63,16 @@ impl PortableTool for RecordObservationsTool {
     type Output = RecordObservationsOutput;
 
     fn description(&self) -> String {
-        "Add observations to the bot's memory: what future conversations should know about the \
-         people of this server and about this channel. The log is append-only evidence that \
-         the memory notes are periodically rewritten from, so a correction or a change is just \
-         a new observation of how things stand now. Search the log first: what's already recorded \
-         needs no second copy, only what changed about it. Each recorded observation reacts 🧠 \
-         to the newest message it cites."
+        "Add observations to the bot's memory log, which the memory notes are periodically \
+         rewritten from. An observation is something learned about the people of this server or \
+         about this channel that outlasts the conversation it came up in: who someone is, what's \
+         going on in their life, what they like, hate, and believe, how they get along, what they \
+         want from the bot, the group's running jokes, and anything someone asks the bot to \
+         remember. The conversation itself isn't one: what was asked, and what the bot answered \
+         or made, stay in the channel's history. Search the log first and record only what it \
+         lacks or what changes or corrects it; the log is append-only, so a correction is a new \
+         observation of how things stand now. Each recorded observation reacts 🧠 to the newest \
+         message it cites."
             .to_string()
     }
 
@@ -83,7 +87,7 @@ impl PortableTool for RecordObservationsTool {
                         "properties": {
                             "content": {
                                 "type": "string",
-                                "description": "Self-contained enough to make sense a year from now: name the people, keep what someone claimed apart from what is known, and turn relative times into dates (\"next Saturday\" in a message sent 2026-09-24 is 2026-09-26)."
+                                "description": "The fact as it stands, self-contained enough to make sense a year from now: name the people, keep what someone claimed apart from what is known, and turn relative times into dates (\"next Saturday\" in a message sent 2026-09-24 is 2026-09-26). The day it was observed is recorded with it."
                             },
                             "about": {
                                 "type": "array",
