@@ -161,8 +161,8 @@ weighed in on is a PASS, and so is anything you're unsure about."#
 /// Sent to the watcher when a conversation ends or its session compacts
 pub const MEMORY_PASS_PROMPT: &str = formatcp!(
     r#"[Memory pass] This stretch of the channel is wrapping up. Record what it taught about these
-people or this channel that {DISCORD_BOT_NAME}'s memory doesn't hold yet, or that changes or
-corrects what it holds, then answer DONE.
+people or this channel that {DISCORD_BOT_NAME}'s memory doesn't hold yet, or how something it
+holds has changed, then answer DONE.
 
 Record what the stretch revealed, not what happened in it: a recap of the conversation is a
 second copy of the channel's history. Most stretches reveal nothing new, and recording nothing is

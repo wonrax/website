@@ -69,10 +69,11 @@ impl PortableTool for RecordObservationsTool {
          going on in their life, what they like, hate, and believe, how they get along, what they \
          want from the bot, the group's running jokes, and anything someone asks the bot to \
          remember. The conversation itself isn't one: what was asked, and what the bot answered \
-         or made, stay in the channel's history. Search the log first and record only what it \
-         lacks or what changes or corrects it; the log is append-only, so a correction is a new \
-         observation of how things stand now. Each recorded observation reacts 🧠 to the newest \
-         message it cites."
+         or made, stay in the channel's history. Neither is a note that something isn't so: the \
+         memory knows only what's recorded, so what's untrue stays out by not being recorded, \
+         and a note denying it puts it in. Search the log first and record only what it lacks, \
+         or how things stand now when something it holds has changed or proved wrong. Each \
+         recorded observation reacts 🧠 to the newest message it cites."
             .to_string()
     }
 
