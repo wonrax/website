@@ -9,7 +9,7 @@ use diesel::{
     sql_types::{Array, BigInt, Bool, Nullable, Text, Timestamptz},
     upsert::excluded,
 };
-use diesel_async::{AsyncConnection as _, RunQueryDsl};
+use diesel_async::{AsyncConnection as _, AsyncPgConnection, RunQueryDsl};
 use eyre::Context as _;
 use serenity::all::{ChannelId, GuildId, MessageId, UserId};
 
@@ -48,6 +48,18 @@ pub struct FoundObservation {
     /// from every channel of the server.
     pub channel_id: ChannelId,
     pub source_message_ids: Vec<u64>,
+}
+
+/// A search of a server's observations: those about its people and those about `channel_id`
+pub struct Search<'a> {
+    pub guild_id: GuildId,
+    pub channel_id: ChannelId,
+    pub query: &'a str,
+    /// Only what's about every one of them
+    pub about: &'a [UserId],
+    /// Only what was observed before then
+    pub before: Option<DateTime<Utc>>,
+    pub limit: i64,
 }
 
 /// A doc's newest version
@@ -345,94 +357,9 @@ impl MemoryStore {
             .map(UserId::from))
     }
 
-    /// Up to `limit` observations matching `query`, best first, among those about people of the
-    /// server and those about the channel itself. Words match regardless of accents, and
-    /// misspelled ones by their trigrams; the two rankings are fused.
-    pub async fn search(
-        &self,
-        guild_id: GuildId,
-        channel_id: ChannelId,
-        query: &str,
-        limit: i64,
-    ) -> eyre::Result<Vec<FoundObservation>> {
-        let sql = format!(
-            r#"
-            WITH q AS (
-                -- Any of the words rather than all of them. Each matches as written (weight A)
-                -- or accent-folded (B), as the search vector stores it.
-                SELECT (
-                    SELECT string_agg(term, ' | ')::TSQUERY FROM (
-                        SELECT '''' || replace(replace(lexeme, '\', '\\'), '''', '''''') || ''':A' AS term
-                        FROM unnest(tsvector_to_array(to_tsvector('simple', $3))) AS lexeme
-                        UNION
-                        SELECT '''' || replace(replace(lexeme, '\', '\\'), '''', '''''') || ''':B'
-                        FROM unnest(tsvector_to_array(to_tsvector('simple_unaccent', $3))) AS lexeme
-                    ) AS terms
-                ) AS words,
-                lower(immutable_unaccent($3)) AS text
-            ),
-            scope AS (
-                SELECT o.* FROM discord_memory_observations o
-                WHERE o.guild_id = $1 AND o.withdrawn_at IS NULL
-                    AND (o.channel_id = $2 OR cardinality(o.about_user_ids) > 0)
-            ),
-            by_words AS (
-                SELECT s.id, row_number() OVER (
-                    ORDER BY ts_rank_cd(s.search_vector, q.words) DESC, s.id DESC
-                ) AS rank
-                FROM scope s, q
-                WHERE s.search_vector @@ q.words
-                ORDER BY rank LIMIT 50
-            ),
-            by_spelling AS (
-                SELECT s.id, row_number() OVER (ORDER BY q.text <<-> s.search_text, s.id DESC) AS rank
-                FROM scope s, q
-                WHERE q.text <% s.search_text
-                ORDER BY rank LIMIT 50
-            ),
-            fused AS (
-                SELECT id, sum(weight / (60 + rank)) AS score FROM (
-                    SELECT id, rank, 1.0 AS weight FROM by_words
-                    UNION ALL
-                    SELECT id, rank, 0.7 FROM by_spelling
-                ) AS ranked
-                GROUP BY id
-            )
-            SELECT o.content, {ABOUT_NAMES} AS about, o.observed_at, o.channel_id,
-                o.source_message_ids
-            FROM fused f
-            JOIN discord_memory_observations o USING (id)
-            ORDER BY f.score DESC, o.id DESC
-            LIMIT $4
-            "#
-        );
-
+    pub async fn search(&self, search: &Search<'_>) -> eyre::Result<Vec<FoundObservation>> {
         let mut conn = self.db.get().await.context("No database connection")?;
-        let rows: Vec<FoundRow> = diesel::sql_query(sql)
-            .bind::<BigInt, _>(guild_id.get().cast_signed())
-            .bind::<BigInt, _>(channel_id.get().cast_signed())
-            .bind::<Text, _>(query)
-            .bind::<BigInt, _>(limit)
-            .load(&mut conn)
-            .await
-            .context("Failed to search the memories")?;
-
-        Ok(rows
-            .into_iter()
-            .filter_map(|row| {
-                Some(FoundObservation {
-                    content: row.content,
-                    about: row.about,
-                    observed_at: row.observed_at,
-                    channel_id: NonZeroU64::new(row.channel_id.cast_unsigned())?.into(),
-                    source_message_ids: row
-                        .source_message_ids
-                        .into_iter()
-                        .map(i64::cast_unsigned)
-                        .collect(),
-                })
-            })
-            .collect())
+        search.run(&mut conn).await
     }
 
     /// The newest docs: the lore of `lore_of` when given, and the profiles of `people` in the
@@ -671,5 +598,241 @@ impl MemoryStore {
             .await
             .context("Failed to save the doc")?;
         Ok(true)
+    }
+}
+
+impl Search<'_> {
+    /// Up to `limit` observations matching the query, best first. Each word, and each two in a
+    /// row, which is how most Vietnamese words are spelled, counts by how rare it is among the
+    /// observations searched, fully when it matches as written and less when only its
+    /// accent-folded form does. Misspelled words match by their trigrams; the two rankings are
+    /// fused.
+    async fn run(&self, conn: &mut AsyncPgConnection) -> eyre::Result<Vec<FoundObservation>> {
+        let sql = format!(
+            r#"
+            -- Inlined into each use, so both rankings reach their indexes
+            WITH scope AS NOT MATERIALIZED (
+                SELECT o.id, o.search_vector, o.search_text FROM discord_memory_observations o
+                WHERE o.guild_id = $1 AND o.withdrawn_at IS NULL
+                    AND (o.channel_id = $2 OR cardinality(o.about_user_ids) > 0)
+                    AND o.about_user_ids @> $5
+                    AND o.observed_at < coalesce($6, 'infinity')
+            ),
+            -- The query's words by position, as tsquery literals written and accent-folded
+            tokens AS (
+                SELECT position,
+                    '''' || replace(replace(w.lexeme, '\', '\\'), '''', '''''') || '''' AS written,
+                    f.lexeme AS folded_lexeme,
+                    '''' || replace(replace(f.lexeme, '\', '\\'), '''', '''''') || '''' AS folded
+                FROM (SELECT lexeme, unnest(positions) AS position
+                    FROM unnest(to_tsvector('simple', $3))) AS w
+                JOIN (SELECT lexeme, unnest(positions) AS position
+                    FROM unnest(to_tsvector('simple_unaccent', $3))) AS f USING (position)
+            ),
+            -- Each word and each two in a row, keyed by their folded form so that what matches
+            -- both ways counts once
+            grams AS (
+                SELECT folded_lexeme AS term, written, folded FROM tokens
+                UNION ALL
+                SELECT a.folded_lexeme || ' ' || b.folded_lexeme,
+                    a.written || ' <-> ' || b.written, a.folded || ' <-> ' || b.folded
+                FROM tokens a JOIN tokens b ON b.position = a.position + 1
+            ),
+            variants AS (
+                SELECT term, variant, variant::TSQUERY AS query, max(weight) AS weight FROM (
+                    SELECT term, written AS variant, 1.0 AS weight FROM grams
+                    UNION ALL
+                    SELECT term, folded, 0.5 FROM grams
+                ) AS v
+                GROUP BY term, variant
+            ),
+            matches AS (
+                SELECT s.id, v.term, v.variant, v.weight
+                FROM scope s JOIN variants v ON s.search_vector @@ v.query
+            ),
+            -- BM25's inverse document frequency: near zero for what most observations contain
+            rarity AS (
+                SELECT variant, ln(1 + (n.total - count(*) + 0.5) / (count(*) + 0.5)) AS idf
+                FROM matches, (SELECT count(*) AS total FROM scope) AS n
+                GROUP BY variant, n.total
+            ),
+            by_words AS (
+                SELECT id, row_number() OVER (ORDER BY score DESC, id DESC) AS rank FROM (
+                    SELECT id, sum(best) AS score FROM (
+                        SELECT m.id, max(m.weight * r.idf) AS best
+                        FROM matches m JOIN rarity r USING (variant)
+                        GROUP BY m.id, m.term
+                    ) AS terms
+                    GROUP BY id
+                ) AS scored
+                ORDER BY rank LIMIT 50
+            ),
+            by_spelling AS (
+                SELECT s.id, row_number() OVER (ORDER BY q.text <<-> s.search_text, s.id DESC) AS rank
+                FROM scope s, (SELECT lower(immutable_unaccent($3)) AS text) AS q
+                WHERE q.text <% s.search_text
+                ORDER BY rank LIMIT 50
+            ),
+            fused AS (
+                SELECT id, sum(weight / (60 + rank)) AS score FROM (
+                    SELECT id, rank, 1.0 AS weight FROM by_words
+                    UNION ALL
+                    SELECT id, rank, 0.7 FROM by_spelling
+                ) AS ranked
+                GROUP BY id
+            )
+            SELECT o.content, {ABOUT_NAMES} AS about, o.observed_at, o.channel_id,
+                o.source_message_ids
+            FROM fused f
+            JOIN discord_memory_observations o USING (id)
+            ORDER BY f.score DESC, o.id DESC
+            LIMIT $4
+            "#
+        );
+
+        let rows: Vec<FoundRow> = diesel::sql_query(sql)
+            .bind::<BigInt, _>(self.guild_id.get().cast_signed())
+            .bind::<BigInt, _>(self.channel_id.get().cast_signed())
+            .bind::<Text, _>(self.query)
+            .bind::<BigInt, _>(self.limit)
+            .bind::<Array<BigInt>, _>(
+                self.about
+                    .iter()
+                    .map(|id| id.get().cast_signed())
+                    .collect::<Vec<_>>(),
+            )
+            .bind::<Nullable<Timestamptz>, _>(self.before)
+            .load(conn)
+            .await
+            .context("Failed to search the memories")?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|row| {
+                Some(FoundObservation {
+                    content: row.content,
+                    about: row.about,
+                    observed_at: row.observed_at,
+                    channel_id: NonZeroU64::new(row.channel_id.cast_unsigned())?.into(),
+                    source_message_ids: row
+                        .source_message_ids
+                        .into_iter()
+                        .map(i64::cast_unsigned)
+                        .collect(),
+                })
+            })
+            .collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use diesel_async::{AsyncConnection as _, AsyncPgConnection, SimpleAsyncConnection as _};
+    use eyre::Context as _;
+    use serenity::all::{ChannelId, GuildId, UserId};
+
+    use super::Search;
+
+    const MIGRATIONS: [&str; 2] = [
+        include_str!("../../../../prisma/migrations/20260928000000_add_discord_memory/migration.sql"),
+        include_str!(
+            "../../../../prisma/migrations/20260929000000_withdraw_discord_memory_observations/migration.sql"
+        ),
+    ];
+
+    const TOFU: UserId = UserId::new(100);
+    const MOCHI: UserId = UserId::new(200);
+
+    const MOONFISH: &str = "tofu went on a date with Hà mới at Moonfish";
+    const CHU_DONG: &str = "tofu không chủ động nhắn tin, chỉ đợi Hà mới nhắn trước";
+    const GYM: &str = "mochi có động lực đi tập gym mỗi chủ nhật";
+    const SUMMER: &str = "mochi thích mùa hạ, nhất là đi biển";
+
+    /// Forty observations dense with common Vietnamese syllables, then a few that stand out,
+    /// each newer than the last
+    const LOG: &str = r#"
+        INSERT INTO discord_memory_observations
+            (guild_id, channel_id, about_user_ids, content, keywords, observed_at)
+        SELECT 1, 10, '{100}', 'tofu nói anh em không đi chơi cuối tuần, chỉ ở nhà mới vui',
+            'không đi chơi cuối tuần ở nhà', '2026-08-01'::TIMESTAMPTZ + i * INTERVAL '1 hour'
+        FROM generate_series(1, 40) AS i;
+
+        INSERT INTO discord_memory_observations
+            (guild_id, channel_id, about_user_ids, content, keywords, observed_at)
+        VALUES
+            (1, 10, '{100}', 'tofu went on a date with Hà mới at Moonfish', 'hẹn hò', '2026-09-01'),
+            (1, 10, '{100}', 'tofu không chủ động nhắn tin, chỉ đợi Hà mới nhắn trước', '', '2026-09-02'),
+            (1, 10, '{200}', 'mochi có động lực đi tập gym mỗi chủ nhật', 'động lực chủ nhật', '2026-09-03'),
+            (1, 10, '{200}', 'mochi thích mùa hạ, nhất là đi biển', 'mùa hè', '2026-09-04');
+    "#;
+
+    /// The contents `LOG` gives for a search, in the empty database at MEMORY_TEST_DATABASE_URL,
+    /// inside a transaction that's never committed
+    async fn search(
+        query: &str,
+        about: &[UserId],
+        before: Option<&str>,
+    ) -> eyre::Result<Vec<String>> {
+        let url = std::env::var("MEMORY_TEST_DATABASE_URL")
+            .context("MEMORY_TEST_DATABASE_URL is unset")?;
+        let mut conn = AsyncPgConnection::establish(&url).await?;
+        conn.begin_test_transaction().await?;
+        for sql in MIGRATIONS.into_iter().chain([LOG]) {
+            conn.batch_execute(sql).await?;
+        }
+        let before = before
+            .map(|day| format!("{day}T00:00:00Z").parse())
+            .transpose()?;
+        let found = Search {
+            guild_id: GuildId::new(1),
+            channel_id: ChannelId::new(10),
+            query,
+            about,
+            before,
+            limit: 5,
+        }
+        .run(&mut conn)
+        .await?;
+        Ok(found.into_iter().map(|o| o.content).collect())
+    }
+
+    #[tokio::test]
+    #[ignore = "needs an empty Postgres database at MEMORY_TEST_DATABASE_URL"]
+    async fn rare_words_outweigh_common_ones() -> eyre::Result<()> {
+        let found = search("tofu Hà mới đi chơi không anh Moonfish tuần", &[], None).await?;
+        assert_eq!(found.first().map(String::as_str), Some(MOONFISH), "{found:#?}");
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[ignore = "needs an empty Postgres database at MEMORY_TEST_DATABASE_URL"]
+    async fn syllables_in_a_row_count_as_a_word() -> eyre::Result<()> {
+        // The gym has both syllables apart, and is newer, which would win a tie
+        for query in ["chủ động", "chu dong"] {
+            let found = search(query, &[], None).await?;
+            assert_eq!(found, [CHU_DONG, GYM], "{query}");
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[ignore = "needs an empty Postgres database at MEMORY_TEST_DATABASE_URL"]
+    async fn words_as_written_outrank_their_folded_lookalikes() -> eyre::Result<()> {
+        // "hạ" folds to "ha" like "Hà" does, and the summer one is the newest
+        let found = search("hà", &[], None).await?;
+        assert_eq!(found.first().map(String::as_str), Some(CHU_DONG), "{found:#?}");
+        assert!(found.iter().any(|content| content == SUMMER), "{found:#?}");
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[ignore = "needs an empty Postgres database at MEMORY_TEST_DATABASE_URL"]
+    async fn about_and_before_narrow_the_search() -> eyre::Result<()> {
+        assert_eq!(search("chủ động", &[MOCHI], None).await?, [GYM]);
+
+        let found = search("Hà mới", &[TOFU], Some("2026-09-02")).await?;
+        assert_eq!(found.first().map(String::as_str), Some(MOONFISH), "{found:#?}");
+        assert!(!found.iter().any(|content| content == CHU_DONG), "{found:#?}");
+        Ok(())
     }
 }

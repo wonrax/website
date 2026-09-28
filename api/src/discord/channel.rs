@@ -1341,7 +1341,7 @@ mod tests {
         let raw: Message = serde_json::from_value(serde_json::json!({
             "id": id.to_string(),
             "channel_id": "1",
-            "author": { "id": "2", "username": "wonrax" },
+            "author": { "id": "2", "username": "tofu" },
             "content": format!("message {id}"),
             "timestamp": "2026-09-14T12:03:30.469Z",
             "tts": false,

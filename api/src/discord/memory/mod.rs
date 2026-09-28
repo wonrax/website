@@ -11,7 +11,7 @@ use serenity::all::{ChannelId, GuildId, MessageId, UserId};
 use crate::discord::{agent::LlmBackend, chatgpt::DbPool, constants::DISCORD_BOT_NAME};
 
 pub use dream::Dreamer;
-pub use store::{FoundObservation, MemoryStore, NewObservation};
+pub use store::{FoundObservation, MemoryStore, NewObservation, Search};
 
 /// The memories of every server the bot is in: where they're kept, and what distills them
 #[derive(Clone)]
@@ -318,10 +318,10 @@ mod tests {
                 written_at,
             }),
             profiles: vec![Profile {
-                user_id: UserId::new(350884319360712705),
-                name: Some("wonrax".to_string()),
+                user_id: UserId::new(111111111111111111),
+                name: Some("tofu".to_string()),
                 note: Note {
-                    content: "- Vegetarian".to_string(),
+                    content: "- Hates cilantro".to_string(),
                     written_at,
                 },
             }],
@@ -336,7 +336,7 @@ mod tests {
         );
         assert!(
             text.ends_with(
-                "<profile of=\"wonrax\" user_id=\"350884319360712705\" updated=\"2026-09-20\">\n- Vegetarian\n</profile>"
+                "<profile of=\"tofu\" user_id=\"111111111111111111\" updated=\"2026-09-20\">\n- Hates cilantro\n</profile>"
             ),
             "{text}"
         );

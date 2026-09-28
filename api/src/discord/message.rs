@@ -501,7 +501,7 @@ mod tests {
     fn plain_message_is_one_line_without_ids() {
         let msg = parse(message(
             1549027814278434918,
-            user(350884319360712705, "wonrax"),
+            user(111111111111111111, "tofu"),
             "hello",
         ));
         let text = format_message_with_context(&msg, None);
@@ -510,8 +510,8 @@ mod tests {
             text.starts_with("[#1549027814278434918] [2026-09-14T12:03:30"),
             "{text}"
         );
-        assert!(text.ends_with("] wonrax: hello"), "{text}");
-        assert!(!text.contains("350884319360712705"), "{text}");
+        assert!(text.ends_with("] tofu: hello"), "{text}");
+        assert!(!text.contains("111111111111111111"), "{text}");
         assert!(!text.contains("<<context>>"), "{text}");
     }
 
@@ -520,7 +520,7 @@ mod tests {
         let bot = user(1364822809259544586, "The Irony Himself");
         let mut value = message(
             2,
-            user(350884319360712705, "wonrax"),
+            user(111111111111111111, "tofu"),
             "<@1364822809259544586> m ngáo à",
         );
         value["mentions"] = json!([bot]);
@@ -540,11 +540,11 @@ mod tests {
     fn compact_format_tags_the_bot_and_names_the_reply_target() {
         let bot_id = UserId::new(1364822809259544586);
         let mut value = message(3, user(bot_id.get(), "The Irony Himself"), "lol");
-        value["referenced_message"] = message(2, user(350884319360712705, "wonrax"), "m ngáo à");
+        value["referenced_message"] = message(2, user(111111111111111111, "tofu"), "m ngáo à");
         let text = format_message_compact(&parse(value), bot_id);
 
         assert!(
-            text.ends_with("] The Irony Himself [you]: lol\n  ↪ replying to wonrax (#2)"),
+            text.ends_with("] The Irony Himself [you]: lol\n  ↪ replying to tofu (#2)"),
             "{text}"
         );
     }
@@ -636,11 +636,11 @@ mod tests {
     fn links_to_messages_of_the_channel_render_as_ids() {
         let msg = parse(message(
             4,
-            user(350884319360712705, "wonrax"),
+            user(111111111111111111, "tofu"),
             "như https://discord.com/channels/7/1/3 nói",
         ));
         let text = format_message_with_context(&msg, None);
-        assert!(text.ends_with("wonrax: như [#3] nói"), "{text}");
+        assert!(text.ends_with("tofu: như [#3] nói"), "{text}");
     }
 
     #[test]
@@ -648,26 +648,26 @@ mod tests {
         let id = MessageId::new(3);
         let emoji = ReactionType::Unicode("💀".to_string());
         assert_eq!(
-            reaction_line("gabins", &emoji, Some("The Irony Himself"), id),
-            "[reaction] gabins reacted 💀 to The Irony Himself's message (#3)"
+            reaction_line("mochi", &emoji, Some("The Irony Himself"), id),
+            "[reaction] mochi reacted 💀 to The Irony Himself's message (#3)"
         );
         assert_eq!(
-            reaction_line("gabins", &emoji, None, id),
-            "[reaction] gabins reacted 💀 to a message (#3)"
+            reaction_line("mochi", &emoji, None, id),
+            "[reaction] mochi reacted 💀 to a message (#3)"
         );
         assert_eq!(
             edit_line(
-                "wonrax",
+                "tofu",
                 id,
                 ChannelId::new(2),
                 "như https://discord.com/channels/7/2/1",
                 &[]
             ),
-            "[edit] wonrax edited their message (#3): như [#1]"
+            "[edit] tofu edited their message (#3): như [#1]"
         );
         assert_eq!(
-            deletion_line("wonrax", id),
-            "[deletion] wonrax's message (#3) was deleted"
+            deletion_line("tofu", id),
+            "[deletion] tofu's message (#3) was deleted"
         );
     }
 

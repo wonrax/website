@@ -268,12 +268,12 @@ mod tests {
     #[test]
     fn dreams_answer_with_a_doc_and_a_revisit_date() {
         let dreamed = parse_dream(
-            "Here it is.\n<doc>\n- Vegetarian\n- Going to Đà Lạt on 2026-10-04\n</doc>\n`REVISIT: 2026-10-05`",
+            "Here it is.\n<doc>\n- Hates cilantro\n- Going to Đà Lạt on 2026-10-04\n</doc>\n`REVISIT: 2026-10-05`",
         )
         .expect("a doc");
         assert_eq!(
             dreamed.content,
-            "- Vegetarian\n- Going to Đà Lạt on 2026-10-04"
+            "- Hates cilantro\n- Going to Đà Lạt on 2026-10-04"
         );
         assert_eq!(dreamed.revisit_on, NaiveDate::from_ymd_opt(2026, 10, 5));
 

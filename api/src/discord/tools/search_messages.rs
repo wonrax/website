@@ -429,7 +429,7 @@ mod tests {
         let message = json!({
             "id": "2",
             "channel_id": "1",
-            "author": { "id": "3", "username": "wonrax" },
+            "author": { "id": "3", "username": "tofu" },
             "content": "hello",
             "timestamp": "2026-09-14T12:03:30.469Z",
             "tts": false,
