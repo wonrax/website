@@ -14,11 +14,11 @@ pub const TYPING_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(5); // delay a
 pub const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 pub const DISCORD_BOT_NAME: &str = "The Irony Himself";
 /// Writes the bot's replies
-pub const CHATGPT_RESPONDER_MODEL: &str = "gpt-6-sol";
+pub const CHATGPT_RESPONDER_MODEL: &str = "gpt-6.1-sol";
 /// Reads everything to decide when the bot speaks, and keeps the memories
-pub const CHATGPT_WATCHER_MODEL: &str = "gpt-6-sol";
+pub const CHATGPT_WATCHER_MODEL: &str = "gpt-6.1-sol";
 /// Rewrites the memory docs from the observation log
-pub const CHATGPT_DREAMER_MODEL: &str = "gpt-6-sol";
+pub const CHATGPT_DREAMER_MODEL: &str = "gpt-6.1-sol";
 /// Both ChatGPT models' window, per the backend's `/models`
 pub const CHATGPT_CONTEXT_WINDOW: u64 = 272_000;
 pub const GEMINI_MODEL: &str = "gemini-3.8-flash";
