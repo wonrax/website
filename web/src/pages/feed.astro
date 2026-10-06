@@ -19,8 +19,8 @@ import NumberedNav from "@/components/NumberedNav.astro";
     <header class="narrow-shell__hero">
       <h1 class="narrow-shell__title">the feed.</h1>
       <p class="narrow-shell__lede">
-        lobsters and hacker news items, ranked by similarity to what you've
-        already read.
+        lobsters and hacker news items, ranked by a small model trained on what
+        i've bookmarked, opened, and hidden.
       </p>
     </header>
     <RecommenderFeed client:only="solid-js" />

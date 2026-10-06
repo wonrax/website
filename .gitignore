@@ -40,8 +40,6 @@ target/
 
 .wireit/
 
-.fastembed_cache/
-
 result
 
 .claude/

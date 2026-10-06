@@ -38,16 +38,13 @@ article_scraper = "2.3.1"
 url = "2.5.8"
 rig = { package = "rig-core", version = "0.42.0" }
 rig-agent = "0.42.0"
-fastembed = "=5.17.2"
 uuid = { version = "1.23.3", features = ["v4"] }
 arc-swap = "1.9.1"
 scc = "3.8.3"
 async-trait = "0.1.89"
 governor = "0.10.4"
 html-to-markdown-rs = "3.7.2"
-pgvector = { version = "0.4.2", features = ["diesel", "serde"] }
 robotxt = "0.6.1"
-text-splitter = { version = "0.32.0", features = ["markdown"] }
 tokio-stream = { version = "0.1.18", features = ["sync"] }
 deadpool-runtime = { version = "0.3.1", features = ["tokio_1"] }
 bytes = "1.12.0"

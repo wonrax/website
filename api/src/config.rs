@@ -231,5 +231,3 @@ impl ServerConfig {
         }
     }
 }
-
-pub const FASTEMBED_CACHE_DIR: &str = "./.fastembed_cache";

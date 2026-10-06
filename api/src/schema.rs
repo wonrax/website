@@ -3,12 +3,6 @@
 #[allow(unused_imports)]
 use diesel::{query_builder::QueryId, sql_types::*};
 
-pub type PgVector = pgvector::sql_types::Vector;
-
-#[derive(Debug, Clone, Copy, QueryId, SqlType)]
-#[diesel(postgres_type(name = "bit"))]
-pub struct PgBit;
-
 diesel::table! {
     _prisma_migrations (id) {
         #[max_length = 36]
@@ -158,15 +152,6 @@ diesel::table! {
 }
 
 diesel::table! {
-    online_article_chunks (id) {
-        id -> Int4,
-        online_article_id -> Int4,
-        embedding -> crate::schema::PgBit,
-        created_at -> Timestamp,
-    }
-}
-
-diesel::table! {
     online_article_metadata (id) {
         id -> Int4,
         online_article_id -> Int4,
@@ -184,9 +169,18 @@ diesel::table! {
         id -> Int4,
         url -> Text,
         title -> Text,
-        content_text -> Nullable<Text>,
         recommender_terms -> Nullable<Jsonb>,
         created_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    recommender_feedback (online_article_id) {
+        online_article_id -> Int4,
+        impressions -> Int4,
+        last_shown_at -> Nullable<Timestamptz>,
+        clicked_at -> Nullable<Timestamptz>,
+        dismissed_at -> Nullable<Timestamptz>,
     }
 }
 
@@ -228,9 +222,9 @@ diesel::joinable!(blog_comments -> blog_posts (post_id));
 diesel::joinable!(blog_comments -> identities (identity_id));
 diesel::joinable!(identity_credentials -> identities (identity_id));
 diesel::joinable!(identity_credentials -> identity_credential_types (credential_type_id));
-diesel::joinable!(online_article_chunks -> online_articles (online_article_id));
 diesel::joinable!(online_article_metadata -> online_articles (online_article_id));
 diesel::joinable!(online_article_metadata -> online_article_sources (source_id));
+diesel::joinable!(recommender_feedback -> online_articles (online_article_id));
 diesel::joinable!(sessions -> identities (identity_id));
 diesel::joinable!(user_history -> online_articles (online_article_id));
 
@@ -248,9 +242,9 @@ diesel::allow_tables_to_appear_in_same_query!(
     identities,
     identity_credential_types,
     identity_credentials,
-    online_article_chunks,
     online_article_metadata,
     online_articles,
+    recommender_feedback,
     sessions,
     online_article_sources,
     user_history,

@@ -2,11 +2,9 @@ use std::{collections::HashMap, time::Duration};
 
 use crate::App;
 use diesel::prelude::*;
-use diesel::sql_types::Integer;
 use diesel_async::{AsyncPgConnection, RunQueryDsl};
 use eyre::{OptionExt, WrapErr, eyre};
 use futures::stream::StreamExt;
-use pgvector::Vector;
 use robotxt::Robots;
 use serde::Deserialize;
 
@@ -62,6 +60,22 @@ pub struct SourceEntry {
     pub external_score: Option<f64>,
     pub submitted_at: chrono::NaiveDateTime,
     pub external_id: String,
+    pub tags: Vec<String>,
+    pub submitter: Option<String>,
+    pub comment_count: Option<i64>,
+}
+
+impl SourceEntry {
+    /// What `online_article_metadata.metadata` holds for this submission.
+    fn metadata_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "editorialized_title": self.title,
+            "external_id": self.external_id,
+            "tags": self.tags,
+            "submitter": self.submitter,
+            "comment_count": self.comment_count,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -69,32 +83,10 @@ pub struct FetchedArticle {
     url: url::Url,
     title: String,
     recommender_terms: Vec<String>,
-    embeddings: Vec<Vector>,
 }
 
-async fn insert_article_chunks(
-    conn: &mut AsyncPgConnection,
-    article_id: i32,
-    embeddings: &[Vector],
-) -> Result<(), diesel::result::Error> {
-    let insert_sql = format!(
-        "INSERT INTO online_article_chunks (online_article_id, embedding) VALUES ($1, binary_quantize($2)::BIT({}))",
-        crate::utils::RECOMMENDER_EMBEDDING_BITS
-    );
-
-    for embedding in embeddings {
-        diesel::sql_query(&insert_sql)
-            .bind::<Integer, _>(article_id)
-            .bind::<crate::schema::PgVector, _>(embedding)
-            .execute(conn)
-            .await?;
-    }
-
-    Ok(())
-}
-
-fn needs_recommender_backfill(article: &crate::models::recommendation::OnlineArticle) -> bool {
-    article.content_text.is_some() || article.recommender_terms.is_none()
+pub fn needs_recommender_backfill(article: &crate::models::recommendation::OnlineArticle) -> bool {
+    article.recommender_terms.is_none()
 }
 
 fn build_recommender_terms_json(title: &str, content: Option<&str>) -> Option<serde_json::Value> {
@@ -113,23 +105,14 @@ pub async fn backfill_recommender_fields(
         return Ok(false);
     }
 
-    let recommender_terms = if article.recommender_terms.is_some() {
-        article.recommender_terms.clone()
-    } else if let Some(content_text) = article.content_text.as_deref() {
-        build_recommender_terms_json(&article.title, Some(content_text))
-    } else {
-        let url = url::Url::parse(&article.url)
-            .wrap_err_with(|| format!("Failed to parse article URL {}", article.url))?;
-        let (_, markdown) = fetch_markdown(ctx, &url).await?;
-        build_recommender_terms_json(&article.title, Some(&markdown))
-    };
+    let url = url::Url::parse(&article.url)
+        .wrap_err_with(|| format!("Failed to parse article URL {}", article.url))?;
+    let (_, markdown) = fetch_markdown(ctx, &url).await?;
+    let recommender_terms = build_recommender_terms_json(&article.title, Some(&markdown));
 
     let mut conn = ctx.diesel.get().await?;
     diesel::update(articles_dsl::online_articles.filter(articles_dsl::id.eq(article.id)))
-        .set((
-            articles_dsl::content_text.eq::<Option<String>>(None),
-            articles_dsl::recommender_terms.eq(recommender_terms),
-        ))
+        .set(articles_dsl::recommender_terms.eq(recommender_terms))
         .execute(&mut conn)
         .await?;
 
@@ -179,17 +162,13 @@ pub async fn run_crawl(ctx: &App) -> Result<(), eyre::Error> {
             .optional()?;
 
         if let Some(existing) = existing {
-            // Update metadata for existing item (score, editorialized title, external_id, submitted_at)
-            let metadata_json = serde_json::json!({
-                "editorialized_title": entry.title,
-                "external_id": entry.external_id,
-            });
+            // Refresh the score and metadata, which change while a story is on the front page
             upsert_metadata(
                 &mut conn,
                 existing.id,
                 entry.source_id,
                 entry.external_score,
-                metadata_json,
+                entry.metadata_json(),
                 entry.submitted_at,
             )
             .await?;
@@ -241,9 +220,7 @@ pub async fn run_crawl(ctx: &App) -> Result<(), eyre::Error> {
         .map(|entry| {
             let ctx = ctx.clone();
             async move {
-                let article =
-                    fetch_and_generate_embedding(&ctx, entry.url.clone(), entry.title.clone())
-                        .await?;
+                let article = fetch_article(&ctx, entry.url.clone(), entry.title.clone()).await?;
                 let mut conn = ctx.diesel.get().await?;
                 insert_article(&mut conn, article, Some(&entry)).await
             }
@@ -265,7 +242,7 @@ pub async fn run_crawl(ctx: &App) -> Result<(), eyre::Error> {
 }
 
 #[tracing::instrument(skip(ctx, url))]
-pub async fn fetch_and_generate_embedding(
+pub async fn fetch_article(
     ctx: &App,
     url: url::Url,
     title: Option<String>,
@@ -286,13 +263,11 @@ pub async fn fetch_and_generate_embedding(
         .ok_or_eyre("couldn't extract title from the article, maybe manually supply one")?;
 
     let recommender_terms = crate::utils::extract_recommender_terms(&title, Some(&markdown));
-    let embeddings = super::engine::generate_embeddings(&title, &markdown).await?;
 
     Ok(FetchedArticle {
         url,
         title,
         recommender_terms,
-        embeddings,
     })
 }
 
@@ -310,7 +285,6 @@ pub async fn insert_article(
     let FetchedArticle {
         title,
         recommender_terms,
-        embeddings,
         ..
     } = article;
 
@@ -319,7 +293,6 @@ pub async fn insert_article(
             let new_item = crate::models::recommendation::NewOnlineArticle {
                 url: canonical_url.to_string(),
                 title,
-                content_text: None,
                 recommender_terms: (!recommender_terms.is_empty())
                     .then_some(serde_json::json!(recommender_terms)),
             };
@@ -330,18 +303,12 @@ pub async fn insert_article(
                 .get_result::<i32>(conn)
                 .await?;
 
-            insert_article_chunks(conn, article_id, &embeddings).await?;
-
             if let Some(source_entry) = source_entry {
-                let metadata_json = serde_json::json!({
-                    "editorialized_title": source_entry.title,
-                    "external_id": source_entry.external_id,
-                });
                 let new_metadata = crate::models::recommendation::NewArticleMetadata {
                     online_article_id: article_id,
                     source_id: source_entry.source_id,
                     external_score: source_entry.external_score,
-                    metadata: Some(metadata_json),
+                    metadata: Some(source_entry.metadata_json()),
                     submitted_at: source_entry.submitted_at,
                 };
                 diesel::insert_into(metadata_dsl::online_article_metadata)
@@ -455,16 +422,22 @@ async fn fetch_lobsters(ctx: &App) -> Result<Vec<SourceEntry>, eyre::Error> {
         url: String,
         score: i64,
         created_at: String,
+        #[serde(default)]
+        tags: Vec<String>,
+        submitter_user: Option<String>,
+        comment_count: Option<i64>,
     }
 
     let conn = &mut ctx.diesel.get().await?;
     let lobsters_source_id =
         get_or_create_source(conn, "lobsters", "Lobsters", Some("https://lobste.rs/")).await?;
-    let url = "https://lobste.rs/hottest.json";
 
     let mut entries = Vec::new();
-    for page in 1..=2 {
-        let response = ctx.http.get(format!("{url}/?page={page}")).send().await?;
+    for url in [
+        "https://lobste.rs/hottest.json",
+        "https://lobste.rs/page/2.json",
+    ] {
+        let response = ctx.http.get(url).send().await?;
         let resp: Vec<LobstersEntry> = response.json().await?;
 
         let new_entries = resp
@@ -488,6 +461,9 @@ async fn fetch_lobsters(ctx: &App) -> Result<Vec<SourceEntry>, eyre::Error> {
                     external_score: Some(entry.score as f64),
                     submitted_at,
                     external_id: entry.short_id,
+                    tags: entry.tags,
+                    submitter: entry.submitter_user,
+                    comment_count: entry.comment_count,
                 })
             })
             .collect::<Vec<_>>();
@@ -506,6 +482,8 @@ async fn fetch_hackernews(ctx: &App) -> Result<Vec<SourceEntry>, eyre::Error> {
         score: i64,
         r#type: String,
         time: i64,
+        by: Option<String>,
+        descendants: Option<i64>,
     }
 
     let conn = &mut ctx.diesel.get().await?;
@@ -558,6 +536,9 @@ async fn fetch_hackernews(ctx: &App) -> Result<Vec<SourceEntry>, eyre::Error> {
                     external_score: Some(item.score as f64),
                     submitted_at,
                     external_id: story_id.to_string(),
+                    tags: Vec::new(),
+                    submitter: item.by,
+                    comment_count: item.descendants,
                 });
             }
         }

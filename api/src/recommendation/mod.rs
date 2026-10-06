@@ -1,37 +1,41 @@
+use arc_swap::ArcSwapOption;
 use axum::{
     Json, Router,
     extract::{Query, State},
     response::sse::{Event, KeepAlive, Sse},
-    routing::get,
+    routing::{get, post},
 };
 use diesel::prelude::*;
-use diesel::sql_types::{Float8, Integer, Jsonb, Nullable, Text, Timestamp};
+use diesel::sql_types::{BigInt, Bool, Float8, Integer, Jsonb, Nullable, Text, Timestamp};
 use diesel_async::{AsyncPgConnection, RunQueryDsl};
 use eyre::eyre;
 use futures_util::stream::StreamExt;
 use robotxt::Robots;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{HashMap, HashSet},
-    time::Duration,
-};
+use std::{collections::HashMap, sync::atomic::AtomicBool, time::Duration};
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 use tokio_stream::wrappers::BroadcastStream;
 
-use crate::{
-    App, error::AppError, recommendation::crawler::MAX_CONCURRENT_FETCHES,
-    utils::RECOMMENDER_EMBEDDING_BITS,
-};
+use crate::{App, error::AppError, recommendation::crawler::MAX_CONCURRENT_FETCHES};
 
 mod crawler;
-mod engine;
+mod feedback;
+mod model;
+mod training;
 
 const MIN_CRAWL_INTERVAL: Duration = Duration::from_mins(10);
 const MIN_RERANK_CANDIDATE_POOL: i64 = 100;
 const MAX_RERANK_CANDIDATE_POOL: i64 = 400;
 const RERANK_CANDIDATE_POOL_MULTIPLIER: i64 = 2;
-const MAX_PROFILE_TERMS: usize = 32;
+
+/// Impressions a row gets before each further one starts to push it down.
+const FATIGUE_FREE_IMPRESSIONS: i32 = 2;
+const FATIGUE_DECAY: f64 = 0.7;
+/// Rows the owner already opened sink but stay in the feed.
+const READ_PENALTY: f64 = 0.2;
+/// Each row already picked from a domain scales the next one's score by this.
+const DOMAIN_REPEAT_DECAY: f64 = 0.75;
 
 pub struct RecommendationSystem {
     pub site_limiter: SiteLimiter,
@@ -39,6 +43,9 @@ pub struct RecommendationSystem {
     pub events: tokio::sync::broadcast::Sender<FeedEvent>,
     last_crawl_time: Mutex<Option<Instant>>,
     crawl_in_progress: Mutex<bool>,
+    taste_model: ArcSwapOption<model::TasteModel>,
+    training: Mutex<()>,
+    retrain_queued: AtomicBool,
 }
 
 impl RecommendationSystem {
@@ -50,6 +57,9 @@ impl RecommendationSystem {
             events,
             last_crawl_time: Mutex::new(None),
             crawl_in_progress: Mutex::new(false),
+            taste_model: ArcSwapOption::empty(),
+            training: Mutex::new(()),
+            retrain_queued: AtomicBool::new(false),
         }
     }
 }
@@ -98,6 +108,10 @@ pub struct SourceInfo {
     pub key: String,
     pub score: Option<f64>,
     pub external_id: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    pub submitter: Option<String>,
+    pub comment_count: Option<i64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -152,35 +166,37 @@ pub enum FeedEvent {
 }
 
 #[derive(QueryableByName, Debug)]
-struct RankedRow {
+struct CandidateRow {
     #[diesel(sql_type = Integer)]
     id: i32,
     #[diesel(sql_type = Text)]
     title: String,
+    #[diesel(sql_type = Text)]
+    original_title: String,
     #[diesel(sql_type = Text)]
     url: String,
     #[diesel(sql_type = Timestamp)]
     created_at: chrono::NaiveDateTime,
     #[diesel(sql_type = Nullable<Timestamp>)]
     submitted_at: Option<chrono::NaiveDateTime>,
-    #[diesel(sql_type = Float8)]
-    score: f64,
+    #[diesel(sql_type = Nullable<BigInt>)]
+    external_rank: Option<i64>,
     #[diesel(sql_type = Nullable<Float8>)]
-    similarity_score: Option<f64>,
+    freshness_score: Option<f64>,
     #[diesel(sql_type = Nullable<Jsonb>)]
     sources: Option<serde_json::Value>,
     #[diesel(sql_type = Nullable<Jsonb>)]
     recommender_terms: Option<serde_json::Value>,
+    #[diesel(sql_type = Integer)]
+    impressions: i32,
+    #[diesel(sql_type = Bool)]
+    clicked: bool,
 }
 
-#[derive(QueryableByName, Debug)]
-struct HistoryProfileRow {
-    #[diesel(sql_type = Text)]
-    title: String,
-    #[diesel(sql_type = Float8)]
-    weight: f64,
-    #[diesel(sql_type = Nullable<Jsonb>)]
-    recommender_terms: Option<serde_json::Value>,
+struct RankedItem {
+    item: FeedItem,
+    domain: Option<String>,
+    created_at: chrono::NaiveDateTime,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -194,6 +210,7 @@ pub fn route() -> Router<App> {
     Router::<App>::new()
         .route("/feed", get(get_feed_snapshot))
         .route("/feed/stream", get(get_feed_stream))
+        .route("/feed/feedback", post(feedback::record_feedback))
 }
 
 pub fn start_background_crawl(ctx: App) {
@@ -250,7 +267,6 @@ async fn fetch_feed_items(
     source_filter: SourceFilter,
     ranking: RankingPreset,
 ) -> Result<Vec<FeedItem>, eyre::Error> {
-    let mut conn = ctx.diesel.get().await?;
     let offset = offset.max(0);
     let candidate_pool_size = limit
         .saturating_add(offset)
@@ -259,7 +275,7 @@ async fn fetch_feed_items(
 
     // RRF k constants for each ranking preset
     // Lower k = more weight given to top-ranked items for that signal
-    let (similarity_k, external_k) = match ranking {
+    let (taste_k, external_k) = match ranking {
         RankingPreset::Balanced => (12.0, 6.0),
         RankingPreset::NewerFirst => (20.0, 15.0),
         RankingPreset::TopFirst => (25.0, 1.0),
@@ -272,12 +288,6 @@ async fn fetch_feed_items(
         RankingPreset::NewerFirst => 4.0,
         RankingPreset::TopFirst => 24.0,
         RankingPreset::SimilarFirst => 12.0,
-    };
-    let lexical_weight = match ranking {
-        RankingPreset::Balanced => 0.55,
-        RankingPreset::NewerFirst => 0.25,
-        RankingPreset::TopFirst => 0.35,
-        RankingPreset::SimilarFirst => 0.75,
     };
 
     // Source filter condition for feed_items
@@ -304,33 +314,19 @@ async fn fetch_feed_items(
         }
     };
 
-    // Two-phase ranking with Reciprocal Rank Fusion (RRF):
-    //
-    // Phase 1: Filter candidates by freshness and external score. This reduces the
-    // corpus to a manageable size before computing similarity and the lexical rerank.
-    //
-    // Phase 2: Compute chunk-level similarity for the candidate pool. This keeps the
-    // query logic simple and pushes the more experimental taste-matching logic into
-    // the lightweight lexical reranker below.
-    //
-    // Weight still matters: high-weight history items contribute more to similarity,
-    // meaning articles similar to important history items rank higher.
-    //
-    // RRF combines ranking signals by converting each to 1/(k + rank), normalizing
-    // different scales. Each signal has its own k constant for tuning.
+    // Candidate generation: the freshest well-scored stories that aren't
+    // already bookmarked or dismissed. The taste model scores them below, and
+    // pagination happens after that so later pages stay consistent.
     let sql = format!(
         r#"
-        WITH history_chunks AS (
-            SELECT
-                hc.embedding,
-                COALESCE(uh.weight, 0.1) AS weight
-            FROM user_history uh
-            JOIN online_article_chunks hc ON hc.online_article_id = uh.online_article_id
-        ),
-        feed_items AS (
+        WITH feed_items AS (
             SELECT i.id, i.title AS original_title, i.url, i.created_at
             FROM online_articles i
             WHERE NOT EXISTS (SELECT 1 FROM user_history uh WHERE uh.online_article_id = i.id)
+            AND NOT EXISTS (
+                SELECT 1 FROM recommender_feedback f
+                WHERE f.online_article_id = i.id AND f.dismissed_at IS NOT NULL
+            )
             {source_filter_sql}
         ),
         -- Aggregate external scores using log dampening
@@ -361,8 +357,6 @@ async fn fetch_feed_items(
                 ROW_NUMBER() OVER (ORDER BY log_external_score DESC NULLS LAST) AS rank
             FROM item_external_scores
         ),
-        -- Phase 1: Select a candidate pool large enough for semantic + lexical reranking,
-        -- and paginate only after the rerank so later pages stay consistent.
         candidates AS (
             SELECT
                 fi.id,
@@ -378,244 +372,194 @@ async fn fetch_feed_items(
                 COALESCE(1.0 / ({external_k} + er.rank), 0.0) * COALESCE(ifr.freshness_score, 0.0)
             ) DESC
             LIMIT $1
-        ),
-        item_similarities AS (
-            SELECT
-                c.id AS online_article_id,
-                MAX((
-                    1.0
-                    - ((cc.embedding <~> hc.embedding) / {RECOMMENDER_EMBEDDING_BITS}.0)
-                ) * hc.weight) AS similarity
-            FROM candidates c
-            JOIN online_article_chunks cc ON cc.online_article_id = c.id
-            CROSS JOIN history_chunks hc
-            GROUP BY c.id
-        ),
-        -- Rank by similarity (higher is better)
-        similarity_ranked AS (
-            SELECT
-                online_article_id,
-                ROW_NUMBER() OVER (ORDER BY similarity DESC NULLS LAST) AS rank
-            FROM item_similarities
-        ),
-        -- Combine similarity and external RRF, then multiply by freshness decay
-        ranked AS (
-            SELECT
-                c.id,
-                c.original_title,
-                c.url,
-                c.created_at,
-                (
-                    (
-                        COALESCE(1.0 / ({similarity_k} + sr.rank), 0.0)
-                        + COALESCE(1.0 / ({external_k} + c.external_rank), 0.0)
-                    ) * COALESCE(c.freshness_score, 0.0)
-                )::FLOAT8 AS score,
-                ism.similarity AS similarity_score
-            FROM candidates c
-            LEFT JOIN similarity_ranked sr ON sr.online_article_id = c.id
-            LEFT JOIN item_similarities ism ON ism.online_article_id = c.id
         )
         SELECT
-            r.id,
+            c.id,
             COALESCE(
                 (SELECT im.metadata->>'editorialized_title'
                  FROM online_article_metadata im
-                 WHERE im.online_article_id = r.id
+                 WHERE im.online_article_id = c.id
                    AND im.metadata->>'editorialized_title' IS NOT NULL
                  ORDER BY im.submitted_at
                  LIMIT 1),
-                r.original_title
+                c.original_title
             ) AS title,
-            r.url,
-            r.created_at,
-            (SELECT MIN(im.submitted_at) FROM online_article_metadata im WHERE im.online_article_id = r.id) AS submitted_at,
-            r.score,
-            r.similarity_score,
-            (SELECT JSONB_AGG(JSONB_BUILD_OBJECT(
-                'key', s.key,
-                'score', im.external_score,
-                'external_id', im.metadata->>'external_id'
-            ))
-            FROM online_article_metadata im
-            JOIN online_article_sources s ON s.id = im.source_id
-            WHERE im.online_article_id = r.id) AS sources,
-            oa.recommender_terms
-        FROM ranked r
-        JOIN online_articles oa ON oa.id = r.id
-        ORDER BY r.score DESC, r.created_at DESC, r.id DESC
-    "#
+            c.original_title,
+            c.url,
+            c.created_at,
+            (SELECT MIN(im.submitted_at) FROM online_article_metadata im WHERE im.online_article_id = c.id) AS submitted_at,
+            c.external_rank,
+            c.freshness_score::FLOAT8 AS freshness_score,
+            {sources} AS sources,
+            oa.recommender_terms,
+            COALESCE(f.impressions, 0) AS impressions,
+            f.clicked_at IS NOT NULL AS clicked
+        FROM candidates c
+        JOIN online_articles oa ON oa.id = c.id
+        LEFT JOIN recommender_feedback f ON f.online_article_id = c.id
+        ORDER BY c.id
+    "#,
+        sources = sources_json_sql("c.id"),
     );
 
-    let rows: Vec<RankedRow> = diesel::sql_query(sql)
+    let taste_model = training::taste_model(ctx).await?;
+
+    let mut conn = ctx.diesel.get().await?;
+    let rows: Vec<CandidateRow> = diesel::sql_query(sql)
         .bind::<Integer, _>(candidate_pool_size as i32)
         .load(&mut conn)
         .await?;
+    drop(conn);
 
-    let history_rows: Vec<HistoryProfileRow> = diesel::sql_query(
-        r#"
-        SELECT
-            oa.title,
-            COALESCE(uh.weight, 0.1)::FLOAT8 AS weight,
-            oa.recommender_terms
-        FROM user_history uh
-        JOIN online_articles oa ON oa.id = uh.online_article_id
-    "#,
-    )
-    .load(&mut conn)
-    .await?;
-
-    let candidate_terms = rows
-        .iter()
-        .map(|row| recommender_terms_for_article(&row.title, row.recommender_terms.as_ref()))
-        .collect::<Vec<_>>();
-    let profile_term_weights = build_profile_term_weights(&history_rows, &candidate_terms);
-    let max_lexical_score = rows
-        .iter()
-        .zip(candidate_terms.iter())
-        .map(|(_, terms)| lexical_profile_score(terms, &profile_term_weights))
-        .fold(0.0, f64::max);
-
-    let mut reranked = rows
+    let candidates = rows
         .into_iter()
-        .zip(candidate_terms)
-        .map(|(row, terms)| {
-            let lexical_score = lexical_profile_score(&terms, &profile_term_weights);
-            let lexical_boost = if max_lexical_score > 0.0 {
-                1.0 + lexical_weight * (lexical_score / max_lexical_score)
-            } else {
-                1.0
-            };
-
-            (row, lexical_boost)
+        .map(|mut row| {
+            let sources = parse_sources(row.sources.take());
+            let terms = model::article_terms(&row.original_title, row.recommender_terms.as_ref());
+            let taste = taste_model.predict(&model::feed_features(&row.url, &terms, &sources));
+            (row, sources, taste)
         })
         .collect::<Vec<_>>();
 
-    reranked.sort_by(|(left_row, left_boost), (right_row, right_boost)| {
-        (right_row.score * right_boost)
-            .total_cmp(&(left_row.score * left_boost))
-            .then_with(|| right_row.created_at.cmp(&left_row.created_at))
-            .then_with(|| right_row.id.cmp(&left_row.id))
-    });
+    let taste_ranks = rank_descending(
+        &candidates
+            .iter()
+            .map(|(_, _, taste)| *taste)
+            .collect::<Vec<_>>(),
+    );
 
-    let start = offset as usize;
-    if start >= reranked.len() {
-        return Ok(Vec::new());
-    }
+    // Reciprocal Rank Fusion of taste and external score, decayed by age and
+    // by how often the owner has already seen or opened the row.
+    let ranked = candidates
+        .into_iter()
+        .zip(taste_ranks)
+        .map(|((row, sources, taste), taste_rank)| {
+            let taste_rrf = taste_rank.map_or(0.0, |rank| 1.0 / (taste_k + rank as f64));
+            let external_rrf = row
+                .external_rank
+                .map_or(0.0, |rank| 1.0 / (external_k + rank as f64));
+            let score = (taste_rrf + external_rrf)
+                * row.freshness_score.unwrap_or(0.0)
+                * fatigue(row.impressions, row.clicked);
 
-    let end = start.saturating_add(limit as usize).min(reranked.len());
-
-    Ok(reranked[start..end]
-        .iter()
-        .map(|(row, lexical_boost)| {
-            let sources: Vec<SourceInfo> = row
-                .sources
-                .clone()
-                .and_then(|value| serde_json::from_value(value).ok())
-                .unwrap_or_default();
-
-            FeedItem {
-                id: row.id,
-                title: row.title.clone(),
-                url: row.url.clone(),
-                score: row.score * lexical_boost,
-                similarity_score: row.similarity_score,
-                submitted_at: row.submitted_at,
-                sources,
+            RankedItem {
+                domain: model::article_domain(&row.url),
+                created_at: row.created_at,
+                item: FeedItem {
+                    id: row.id,
+                    title: row.title,
+                    url: row.url,
+                    score,
+                    similarity_score: taste,
+                    submitted_at: row.submitted_at,
+                    sources,
+                },
             }
         })
+        .collect::<Vec<_>>();
+
+    Ok(diversify_by_domain(ranked)
+        .into_iter()
+        .skip(usize::try_from(offset)?)
+        .take(usize::try_from(limit)?)
+        .map(|ranked| ranked.item)
         .collect())
 }
 
-fn parse_recommender_terms_json(value: Option<&serde_json::Value>) -> Vec<String> {
-    let Some(serde_json::Value::Array(items)) = value else {
-        return Vec::new();
-    };
+/// SQL for the JSON array of an article's HN and Lobsters submissions, in the
+/// shape of [`SourceInfo`].
+fn sources_json_sql(article_id: &str) -> String {
+    format!(
+        r#"(SELECT JSONB_AGG(JSONB_BUILD_OBJECT(
+            'key', s.key,
+            'score', im.external_score,
+            'external_id', im.metadata->>'external_id',
+            'tags', COALESCE(im.metadata->'tags', '[]'::JSONB),
+            'submitter', im.metadata->>'submitter',
+            'comment_count', (im.metadata->>'comment_count')::BIGINT
+        ))
+        FROM online_article_metadata im
+        JOIN online_article_sources s ON s.id = im.source_id
+        WHERE im.online_article_id = {article_id})"#
+    )
+}
 
-    let mut seen = HashSet::new();
-    items
-        .iter()
-        .filter_map(|item| item.as_str())
-        .filter_map(|term| {
-            let term = term.trim();
-            (!term.is_empty() && seen.insert(term.to_string())).then_some(term.to_string())
+fn parse_sources(value: Option<serde_json::Value>) -> Vec<SourceInfo> {
+    value
+        .and_then(|value| {
+            serde_json::from_value(value)
+                .inspect_err(|err| tracing::warn!(?err, "Failed to parse article sources"))
+                .ok()
         })
-        .collect()
+        .unwrap_or_default()
 }
 
-fn recommender_terms_for_article(
-    title: &str,
-    stored_terms: Option<&serde_json::Value>,
-) -> HashSet<String> {
-    let stored_terms = parse_recommender_terms_json(stored_terms);
-    let effective_terms = if stored_terms.is_empty() {
-        crate::utils::extract_recommender_terms(title, None)
-    } else {
-        stored_terms
-    };
+/// 1-based rank of each value, highest first. `None`s stay unranked.
+fn rank_descending(values: &[Option<f64>]) -> Vec<Option<usize>> {
+    let mut order = values
+        .iter()
+        .enumerate()
+        .filter_map(|(index, value)| value.map(|value| (index, value)))
+        .collect::<Vec<_>>();
+    order.sort_by(|(_, left), (_, right)| right.total_cmp(left));
 
-    effective_terms.into_iter().collect()
-}
-
-fn build_profile_term_weights(
-    history_rows: &[HistoryProfileRow],
-    candidate_terms: &[HashSet<String>],
-) -> HashMap<String, f64> {
-    let mut candidate_document_frequency = HashMap::new();
-    for terms in candidate_terms {
-        for term in terms {
-            *candidate_document_frequency
-                .entry(term.clone())
-                .or_insert(0usize) += 1;
+    let mut ranks = vec![None; values.len()];
+    for (rank, (index, _)) in order.into_iter().enumerate() {
+        if let Some(slot) = ranks.get_mut(index) {
+            *slot = Some(rank + 1);
         }
     }
+    ranks
+}
 
-    let candidate_count = candidate_terms.len() as f64;
-    if candidate_count <= 0.0 {
-        return HashMap::new();
+fn fatigue(impressions: i32, clicked: bool) -> f64 {
+    if clicked {
+        return READ_PENALTY;
     }
 
-    let mut weighted_terms = HashMap::new();
-    for row in history_rows {
-        let terms = recommender_terms_for_article(&row.title, row.recommender_terms.as_ref());
-        for term in terms {
-            let document_frequency = candidate_document_frequency
-                .get(&term)
+    FATIGUE_DECAY.powi((impressions - FATIGUE_FREE_IMPRESSIONS).max(0))
+}
+
+/// Orders items by score, but each time a domain is picked, its remaining
+/// items lose some score, so one busy site can't fill a whole page.
+fn diversify_by_domain(mut remaining: Vec<RankedItem>) -> Vec<RankedItem> {
+    let mut picked_per_domain = HashMap::<String, i32>::new();
+    let mut ordered = Vec::with_capacity(remaining.len());
+
+    loop {
+        let adjusted_score = |candidate: &RankedItem| {
+            let repeats = candidate
+                .domain
+                .as_ref()
+                .and_then(|domain| picked_per_domain.get(domain))
                 .copied()
                 .unwrap_or(0);
-            let specificity = ((candidate_count + 1.0) / (document_frequency as f64 + 1.0)).ln();
-            if specificity <= 0.0 {
-                continue;
-            }
+            candidate.item.score * DOMAIN_REPEAT_DECAY.powi(repeats)
+        };
 
-            *weighted_terms.entry(term).or_insert(0.0) += row.weight * specificity;
+        let best = remaining
+            .iter()
+            .enumerate()
+            .max_by(|(_, left), (_, right)| {
+                adjusted_score(left)
+                    .total_cmp(&adjusted_score(right))
+                    .then_with(|| left.created_at.cmp(&right.created_at))
+                    .then_with(|| left.item.id.cmp(&right.item.id))
+            })
+            .map(|(index, _)| index);
+        let Some(best) = best else {
+            break;
+        };
+
+        let mut picked = remaining.swap_remove(best);
+        picked.item.score = adjusted_score(&picked);
+        if let Some(domain) = &picked.domain {
+            *picked_per_domain.entry(domain.clone()).or_insert(0) += 1;
         }
+        ordered.push(picked);
     }
 
-    let mut ranked_terms = weighted_terms.into_iter().collect::<Vec<_>>();
-    ranked_terms.sort_by(|(left_term, left_score), (right_term, right_score)| {
-        right_score
-            .total_cmp(left_score)
-            .then_with(|| left_term.cmp(right_term))
-    });
-    ranked_terms.truncate(MAX_PROFILE_TERMS);
-    ranked_terms.into_iter().collect()
-}
-
-fn lexical_profile_score(
-    candidate_terms: &HashSet<String>,
-    profile_term_weights: &HashMap<String, f64>,
-) -> f64 {
-    if candidate_terms.is_empty() || profile_term_weights.is_empty() {
-        return 0.0;
-    }
-
-    let matched_weight = candidate_terms
-        .iter()
-        .filter_map(|term| profile_term_weights.get(term))
-        .sum::<f64>();
-
-    matched_weight / (candidate_terms.len() as f64).sqrt().max(1.0)
+    ordered
 }
 
 async fn newest_item_id(ctx: &App) -> Result<Option<i32>, eyre::Error> {
@@ -683,6 +627,10 @@ async fn run_crawl_and_notify(ctx: App) -> Result<(), eyre::Error> {
         let _ = crawl.inspect_err(|err| {
             tracing::error!(?err, "Crawl failed");
         });
+
+        // New bookmarks, and rows that were skipped often enough since the
+        // last crawl, change the training data.
+        training::schedule_retrain(&ctx);
 
         let new_items = count_new_items(&ctx, newest_id).await?;
         if new_items > 0 {
@@ -816,7 +764,7 @@ async fn insert_user_history(
 
         match existing_item {
             Some(item) => {
-                if item.content_text.is_some() || item.recommender_terms.is_none() {
+                if crawler::needs_recommender_backfill(&item) {
                     articles_to_backfill.insert(item.id, item.clone());
                 }
 
@@ -876,9 +824,7 @@ async fn insert_user_history(
         .map(|entry| {
             let ctx = ctx.clone();
             async move {
-                let article =
-                    crawler::fetch_and_generate_embedding(&ctx, entry.url.clone(), entry.title)
-                        .await?;
+                let article = crawler::fetch_article(&ctx, entry.url.clone(), entry.title).await?;
                 let mut conn = ctx.diesel.get().await?;
                 let article_id = crawler::insert_article(&mut conn, article, None)
                     .await
@@ -954,4 +900,62 @@ struct RaindropEntry {
 struct RaindropHighlightsResponse {
     result: bool,
     items: Vec<RaindropEntry>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ranked(id: i32, domain: &str, score: f64) -> RankedItem {
+        RankedItem {
+            item: FeedItem {
+                id,
+                title: String::new(),
+                url: format!("https://{domain}/{id}"),
+                score,
+                similarity_score: None,
+                submitted_at: None,
+                sources: Vec::new(),
+            },
+            domain: Some(domain.to_string()),
+            created_at: chrono::NaiveDateTime::default(),
+        }
+    }
+
+    #[test]
+    fn ranks_highest_first_and_skips_missing() {
+        assert_eq!(
+            rank_descending(&[Some(0.2), None, Some(0.9), Some(0.5)]),
+            vec![Some(3), None, Some(1), Some(2)]
+        );
+    }
+
+    #[test]
+    fn fatigue_spares_the_first_impressions() {
+        assert_eq!(fatigue(0, false), 1.0);
+        assert_eq!(fatigue(FATIGUE_FREE_IMPRESSIONS, false), 1.0);
+        assert!(fatigue(FATIGUE_FREE_IMPRESSIONS + 1, false) < 1.0);
+        assert_eq!(fatigue(0, true), READ_PENALTY);
+    }
+
+    #[test]
+    fn spreads_out_a_dominant_domain() {
+        let ordered = diversify_by_domain(vec![
+            ranked(1, "github.com", 1.0),
+            ranked(2, "github.com", 0.95),
+            ranked(3, "github.com", 0.9),
+            ranked(4, "blog.dev", 0.8),
+        ]);
+
+        let ids = ordered
+            .iter()
+            .map(|ranked| ranked.item.id)
+            .collect::<Vec<_>>();
+        assert_eq!(ids, vec![1, 4, 2, 3]);
+        assert!(
+            ordered
+                .windows(2)
+                .all(|pair| matches!(pair, [left, right] if left.item.score >= right.item.score))
+        );
+    }
 }

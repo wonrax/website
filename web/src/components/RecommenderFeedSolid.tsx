@@ -8,6 +8,7 @@ import {
 } from "solid-js";
 import { toast } from "solid-sonner";
 import config from "@/config";
+import { AppState, checkAuthUser } from "@/state";
 import { formatRelativeShort } from "@/utils/time";
 import "./RecommenderFeedSolid.scss";
 
@@ -36,6 +37,8 @@ interface FeedEvent {
   data: { count: number };
 }
 
+type FeedbackKind = "impression" | "click" | "dismiss" | "undismiss";
+
 type SourceFilter = "all" | "hacker_news" | "lobsters";
 type RankingPreset = "balanced" | "newer_first" | "top_first" | "similar_first";
 type FeedFilters = {
@@ -60,6 +63,28 @@ const DEFAULT_FILTERS: FeedFilters = {
   sourceFilter: "all",
   ranking: "balanced",
 };
+
+const IMPRESSION_FLUSH_MS = 5000;
+// The API takes at most this many ids per feedback request.
+const MAX_FEEDBACK_IDS = 100;
+
+// Feedback trains the feed, so the API only accepts it from the site owner.
+async function sendFeedback(
+  kind: FeedbackKind,
+  ids: number[],
+  keepalive = false
+): Promise<void> {
+  const resp = await fetch(`${config.API_URL}/feed/feedback`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind, ids }),
+    keepalive,
+  });
+  if (!resp.ok) {
+    throw new Error(`API error: ${resp.status}`);
+  }
+}
 
 function isSourceFilter(value: string | null): value is SourceFilter {
   return SOURCE_OPTIONS.some((option) => option.value === value);
@@ -230,6 +255,92 @@ export default function RecommenderFeed(): JSXElement {
 
   const LIMIT = 20;
 
+  const isOwner = () => AppState.authUser?.siteOwner === true;
+
+  // Rows that scroll into view queue up as impressions, flushed every few
+  // seconds and when the page is hidden. Each row counts once per page load.
+  const seenIds = new Set<number>();
+  const clickedIds = new Set<number>();
+  let pendingImpressions: number[] = [];
+
+  const flushImpressions = (keepalive = false) => {
+    // Hold on to the queue until the auth check says who's looking.
+    if (AppState.authUser === undefined) return;
+    const ids = pendingImpressions;
+    pendingImpressions = [];
+    if (!isOwner()) return;
+
+    for (let i = 0; i < ids.length; i += MAX_FEEDBACK_IDS) {
+      sendFeedback(
+        "impression",
+        ids.slice(i, i + MAX_FEEDBACK_IDS),
+        keepalive
+      ).catch((e: unknown) => {
+        console.warn("Failed to record impressions:", e);
+      });
+    }
+  };
+
+  const impressionObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        impressionObserver.unobserve(entry.target);
+        const id = Number((entry.target as HTMLElement).dataset.id);
+        if (!Number.isInteger(id) || seenIds.has(id)) continue;
+        seenIds.add(id);
+        pendingImpressions.push(id);
+      }
+    },
+    { threshold: 0.6 }
+  );
+
+  const recordClick = (id: number) => {
+    if (!isOwner() || clickedIds.has(id)) return;
+    clickedIds.add(id);
+    sendFeedback("click", [id]).catch((e: unknown) => {
+      console.warn("Failed to record click:", e);
+    });
+  };
+
+  const dismiss = (item: FeedItem) => {
+    const index = items().findIndex((i) => i.id === item.id);
+    if (index < 0) return;
+
+    const restore = () => {
+      setItems((prev) => {
+        if (prev.some((i) => i.id === item.id)) return prev;
+        const next = [...prev];
+        next.splice(Math.min(index, next.length), 0, item);
+        return next;
+      });
+    };
+
+    setItems((prev) => prev.filter((i) => i.id !== item.id));
+
+    sendFeedback("dismiss", [item.id])
+      .then(() => {
+        toast("Hidden from the feed", {
+          duration: 5000,
+          action: {
+            label: "undo",
+            onClick: () => {
+              restore();
+              sendFeedback("undismiss", [item.id]).catch(() => {
+                toast.error("Couldn't undo hiding that item", {
+                  duration: 5000,
+                });
+              });
+            },
+          },
+        });
+      })
+      .catch(() => {
+        restore();
+        toast.error("Couldn't hide that item", { duration: 5000 });
+      });
+  };
+
   const fetchFeed = async (
     currentOffset: number,
     append = false,
@@ -254,7 +365,12 @@ export default function RecommenderFeed(): JSXElement {
       const data: FeedSnapshot = await resp.json();
 
       if (append) {
-        setItems((prev) => [...prev, ...data.items]);
+        // A click or dismiss retrains the ranking between pages, so a later
+        // page can repeat a row already shown.
+        setItems((prev) => {
+          const shown = new Set(prev.map((i) => i.id));
+          return [...prev, ...data.items.filter((i) => !shown.has(i.id))];
+        });
       } else {
         setItems(data.items);
       }
@@ -308,6 +424,21 @@ export default function RecommenderFeed(): JSXElement {
   };
 
   onMount(() => {
+    if (AppState.authUser === undefined) {
+      checkAuthUser().catch((e: unknown) => {
+        console.warn("Failed to check auth status:", e);
+      });
+    }
+
+    const flushTimer = window.setInterval(
+      () => flushImpressions(),
+      IMPRESSION_FLUSH_MS
+    );
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flushImpressions(true);
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     writeFiltersToUrl(
       {
         sourceFilter: sourceFilter(),
@@ -377,8 +508,12 @@ export default function RecommenderFeed(): JSXElement {
 
     onCleanup(() => {
       window.removeEventListener("popstate", handlePopState);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.clearInterval(flushTimer);
+      flushImpressions(true);
       eventSource.close();
       sentinelObserver.disconnect();
+      impressionObserver.disconnect();
     });
   });
 
@@ -449,7 +584,11 @@ export default function RecommenderFeed(): JSXElement {
                   );
                   const domain = getWebsiteUrl(item.url);
                   return (
-                    <li class="recommender-feed__entry">
+                    <li
+                      class="recommender-feed__entry"
+                      data-id={item.id}
+                      ref={(el) => impressionObserver.observe(el)}
+                    >
                       <span class="recommender-feed__index">
                         {String(i() + 1).padStart(2, "0")}
                       </span>
@@ -484,6 +623,8 @@ export default function RecommenderFeed(): JSXElement {
                                     href={url ?? "#"}
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    onClick={() => recordClick(item.id)}
+                                    onAuxClick={() => recordClick(item.id)}
                                   >
                                     {label}
                                     {score}
@@ -499,6 +640,8 @@ export default function RecommenderFeed(): JSXElement {
                         target="_blank"
                         rel="noopener noreferrer"
                         class="recommender-feed__title"
+                        onClick={() => recordClick(item.id)}
+                        onAuxClick={() => recordClick(item.id)}
                       >
                         {item.title}
                       </a>
@@ -507,6 +650,8 @@ export default function RecommenderFeed(): JSXElement {
                         target="_blank"
                         rel="noopener noreferrer"
                         class="ui-link ui-link--title recommender-feed__domain"
+                        onClick={() => recordClick(item.id)}
+                        onAuxClick={() => recordClick(item.id)}
                       >
                         {domain}{" "}
                         <span class="recommender-feed__domain-arrow">
@@ -514,6 +659,16 @@ export default function RecommenderFeed(): JSXElement {
                         </span>
                       </a>
                       <MatchDots match={item.similarity_score} />
+                      <Show when={isOwner()}>
+                        <button
+                          type="button"
+                          class="ui-button ui-button--xs ui-button--ghost recommender-feed__dismiss"
+                          title="Not interested: hide it and rank similar items lower"
+                          onClick={() => dismiss(item)}
+                        >
+                          hide
+                        </button>
+                      </Show>
                     </li>
                   );
                 }}

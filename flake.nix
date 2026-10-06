@@ -3,7 +3,6 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/release-26.05";
-    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
 
     rust-overlay = {
@@ -22,7 +21,6 @@
     {
       self,
       nixpkgs,
-      nixpkgs-unstable,
       rust-overlay,
       flake-utils,
       prisma-utils,
@@ -34,7 +32,6 @@
       let
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs { inherit system overlays; };
-        pkgsUnstable = import nixpkgs-unstable { inherit system overlays; };
 
         # Use crane with the latest stable toolchain for reproducible builds
         craneLib = (crane.mkLib pkgs).overrideToolchain (p: p.rust-bin.stable.latest.default);
@@ -81,7 +78,6 @@
               buildInputs = with pkgs; [
                 openssl
                 libxml2
-                pkgsUnstable.onnxruntime
               ];
               nativeBuildInputs = with pkgs; [
                 pkg-config
@@ -89,8 +85,6 @@
                 clang # rust-bindgen
               ];
               inherit LIBCLANG_PATH;
-              ORT_LIB_LOCATION = "${pkgsUnstable.onnxruntime}/lib";
-              ORT_PREFER_DYNAMIC_LINK = "1";
             };
           in
           craneLib.buildPackage (

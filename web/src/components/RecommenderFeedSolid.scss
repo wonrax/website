@@ -170,12 +170,18 @@
 
   &__match {
     grid-column: 4;
-    grid-row: 1 / span 3;
+    grid-row: 1 / span 2;
     padding-top: 2px;
     text-align: right;
     white-space: nowrap;
     font-family: var(--font-mono);
     font-size: var(--font-size-md);
+  }
+
+  &__dismiss {
+    grid-column: 4;
+    grid-row: 3;
+    justify-self: end;
   }
 
   &__match-na {
@@ -258,7 +264,12 @@
     }
 
     &__domain {
-      grid-column: 1 / -1;
+      grid-column: 1;
+      grid-row: 3;
+    }
+
+    &__dismiss {
+      grid-column: 2;
       grid-row: 3;
     }
   }
