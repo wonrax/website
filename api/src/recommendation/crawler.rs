@@ -63,6 +63,8 @@ pub struct SourceEntry {
     pub tags: Vec<String>,
     pub submitter: Option<String>,
     pub comment_count: Option<i64>,
+    /// Where the submission's comments are, when the source says so.
+    pub discussion_url: Option<String>,
 }
 
 impl SourceEntry {
@@ -74,6 +76,7 @@ impl SourceEntry {
             "tags": self.tags,
             "submitter": self.submitter,
             "comment_count": self.comment_count,
+            "discussion_url": self.discussion_url,
         })
     }
 }
@@ -426,6 +429,7 @@ async fn fetch_lobsters(ctx: &App) -> Result<Vec<SourceEntry>, eyre::Error> {
         tags: Vec<String>,
         submitter_user: Option<String>,
         comment_count: Option<i64>,
+        comments_url: Option<String>,
     }
 
     let conn = &mut ctx.diesel.get().await?;
@@ -464,6 +468,11 @@ async fn fetch_lobsters(ctx: &App) -> Result<Vec<SourceEntry>, eyre::Error> {
                     tags: entry.tags,
                     submitter: entry.submitter_user,
                     comment_count: entry.comment_count,
+                    // It ends up in an href, so nothing but http(s)
+                    discussion_url: entry.comments_url.filter(|comments_url| {
+                        url::Url::parse(comments_url)
+                            .is_ok_and(|parsed| matches!(parsed.scheme(), "http" | "https"))
+                    }),
                 })
             })
             .collect::<Vec<_>>();
@@ -539,6 +548,7 @@ async fn fetch_hackernews(ctx: &App) -> Result<Vec<SourceEntry>, eyre::Error> {
                     tags: Vec::new(),
                     submitter: item.by,
                     comment_count: item.descendants,
+                    discussion_url: None,
                 });
             }
         }

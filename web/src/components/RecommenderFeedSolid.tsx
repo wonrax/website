@@ -16,6 +16,7 @@ interface SourceInfo {
   key: string;
   score: number | null;
   external_id: string | null;
+  discussion_url: string | null;
 }
 
 interface FeedItem {
@@ -162,6 +163,7 @@ function formatSourceKey(key: string): string {
 }
 
 function getSourceDiscussionUrl(source: SourceInfo): string | null {
+  if (source.discussion_url) return source.discussion_url;
   if (!source.external_id) return null;
   if (source.key === "hacker-news") {
     return `https://news.ycombinator.com/item?id=${source.external_id}`;

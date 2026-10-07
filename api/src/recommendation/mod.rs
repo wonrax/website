@@ -112,6 +112,7 @@ pub struct SourceInfo {
     pub tags: Vec<String>,
     pub submitter: Option<String>,
     pub comment_count: Option<i64>,
+    pub discussion_url: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -476,7 +477,8 @@ fn sources_json_sql(article_id: &str) -> String {
             'external_id', im.metadata->>'external_id',
             'tags', COALESCE(im.metadata->'tags', '[]'::JSONB),
             'submitter', im.metadata->>'submitter',
-            'comment_count', (im.metadata->>'comment_count')::BIGINT
+            'comment_count', (im.metadata->>'comment_count')::BIGINT,
+            'discussion_url', im.metadata->>'discussion_url'
         ))
         FROM online_article_metadata im
         JOIN online_article_sources s ON s.id = im.source_id
