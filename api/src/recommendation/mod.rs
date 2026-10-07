@@ -185,7 +185,7 @@ struct CandidateRow {
     #[diesel(sql_type = Nullable<Float8>)]
     popularity: Option<f64>,
     #[diesel(sql_type = Nullable<Float8>)]
-    freshness_score: Option<f64>,
+    age_hours: Option<f64>,
     #[diesel(sql_type = Nullable<Jsonb>)]
     sources: Option<serde_json::Value>,
     #[diesel(sql_type = Nullable<Jsonb>)]
@@ -348,11 +348,11 @@ async fn fetch_feed_items(
             JOIN source_percentiles sp ON sp.online_article_id = fi.id
             GROUP BY fi.id
         ),
-        -- Freshness score: exponential decay with configurable half-life
-        item_freshness AS (
+        -- Hours since the story was first submitted anywhere
+        item_age AS (
             SELECT
                 fi.id AS online_article_id,
-                EXP(-EXTRACT(EPOCH FROM (NOW() - MIN(im.submitted_at))) / 3600.0 * LN(2) / {freshness_half_life} + 3) AS freshness_score
+                EXTRACT(EPOCH FROM (NOW() - MIN(im.submitted_at)))::FLOAT8 / 3600.0 AS age_hours
             FROM feed_items fi
             JOIN online_article_metadata im ON im.online_article_id = fi.id
             GROUP BY fi.id
@@ -372,13 +372,16 @@ async fn fetch_feed_items(
                 fi.url,
                 fi.created_at,
                 pr.popularity,
-                ifr.freshness_score
+                ia.age_hours
             FROM feed_items fi
             LEFT JOIN popularity_ranked pr ON pr.online_article_id = fi.id
-            LEFT JOIN item_freshness ifr ON ifr.online_article_id = fi.id
+            LEFT JOIN item_age ia ON ia.online_article_id = fi.id
+            -- The log of popularity times freshness. Postgres raises an error
+            -- instead of returning 0 when EXP underflows, which the freshness
+            -- of a months-old story under a short half-life does.
             ORDER BY (
-                COALESCE(1.0 / ({external_k} + pr.rank), 0.0) * COALESCE(ifr.freshness_score, 0.0)
-            ) DESC, fi.id DESC
+                -LN({external_k}::FLOAT8 + pr.rank) - ia.age_hours * LN(2) / {freshness_half_life}
+            ) DESC NULLS LAST, fi.id DESC
             LIMIT $1
         )
         SELECT
@@ -397,7 +400,7 @@ async fn fetch_feed_items(
             c.created_at,
             (SELECT MIN(im.submitted_at) FROM online_article_metadata im WHERE im.online_article_id = c.id) AS submitted_at,
             c.popularity::FLOAT8 AS popularity,
-            c.freshness_score::FLOAT8 AS freshness_score,
+            c.age_hours,
             {sources} AS sources,
             oa.recommender_terms,
             COALESCE(f.impressions, 0) AS impressions,
@@ -437,7 +440,7 @@ async fn fetch_feed_items(
             let popularity = popularity_rank.map_or(0.0, |rank| 1.0 / (external_k + rank as f64));
             let score = popularity
                 * taste_factor(taste, taste_weight)
-                * row.freshness_score.unwrap_or(0.0)
+                * freshness(row.age_hours, freshness_half_life)
                 * fatigue(row.impressions, row.clicked);
 
             RankedItem {
@@ -519,6 +522,14 @@ fn taste_factor(taste: Option<f64>, weight: f64) -> f64 {
     taste.map_or(1.0, |probability| {
         let probability = probability.clamp(1.0 - MAX_TASTE_CONFIDENCE, MAX_TASTE_CONFIDENCE);
         (probability / (1.0 - probability)).powf(weight)
+    })
+}
+
+/// Halves every half-life. A story too old for an f64 to hold its freshness
+/// gets 0.
+fn freshness(age_hours: Option<f64>, half_life_hours: f64) -> f64 {
+    age_hours.map_or(0.0, |age_hours| {
+        (-age_hours * std::f64::consts::LN_2 / half_life_hours).exp()
     })
 }
 
@@ -949,6 +960,14 @@ mod tests {
         assert!(taste_factor(Some(0.1), 1.0) < 1.0);
         assert!(taste_factor(Some(1.0), 2.0).is_finite());
         assert!(taste_factor(Some(0.0), 2.0) > 0.0);
+    }
+
+    #[test]
+    fn freshness_halves_each_half_life_and_bottoms_out_at_zero() {
+        assert!((freshness(Some(4.0), 4.0) - 0.5).abs() < 1e-12);
+        assert!((freshness(Some(0.0), 4.0) - 1.0).abs() < 1e-12);
+        assert_eq!(freshness(Some(24.0 * 365.0 * 10.0), 4.0), 0.0);
+        assert_eq!(freshness(None, 4.0), 0.0);
     }
 
     #[test]
