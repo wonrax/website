@@ -185,7 +185,7 @@ pub fn article_terms(title: &str, stored_terms: Option<&serde_json::Value>) -> H
             .iter()
             .filter_map(|item| item.as_str())
             .map(str::trim)
-            .filter(|term| !term.is_empty())
+            .filter(|term| !term.is_empty() && !crate::utils::is_recommender_noise(term))
             .map(str::to_string)
             .collect::<HashSet<_>>(),
         _ => HashSet::new(),
@@ -315,6 +315,12 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    #[test]
+    fn drops_noise_from_stored_terms() {
+        let terms = article_terms("Title", Some(&serde_json::json!(["thi", "http", "rust"])));
+        assert_eq!(terms, HashSet::from(["rust".to_string()]));
     }
 
     #[test]
