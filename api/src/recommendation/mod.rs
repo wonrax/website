@@ -6,7 +6,7 @@ use axum::{
     routing::{get, post},
 };
 use diesel::prelude::*;
-use diesel::sql_types::{BigInt, Bool, Float8, Integer, Jsonb, Nullable, Text, Timestamp};
+use diesel::sql_types::{Bool, Float8, Integer, Jsonb, Nullable, Text, Timestamp};
 use diesel_async::{AsyncPgConnection, RunQueryDsl};
 use eyre::eyre;
 use futures_util::stream::StreamExt;
@@ -25,9 +25,11 @@ mod model;
 mod training;
 
 const MIN_CRAWL_INTERVAL: Duration = Duration::from_mins(10);
-const MIN_RERANK_CANDIDATE_POOL: i64 = 100;
-const MAX_RERANK_CANDIDATE_POOL: i64 = 400;
-const RERANK_CANDIDATE_POOL_MULTIPLIER: i64 = 2;
+/// Every request ranks the same pool, whatever page it asks for, so pages
+/// don't shift against each other.
+const CANDIDATE_POOL_SIZE: i32 = 400;
+/// Keeps the taste model's odds finite.
+const MAX_TASTE_CONFIDENCE: f64 = 0.98;
 
 /// Impressions a row gets before each further one starts to push it down.
 const FATIGUE_FREE_IMPRESSIONS: i32 = 2;
@@ -180,8 +182,8 @@ struct CandidateRow {
     created_at: chrono::NaiveDateTime,
     #[diesel(sql_type = Nullable<Timestamp>)]
     submitted_at: Option<chrono::NaiveDateTime>,
-    #[diesel(sql_type = Nullable<BigInt>)]
-    external_rank: Option<i64>,
+    #[diesel(sql_type = Nullable<Float8>)]
+    popularity: Option<f64>,
     #[diesel(sql_type = Nullable<Float8>)]
     freshness_score: Option<f64>,
     #[diesel(sql_type = Nullable<Jsonb>)]
@@ -269,18 +271,15 @@ async fn fetch_feed_items(
     ranking: RankingPreset,
 ) -> Result<Vec<FeedItem>, eyre::Error> {
     let offset = offset.max(0);
-    let candidate_pool_size = limit
-        .saturating_add(offset)
-        .saturating_mul(RERANK_CANDIDATE_POOL_MULTIPLIER)
-        .clamp(MIN_RERANK_CANDIDATE_POOL, MAX_RERANK_CANDIDATE_POOL);
 
-    // RRF k constants for each ranking preset
-    // Lower k = more weight given to top-ranked items for that signal
-    let (taste_k, external_k) = match ranking {
-        RankingPreset::Balanced => (12.0, 6.0),
-        RankingPreset::NewerFirst => (20.0, 15.0),
-        RankingPreset::TopFirst => (25.0, 1.0),
-        RankingPreset::SimilarFirst => (1.0, 25.0),
+    // How far each preset leans on taste and popularity. The taste weight is
+    // the power the model's odds are raised to. A lower external k gives the
+    // pool's most popular stories more of a lead over the rest.
+    let (taste_weight, external_k) = match ranking {
+        RankingPreset::Balanced => (1.0, 6.0),
+        RankingPreset::NewerFirst => (0.5, 15.0),
+        RankingPreset::TopFirst => (0.25, 1.0),
+        RankingPreset::SimilarFirst => (2.0, 25.0),
     };
 
     // Freshness decay half-life in hours for each preset
@@ -302,7 +301,7 @@ async fn fetch_feed_items(
         }
     };
 
-    // Source filter for external score aggregation - only count the filtered source's score
+    // Source filter for popularity - only count the filtered source's score
     let external_score_source_filter = match source_filter {
         SourceFilter::All => String::new(),
         SourceFilter::HackerNews => {
@@ -330,15 +329,23 @@ async fn fetch_feed_items(
             )
             {source_filter_sql}
         ),
-        -- Aggregate external scores using log dampening
-        -- When a source filter is applied, only that source's score is used for ranking
-        item_external_scores AS (
+        -- Popularity is a submission's percentile among its source's
+        -- submissions, so HN points and Lobsters scores compare. A story on
+        -- both sites takes the better one.
+        source_percentiles AS (
             SELECT
-                fi.id AS online_article_id,
-                SUM(LN(COALESCE(im.external_score, 0.0) + 1.0)) AS log_external_score
-            FROM feed_items fi
-            LEFT JOIN online_article_metadata im ON im.online_article_id = fi.id
+                im.online_article_id,
+                PERCENT_RANK() OVER (
+                    PARTITION BY im.source_id
+                    ORDER BY COALESCE(im.external_score, 0.0)
+                ) AS percentile
+            FROM online_article_metadata im
             {external_score_source_filter}
+        ),
+        item_popularity AS (
+            SELECT fi.id AS online_article_id, MAX(sp.percentile) AS popularity
+            FROM feed_items fi
+            JOIN source_percentiles sp ON sp.online_article_id = fi.id
             GROUP BY fi.id
         ),
         -- Freshness score: exponential decay with configurable half-life
@@ -350,13 +357,13 @@ async fn fetch_feed_items(
             JOIN online_article_metadata im ON im.online_article_id = fi.id
             GROUP BY fi.id
         ),
-        -- Rank by external score (higher is better)
-        external_ranked AS (
+        -- Rank by popularity across the corpus to pick the pool (higher is better)
+        popularity_ranked AS (
             SELECT
                 online_article_id,
-                log_external_score,
-                ROW_NUMBER() OVER (ORDER BY log_external_score DESC NULLS LAST) AS rank
-            FROM item_external_scores
+                popularity,
+                ROW_NUMBER() OVER (ORDER BY popularity DESC, online_article_id DESC) AS rank
+            FROM item_popularity
         ),
         candidates AS (
             SELECT
@@ -364,14 +371,14 @@ async fn fetch_feed_items(
                 fi.original_title,
                 fi.url,
                 fi.created_at,
-                er.rank AS external_rank,
+                pr.popularity,
                 ifr.freshness_score
             FROM feed_items fi
-            LEFT JOIN external_ranked er ON er.online_article_id = fi.id
+            LEFT JOIN popularity_ranked pr ON pr.online_article_id = fi.id
             LEFT JOIN item_freshness ifr ON ifr.online_article_id = fi.id
             ORDER BY (
-                COALESCE(1.0 / ({external_k} + er.rank), 0.0) * COALESCE(ifr.freshness_score, 0.0)
-            ) DESC
+                COALESCE(1.0 / ({external_k} + pr.rank), 0.0) * COALESCE(ifr.freshness_score, 0.0)
+            ) DESC, fi.id DESC
             LIMIT $1
         )
         SELECT
@@ -389,7 +396,7 @@ async fn fetch_feed_items(
             c.url,
             c.created_at,
             (SELECT MIN(im.submitted_at) FROM online_article_metadata im WHERE im.online_article_id = c.id) AS submitted_at,
-            c.external_rank,
+            c.popularity::FLOAT8 AS popularity,
             c.freshness_score::FLOAT8 AS freshness_score,
             {sources} AS sources,
             oa.recommender_terms,
@@ -407,39 +414,29 @@ async fn fetch_feed_items(
 
     let mut conn = ctx.diesel.get().await?;
     let rows: Vec<CandidateRow> = diesel::sql_query(sql)
-        .bind::<Integer, _>(candidate_pool_size as i32)
+        .bind::<Integer, _>(CANDIDATE_POOL_SIZE)
         .load(&mut conn)
         .await?;
     drop(conn);
 
-    let candidates = rows
+    // Popularity counts by its rank within the pool, so its pull doesn't
+    // depend on how many articles the corpus has piled up.
+    let popularity_ranks =
+        rank_descending(&rows.iter().map(|row| row.popularity).collect::<Vec<_>>());
+
+    // Popularity scaled by the taste model's odds, then decayed by age and by
+    // how often the owner has already seen or opened the row.
+    let ranked = rows
         .into_iter()
-        .map(|mut row| {
+        .zip(popularity_ranks)
+        .map(|(mut row, popularity_rank)| {
             let sources = parse_sources(row.sources.take());
             let terms = model::article_terms(&row.original_title, row.recommender_terms.as_ref());
             let taste = taste_model.predict(&model::feed_features(&row.url, &terms, &sources));
-            (row, sources, taste)
-        })
-        .collect::<Vec<_>>();
 
-    let taste_ranks = rank_descending(
-        &candidates
-            .iter()
-            .map(|(_, _, taste)| *taste)
-            .collect::<Vec<_>>(),
-    );
-
-    // Reciprocal Rank Fusion of taste and external score, decayed by age and
-    // by how often the owner has already seen or opened the row.
-    let ranked = candidates
-        .into_iter()
-        .zip(taste_ranks)
-        .map(|((row, sources, taste), taste_rank)| {
-            let taste_rrf = taste_rank.map_or(0.0, |rank| 1.0 / (taste_k + rank as f64));
-            let external_rrf = row
-                .external_rank
-                .map_or(0.0, |rank| 1.0 / (external_k + rank as f64));
-            let score = (taste_rrf + external_rrf)
+            let popularity = popularity_rank.map_or(0.0, |rank| 1.0 / (external_k + rank as f64));
+            let score = popularity
+                * taste_factor(taste, taste_weight)
                 * row.freshness_score.unwrap_or(0.0)
                 * fatigue(row.impressions, row.clicked);
 
@@ -512,6 +509,17 @@ fn rank_descending(values: &[Option<f64>]) -> Vec<Option<usize>> {
         }
     }
     ranks
+}
+
+/// The taste model's odds that the owner wants the row, raised to the
+/// preset's taste weight. Unlike a rank, this keeps the model's confidence: a
+/// model that can't tell the rows apart (every prediction near 0.5) leaves
+/// them where popularity and age put them.
+fn taste_factor(taste: Option<f64>, weight: f64) -> f64 {
+    taste.map_or(1.0, |probability| {
+        let probability = probability.clamp(1.0 - MAX_TASTE_CONFIDENCE, MAX_TASTE_CONFIDENCE);
+        (probability / (1.0 - probability)).powf(weight)
+    })
 }
 
 fn fatigue(impressions: i32, clicked: bool) -> f64 {
@@ -930,6 +938,17 @@ mod tests {
             rank_descending(&[Some(0.2), None, Some(0.9), Some(0.5)]),
             vec![Some(3), None, Some(1), Some(2)]
         );
+    }
+
+    #[test]
+    fn taste_factor_follows_the_models_confidence() {
+        assert_eq!(taste_factor(None, 2.0), 1.0);
+        assert!((taste_factor(Some(0.5), 2.0) - 1.0).abs() < 1e-12);
+        assert!(taste_factor(Some(0.9), 1.0) > taste_factor(Some(0.6), 1.0));
+        assert!(taste_factor(Some(0.9), 2.0) > taste_factor(Some(0.9), 1.0));
+        assert!(taste_factor(Some(0.1), 1.0) < 1.0);
+        assert!(taste_factor(Some(1.0), 2.0).is_finite());
+        assert!(taste_factor(Some(0.0), 2.0) > 0.0);
     }
 
     #[test]
