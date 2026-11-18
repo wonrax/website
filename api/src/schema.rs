@@ -54,8 +54,8 @@ diesel::table! {
 }
 
 diesel::table! {
-    chatgpt_auth (id) {
-        id -> Int4,
+    subscription_auth (provider) {
+        provider -> Text,
         access_token -> Text,
         refresh_token -> Text,
         id_token -> Nullable<Text>,
@@ -233,7 +233,6 @@ diesel::allow_tables_to_appear_in_same_query!(
     blog_comment_votes,
     blog_comments,
     blog_posts,
-    chatgpt_auth,
     counters,
     discord_memory_docs,
     discord_memory_observations,
@@ -247,5 +246,6 @@ diesel::allow_tables_to_appear_in_same_query!(
     recommender_feedback,
     sessions,
     online_article_sources,
+    subscription_auth,
     user_history,
 );

@@ -2,7 +2,7 @@ use crate::discord::message::{download_attachment, image_media_type, parse_messa
 use base64::Engine as _;
 use rig::{
     message::{ImageMediaType, ToolResultContent},
-    tool::{PortableTool, ToolOutput},
+    tool::{Tool, ToolContext, ToolOutput},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -102,7 +102,7 @@ impl ViewMessageAttachmentsOutput {
 #[error("View message attachments error: {0}")]
 pub struct ViewMessageAttachmentsError(String);
 
-impl PortableTool for ViewMessageAttachmentsTool {
+impl Tool for ViewMessageAttachmentsTool {
     const NAME: &'static str = "view_message_attachments";
     type Error = ViewMessageAttachmentsError;
     type Args = ViewMessageAttachmentsArgs;
@@ -126,7 +126,11 @@ impl PortableTool for ViewMessageAttachmentsTool {
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let message_id = match parse_message_id("message_id", &args.message_id) {
             Ok(id) => id.get(),
             Err(error) => {

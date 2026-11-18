@@ -170,11 +170,13 @@ model recommender_feedback {
   online_articles   online_articles @relation(fields: [online_article_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
-/// The ChatGPT sign-in the Discord bot runs its LLM on. Holds a single row, id 1.
-model chatgpt_auth {
-  id            Int      @id
+/// The Discord bot's subscription sign-ins, one per provider
+model subscription_auth {
+  /// `chatgpt` or `copilot`
+  provider      String   @id
   access_token  String
-  /// Single use: every refresh rotates it, and replaying an old one revokes the sign-in
+  /// ChatGPT's is single use: every refresh rotates it, and replaying an old one revokes the
+  /// sign-in. Copilot's is the GitHub token, which stays.
   refresh_token String
   id_token      String?
   account_id    String?

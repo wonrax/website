@@ -8,7 +8,7 @@ use diesel_async::RunQueryDsl;
 use eyre::Context as _;
 use serenity::all::ChannelId;
 
-use crate::{discord::chatgpt::DbPool, schema::discord_sandboxes};
+use crate::{discord::subscription::DbPool, schema::discord_sandboxes};
 
 #[derive(Clone)]
 pub struct SandboxStore {

@@ -23,7 +23,6 @@ use crate::discord::{
         Turn,
     },
     bot::Guild,
-    chatgpt::{self, AuthState, Grant},
     constants::{
         AGENT_SESSION_TIMEOUT, COMPACTION_KEPT_MESSAGES, COMPACTION_PROMPT, MEMORY_PASS_PROMPT,
         MESSAGE_CONTEXT_SIZE, MESSAGE_DEBOUNCE_TIMEOUT, TYPING_DEBOUNCE_TIMEOUT,
@@ -32,6 +31,7 @@ use crate::discord::{
     memory::{ChannelMemory, MemorySystem},
     message::{self, AttachmentMode, QueuedMessage, discord_message_to_rig_message},
     sandbox::ChannelSandbox,
+    subscription::{self, AuthState, Grant},
 };
 
 /// Dual-timestamp activity tracker for proper debouncing
@@ -196,16 +196,16 @@ impl KnownMessages {
 
 /// What a batch's runs authenticate with
 struct RunAuth {
-    /// The ChatGPT token; `None` on other backends
+    /// The subscription's token; `None` on other backends
     grant: Option<Grant>,
 }
 
 enum RunError {
-    /// ChatGPT has no usable sign-in any more, and the channel has been told
+    /// The subscription has no usable sign-in any more, and the channel has been told
     SignedOut,
     /// The run reached one of its limits; the session keeps what it did
     Stopped(RunLimit),
-    Failed(PromptError),
+    Failed(Box<PromptError>),
 }
 
 impl From<RunFailure> for RunError {
@@ -229,13 +229,13 @@ struct ChannelState {
     /// `WATCHER_SESSION_TIMEOUT`, the conversation is over: the watcher updates the memories from
     /// it and its session ends.
     watcher_last_input: Option<Instant>,
-    /// ChatGPT has no usable sign-in, and the channel has said so. Runs wait for the sign-in to
+    /// The subscription has no usable sign-in, and the channel has said so. Runs wait for the sign-in to
     /// change, or for a new message asking for another try.
     awaiting_auth: bool,
     /// The responder lost its sign-in mid-run. The prompt it didn't get to is still the newest
     /// entry of its session, and the next processing runs it regardless of what the batch holds.
     unanswered: bool,
-    /// ChatGPT sign-in changes; `None` on other backends
+    /// Subscription sign-in changes; `None` on other backends
     auth_updates: Option<watch::Receiver<AuthState>>,
     /// When the responder last finished a run. Its session expires once the channel goes
     /// `AGENT_SESSION_TIMEOUT` without one, however much the users chat in between. `None`, and
@@ -583,10 +583,10 @@ impl ChannelState {
         }
     }
 
-    /// The sign-in for the next runs. `None` when ChatGPT has none usable, which the channel is
+    /// The sign-in for the next runs. `None` when the subscription has none usable, which the channel is
     /// then told about and waits out.
     async fn authorize(&mut self) -> Option<RunAuth> {
-        let LlmBackend::Chatgpt(auth) = &self.llm else {
+        let LlmBackend::Subscription(auth) = &self.llm else {
             return Some(RunAuth { grant: None });
         };
         let auth = auth.clone();
@@ -605,7 +605,7 @@ impl ChannelState {
         }
     }
 
-    /// Runs `session`, and when ChatGPT refuses a token that should have been good, refreshes it
+    /// Runs `session`, and when the subscription refuses a token that should have been good, refreshes it
     /// and gives the run one more go
     async fn run_session(
         &mut self,
@@ -615,26 +615,26 @@ impl ChannelState {
         run_auth: &mut RunAuth,
     ) -> Result<String, RunError> {
         let result = session.run(turn).await;
-        let (Err(RunFailure::Failed(e)), LlmBackend::Chatgpt(auth), Some(_)) =
+        let (Err(RunFailure::Failed(e)), LlmBackend::Subscription(auth), Some(_)) =
             (&result, &self.llm, &run_auth.grant)
         else {
             return result.map_err(RunError::from);
         };
-        if !chatgpt::is_unauthorized(e) {
+        if !subscription::is_unauthorized(e) {
             return result.map_err(RunError::from);
         }
 
-        tracing::warn!("ChatGPT rejected the access token; refreshing and retrying");
+        tracing::warn!("The subscription rejected the access token; refreshing and retrying");
         let auth = auth.clone();
         match auth.recover_from_unauthorized().await {
-            Ok(grant) => match self.llm.model(role, self.channel_id, Some(&grant)) {
+            Ok(grant) => match self.llm.model(role, Some(&grant)) {
                 Ok(handle) => {
-                    session.agent.set_model_handle(handle);
+                    session.agent.set_model(handle);
                     run_auth.grant = Some(grant);
                     session.run(turn).await.map_err(RunError::from)
                 }
                 Err(e) => {
-                    tracing::error!(?e, "Failed to create the ChatGPT model");
+                    tracing::error!(?e, "Failed to create the subscription model");
                     result.map_err(RunError::from)
                 }
             },
@@ -670,7 +670,11 @@ impl ChannelState {
             }
             Err(RunError::SignedOut) => return None,
             Err(RunError::Stopped(limit)) => {
-                tracing::error!(?limit, ?role, "Summarizing the session for compaction stopped");
+                tracing::error!(
+                    ?limit,
+                    ?role,
+                    "Summarizing the session for compaction stopped"
+                );
                 return None;
             }
             Err(RunError::Failed(e)) => {
@@ -698,7 +702,7 @@ impl ChannelState {
         };
         self.resolve_guild().await;
 
-        let batch: Vec<Pending> = self.message_queue.drain(..).collect();
+        let batch: Vec<Pending> = std::mem::take(&mut self.message_queue);
         let addressed = forced_address
             || std::mem::take(&mut self.unanswered)
             || batch
@@ -723,10 +727,7 @@ impl ChannelState {
     /// addresses the bot runs it regardless, so the watcher only reads that one.
     async fn watch(&mut self, batch: &[Pending], addressed: bool, run_auth: &mut RunAuth) -> bool {
         let before = batch.first().map(Pending::anchor);
-        let model = match self
-            .llm
-            .model(Role::Watcher, self.channel_id, run_auth.grant.as_ref())
-        {
+        let model = match self.llm.model(Role::Watcher, run_auth.grant.as_ref()) {
             Ok(model) => model,
             Err(e) => {
                 tracing::error!(?e, "Failed to create the watcher model");
@@ -736,7 +737,7 @@ impl ChannelState {
 
         let mut watcher = match self.watcher.take() {
             Some(mut watcher) if watcher.needs_compaction() => {
-                watcher.agent.set_model_handle(model.clone());
+                watcher.agent.set_model(model.clone());
                 match self
                     .compact(&mut watcher, Role::Watcher, before, run_auth)
                     .await
@@ -752,7 +753,7 @@ impl ChannelState {
                 }
             }
             Some(mut watcher) => {
-                watcher.agent.set_model_handle(model);
+                watcher.agent.set_model(model);
                 watcher
             }
             None => self.new_watcher(model, batch).await,
@@ -793,7 +794,7 @@ impl ChannelState {
     /// A watcher session seeded with the messages right before `batch`
     async fn new_watcher(
         &mut self,
-        model: rig_agent::ModelHandle,
+        model: crate::discord::agent::AgentModel,
         batch: &[Pending],
     ) -> AgentSession {
         let (history, mut people) = self
@@ -826,12 +827,14 @@ impl ChannelState {
 
         // No sign-in prompt for this: nobody is waiting on it
         let grant = match &self.llm {
-            LlmBackend::Chatgpt(auth) => match auth.access().await {
+            LlmBackend::Subscription(auth) => match auth.access().await {
                 Ok(grant) => Some(grant),
                 Err(_) => {
                     // Kept for the next idle deadline, so the conversation's memories outlast
                     // the sign-in outage
-                    tracing::warn!("Postponing the watcher's memory pass: ChatGPT has no sign-in");
+                    tracing::warn!(
+                        "Postponing the watcher's memory pass: the subscription has no sign-in"
+                    );
                     self.watcher = Some(watcher);
                     self.watcher_last_input = Some(Instant::now());
                     return;
@@ -843,12 +846,9 @@ impl ChannelState {
         // Quiet means nobody else spoke, but the bot's last replies may still wait in the queue,
         // and so may what happened to the messages since
         watcher.add_messages(observed(&self.message_queue));
-        match self
-            .llm
-            .model(Role::Watcher, self.channel_id, grant.as_ref())
-        {
+        match self.llm.model(Role::Watcher, grant.as_ref()) {
             Ok(model) => {
-                watcher.agent.set_model_handle(model);
+                watcher.agent.set_model(model);
                 self.spawn_memory_pass(watcher);
             }
             Err(e) => tracing::error!(?e, "Failed to create the watcher model for its memory pass"),
@@ -898,8 +898,9 @@ impl ChannelState {
         match &result {
             Err(RunError::Failed(e)) => {
                 tracing::error!(?e, "Error executing agent session in channel main loop");
-                if matches!(self.llm, LlmBackend::Chatgpt(_)) {
-                    chatgpt::report_run_failure(&self.discord_ctx.http, self.channel_id, e).await;
+                if let LlmBackend::Subscription(auth) = &self.llm {
+                    auth.report_run_failure(&self.discord_ctx.http, self.channel_id, e)
+                        .await;
                 }
             }
             Err(RunError::Stopped(limit)) => self.report_stopped(*limit).await,
@@ -916,7 +917,7 @@ impl ChannelState {
     }
 
     /// Tells the channel the responder stopped before finishing. An embed without text, like the
-    /// ChatGPT notices, so the agents never read it as conversation.
+    /// subscription notices, so the agents never read it as conversation.
     async fn report_stopped(&self, limit: RunLimit) {
         let why = match limit {
             RunLimit::Turns => "I used up the steps I get for one go.",
@@ -944,10 +945,7 @@ impl ChannelState {
         run_auth: &mut RunAuth,
     ) -> Option<(AgentSession, bool)> {
         let before = batch.first().map(Pending::anchor);
-        let model = match self
-            .llm
-            .model(Role::Responder, self.channel_id, run_auth.grant.as_ref())
-        {
+        let model = match self.llm.model(Role::Responder, run_auth.grant.as_ref()) {
             Ok(model) => model,
             Err(e) => {
                 tracing::error!(?e, "Failed to create the responder model");
@@ -956,8 +954,8 @@ impl ChannelState {
         };
 
         if let Some(mut responder) = self.live_responder() {
-            // A refreshed ChatGPT token only reaches a live session this way
-            responder.agent.set_model_handle(model.clone());
+            // A refreshed subscription token only reaches a live session this way
+            responder.agent.set_model(model.clone());
             if !responder.needs_compaction() {
                 return Some((responder, false));
             }
@@ -1263,7 +1261,7 @@ impl ChannelHandle {
             awaiting_auth: false,
             unanswered: false,
             auth_updates: match &llm {
-                LlmBackend::Chatgpt(auth) => Some(auth.subscribe()),
+                LlmBackend::Subscription(auth) => Some(auth.subscribe()),
                 LlmBackend::Gemini { .. } => None,
             },
             last_run_finished: None,
@@ -1300,7 +1298,7 @@ impl ChannelHandle {
     }
 }
 
-/// Resolves when the ChatGPT sign-in changes, and never without one to watch
+/// Resolves when the subscription sign-in changes, and never without one to watch
 async fn auth_changed(updates: Option<&mut watch::Receiver<AuthState>>) {
     if let Some(updates) = updates
         && updates.changed().await.is_ok()

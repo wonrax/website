@@ -1,35 +1,32 @@
-//! The ChatGPT subscription backend: keeps the bot's "Sign in with ChatGPT" session alive and
-//! walks a channel through signing in when there is none.
+//! The subscription backend: keeps the bot signed in to a ChatGPT or GitHub Copilot subscription
+//! and walks a channel through signing in when it isn't. Both sign in with a device code and keep
+//! a short-lived access token fresh with a long-lived one; [`Provider`] holds what differs.
 //!
-//! OpenAI rotates the refresh token on every refresh and treats a replayed one as stolen, revoking
-//! the whole sign-in. So every refresh runs under one lock, and nothing else may hold a copy of the
-//! token: sign the bot in on its own rather than reusing a Codex CLI login.
+//! Every refresh runs under one lock: ChatGPT revokes the whole sign-in when a refresh token is
+//! used twice.
 
+mod chatgpt;
+mod copilot;
 mod oauth;
 
 use std::{sync::Arc, time::Duration};
 
-use bytes::Bytes;
 use chrono::{DateTime, TimeDelta, Utc};
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 use eyre::Context as _;
 use reqwest::StatusCode;
 use rig::{
-    client::CompletionClient as _,
-    completion::{
-        CompletionError, CompletionModel, CompletionRequest, CompletionResponse,
-        ProviderCapabilities, Usage,
-    },
+    error::{ErrorKind, ProviderError},
     http_client::{
-        self, HeaderValue, HttpClientExt, LazyBody, MultipartForm, Request, Response,
-        StreamingResponse,
+        self, DynHttpClient, HeaderMap, HeaderValue,
+        middleware::{Exchange, HttpMiddleware},
     },
-    providers::chatgpt::{self, ChatGPTAuth},
-    streaming::StreamingCompletionResponse,
-    wasm_compat::WasmCompatSend,
+    providers::openai::{OpenAI, OpenAIConfig},
+    wasm_compat::WasmBoxedFuture,
 };
-use rig_agent::{ModelHandle, completion::PromptError};
+use rig_agent::completion::PromptError;
+use rig_reqwest::ReqwestClient;
 use serenity::all::{
     ChannelId, Colour, CreateActionRow, CreateButton, CreateEmbed, CreateMessage, EditMessage,
     Http, MessageId,
@@ -37,10 +34,103 @@ use serenity::all::{
 use tokio::sync::{Mutex, watch};
 use tracing::Instrument as _;
 
+use self::oauth::{DeviceCode, PollError, PollOutcome, RefreshError, Tokens};
+use crate::discord::agent::AgentModel;
+
 pub type DbPool = diesel_async::pooled_connection::deadpool::Pool<diesel_async::AsyncPgConnection>;
 
-/// The table holds a single sign-in
-const ROW_ID: i32 = 1;
+/// Which subscription the bot signs in to
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Provider {
+    Chatgpt,
+    Copilot,
+}
+
+impl Provider {
+    /// The name people know the subscription by
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::Chatgpt => "ChatGPT",
+            Self::Copilot => "GitHub Copilot",
+        }
+    }
+
+    /// Who runs the sign-in
+    fn issuer(self) -> &'static str {
+        match self {
+            Self::Chatgpt => "OpenAI",
+            Self::Copilot => "GitHub",
+        }
+    }
+
+    /// The key its sign-in is saved under
+    fn key(self) -> &'static str {
+        match self {
+            Self::Chatgpt => "chatgpt",
+            Self::Copilot => "copilot",
+        }
+    }
+
+    /// What the sign-in prompt says after the steps
+    fn sign_in_help(self) -> &'static str {
+        match self {
+            Self::Chatgpt => {
+                "Whoever approves it links their ChatGPT account, and I'll use that account for \
+                 everyone here. If the page won't take the code, turn on device code sign-in in \
+                 ChatGPT under Settings → Security, then enter it again."
+            }
+            Self::Copilot => {
+                "Whoever approves it links their GitHub account, which needs a Copilot plan, and \
+                 I'll use that account for everyone here."
+            }
+        }
+    }
+
+    async fn request_device_code(self, http: &reqwest::Client) -> Result<DeviceCode, String> {
+        match self {
+            Self::Chatgpt => chatgpt::request_device_code(http).await,
+            Self::Copilot => copilot::request_device_code(http).await,
+        }
+    }
+
+    async fn poll_device_code(
+        self,
+        http: &reqwest::Client,
+        code: &mut DeviceCode,
+    ) -> Result<PollOutcome, PollError> {
+        match self {
+            Self::Chatgpt => chatgpt::poll_device_code(http, code).await,
+            Self::Copilot => copilot::poll_device_code(http, code).await,
+        }
+    }
+
+    async fn refresh(
+        self,
+        http: &reqwest::Client,
+        previous: &Tokens,
+    ) -> Result<Tokens, RefreshError> {
+        match self {
+            Self::Chatgpt => chatgpt::refresh(http, previous).await,
+            Self::Copilot => copilot::refresh(http, previous).await,
+        }
+    }
+
+    /// The plan behind a sign-in (plus, pro, ...), when the provider says
+    fn plan(self, tokens: &Tokens) -> Option<String> {
+        match self {
+            Self::Chatgpt => tokens.id_token.as_deref().and_then(chatgpt::plan_type),
+            Self::Copilot => None,
+        }
+    }
+
+    /// rig's configuration for the provider's API, signed in as `grant`
+    fn config(self, grant: &Grant) -> OpenAIConfig {
+        match self {
+            Self::Chatgpt => chatgpt::config(grant),
+            Self::Copilot => copilot::config(grant),
+        }
+    }
+}
 /// A run makes many model calls, so it doesn't start on a token about to expire
 const MIN_VALIDITY_FOR_RUN: TimeDelta = TimeDelta::minutes(10);
 /// While refreshing keeps failing, the old token still serves until this close to expiry
@@ -53,13 +143,10 @@ const MAX_POLL_NETWORK_FAILURES: u32 = 6;
 const MIN_CODE_TIME_LEFT: TimeDelta = TimeDelta::minutes(2);
 /// Cap on error details quoted in the channel
 const MAX_DETAIL_CHARS: usize = 300;
-/// How rig's ChatGPT provider fails a turn that holds no text and no tool call
-/// (`completion_response_from_sse_body` in rig-core's Responses streaming module)
-const EMPTY_TURN_ERROR: &str = "Response contained no parts";
 
 /// A live sign-in
 pub struct Session {
-    tokens: oauth::Tokens,
+    tokens: Tokens,
     refreshed_at: DateTime<Utc>,
 }
 
@@ -116,12 +203,14 @@ enum SignInError {
 
 struct PendingSignIn {
     user_code: String,
+    verification_url: String,
     expires_at: DateTime<Utc>,
     /// Every prompt showing this code, edited in place once the attempt ends
     prompts: Vec<(ChannelId, MessageId)>,
 }
 
-pub struct ChatgptAuth {
+pub struct SubscriptionAuth {
+    provider: Provider,
     db: DbPool,
     http: reqwest::Client,
     state: watch::Sender<AuthState>,
@@ -129,23 +218,31 @@ pub struct ChatgptAuth {
     sign_in: Mutex<Option<PendingSignIn>>,
 }
 
-impl ChatgptAuth {
-    /// Pick up the saved sign-in and keep it fresh in the background
-    pub async fn load(db: DbPool) -> Arc<Self> {
-        let state = match load_saved(&db).await {
+impl SubscriptionAuth {
+    /// Pick up `provider`'s saved sign-in and keep it fresh in the background
+    pub async fn load(db: DbPool, provider: Provider) -> Arc<Self> {
+        let state = match load_saved(&db, provider).await {
             Ok(Some(session)) => {
                 tracing::info!(
+                    ?provider,
                     expires_at = %session.tokens.expires_at,
-                    "Loaded the saved ChatGPT sign-in"
+                    "Loaded the saved subscription sign-in"
                 );
                 AuthState::SignedIn(Arc::new(session))
             }
             Ok(None) => {
-                tracing::info!("No saved ChatGPT sign-in; the bot asks for one when it's needed");
+                tracing::info!(
+                    ?provider,
+                    "No saved subscription sign-in; the bot asks for one when it's needed"
+                );
                 AuthState::SignedOut { reason: None }
             }
             Err(e) => {
-                tracing::error!(?e, "Failed to load the saved ChatGPT sign-in");
+                tracing::error!(
+                    ?e,
+                    ?provider,
+                    "Failed to load the saved subscription sign-in"
+                );
                 AuthState::SignedOut {
                     reason: Some("the saved sign-in couldn't be loaded from the database".into()),
                 }
@@ -153,18 +250,22 @@ impl ChatgptAuth {
         };
 
         let auth = Arc::new(Self {
+            provider,
             db,
             http: reqwest::Client::new(),
             state: watch::Sender::new(state),
             refresh_lock: Mutex::new(()),
             sign_in: Mutex::new(None),
         });
-        tokio::spawn(
-            auth.clone()
-                .keep_fresh()
-                .instrument(tracing::info_span!("chatgpt_token_refresher")),
-        );
+        tokio::spawn(auth.clone().keep_fresh().instrument(tracing::info_span!(
+            "subscription_token_refresher",
+            ?provider
+        )));
         auth
+    }
+
+    pub fn provider(&self) -> Provider {
+        self.provider
     }
 
     /// Changes whenever the bot signs in, refreshes its token, or loses its sign-in
@@ -182,45 +283,33 @@ impl ChatgptAuth {
         match self.refresh(&session).await {
             Ok(fresh) => Ok(fresh.grant()),
             Err(Unavailable::RefreshFailing(e)) if session.valid_for(MIN_VALIDITY_FOR_USE) => {
-                tracing::warn!(error = %e, "ChatGPT token refresh failed; using the current token until it expires");
+                tracing::warn!(error = %e, "Token refresh failed; using the current token until it expires");
                 Ok(session.grant())
             }
             Err(unavailable) => Err(unavailable),
         }
     }
 
-    /// ChatGPT refused the current token, which every request carries: refresh it, unless another
-    /// caller is doing so already, and return the new grant
+    /// The provider refused the current token, which every request carries: refresh it, unless
+    /// another caller is doing so already, and return the new grant
     pub async fn recover_from_unauthorized(&self) -> Result<Grant, Unavailable> {
         let session = self.session()?;
         self.refresh(&session).await.map(|fresh| fresh.grant())
     }
 
-    /// The ChatGPT model `name` for the agent session `session`. Every request carries the newest
-    /// token, so a run outlives the `grant` it started on as long as the background refresh keeps
-    /// up.
-    pub fn model(&self, grant: &Grant, name: &str, session: &str) -> eyre::Result<ModelHandle> {
-        let client = chatgpt::Client::builder()
-            .api_key(ChatGPTAuth::AccessToken {
-                access_token: grant.access_token.clone(),
-                account_id: grant.account_id.clone(),
-            })
-            .http_client(PinnedSession::new(
-                self.http.clone(),
-                session,
-                Some(self.state.subscribe()),
-            ))
-            // rig prepends a stock "You are ChatGPT" line unless this is empty
-            .default_instructions("")
-            .allow_device_flow(false)
-            .build()
-            .context("Failed to build the ChatGPT client")?;
-        Ok(ModelHandle::new(ChatgptModel(
-            client.completion_model(name),
-        )))
+    /// The provider's model `name`. Every request carries the newest token, so a run outlives the
+    /// `grant` it started on as long as the background refresh keeps up.
+    pub fn model(&self, grant: &Grant, name: &str) -> AgentModel {
+        client(
+            self.provider.config(grant),
+            self.http.clone(),
+            Some(self.state.subscribe()),
+        )
+        .completion(name)
+        .erase()
     }
 
-    /// Tell the channel why ChatGPT can't be used. Signed out, that is a sign-in prompt: a new
+    /// Tell the channel why the subscription can't be used. Signed out, that is a sign-in prompt: a new
     /// device code, or the one already waiting for someone to enter it.
     pub async fn report_unavailable(
         self: &Arc<Self>,
@@ -234,7 +323,7 @@ impl ChatgptAuth {
                     .await;
             }
             Unavailable::RefreshFailing(e) => {
-                post(http, channel_id, &Notice::refresh_failing(e)).await;
+                post(http, channel_id, &Notice::refresh_failing(self.provider, e)).await;
             }
         }
     }
@@ -251,13 +340,14 @@ impl ChatgptAuth {
     /// Rotate `stale`'s tokens. Callers holding the same stale session share one refresh, since a
     /// second use of its refresh token would get the sign-in revoked.
     async fn refresh(&self, stale: &Session) -> Result<Arc<Session>, Unavailable> {
+        let provider = self.provider;
         let _guard = self.refresh_lock.lock().await;
         let current = self.session()?;
         if current.tokens.access_token != stale.tokens.access_token {
             return Ok(current);
         }
 
-        match oauth::refresh(&self.http, &current.tokens).await {
+        match provider.refresh(&self.http, &current.tokens).await {
             Ok(tokens) => {
                 let session = Arc::new(Session {
                     tokens,
@@ -266,20 +356,20 @@ impl ChatgptAuth {
                 if let Err(e) = self.save(&session).await {
                     // The old refresh token is spent, so a restart before the next good save
                     // needs a new sign-in
-                    tracing::error!(?e, "Failed to save the refreshed ChatGPT sign-in");
+                    tracing::error!(?e, "Failed to save the refreshed sign-in");
                 }
                 tracing::info!(
                     expires_at = %session.tokens.expires_at,
-                    "Refreshed the ChatGPT access token"
+                    "Refreshed the access token"
                 );
                 self.state
                     .send_replace(AuthState::SignedIn(session.clone()));
                 Ok(session)
             }
-            Err(oauth::RefreshError::Rejected(reason)) => {
-                tracing::warn!(%reason, "OpenAI rejected the ChatGPT refresh token");
+            Err(RefreshError::Rejected(reason)) => {
+                tracing::warn!(%reason, issuer = provider.issuer(), "The refresh token was rejected");
                 if let Err(e) = self.forget().await {
-                    tracing::error!(?e, "Failed to delete the dead ChatGPT sign-in");
+                    tracing::error!(?e, "Failed to delete the dead sign-in");
                 }
                 self.state.send_replace(AuthState::SignedOut {
                     reason: Some(reason.clone()),
@@ -288,7 +378,7 @@ impl ChatgptAuth {
                     reason: Some(reason),
                 })
             }
-            Err(oauth::RefreshError::Transient(e)) => Err(Unavailable::RefreshFailing(e)),
+            Err(RefreshError::Transient(e)) => Err(Unavailable::RefreshFailing(e)),
         }
     }
 
@@ -327,7 +417,7 @@ impl ChatgptAuth {
                 // Surfaces as a state change on the next pass
                 Err(Unavailable::SignedOut { .. }) => {}
                 Err(Unavailable::RefreshFailing(e)) => {
-                    tracing::warn!(error = %e, ?retry_in, "ChatGPT token refresh failed; retrying");
+                    tracing::warn!(error = %e, ?retry_in, "Token refresh failed; retrying");
                     tokio::select! {
                         changed = state.changed() => {
                             if changed.is_err() {
@@ -357,7 +447,13 @@ impl ChatgptAuth {
         if let Some(pending) = sign_in.as_mut() {
             let prompted_here = pending.prompts.iter().any(|(id, _)| *id == channel_id);
             if !prompted_here && pending.expires_at - Utc::now() > MIN_CODE_TIME_LEFT {
-                let notice = Notice::sign_in(reason, &pending.user_code, pending.expires_at);
+                let notice = Notice::sign_in(
+                    self.provider,
+                    reason,
+                    &pending.user_code,
+                    &pending.verification_url,
+                    pending.expires_at,
+                );
                 if let Some(message_id) = post(http, channel_id, &notice).await {
                     pending.prompts.push((channel_id, message_id));
                 }
@@ -365,72 +461,75 @@ impl ChatgptAuth {
             return;
         }
 
-        let code = match oauth::request_device_code(&self.http).await {
+        let provider = self.provider;
+        let code = match provider.request_device_code(&self.http).await {
             Ok(code) => code,
             Err(e) => {
-                tracing::error!(error = %e, "Failed to start a ChatGPT device-code sign-in");
-                post(http, channel_id, &Notice::sign_in_unavailable(&e)).await;
+                tracing::error!(error = %e, ?provider, "Failed to start a device-code sign-in");
+                post(http, channel_id, &Notice::sign_in_unavailable(provider, &e)).await;
                 return;
             }
         };
 
-        let expires_at = Utc::now()
-            + TimeDelta::from_std(oauth::DEVICE_CODE_TTL).unwrap_or(TimeDelta::minutes(15));
-        let notice = Notice::sign_in(reason, &code.user_code, expires_at);
+        let expires_at =
+            Utc::now() + TimeDelta::from_std(code.ttl).unwrap_or(TimeDelta::minutes(15));
+        let notice = Notice::sign_in(
+            provider,
+            reason,
+            &code.user_code,
+            &code.verification_url,
+            expires_at,
+        );
         let prompt = post(http, channel_id, &notice).await;
         *sign_in = Some(PendingSignIn {
             user_code: code.user_code.clone(),
+            verification_url: code.verification_url.clone(),
             expires_at,
             prompts: prompt.map(|id| (channel_id, id)).into_iter().collect(),
         });
-        tracing::info!(%expires_at, "Started a ChatGPT device-code sign-in");
+        tracing::info!(%expires_at, ?provider, "Started a device-code sign-in");
 
         tokio::spawn(
             self.clone()
                 .finish_sign_in(http.clone(), code, expires_at)
-                .instrument(tracing::info_span!("chatgpt_sign_in")),
+                .instrument(tracing::info_span!("subscription_sign_in", ?provider)),
         );
     }
 
     async fn finish_sign_in(
         self: Arc<Self>,
         http: Arc<Http>,
-        code: oauth::DeviceCode,
+        mut code: DeviceCode,
         expires_at: DateTime<Utc>,
     ) {
-        let outcome = match self.wait_for_approval(&code, expires_at).await {
+        let provider = self.provider;
+        let outcome = match self.wait_for_approval(&mut code, expires_at).await {
             Ok(tokens) => {
                 let session = Arc::new(Session {
                     tokens,
                     refreshed_at: Utc::now(),
                 });
-                let plan = session
-                    .tokens
-                    .id_token
-                    .as_deref()
-                    .and_then(oauth::plan_type);
+                let plan = provider.plan(&session.tokens);
                 let saved = {
                     let _guard = self.refresh_lock.lock().await;
                     let saved = self
                         .save(&session)
                         .await
-                        .inspect_err(|e| {
-                            tracing::error!(?e, "Failed to save the new ChatGPT sign-in")
-                        })
+                        .inspect_err(|e| tracing::error!(?e, "Failed to save the new sign-in"))
                         .is_ok();
                     self.state.send_replace(AuthState::SignedIn(session));
                     saved
                 };
-                tracing::info!(?plan, "Signed in to ChatGPT");
-                Notice::signed_in(plan.as_deref(), saved)
+                tracing::info!(?plan, "Signed in");
+                Notice::signed_in(provider, plan.as_deref(), saved)
             }
             Err(SignInError::Expired) => {
-                tracing::info!("The ChatGPT sign-in code expired unused");
+                tracing::info!("The sign-in code expired unused");
                 Notice::code_expired()
             }
             Err(SignInError::Failed(e)) => {
-                tracing::warn!(error = %e, "ChatGPT sign-in failed");
-                Notice::sign_in_failed(&e)
+                tracing::warn!(error = %e, "Sign-in failed");
+                Notice::sign_in_failed(provider, &e)
             }
         };
 
@@ -450,9 +549,9 @@ impl ChatgptAuth {
 
     async fn wait_for_approval(
         &self,
-        code: &oauth::DeviceCode,
+        code: &mut DeviceCode,
         expires_at: DateTime<Utc>,
-    ) -> Result<oauth::Tokens, SignInError> {
+    ) -> Result<Tokens, SignInError> {
         let mut network_failures = 0;
         loop {
             tokio::time::sleep(code.poll_interval).await;
@@ -460,23 +559,20 @@ impl ChatgptAuth {
                 return Err(SignInError::Expired);
             }
 
-            match oauth::poll_device_code(&self.http, code).await {
-                Ok(oauth::PollOutcome::Pending) => network_failures = 0,
-                Ok(oauth::PollOutcome::Approved(grant)) => {
-                    return oauth::exchange_authorization(&self.http, grant)
-                        .await
-                        .map_err(SignInError::Failed);
-                }
-                Err(oauth::PollError::Network(e)) => {
+            match self.provider.poll_device_code(&self.http, code).await {
+                Ok(PollOutcome::Pending) => network_failures = 0,
+                Ok(PollOutcome::Approved(tokens)) => return Ok(tokens),
+                Err(PollError::Network(e)) => {
                     network_failures += 1;
-                    tracing::warn!(error = %e, network_failures, "Polling the ChatGPT sign-in failed");
+                    tracing::warn!(error = %e, network_failures, "Polling the sign-in failed");
                     if network_failures >= MAX_POLL_NETWORK_FAILURES {
                         return Err(SignInError::Failed(format!(
-                            "Lost the connection to OpenAI while waiting for the code: {e}"
+                            "Lost the connection to {} while waiting for the code: {e}",
+                            self.provider.issuer()
                         )));
                     }
                 }
-                Err(e @ oauth::PollError::Rejected(_)) => {
+                Err(e @ PollError::Rejected(_)) => {
                     return Err(SignInError::Failed(e.to_string()));
                 }
             }
@@ -484,10 +580,10 @@ impl ChatgptAuth {
     }
 
     async fn save(&self, session: &Session) -> eyre::Result<()> {
-        use crate::schema::chatgpt_auth;
+        use crate::schema::subscription_auth;
 
         let row = SavedSignIn {
-            id: ROW_ID,
+            provider: self.provider.key().to_string(),
             access_token: session.tokens.access_token.clone(),
             refresh_token: session.tokens.refresh_token.clone(),
             id_token: session.tokens.id_token.clone(),
@@ -496,83 +592,77 @@ impl ChatgptAuth {
             refreshed_at: session.refreshed_at,
         };
         let mut conn = self.db.get().await.context("No database connection")?;
-        diesel::insert_into(chatgpt_auth::table)
+        diesel::insert_into(subscription_auth::table)
             .values(&row)
-            .on_conflict(chatgpt_auth::id)
+            .on_conflict(subscription_auth::provider)
             .do_update()
             .set(&row)
             .execute(&mut conn)
             .await
-            .context("Failed to upsert the ChatGPT sign-in")?;
+            .context("Failed to upsert the sign-in")?;
         Ok(())
     }
 
     async fn forget(&self) -> eyre::Result<()> {
-        use crate::schema::chatgpt_auth;
+        use crate::schema::subscription_auth;
 
         let mut conn = self.db.get().await.context("No database connection")?;
-        diesel::delete(chatgpt_auth::table.find(ROW_ID))
+        diesel::delete(subscription_auth::table.find(self.provider.key()))
             .execute(&mut conn)
             .await
-            .context("Failed to delete the ChatGPT sign-in")?;
+            .context("Failed to delete the sign-in")?;
         Ok(())
     }
+
+    /// Explain a failed run in the channel when the subscription is what failed. The agent's own
+    /// failures, like running out of turns, stay in the logs.
+    pub async fn report_run_failure(
+        &self,
+        http: &Arc<Http>,
+        channel_id: ChannelId,
+        error: &PromptError,
+    ) {
+        if let Some(notice) = Notice::run_failure(self.provider, error) {
+            post(http, channel_id, &notice).await;
+        }
+    }
 }
 
-/// rig's HTTP client with the `session_id` header held to one value per agent session. rig makes up
-/// a new one for every ChatGPT request, where Codex keeps one per conversation, and requests that
-/// each carry a new one rarely hit the backend's prompt cache past the instructions and tools.
-///
-/// It also swaps in the newest access token: rig authenticates every request of a run with the
-/// token the run started on, which an hour-long run can outlive.
-#[derive(Clone, Default)]
-struct PinnedSession {
+/// A client on `http` whose requests carry the newest token of `auth`, if given
+fn client(
+    config: OpenAIConfig,
     http: reqwest::Client,
-    session_id: Option<HeaderValue>,
-    /// The sign-in whose token requests carry; without it they keep the client's own
     auth: Option<watch::Receiver<AuthState>>,
+) -> OpenAI {
+    let http = DynHttpClient::new(ReqwestClient::from(http));
+    let http = match auth {
+        Some(auth) => http.with_middleware(FreshToken(auth)),
+        None => http,
+    };
+    config.connect(http)
 }
 
-impl std::fmt::Debug for PinnedSession {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PinnedSession")
-            .field("session_id", &self.session_id)
-            .finish_non_exhaustive()
-    }
-}
+/// Swaps the newest access token into every request: rig authenticates every request of a run
+/// with the token the run started on, which an hour-long run can outlive.
+struct FreshToken(watch::Receiver<AuthState>);
 
-impl PinnedSession {
-    fn new(
-        http: reqwest::Client,
-        session: &str,
-        auth: Option<watch::Receiver<AuthState>>,
-    ) -> Self {
-        let session_id = HeaderValue::from_str(session)
-            .inspect_err(|e| tracing::warn!(?e, session, "Unusable ChatGPT session ID"))
-            .ok();
-        Self {
-            http,
-            session_id,
-            auth,
-        }
-    }
-
-    fn pin<T>(&self, mut request: Request<T>) -> Request<T> {
-        let headers = request.headers_mut();
-        if let Some(session_id) = &self.session_id {
-            headers.insert("session_id", session_id.clone());
-        }
+impl HttpMiddleware for FreshToken {
+    fn before_request_headers<'a>(
+        &'a self,
+        _exchange: Exchange<'a>,
+        headers: &'a mut HeaderMap,
+    ) -> WasmBoxedFuture<'a, http_client::Result<()>> {
         // Signed out, the request goes with the old token and fails the way a run expects
-        let grant = self.auth.as_ref().and_then(|auth| match &*auth.borrow() {
+        let grant = match &*self.0.borrow() {
             AuthState::SignedIn(session) => Some(session.grant()),
             AuthState::SignedOut { .. } => None,
-        });
+        };
         if let Some(grant) = grant {
             match HeaderValue::from_str(&format!("Bearer {}", grant.access_token)) {
                 Ok(value) => {
                     headers.insert("authorization", value);
                 }
-                Err(e) => tracing::warn!(?e, "Unusable ChatGPT access token"),
+                Err(e) => tracing::warn!(?e, "Unusable access token"),
             }
             if let Some(account_id) = grant.account_id
                 && let Ok(value) = HeaderValue::from_str(&account_id)
@@ -580,86 +670,16 @@ impl PinnedSession {
                 headers.insert("ChatGPT-Account-Id", value);
             }
         }
-        request
-    }
-}
-
-impl HttpClientExt for PinnedSession {
-    fn send<T, U>(
-        &self,
-        request: Request<T>,
-    ) -> impl Future<Output = http_client::Result<Response<LazyBody<U>>>> + WasmCompatSend + 'static
-    where
-        T: Into<Bytes> + WasmCompatSend,
-        U: From<Bytes> + WasmCompatSend + 'static,
-    {
-        self.http.send(self.pin(request))
-    }
-
-    fn send_multipart<U>(
-        &self,
-        request: Request<MultipartForm>,
-    ) -> impl Future<Output = http_client::Result<Response<LazyBody<U>>>> + WasmCompatSend + 'static
-    where
-        U: From<Bytes> + WasmCompatSend + 'static,
-    {
-        self.http.send_multipart(self.pin(request))
-    }
-
-    fn send_streaming<T>(
-        &self,
-        request: Request<T>,
-    ) -> impl Future<Output = http_client::Result<StreamingResponse>> + WasmCompatSend
-    where
-        T: Into<Bytes> + WasmCompatSend,
-    {
-        self.http.send_streaming(self.pin(request))
-    }
-}
-
-/// rig's ChatGPT model, except that a turn with nothing in it ends the run instead of failing it.
-///
-/// The ChatGPT backend leaves a turn's items out of its final `response.completed` event, so rig
-/// rebuilds the turn from the streamed events, and fails it when they hold no text and no tool
-/// call. For this bot that is how a run normally ends: the reply already went out through
-/// `send_discord_message` and the model has nothing to add. Other providers return an empty turn
-/// there, which the agent loop takes as the end of the run and keeps out of history. A failed run
-/// instead loses its tool calls from the session, replies included.
-#[derive(Clone)]
-struct ChatgptModel(chatgpt::ResponsesCompletionModel<PinnedSession>);
-
-impl CompletionModel for ChatgptModel {
-    async fn completion(
-        &self,
-        request: CompletionRequest,
-    ) -> Result<CompletionResponse, CompletionError> {
-        match self.0.completion(request).await {
-            Err(CompletionError::ResponseError(message)) if message == EMPTY_TURN_ERROR => {
-                tracing::debug!("ChatGPT ended the turn without output");
-                Ok(CompletionResponse::new(Vec::new(), Usage::new(), "chatgpt"))
-            }
-            result => result,
-        }
-    }
-
-    async fn stream(
-        &self,
-        request: CompletionRequest,
-    ) -> Result<StreamingCompletionResponse, CompletionError> {
-        self.0.stream(request).await
-    }
-
-    fn capabilities(&self) -> ProviderCapabilities {
-        self.0.capabilities()
+        Box::pin(async { Ok(()) })
     }
 }
 
 #[derive(Queryable, Selectable, Insertable, AsChangeset)]
-#[diesel(table_name = crate::schema::chatgpt_auth)]
+#[diesel(table_name = crate::schema::subscription_auth)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 #[diesel(treat_none_as_null = true)]
 struct SavedSignIn {
-    id: i32,
+    provider: String,
     access_token: String,
     refresh_token: String,
     id_token: Option<String>,
@@ -668,19 +688,19 @@ struct SavedSignIn {
     refreshed_at: DateTime<Utc>,
 }
 
-async fn load_saved(db: &DbPool) -> eyre::Result<Option<Session>> {
-    use crate::schema::chatgpt_auth;
+async fn load_saved(db: &DbPool, provider: Provider) -> eyre::Result<Option<Session>> {
+    use crate::schema::subscription_auth;
 
     let mut conn = db.get().await.context("No database connection")?;
-    let row = chatgpt_auth::table
-        .find(ROW_ID)
+    let row = subscription_auth::table
+        .find(provider.key())
         .select(SavedSignIn::as_select())
         .first(&mut conn)
         .await
         .optional()
-        .context("Failed to read the ChatGPT sign-in")?;
+        .context("Failed to read the sign-in")?;
     Ok(row.map(|row| Session {
-        tokens: oauth::Tokens {
+        tokens: Tokens {
             access_token: row.access_token,
             refresh_token: row.refresh_token,
             id_token: row.id_token,
@@ -695,52 +715,48 @@ pub fn is_unauthorized(error: &PromptError) -> bool {
     error.provider_response_status() == Some(StatusCode::UNAUTHORIZED)
 }
 
-/// Explain a failed run in the channel when ChatGPT is what failed. The agent's own failures,
-/// like running out of turns, stay in the logs.
-pub async fn report_run_failure(http: &Arc<Http>, channel_id: ChannelId, error: &PromptError) {
-    if let Some(notice) = Notice::run_failure(error) {
-        post(http, channel_id, &notice).await;
-    }
-}
-
-/// A status message from the bot about ChatGPT itself. Posted as an embed with no text content,
-/// which keeps it out of the conversation the agent sees.
+/// A status message from the bot about the subscription itself. Posted as an embed with no text
+/// content, which keeps it out of the conversation the agent sees.
 struct Notice {
-    title: &'static str,
+    title: String,
     body: String,
     colour: Colour,
     /// A code for the user to type, shown on its own
     code: Option<String>,
     /// A button linking to a page
-    link: Option<(&'static str, &'static str)>,
+    link: Option<(&'static str, String)>,
 }
 
 impl Notice {
-    fn sign_in(reason: Option<&str>, user_code: &str, expires_at: DateTime<Utc>) -> Self {
+    fn sign_in(
+        provider: Provider,
+        reason: Option<&str>,
+        user_code: &str,
+        url: &str,
+        expires_at: DateTime<Utc>,
+    ) -> Self {
+        let title = provider.title();
         let lead = match reason {
-            Some(reason) => format!("I need a new ChatGPT sign-in: {reason}."),
-            None => "I run on a ChatGPT subscription and nobody has signed me in yet.".to_string(),
+            Some(reason) => format!("I need a new {title} sign-in: {reason}."),
+            None => format!("I run on a {title} subscription and nobody has signed me in yet."),
         };
         Self {
-            title: "ChatGPT sign-in needed",
+            title: format!("{title} sign-in needed"),
             body: format!(
                 "{lead}\n\n\
                  1. Open {url}\n\
                  2. Enter the code below. It expires <t:{expiry}:R>.\n\n\
-                 Whoever approves it links their ChatGPT account, and I'll use that account for \
-                 everyone here. If the page won't take the code, turn on device code sign-in in \
-                 ChatGPT under Settings → Security, then enter it again. I'll get to the waiting \
-                 messages as soon as the sign-in goes through.",
-                url = oauth::VERIFICATION_URL,
+                 {help} I'll get to the waiting messages as soon as the sign-in goes through.",
                 expiry = expires_at.timestamp(),
+                help = provider.sign_in_help(),
             ),
             colour: Colour::GOLD,
             code: Some(user_code.to_string()),
-            link: Some(("Open the sign-in page", oauth::VERIFICATION_URL)),
+            link: Some(("Open the sign-in page", url.to_string())),
         }
     }
 
-    fn signed_in(plan: Option<&str>, saved: bool) -> Self {
+    fn signed_in(provider: Provider, plan: Option<&str>, saved: bool) -> Self {
         let plan = plan
             .map(|plan| {
                 let mut chars = plan.chars();
@@ -758,36 +774,40 @@ impl Notice {
                  restart.",
             );
         }
-        Self::plain("Signed in to ChatGPT", body, Colour::DARK_GREEN)
+        Self::plain(
+            format!("Signed in to {}", provider.title()),
+            body,
+            Colour::DARK_GREEN,
+        )
     }
 
     fn code_expired() -> Self {
         Self::plain(
-            "Sign-in code expired",
+            "Sign-in code expired".to_string(),
             "Nobody entered the code in time. Mention me to get a new one.".to_string(),
             Colour::DARK_GREY,
         )
     }
 
-    fn sign_in_failed(error: &str) -> Self {
+    fn sign_in_failed(provider: Provider, error: &str) -> Self {
         Self::plain(
-            "ChatGPT sign-in failed",
+            format!("{} sign-in failed", provider.title()),
             format!("{}\n\nMention me to try again.", detail(error)),
             Colour::RED,
         )
     }
 
-    fn sign_in_unavailable(error: &str) -> Self {
+    fn sign_in_unavailable(provider: Provider, error: &str) -> Self {
         Self::plain(
-            "Couldn't start a ChatGPT sign-in",
+            format!("Couldn't start a {} sign-in", provider.title()),
             format!("{}\n\nMention me to try again.", detail(error)),
             Colour::RED,
         )
     }
 
-    fn refresh_failing(error: &str) -> Self {
+    fn refresh_failing(provider: Provider, error: &str) -> Self {
         Self::plain(
-            "Can't reach ChatGPT right now",
+            format!("Can't reach {} right now", provider.title()),
             format!(
                 "My sign-in needs a refresh and it keeps failing: {}\n\nI'll keep retrying in \
                  the background and answer as soon as it works.",
@@ -797,8 +817,9 @@ impl Notice {
         )
     }
 
-    fn run_failure(error: &PromptError) -> Option<Self> {
+    fn run_failure(provider: Provider, error: &PromptError) -> Option<Self> {
         let again = "Mention me to try again.";
+        let title = provider.title();
         if let Some(status) = error.provider_response_status() {
             let body = error.provider_response_body().unwrap_or_default();
             if let Some(resets_at) = usage_limit_reset(body) {
@@ -806,42 +827,54 @@ impl Notice {
                     .map(|at| format!(" until <t:{}:R>", at.timestamp()))
                     .unwrap_or_else(|| " for now".to_string());
                 return Some(Self::plain(
-                    "ChatGPT usage limit reached",
+                    format!("{title} usage limit reached"),
                     format!(
-                        "The ChatGPT subscription I run on is out of usage{until}. Mention me \
+                        "The {title} subscription I run on is out of usage{until}. Mention me \
                          again after that."
                     ),
                     Colour::ORANGE,
                 ));
             }
-            let title = if status == StatusCode::UNAUTHORIZED {
-                "ChatGPT rejected my sign-in"
+            let heading = if status == StatusCode::UNAUTHORIZED {
+                format!("{title} rejected my sign-in")
             } else {
-                "ChatGPT request failed"
+                format!("{title} request failed")
             };
             return Some(Self::plain(
-                title,
+                heading,
                 format!("HTTP {status}: {}\n\n{again}", oauth::error_message(body)),
                 Colour::RED,
             ));
         }
 
-        match error {
-            PromptError::CompletionError(CompletionError::HttpError(e)) => Some(Self::plain(
-                "Couldn't reach ChatGPT",
-                format!("{}\n\n{again}", detail(&e.to_string())),
-                Colour::RED,
-            )),
-            PromptError::CompletionError(e) => Some(Self::plain(
-                "ChatGPT returned an error",
-                format!("{}\n\n{again}", detail(&e.to_string())),
-                Colour::RED,
-            )),
-            _ => None,
-        }
+        let unreachable = match error {
+            PromptError::Provider(ProviderError::Http(_)) => true,
+            PromptError::Provider(_) => false,
+            PromptError::Report(report) => match report.kind {
+                ErrorKind::Http => true,
+                ErrorKind::Json
+                | ErrorKind::Url
+                | ErrorKind::Request
+                | ErrorKind::Response
+                | ErrorKind::Provider
+                | ErrorKind::ProviderResponse => false,
+                _ => return None,
+            },
+            _ => return None,
+        };
+        let heading = if unreachable {
+            format!("Couldn't reach {title}")
+        } else {
+            format!("{title} returned an error")
+        };
+        Some(Self::plain(
+            heading,
+            format!("{}\n\n{again}", detail(&error.to_string())),
+            Colour::RED,
+        ))
     }
 
-    fn plain(title: &'static str, body: String, colour: Colour) -> Self {
+    fn plain(title: String, body: String, colour: Colour) -> Self {
         Self {
             title,
             body,
@@ -853,7 +886,7 @@ impl Notice {
 
     fn embed(&self) -> CreateEmbed {
         let embed = CreateEmbed::new()
-            .title(self.title)
+            .title(&self.title)
             .description(&self.body)
             .colour(self.colour);
         match &self.code {
@@ -864,9 +897,10 @@ impl Notice {
 
     fn components(&self) -> Vec<CreateActionRow> {
         self.link
+            .as_ref()
             .map(|(label, url)| {
                 vec![CreateActionRow::Buttons(vec![
-                    CreateButton::new_link(url).label(label),
+                    CreateButton::new_link(url).label(*label),
                 ])]
             })
             .unwrap_or_default()
@@ -882,7 +916,7 @@ impl Notice {
     }
 }
 
-/// `Some` when a ChatGPT error body reports the subscription's usage limit, holding the reset time
+/// `Some` when an error body reports the subscription's usage limit, holding the reset time
 /// if it gives one
 fn usage_limit_reset(body: &str) -> Option<Option<DateTime<Utc>>> {
     let json: serde_json::Value = serde_json::from_str(body).ok()?;
@@ -916,12 +950,12 @@ async fn post(http: &Arc<Http>, channel_id: ChannelId, notice: &Notice) -> Optio
         Err(e) => {
             tracing::warn!(
                 ?e,
-                "Failed to post a ChatGPT notice as an embed; trying plain text"
+                "Failed to post a subscription notice as an embed; trying plain text"
             );
             channel_id
                 .send_message(http, CreateMessage::new().content(notice.text()))
                 .await
-                .inspect_err(|e| tracing::error!(?e, "Failed to post a ChatGPT notice"))
+                .inspect_err(|e| tracing::error!(?e, "Failed to post a subscription notice"))
                 .ok()
                 .map(|message| message.id)
         }
@@ -937,11 +971,11 @@ async fn replace(http: &Arc<Http>, channel_id: ChannelId, message_id: MessageId,
     if let Err(e) = channel_id.edit_message(http, message_id, edit).await {
         tracing::warn!(
             ?e,
-            "Failed to edit a ChatGPT notice as an embed; trying plain text"
+            "Failed to edit a subscription notice as an embed; trying plain text"
         );
         let edit = EditMessage::new().content(notice.text()).components(vec![]);
         if let Err(e) = channel_id.edit_message(http, message_id, edit).await {
-            tracing::error!(?e, "Failed to edit a ChatGPT notice");
+            tracing::error!(?e, "Failed to edit a subscription notice");
         }
     }
 }
@@ -949,7 +983,8 @@ async fn replace(http: &Arc<Http>, channel_id: ChannelId, message_id: MessageId,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::discord::constants::CHATGPT_RESPONDER_MODEL;
+    use crate::discord::constants::{CHATGPT_RESPONDER_MODEL, COPILOT_RESPONDER_MODEL};
+    use rig::completion::{CompletionRequest, GenerationOptions};
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
     /// A turn as the ChatGPT backend streams it when the model has nothing to add: no output
@@ -1002,8 +1037,13 @@ data: [DONE]
                 log.lock()
                     .expect("request log")
                     .push(String::from_utf8_lossy(&request).into_owned());
+                let content_type = if sse.starts_with("data:") {
+                    "text/event-stream"
+                } else {
+                    "application/json"
+                };
                 let response = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{sse}",
+                    "HTTP/1.1 200 OK\r\ncontent-type: {content_type}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{sse}",
                     sse.len()
                 );
                 socket
@@ -1015,48 +1055,52 @@ data: [DONE]
         (format!("http://{address}"), received)
     }
 
-    fn model_at(
-        url: String,
-        session: &str,
-        auth: Option<watch::Receiver<AuthState>>,
-    ) -> ChatgptModel {
-        let client = chatgpt::Client::builder()
-            .api_key(ChatGPTAuth::AccessToken {
-                access_token: "token".to_string(),
-                account_id: None,
-            })
-            .base_url(url)
-            .http_client(PinnedSession::new(reqwest::Client::new(), session, auth))
-            .default_instructions("")
-            .allow_device_flow(false)
-            .build()
-            .expect("client");
-        ChatgptModel(client.completion_model(CHATGPT_RESPONDER_MODEL))
+    fn model_at(url: String, auth: Option<watch::Receiver<AuthState>>) -> AgentModel {
+        let grant = Grant {
+            access_token: "token".to_string(),
+            account_id: None,
+        };
+        client(
+            Provider::Chatgpt.config(&grant).with_base_url(url),
+            reqwest::Client::new(),
+            auth,
+        )
+        .completion(CHATGPT_RESPONDER_MODEL)
+        .erase()
     }
 
-    async fn model_serving(sse: &'static str) -> ChatgptModel {
-        model_at(serve(sse, 1).await.0, "session", None)
+    fn request(session: &str) -> CompletionRequest {
+        CompletionRequest::new("hi").options(GenerationOptions::default().cache_key(session))
+    }
+
+    fn headers<'a>(request: &'a str, wanted: &str) -> Vec<&'a str> {
+        request
+            .lines()
+            .filter_map(|line| line.split_once(':'))
+            .filter(|(name, _)| name.eq_ignore_ascii_case(wanted))
+            .map(|(_, value)| value.trim())
+            .collect()
     }
 
     #[tokio::test]
     async fn requests_of_a_session_share_its_session_id() {
         let (url, received) = serve(EMPTY_TURN_SSE, 2).await;
-        let model = model_at(url, "discord-channel-1-watcher", None);
+        let model = model_at(url, None);
         for _ in 0..2 {
-            let request = model.completion_request("hi").build();
-            model.completion(request).await.expect("an empty turn");
+            model
+                .call(request("discord-channel-1-watcher"))
+                .await
+                .expect("an empty turn");
         }
 
         let received = received.lock().expect("request log");
         assert_eq!(received.len(), 2);
         for request in received.iter() {
-            let session_ids: Vec<&str> = request
-                .lines()
-                .filter_map(|line| line.split_once(':'))
-                .filter(|(name, _)| name.eq_ignore_ascii_case("session_id"))
-                .map(|(_, value)| value.trim())
-                .collect();
-            assert_eq!(session_ids, ["discord-channel-1-watcher"], "{request}");
+            assert_eq!(
+                headers(request, "session-id"),
+                ["discord-channel-1-watcher"],
+                "{request}"
+            );
         }
     }
 
@@ -1068,54 +1112,80 @@ data: [DONE]
             start,
             start + TimeDelta::days(8),
         ))));
-        let model = model_at(url, "session", Some(state.subscribe()));
+        let model = model_at(url, Some(state.subscribe()));
 
         let mut refreshed = session(start, start + TimeDelta::days(8));
         refreshed.tokens.access_token = "refreshed".to_string();
         refreshed.tokens.account_id = Some("account".to_string());
         state.send_replace(AuthState::SignedIn(Arc::new(refreshed)));
-        let request = model.completion_request("hi").build();
-        model.completion(request).await.expect("an empty turn");
+        model.call(request("session")).await.expect("an empty turn");
 
         let received = received.lock().expect("request log");
-        let header = |wanted: &str| -> Vec<String> {
-            received[0]
-                .lines()
-                .filter_map(|line| line.split_once(':'))
-                .filter(|(name, _)| name.eq_ignore_ascii_case(wanted))
-                .map(|(_, value)| value.trim().to_string())
-                .collect()
-        };
-        assert_eq!(header("authorization"), ["Bearer refreshed"]);
-        assert_eq!(header("chatgpt-account-id"), ["account"]);
+        assert_eq!(headers(&received[0], "authorization"), ["Bearer refreshed"]);
+        assert_eq!(headers(&received[0], "chatgpt-account-id"), ["account"]);
     }
 
-    #[tokio::test]
-    async fn rig_fails_an_empty_chatgpt_turn_with_the_expected_error() {
-        let ChatgptModel(inner) = model_serving(EMPTY_TURN_SSE).await;
-        let request = inner.completion_request("hi").build();
-
-        match inner.completion(request).await {
-            Err(CompletionError::ResponseError(message)) => assert_eq!(message, EMPTY_TURN_ERROR),
-            other => panic!(
-                "rig no longer fails an empty turn the way EMPTY_TURN_ERROR expects: {:?}",
-                other.map(|response| response.choice)
-            ),
-        }
-    }
-
+    /// For this bot an empty turn is how a run normally ends: the reply already went out through
+    /// `send_discord_message` and the model has nothing to add
     #[tokio::test]
     async fn an_empty_chatgpt_turn_ends_the_run() {
-        let model = model_serving(EMPTY_TURN_SSE).await;
-        let request = model.completion_request("hi").build();
-
-        let response = model.completion(request).await.expect("an empty turn");
+        let (url, _) = serve(EMPTY_TURN_SSE, 1).await;
+        let response = model_at(url, None)
+            .call(request("session"))
+            .await
+            .expect("an empty turn");
         assert!(response.choice.is_empty());
+    }
+
+    /// A Chat Completions reply, the route Copilot serves non-Codex models on
+    const CHAT_REPLY: &str = r#"{"id":"chatcmpl-1","object":"chat.completion","created":1,"model":"gemini-4-hydrogen","choices":[{"index":0,"message":{"role":"assistant","content":"hi"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}"#;
+
+    #[tokio::test]
+    async fn copilot_requests_carry_the_newest_token_as_vs_code() {
+        let (url, received) = serve(CHAT_REPLY, 1).await;
+        let start = Utc::now();
+        let state = watch::Sender::new(AuthState::SignedIn(Arc::new(session(
+            start,
+            start + TimeDelta::minutes(30),
+        ))));
+        let grant = Grant {
+            access_token: "tid=old".to_string(),
+            account_id: None,
+        };
+        let model = client(
+            Provider::Copilot.config(&grant).with_base_url(url),
+            reqwest::Client::new(),
+            Some(state.subscribe()),
+        )
+        .completion(COPILOT_RESPONDER_MODEL)
+        .erase();
+
+        let mut refreshed = session(start, start + TimeDelta::minutes(30));
+        refreshed.tokens.access_token = "tid=new".to_string();
+        state.send_replace(AuthState::SignedIn(Arc::new(refreshed)));
+        let response = model
+            .call(CompletionRequest::new("hi"))
+            .await
+            .expect("a reply");
+        assert!(!response.choice.is_empty());
+
+        let received = received.lock().expect("request log");
+        assert!(
+            received[0].starts_with("POST /chat/completions "),
+            "{}",
+            received[0]
+        );
+        assert_eq!(headers(&received[0], "authorization"), ["Bearer tid=new"]);
+        assert_eq!(
+            headers(&received[0], "copilot-integration-id"),
+            ["vscode-chat"]
+        );
+        assert_eq!(headers(&received[0], "x-initiator"), ["user"]);
     }
 
     fn session(refreshed_at: DateTime<Utc>, expires_at: DateTime<Utc>) -> Session {
         Session {
-            tokens: oauth::Tokens {
+            tokens: Tokens {
                 access_token: "access".to_string(),
                 refresh_token: "refresh".to_string(),
                 id_token: None,

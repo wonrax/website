@@ -378,8 +378,9 @@ pub fn participants(msg: &Message, bot_user_id: UserId) -> Vec<UserId> {
 /// channel input to it like everyone else's rather than turns of its own.
 pub fn observed(message: &RigMessage) -> RigMessage {
     match message {
-        RigMessage::Assistant { content, .. } => RigMessage::User {
-            content: content
+        RigMessage::Assistant(assistant) => RigMessage::User {
+            content: assistant
+                .content
                 .iter()
                 .filter_map(|part| match part {
                     AssistantContent::Text(text) => Some(UserContent::text(text.text.clone())),

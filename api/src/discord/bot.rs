@@ -2,11 +2,11 @@ use crate::config::DiscordLlmBackend;
 use crate::discord::{
     agent::{LlmBackend, ToolBackends},
     channel::{ChannelEvent, ChannelHandle},
-    chatgpt::{ChatgptAuth, DbPool},
-    constants::{MESSAGE_CONTEXT_SIZE, WHITELIST_CHANNELS},
+    constants::{MESSAGE_CONTEXT_SIZE, SUBSCRIPTION_PROVIDER, WHITELIST_CHANNELS},
     memory::MemorySystem,
     message::{self, QueuedMessage},
     sandbox::Sandboxes,
+    subscription::{DbPool, SubscriptionAuth},
 };
 use arc_swap::ArcSwap;
 use async_trait::async_trait;
@@ -69,7 +69,9 @@ impl DiscordEventHandler {
         };
 
         let llm = match server_config.discord_llm_backend {
-            DiscordLlmBackend::Chatgpt => LlmBackend::Chatgpt(ChatgptAuth::load(db.clone()).await),
+            DiscordLlmBackend::Subscription => LlmBackend::Subscription(
+                SubscriptionAuth::load(db.clone(), SUBSCRIPTION_PROVIDER).await,
+            ),
             DiscordLlmBackend::Gemini => LlmBackend::Gemini {
                 api_key: server_config.openai_api_key.clone().unwrap_or_default(),
             },

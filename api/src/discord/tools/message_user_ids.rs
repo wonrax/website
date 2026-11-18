@@ -1,5 +1,5 @@
 use crate::discord::message::{fetch_channel_message, parse_message_id};
-use rig::tool::PortableTool;
+use rig::tool::{Tool, ToolContext};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serenity::all::{ChannelId, Context, User};
@@ -55,7 +55,7 @@ impl FetchMessageUserIdsOutput {
 #[error("Fetch message user IDs error: {0}")]
 pub struct FetchMessageUserIdsError(String);
 
-impl PortableTool for FetchMessageUserIdsTool {
+impl Tool for FetchMessageUserIdsTool {
     const NAME: &'static str = "fetch_message_user_ids";
     type Error = FetchMessageUserIdsError;
     type Args = FetchMessageUserIdsArgs;
@@ -79,7 +79,11 @@ impl PortableTool for FetchMessageUserIdsTool {
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let message_id = match parse_message_id("message_id", &args.message_id) {
             Ok(id) => id,
             Err(error) => return Ok(FetchMessageUserIdsOutput::failure(error)),

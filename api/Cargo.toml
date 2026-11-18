@@ -13,7 +13,8 @@ dotenv = "0.15.0"
 futures-util = "0.3.32"
 chrono = { version = "0.4.45", features = ["serde"] }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0"
+# rig no longer forces these; prompts and tool schemas keep their key order
+serde_json = { version = "1.0", features = ["preserve_order", "float_roundtrip"] }
 rand = "0.10.1"
 # mimalloc v3 is the default since 0.1.49, so no feature flag is needed.
 mimalloc = "0.1.52"
@@ -36,8 +37,9 @@ const_format = "0.2.36"
 futures = "0.3.32"
 article_scraper = "2.3.1"
 url = "2.5.8"
-rig = { package = "rig-core", version = "0.42.0" }
-rig-agent = "0.42.0"
+rig = { package = "rig-core", version = "0.46.0", features = ["reqwest"] }
+rig-reqwest = "0.46.0"
+rig-agent = "0.46.0"
 uuid = { version = "1.23.3", features = ["v4"] }
 arc-swap = "1.9.1"
 scc = "3.8.3"
@@ -55,7 +57,7 @@ image = { version = "0.25.10", default-features = false, features = ["png", "jpe
 [dev-dependencies]
 criterion = "0.8.2"
 # Scripted models for the agent run tests
-rig-agent = { version = "0.42.0", features = ["test-utils"] }
+rig-agent = { version = "0.46.0", features = ["test-utils"] }
 
 [[bench]]
 name = "blog_comments"

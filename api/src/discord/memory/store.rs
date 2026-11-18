@@ -15,7 +15,7 @@ use serenity::all::{ChannelId, GuildId, MessageId, UserId};
 
 use super::{Note, Notes, Profile, Subject};
 use crate::{
-    discord::chatgpt::DbPool,
+    discord::subscription::DbPool,
     schema::{discord_memory_docs, discord_memory_observations, discord_memory_people},
 };
 

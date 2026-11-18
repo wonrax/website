@@ -37,8 +37,8 @@ use serenity::all::ChannelId;
 use tracing::Instrument as _;
 
 use crate::discord::{
-    chatgpt::DbPool,
     constants::{SANDBOX_IDLE_TIMEOUT, SANDBOX_RETENTION, SANDBOX_SWEEP_INTERVAL},
+    subscription::DbPool,
 };
 use output::Capture;
 use store::SandboxStore;
@@ -190,10 +190,9 @@ impl Sandboxes {
             .await
             .wrap_err("Failed to list the running sandboxes")?;
         for container in running {
-            let (Some(id), Some(channel_id)) = (
-                container.id,
-                container.labels.as_ref().and_then(channel_of),
-            ) else {
+            let (Some(id), Some(channel_id)) =
+                (container.id, container.labels.as_ref().and_then(channel_of))
+            else {
                 continue;
             };
             let lifecycle = self.lifecycle(channel_id);
@@ -323,7 +322,9 @@ impl ChannelSandbox {
     }
 
     fn last_used(&self) -> MutexGuard<'_, Option<Instant>> {
-        self.last_used.lock().unwrap_or_else(PoisonError::into_inner)
+        self.last_used
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     /// When the running sandbox goes idle and is due to stop
@@ -515,7 +516,9 @@ impl ChannelSandbox {
                     Err(_) => false,
                 }
             }
-            StartExecResults::Detached => bail!("podman ran the command detached"),
+            StartExecResults::Detached => {
+                bail!("podman ran the command detached");
+            }
         };
         *self.last_used() = Some(Instant::now());
 
@@ -644,7 +647,7 @@ impl ChannelSandbox {
                 bail!(
                     "`{description}` failed with exit code {code}: {}",
                     output.trim()
-                )
+                );
             }
         }
     }

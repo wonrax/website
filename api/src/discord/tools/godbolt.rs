@@ -1,4 +1,4 @@
-use rig::tool::PortableTool;
+use rig::tool::{Tool, ToolContext};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
@@ -106,7 +106,7 @@ impl Godbolt {
     }
 }
 
-impl PortableTool for Godbolt {
+impl Tool for Godbolt {
     const NAME: &'static str = "godbolt_compile";
     type Error = GodboltError;
     type Args = CompileArgs;
@@ -133,7 +133,11 @@ impl PortableTool for Godbolt {
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let client = Self::client();
         let execute = args.execute;
         let default_filters = json!({
@@ -284,7 +288,7 @@ impl PortableTool for Godbolt {
 #[derive(Debug, Clone)]
 pub struct GodboltFormats;
 
-impl PortableTool for GodboltFormats {
+impl Tool for GodboltFormats {
     const NAME: &'static str = "godbolt_formatters";
     type Error = GodboltError;
     type Args = serde_json::Value; // No arguments needed for this tool
@@ -298,7 +302,11 @@ impl PortableTool for GodboltFormats {
         json!({"type": "object", "properties": {}, "additionalProperties": false})
     }
 
-    async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        _args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let client = Godbolt::client();
         let url = format!("{BASE_URL}/api/formats");
         let res = client
@@ -313,7 +321,7 @@ impl PortableTool for GodboltFormats {
 #[derive(Debug, Clone)]
 pub struct GodboltFormat;
 
-impl PortableTool for GodboltFormat {
+impl Tool for GodboltFormat {
     const NAME: &'static str = "godbolt_format";
     type Error = GodboltError;
     type Args = FormatArgs;
@@ -334,7 +342,11 @@ impl PortableTool for GodboltFormat {
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let client = Godbolt::client();
         let url = format!("{BASE_URL}/api/format/{}", args.formatter);
         let res = client
@@ -356,7 +368,7 @@ impl PortableTool for GodboltFormat {
 
 #[derive(Debug, Clone)]
 pub struct GodboltLanguages;
-impl PortableTool for GodboltLanguages {
+impl Tool for GodboltLanguages {
     const NAME: &'static str = "godbolt_languages";
     type Error = GodboltError;
     type Args = serde_json::Value; // No arguments needed for this tool
@@ -370,7 +382,11 @@ impl PortableTool for GodboltLanguages {
         json!({"type": "object", "properties": {}})
     }
 
-    async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        _args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let client = Godbolt::client();
         let url = format!("{BASE_URL}/api/languages");
         let res = client
@@ -386,7 +402,7 @@ impl PortableTool for GodboltLanguages {
 
 #[derive(Debug, Clone)]
 pub struct GodboltCompilers;
-impl PortableTool for GodboltCompilers {
+impl Tool for GodboltCompilers {
     const NAME: &'static str = "godbolt_compilers";
     type Error = GodboltError;
     type Args = CompilersArgs;
@@ -400,7 +416,11 @@ impl PortableTool for GodboltCompilers {
         json!({"type": "object", "properties": {"language_id": {"type": "string"}}, "required": ["language_id"]})
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let client = Godbolt::client();
         let url = format!("{BASE_URL}/api/compilers/{}", args.language_id);
         let res = client
@@ -414,7 +434,7 @@ impl PortableTool for GodboltCompilers {
 
 #[derive(Debug, Clone)]
 pub struct GodboltLibraries;
-impl PortableTool for GodboltLibraries {
+impl Tool for GodboltLibraries {
     const NAME: &'static str = "godbolt_libraries";
     type Error = GodboltError;
     type Args = LibrariesArgs;
@@ -428,7 +448,11 @@ impl PortableTool for GodboltLibraries {
         json!({"type": "object", "properties": {"language_id": {"type": "string"}}, "required": ["language_id"]})
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let client = Godbolt::client();
         let url = format!("{BASE_URL}/api/libraries/{}", args.language_id);
         let res = client
@@ -442,7 +466,7 @@ impl PortableTool for GodboltLibraries {
 
 #[derive(Debug, Clone)]
 pub struct GodboltAsmDoc;
-impl PortableTool for GodboltAsmDoc {
+impl Tool for GodboltAsmDoc {
     const NAME: &'static str = "godbolt_asm_doc";
     type Error = GodboltError;
     type Args = InstructionArgs;
@@ -456,7 +480,11 @@ impl PortableTool for GodboltAsmDoc {
         json!({"type": "object", "properties": {"instruction_set": {"type": "string"}, "opcode": {"type": "string"}}, "required": ["instruction_set", "opcode"]})
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let client = Godbolt::client();
         let url = format!(
             "{BASE_URL}/api/asm/{}/{}",
@@ -473,7 +501,7 @@ impl PortableTool for GodboltAsmDoc {
 
 #[derive(Debug, Clone)]
 pub struct GodboltVersion;
-impl PortableTool for GodboltVersion {
+impl Tool for GodboltVersion {
     const NAME: &'static str = "godbolt_version";
     type Error = GodboltError;
     type Args = serde_json::Value; // No arguments needed for this tool
@@ -487,7 +515,11 @@ impl PortableTool for GodboltVersion {
         json!({"type": "object", "properties": {}})
     }
 
-    async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        _args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let client = Godbolt::client();
         let url = format!("{BASE_URL}/api/version");
         let res = client

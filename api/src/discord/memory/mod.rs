@@ -8,7 +8,7 @@ mod store;
 use chrono::{DateTime, Datelike as _, NaiveDate, Utc};
 use serenity::all::{ChannelId, GuildId, MessageId, UserId};
 
-use crate::discord::{agent::LlmBackend, chatgpt::DbPool, constants::DISCORD_BOT_NAME};
+use crate::discord::{agent::LlmBackend, constants::DISCORD_BOT_NAME, subscription::DbPool};
 
 pub use dream::Dreamer;
 pub use store::{FoundObservation, MemoryStore, NewObservation, Search};

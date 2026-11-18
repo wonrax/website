@@ -1,5 +1,5 @@
 use crate::discord::message::{format_message_compact, parse_message_id};
-use rig::tool::PortableTool;
+use rig::tool::{Tool, ToolContext};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serenity::all::{ChannelId, Context, GetMessages, UserId};
@@ -77,7 +77,7 @@ impl FetchChannelHistoryOutput {
 #[error("Fetch channel history error: {0}")]
 pub struct FetchChannelHistoryError(String);
 
-impl PortableTool for FetchChannelHistoryTool {
+impl Tool for FetchChannelHistoryTool {
     const NAME: &'static str = "fetch_channel_history";
     type Error = FetchChannelHistoryError;
     type Args = FetchChannelHistoryArgs;
@@ -110,7 +110,11 @@ impl PortableTool for FetchChannelHistoryTool {
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let anchor = match parse_message_id("anchor_message_id", &args.anchor_message_id) {
             Ok(anchor) => anchor,
             Err(error) => return Ok(FetchChannelHistoryOutput::failure(error)),

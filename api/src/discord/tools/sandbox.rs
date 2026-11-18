@@ -3,7 +3,7 @@ use base64::Engine as _;
 use image::{DynamicImage, ImageFormat, ImageReader, imageops::FilterType};
 use rig::{
     message::{ImageMediaType, ToolResultContent},
-    tool::{PortableTool, ToolOutput},
+    tool::{Tool, ToolContext, ToolOutput},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -54,7 +54,7 @@ pub struct SandboxRunOutput {
     pub error: Option<String>,
 }
 
-impl PortableTool for SandboxRunTool {
+impl Tool for SandboxRunTool {
     const NAME: &'static str = "sandbox_run";
     type Error = SandboxToolError;
     type Args = SandboxRunArgs;
@@ -98,7 +98,11 @@ A background process has to redirect its output, or the call waits for it until 
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let timeout_secs = args
             .timeout_secs
             .unwrap_or(DEFAULT_TIMEOUT_SECS)
@@ -167,7 +171,7 @@ pub struct SandboxWriteFileOutput {
     pub error: Option<String>,
 }
 
-impl PortableTool for SandboxWriteFileTool {
+impl Tool for SandboxWriteFileTool {
     const NAME: &'static str = "sandbox_write_file";
     type Error = SandboxToolError;
     type Args = SandboxWriteFileArgs;
@@ -197,7 +201,11 @@ mangle."
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         match self
             .sandbox
             .write_file(&args.path, args.content.as_bytes())
@@ -237,7 +245,7 @@ struct ViewImageResponse {
     scaled_down_from: Option<String>,
 }
 
-impl PortableTool for SandboxViewImageTool {
+impl Tool for SandboxViewImageTool {
     const NAME: &'static str = "sandbox_view_image";
     type Error = SandboxToolError;
     type Args = SandboxViewImageArgs;
@@ -263,7 +271,11 @@ scaled down for you."
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let failure = |error: String| ToolOutput::text(json!({ "error": error }).to_string());
         let file = match self
             .sandbox

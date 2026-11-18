@@ -270,7 +270,7 @@ async fn main() {
 
 async fn start_discord_service(
     config: ServerConfig,
-    db: discord::chatgpt::DbPool,
+    db: discord::subscription::DbPool,
 ) -> Result<(), eyre::Error> {
     use serenity::all::GatewayIntents;
 

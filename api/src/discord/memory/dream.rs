@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use chrono::{NaiveDate, Utc};
-use rig_agent::{AgentBuilder, completion::Prompt as _};
+use rig_agent::AgentBuilder;
 use serenity::all::GuildId;
 use tokio::{sync::mpsc, time::Instant};
 use tracing::Instrument as _;
@@ -14,8 +14,8 @@ use super::{
 };
 use crate::discord::{
     agent::LlmBackend,
-    chatgpt::Grant,
     constants::{DREAM_PROMPT, DREAM_SETTLE, DREAM_SWEEP_INTERVAL},
+    subscription::Grant,
 };
 
 /// Sizes past which a doc is worth a look in the logs, in characters. Not limits: the dream
@@ -95,13 +95,13 @@ async fn dream(store: &MemoryStore, llm: &LlmBackend, guild_id: Option<GuildId>)
     }
 
     let grant = match llm {
-        LlmBackend::Chatgpt(auth) => match auth.access().await {
+        LlmBackend::Subscription(auth) => match auth.access().await {
             Ok(grant) => Some(grant),
             Err(_) => {
                 // The next wake or sweep finds the same docs still due
                 tracing::warn!(
                     due = subjects.len(),
-                    "Postponing the memory dreams: ChatGPT has no sign-in"
+                    "Postponing the memory dreams: the subscription has no sign-in"
                 );
                 return;
             }
@@ -130,11 +130,17 @@ async fn dream_doc(
     today: NaiveDate,
 ) -> eyre::Result<()> {
     let input = store.dream_input(guild_id, subject).await?;
-    let model = llm.dreamer_model(guild_id, grant)?;
-    let agent = AgentBuilder::from_model_handle(model)
-        .preamble(DREAM_PROMPT)
+    let model = llm.dreamer_model(grant)?;
+    let agent = llm
+        .with_session(
+            AgentBuilder::new(model).preamble(DREAM_PROMPT),
+            format!("discord-guild-{guild_id}-dreamer"),
+        )
         .build();
-    let answer = agent.prompt(dream_prompt(subject, &input, today)).await?;
+    let answer = agent
+        .prompt(dream_prompt(subject, &input, today))
+        .await?
+        .output();
     let dreamed = parse_dream(&answer)
         .ok_or_else(|| eyre::eyre!("The dream answered without a <doc>: {answer:.300}"))?;
 

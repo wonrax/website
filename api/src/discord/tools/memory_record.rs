@@ -6,7 +6,7 @@ use std::{
     sync::Arc,
 };
 
-use rig::tool::PortableTool;
+use rig::tool::{Tool, ToolContext};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serenity::all::{Context, GetMessages, Message, MessageId, ReactionType, User, UserId};
@@ -56,7 +56,7 @@ pub struct RecordObservationsOutput {
 #[error("Record observations error: {0}")]
 pub struct RecordObservationsError(String);
 
-impl PortableTool for RecordObservationsTool {
+impl Tool for RecordObservationsTool {
     const NAME: &'static str = "record_observations";
     type Error = RecordObservationsError;
     type Args = RecordObservationsArgs;
@@ -113,7 +113,11 @@ impl PortableTool for RecordObservationsTool {
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let mut errors = Vec::new();
 
         // The cited messages and the conversation around them, fetched once however many

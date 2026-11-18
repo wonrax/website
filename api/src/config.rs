@@ -8,8 +8,8 @@ pub enum Env {
 /// The LLM behind the Discord bot
 #[derive(Clone, Copy, Debug)]
 pub enum DiscordLlmBackend {
-    /// A ChatGPT subscription, signed in from the Discord channel
-    Chatgpt,
+    /// A subscription signed in from the Discord channel: `SUBSCRIPTION_PROVIDER` says which
+    Subscription,
     /// The Gemini API, keyed by `OPENAI_API_KEY`
     Gemini,
 }
@@ -198,11 +198,12 @@ impl ServerConfig {
                 .and_then(|s| s.parse::<bool>().ok())
                 .unwrap_or(false),
             discord_llm_backend: match var("DISCORD_LLM_BACKEND").unwrap_or(None).as_deref() {
-                None | Some("chatgpt") => DiscordLlmBackend::Chatgpt,
+                // `chatgpt` is what this was called before Copilot joined
+                None | Some("subscription" | "chatgpt") => DiscordLlmBackend::Subscription,
                 Some("gemini") => DiscordLlmBackend::Gemini,
                 Some(other) => {
                     tracing::error!(
-                        "Unknown DISCORD_LLM_BACKEND `{other}`, expected `chatgpt` or `gemini`"
+                        "Unknown DISCORD_LLM_BACKEND `{other}`, expected `subscription` or `gemini`"
                     );
                     std::process::exit(1)
                 }

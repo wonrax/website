@@ -8,7 +8,7 @@ use crate::discord::{
 };
 use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use reqwest::{StatusCode, header::AUTHORIZATION};
-use rig::tool::PortableTool;
+use rig::tool::{Tool, ToolContext};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use serenity::all::{ChannelId, Context, GuildId, Message, UserId};
@@ -226,7 +226,7 @@ fn next_offset(offset: u32, limit: u32, total_results: u64) -> Option<u32> {
     (u64::from(next) < total_results && next <= MAX_OFFSET).then_some(next)
 }
 
-impl PortableTool for SearchChannelMessagesTool {
+impl Tool for SearchChannelMessagesTool {
     const NAME: &'static str = "search_channel_messages";
     type Error = SearchChannelMessagesError;
     type Args = SearchChannelMessagesArgs;
@@ -275,7 +275,11 @@ impl PortableTool for SearchChannelMessagesTool {
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let limit = args.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT);
         let offset = args.offset.unwrap_or(0).min(MAX_OFFSET);
         let query: Option<String> = args

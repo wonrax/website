@@ -1,6 +1,8 @@
 use const_format::formatcp;
 use std::time::Duration;
 
+use crate::discord::subscription::Provider;
+
 pub const WHITELIST_CHANNELS: [u64; 0] = [];
 
 /// The window a fresh agent session starts with: the queued messages plus older channel messages
@@ -13,6 +15,8 @@ pub const MESSAGE_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(5); // delay 
 pub const TYPING_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(5); // delay after typing stops
 pub const URL_FETCH_TIMEOUT_SECS: Duration = Duration::from_secs(15);
 pub const DISCORD_BOT_NAME: &str = "The Irony Himself";
+/// The subscription the bot signs in to when `DISCORD_LLM_BACKEND` picks one
+pub const SUBSCRIPTION_PROVIDER: Provider = Provider::Copilot;
 /// Writes the bot's replies
 pub const CHATGPT_RESPONDER_MODEL: &str = "gpt-6.1-sol";
 /// Reads everything to decide when the bot speaks, and keeps the memories
@@ -21,6 +25,14 @@ pub const CHATGPT_WATCHER_MODEL: &str = "gpt-6.1-sol";
 pub const CHATGPT_DREAMER_MODEL: &str = "gpt-6.1-sol";
 /// Both ChatGPT models' window, per the backend's `/models`
 pub const CHATGPT_CONTEXT_WINDOW: u64 = 272_000;
+/// Google's Flash model of Gemini 4, in Copilot since 2026-11-13. Too new for rig's catalog, so
+/// the ID follows `gemini-4-argon`'s.
+pub const COPILOT_RESPONDER_MODEL: &str = "gemini-4-hydrogen";
+pub const COPILOT_WATCHER_MODEL: &str = "gemini-4-hydrogen";
+pub const COPILOT_DREAMER_MODEL: &str = "gemini-4-hydrogen";
+/// Copilot states no window for it yet; Gemini 4 Argon takes 1M there. Half that, which also caps
+/// what a usage-billed call costs.
+pub const COPILOT_CONTEXT_WINDOW: u64 = 512_000;
 pub const GEMINI_MODEL: &str = "gemini-3.8-flash";
 pub const GEMINI_CONTEXT_WINDOW: u64 = 1_048_576;
 /// Model calls one run may make. Work in the sandbox takes a call per command, and a coding task

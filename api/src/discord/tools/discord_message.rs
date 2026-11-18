@@ -2,7 +2,7 @@ use crate::discord::{
     message::expand_citations,
     sandbox::{ChannelSandbox, HOME},
 };
-use rig::tool::PortableTool;
+use rig::tool::{Tool, ToolContext};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serenity::all::{ChannelId, Context, CreateAttachment, CreateMessage, GuildId, MessageId};
@@ -46,7 +46,7 @@ pub struct DiscordSendMessageOutput {
 #[error("Discord send message error: {0}")]
 pub struct DiscordSendMessageError(String);
 
-impl PortableTool for DiscordSendMessageTool {
+impl Tool for DiscordSendMessageTool {
     const NAME: &'static str = "send_discord_message";
     type Error = DiscordSendMessageError;
     type Args = DiscordSendMessageArgs;
@@ -85,7 +85,11 @@ impl PortableTool for DiscordSendMessageTool {
         parameters
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         // Read before anything is sent, so a bad path fails the whole message and a retry
         // doesn't post its text twice
         let files = match self

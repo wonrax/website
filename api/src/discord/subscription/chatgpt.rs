@@ -1,71 +1,51 @@
 //! The "Sign in with ChatGPT" OAuth flow as the Codex CLI speaks it: device-code sign-in and
 //! refresh-token rotation against auth.openai.com.
+//!
+//! OpenAI rotates the refresh token on every refresh and treats a replayed one as stolen, revoking
+//! the whole sign-in. The shared refresh lock keeps that from happening, as long as nothing else
+//! holds a copy of the token: sign the bot in on its own rather than reusing a Codex CLI login.
 
 use std::time::Duration;
 
 use base64::Engine as _;
 use chrono::{DateTime, TimeDelta, Utc};
 use reqwest::StatusCode;
-use serde::{Deserialize, Deserializer};
+use rig::providers::{chatgpt, openai::OpenAIConfig};
+use serde::Deserialize;
+
+use super::{
+    Grant,
+    oauth::{
+        DeviceCode, PollError, PollOutcome, REQUEST_TIMEOUT, RefreshError, Tokens, error_message,
+        poll_interval, seconds_from_string_or_number,
+    },
+};
 
 const ISSUER: &str = "https://auth.openai.com";
 /// Codex CLI's public OAuth client, the only one the ChatGPT backend hands subscription tokens to
 const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
 /// Where the user types the device code
-pub const VERIFICATION_URL: &str = "https://auth.openai.com/codex/device";
+const VERIFICATION_URL: &str = "https://auth.openai.com/codex/device";
 /// How long OpenAI honours a device code
-pub const DEVICE_CODE_TTL: Duration = Duration::from_secs(15 * 60);
-const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(5);
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+const DEVICE_CODE_TTL: Duration = Duration::from_secs(15 * 60);
 /// Assumed access token lifetime when neither the JWT nor the response states one. Short on
 /// purpose: refreshing early costs one request, expiring unnoticed costs a failed run.
 const FALLBACK_TOKEN_LIFETIME: TimeDelta = TimeDelta::hours(1);
 
-/// A pending device-code sign-in
-pub struct DeviceCode {
-    pub user_code: String,
-    device_auth_id: String,
-    pub poll_interval: Duration,
-}
-
-pub enum PollOutcome {
-    /// Nobody has entered the code yet
-    Pending,
-    Approved(AuthorizationGrant),
-}
-
-pub struct AuthorizationGrant {
+struct AuthorizationGrant {
     authorization_code: String,
     code_verifier: String,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum PollError {
-    /// The request didn't make it; the next poll may
-    #[error("could not reach OpenAI: {0}")]
-    Network(reqwest::Error),
-    #[error("{0}")]
-    Rejected(String),
-}
-
-/// The credentials a successful sign-in or refresh yields
-#[derive(Clone)]
-pub struct Tokens {
-    pub access_token: String,
-    pub refresh_token: String,
-    pub id_token: Option<String>,
-    pub account_id: Option<String>,
-    pub expires_at: DateTime<Utc>,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum RefreshError {
-    /// OpenAI refused the refresh token; only a new sign-in brings the session back
-    #[error("{0}")]
-    Rejected(String),
-    /// Network trouble, rate limiting or a server error: the same refresh token may work later
-    #[error("{0}")]
-    Transient(String),
+/// rig's configuration for the ChatGPT backend, signed in as `grant`
+pub fn config(grant: &Grant) -> OpenAIConfig {
+    let config = OpenAIConfig::with_key(&chatgpt::DIALECT, grant.access_token.clone())
+        // rig prepends a stock "You are ChatGPT" line unless this is empty
+        .with_instructions("");
+    match &grant.account_id {
+        Some(account_id) => config.with_account_id(account_id.clone()),
+        None => config,
+    }
 }
 
 pub async fn request_device_code(http: &reqwest::Client) -> Result<DeviceCode, String> {
@@ -105,14 +85,14 @@ pub async fn request_device_code(http: &reqwest::Client) -> Result<DeviceCode, S
         .map_err(|e| format!("unexpected response from OpenAI: {e}"))?;
     Ok(DeviceCode {
         user_code: code.user_code,
-        device_auth_id: code.device_auth_id,
-        poll_interval: code
-            .interval
-            .filter(|&secs| secs > 0)
-            .map_or(DEFAULT_POLL_INTERVAL, Duration::from_secs),
+        verification_url: VERIFICATION_URL.to_string(),
+        ttl: DEVICE_CODE_TTL,
+        poll_interval: poll_interval(code.interval),
+        device_secret: code.device_auth_id,
     })
 }
 
+/// Whether someone has entered `code` yet, and the tokens it got if so
 pub async fn poll_device_code(
     http: &reqwest::Client,
     code: &DeviceCode,
@@ -127,12 +107,12 @@ pub async fn poll_device_code(
         .post(format!("{ISSUER}/api/accounts/deviceauth/token"))
         .timeout(REQUEST_TIMEOUT)
         .json(&serde_json::json!({
-            "device_auth_id": code.device_auth_id,
+            "device_auth_id": code.device_secret,
             "user_code": code.user_code,
         }))
         .send()
         .await
-        .map_err(PollError::Network)?;
+        .map_err(|e| PollError::Network(format!("could not reach OpenAI: {e}")))?;
 
     let status = response.status();
     // Codex treats both as "not approved yet"
@@ -150,14 +130,18 @@ pub async fn poll_device_code(
     let approved: ApprovedResponse = response.json().await.map_err(|e| {
         PollError::Rejected(format!("unexpected sign-in response from OpenAI: {e}"))
     })?;
-    Ok(PollOutcome::Approved(AuthorizationGrant {
+    let grant = AuthorizationGrant {
         authorization_code: approved.authorization_code,
         code_verifier: approved.code_verifier,
-    }))
+    };
+    exchange_authorization(http, grant)
+        .await
+        .map(PollOutcome::Approved)
+        .map_err(PollError::Rejected)
 }
 
 /// Trade an approved device code for tokens. The code is single use, so this is never retried.
-pub async fn exchange_authorization(
+async fn exchange_authorization(
     http: &reqwest::Client,
     grant: AuthorizationGrant,
 ) -> Result<Tokens, String> {
@@ -347,48 +331,6 @@ fn error_code(body: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-/// The most readable part of an error body, for showing to people
-pub fn error_message(body: &str) -> String {
-    let json: Option<serde_json::Value> = serde_json::from_str(body).ok();
-    let message = json.as_ref().and_then(|json| {
-        json.get("error_description")
-            .or_else(|| json.get("error")?.get("message"))
-            .or_else(|| json.get("detail"))
-            .or_else(|| json.get("error"))
-            .and_then(|value| value.as_str())
-    });
-    let message = message.unwrap_or(body).trim();
-    if message.is_empty() {
-        return "no details given".to_string();
-    }
-    truncate(message, 300)
-}
-
-pub fn truncate(text: &str, max_chars: usize) -> String {
-    match text.char_indices().nth(max_chars) {
-        Some((cut, _)) => format!("{}…", &text[..cut]),
-        None => text.to_string(),
-    }
-}
-
-fn seconds_from_string_or_number<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum Seconds {
-        Number(u64),
-        Text(String),
-    }
-
-    Ok(match Option::<Seconds>::deserialize(deserializer)? {
-        Some(Seconds::Number(secs)) => Some(secs),
-        Some(Seconds::Text(text)) => text.trim().parse().ok(),
-        None => None,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -474,37 +416,5 @@ mod tests {
         ));
         assert!(!rejected(StatusCode::TOO_MANY_REQUESTS, ""));
         assert!(!rejected(StatusCode::BAD_GATEWAY, "<html>"));
-    }
-
-    #[test]
-    fn poll_interval_arrives_as_a_string_or_a_number() {
-        #[derive(Deserialize)]
-        struct Interval {
-            #[serde(default, deserialize_with = "seconds_from_string_or_number")]
-            interval: Option<u64>,
-        }
-        let parse = |json| {
-            serde_json::from_str::<Interval>(json)
-                .map(|i| i.interval)
-                .ok()
-        };
-
-        assert_eq!(parse(r#"{"interval": "5"}"#), Some(Some(5)));
-        assert_eq!(parse(r#"{"interval": 7}"#), Some(Some(7)));
-        assert_eq!(parse(r#"{}"#), Some(None));
-    }
-
-    #[test]
-    fn error_messages_prefer_the_description() {
-        assert_eq!(
-            error_message(r#"{"error": "invalid_grant", "error_description": "expired"}"#),
-            "expired"
-        );
-        assert_eq!(
-            error_message(r#"{"error": {"message": "slow down"}}"#),
-            "slow down"
-        );
-        assert_eq!(error_message(""), "no details given");
-        assert_eq!(truncate("abcdef", 3), "abc…");
     }
 }

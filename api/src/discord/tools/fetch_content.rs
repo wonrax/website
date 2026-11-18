@@ -1,5 +1,5 @@
 use crate::discord::tools::firecrawl::Firecrawl;
-use rig::tool::PortableTool;
+use rig::tool::{Tool, ToolContext};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
@@ -46,7 +46,7 @@ impl FetchPageContentOutput {
 #[error("Fetch page content error: {0}")]
 pub struct FetchPageContentError(String);
 
-impl PortableTool for FetchPageContentTool {
+impl Tool for FetchPageContentTool {
     const NAME: &'static str = "fetch_page_content";
     type Error = FetchPageContentError;
     type Args = FetchPageContentArgs;
@@ -74,7 +74,11 @@ impl PortableTool for FetchPageContentTool {
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let is_web_url =
             url::Url::parse(&args.url).is_ok_and(|url| matches!(url.scheme(), "http" | "https"));
         if !is_web_url {

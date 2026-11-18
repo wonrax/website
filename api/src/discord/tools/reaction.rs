@@ -1,5 +1,5 @@
 use crate::discord::message::parse_message_id;
-use rig::tool::PortableTool;
+use rig::tool::{Tool, ToolContext};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serenity::all::{ChannelId, Context, ReactionType};
@@ -28,7 +28,7 @@ pub struct ReactToMessageOutput {
 #[error("Reaction error: {0}")]
 pub struct ReactToMessageError(String);
 
-impl PortableTool for ReactToMessageTool {
+impl Tool for ReactToMessageTool {
     const NAME: &'static str = "react_to_message";
     type Error = ReactToMessageError;
     type Args = ReactToMessageArgs;
@@ -55,7 +55,11 @@ impl PortableTool for ReactToMessageTool {
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let failure = |error: String| {
             Ok(ReactToMessageOutput {
                 success: false,

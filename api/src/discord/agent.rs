@@ -1,13 +1,14 @@
 use crate::discord::{
-    chatgpt::{ChatgptAuth, Grant},
     constants::{
         CHATGPT_CONTEXT_WINDOW, CHATGPT_DREAMER_MODEL, CHATGPT_RESPONDER_MODEL,
-        CHATGPT_WATCHER_MODEL, COMPACTION_THRESHOLD_PERCENT, GEMINI_CONTEXT_WINDOW, GEMINI_MODEL,
-        MAX_AGENT_RUN_DURATION, MAX_AGENT_TURNS, MEMORY_PROMPT, RECALL_PROMPT,
-        RUN_CONTEXT_LIMIT_PERCENT, SYSTEM_PROMPT, WATCHER_PROMPT,
+        CHATGPT_WATCHER_MODEL, COMPACTION_THRESHOLD_PERCENT, COPILOT_CONTEXT_WINDOW,
+        COPILOT_DREAMER_MODEL, COPILOT_RESPONDER_MODEL, COPILOT_WATCHER_MODEL,
+        GEMINI_CONTEXT_WINDOW, GEMINI_MODEL, MAX_AGENT_RUN_DURATION, MAX_AGENT_TURNS,
+        MEMORY_PROMPT, RECALL_PROMPT, RUN_CONTEXT_LIMIT_PERCENT, SYSTEM_PROMPT, WATCHER_PROMPT,
     },
     memory::ChannelMemory,
     sandbox::ChannelSandbox,
+    subscription::{Grant, Provider, SubscriptionAuth},
     tools::{
         DiscordSendMessageTool, FetchChannelHistoryTool, FetchMessageTool, FetchMessageUserIdsTool,
         FetchPageContentTool, Firecrawl, MemorySearchTool, ReactToMessageTool,
@@ -17,16 +18,19 @@ use crate::discord::{
 };
 use eyre::Context as _;
 use rig::{
-    client::CompletionClient as _, completion::Message as RigMessage, message::ToolChoice,
-    providers::gemini,
+    DynModel,
+    completion::{GenerationOptions, Message as RigMessage, Usage},
+    message::ToolChoice,
+    operation::Completion,
+    providers::gemini::Gemini,
 };
 use rig_agent::{
-    Agent, AgentBuilder, ModelHandle,
+    Agent, AgentBuilder,
     agent::{
-        AgentHook, CompletionCallAction, CompletionCallEvent, CompletionResponseEvent,
-        HookContext, ObservationAction, WithBuilderTools,
+        AgentHook, CompletionCallAction, CompletionCallEvent, HookContext, OutcomeAction,
+        OutcomeEvent,
     },
-    completion::{Prompt as _, PromptError},
+    completion::PromptError,
 };
 use serenity::all::{ChannelId, Context, GuildId, UserId};
 use std::{
@@ -39,10 +43,13 @@ use std::{
 };
 use tracing::instrument;
 
+/// A completion model of any provider
+pub type AgentModel = DynModel<Completion>;
+
 /// The LLM the agents run on, picked at startup by `DISCORD_LLM_BACKEND`
 #[derive(Clone)]
 pub enum LlmBackend {
-    Chatgpt(Arc<ChatgptAuth>),
+    Subscription(Arc<SubscriptionAuth>),
     Gemini { api_key: String },
 }
 
@@ -63,64 +70,76 @@ fn session_key(role: Role, channel_id: ChannelId) -> String {
     }
 }
 
+/// What a model is for
+#[derive(Clone, Copy)]
+enum Job {
+    Agent(Role),
+    /// Rewriting the memory docs
+    Dream,
+}
+
+/// The model `provider` runs `job` on
+fn subscription_model(provider: Provider, job: Job) -> &'static str {
+    match (provider, job) {
+        (Provider::Chatgpt, Job::Agent(Role::Watcher)) => CHATGPT_WATCHER_MODEL,
+        (Provider::Chatgpt, Job::Agent(Role::Responder)) => CHATGPT_RESPONDER_MODEL,
+        (Provider::Chatgpt, Job::Dream) => CHATGPT_DREAMER_MODEL,
+        (Provider::Copilot, Job::Agent(Role::Watcher)) => COPILOT_WATCHER_MODEL,
+        (Provider::Copilot, Job::Agent(Role::Responder)) => COPILOT_RESPONDER_MODEL,
+        (Provider::Copilot, Job::Dream) => COPILOT_DREAMER_MODEL,
+    }
+}
+
 impl LlmBackend {
-    /// The model `role` runs on in `channel_id`. ChatGPT authenticates it as the run's `grant`.
-    pub fn model(
-        &self,
-        role: Role,
-        channel_id: ChannelId,
-        grant: Option<&Grant>,
-    ) -> eyre::Result<ModelHandle> {
-        match self {
-            Self::Gemini { api_key } => gemini_model(api_key),
-            Self::Chatgpt(auth) => {
-                let grant = grant.ok_or_else(|| eyre::eyre!("A ChatGPT model needs a sign-in"))?;
-                let name = match role {
-                    Role::Watcher => CHATGPT_WATCHER_MODEL,
-                    Role::Responder => CHATGPT_RESPONDER_MODEL,
-                };
-                auth.model(grant, name, &session_key(role, channel_id))
-            }
-        }
+    /// The model `role` runs on. A subscription authenticates it as the run's `grant`.
+    pub fn model(&self, role: Role, grant: Option<&Grant>) -> eyre::Result<AgentModel> {
+        self.model_for(Job::Agent(role), grant)
     }
 
-    /// The model that rewrites the memory docs of `guild_id`
-    pub fn dreamer_model(
-        &self,
-        guild_id: GuildId,
-        grant: Option<&Grant>,
-    ) -> eyre::Result<ModelHandle> {
+    /// The model that rewrites the memory docs
+    pub fn dreamer_model(&self, grant: Option<&Grant>) -> eyre::Result<AgentModel> {
+        self.model_for(Job::Dream, grant)
+    }
+
+    fn model_for(&self, job: Job, grant: Option<&Grant>) -> eyre::Result<AgentModel> {
         match self {
-            Self::Gemini { api_key } => gemini_model(api_key),
-            Self::Chatgpt(auth) => {
-                let grant = grant.ok_or_else(|| eyre::eyre!("A ChatGPT model needs a sign-in"))?;
-                auth.model(
-                    grant,
-                    CHATGPT_DREAMER_MODEL,
-                    &format!("discord-guild-{guild_id}-dreamer"),
-                )
+            Self::Gemini { api_key } => Ok(gemini_model(api_key)),
+            Self::Subscription(auth) => {
+                let provider = auth.provider();
+                let grant = grant
+                    .ok_or_else(|| eyre::eyre!("A {} model needs a sign-in", provider.title()))?;
+                Ok(auth.model(grant, subscription_model(provider, job)))
             }
         }
     }
 
     fn context_window(&self) -> u64 {
         match self {
-            Self::Chatgpt(_) => CHATGPT_CONTEXT_WINDOW,
+            Self::Subscription(auth) => match auth.provider() {
+                Provider::Chatgpt => CHATGPT_CONTEXT_WINDOW,
+                Provider::Copilot => COPILOT_CONTEXT_WINDOW,
+            },
             Self::Gemini { .. } => GEMINI_CONTEXT_WINDOW,
         }
     }
 
-    /// Sent to the provider verbatim with every request of `role`'s session in the channel
-    fn session_params(&self, role: Role, channel_id: ChannelId) -> Option<serde_json::Value> {
-        // Routes each session's requests to where its long, stable prefix is cached
-        matches!(self, Self::Chatgpt(_))
-            .then(|| serde_json::json!({ "prompt_cache_key": session_key(role, channel_id) }))
+    /// Names the session `key` to ChatGPT, which routes its requests to where its long, stable
+    /// prefix is cached. It takes it as both `prompt_cache_key` and the `session-id` header;
+    /// without it, rig sends a new session ID with every request, which rarely hits the cache
+    /// past the instructions and tools. Copilot and Gemini route without one. Sets every
+    /// generation option, so call it first.
+    pub fn with_session(&self, agent_builder: AgentBuilder, key: String) -> AgentBuilder {
+        match self {
+            Self::Subscription(auth) if auth.provider() == Provider::Chatgpt => {
+                agent_builder.options(GenerationOptions::default().cache_key(key))
+            }
+            Self::Subscription(_) | Self::Gemini { .. } => agent_builder,
+        }
     }
 }
 
-pub fn gemini_model(api_key: &str) -> Result<ModelHandle, eyre::Error> {
-    let client = gemini::Client::new(api_key).context("Failed to create Gemini client")?;
-    Ok(ModelHandle::new(client.completion_model(GEMINI_MODEL)))
+pub fn gemini_model(api_key: &str) -> AgentModel {
+    Gemini::new(api_key).completion(GEMINI_MODEL).erase()
 }
 
 /// How a run may use its tools
@@ -139,7 +158,7 @@ pub enum RunFailure {
     /// It reached one of its limits. What it did stays in the session, so the next run can pick
     /// up from there.
     Stopped(RunLimit),
-    Failed(PromptError),
+    Failed(Box<PromptError>),
 }
 
 /// A limit that stops an agentic run
@@ -203,18 +222,20 @@ impl AgentHook for RunGuard {
         CompletionCallAction::continue_run()
     }
 
-    async fn on_completion_response(
-        &self,
-        _ctx: &HookContext,
-        event: CompletionResponseEvent<'_>,
-    ) -> ObservationAction {
-        // The ChatGPT wrapper reports an empty closing turn as zero usage
-        let tokens = event.usage.input_tokens + event.usage.output_tokens;
-        if tokens > 0 {
-            self.context_tokens.store(tokens, Ordering::Relaxed);
+    async fn on_outcome(&self, _ctx: &HookContext, event: OutcomeEvent<'_>) -> OutcomeAction {
+        if let Some(response) = event.completion() {
+            let tokens = call_tokens(&response.usage);
+            if tokens > 0 {
+                self.context_tokens.store(tokens, Ordering::Relaxed);
+            }
         }
-        ObservationAction::continue_run()
+        OutcomeAction::proceed()
     }
+}
+
+/// Tokens a model call held: its input and output. A call that reported no usage counts as 0.
+fn call_tokens(usage: &Usage) -> u64 {
+    usage.input_tokens.unwrap_or(0) + usage.output_tokens.unwrap_or(0)
 }
 
 /// Agent session for persistent multi-turn conversations
@@ -263,8 +284,7 @@ impl AgentSession {
         let request = self
             .agent
             .prompt(&prompt)
-            .history(self.conversation_history.clone())
-            .extended_details();
+            .history(self.conversation_history.clone());
         let context_tokens = Arc::new(AtomicU64::new(self.context_tokens));
         let result = match turn {
             Turn::Agentic => {
@@ -284,18 +304,20 @@ impl AgentSession {
             Ok(response) => response,
             Err(e) => {
                 let (limit, history) = match e {
-                    PromptError::MaxTurnsError { chat_history, .. } => {
-                        (RunLimit::Turns, *chat_history)
-                    }
-                    PromptError::PromptCancelled {
+                    PromptError::MaxTurns { chat_history, .. } => (RunLimit::Turns, chat_history),
+                    PromptError::Cancelled {
                         chat_history,
                         reason,
                     } if reason == STOPPED_AT_TIME => (RunLimit::Time, chat_history),
-                    PromptError::PromptCancelled {
+                    PromptError::Cancelled {
                         chat_history,
                         reason,
                     } if reason == STOPPED_AT_CONTEXT => (RunLimit::Context, chat_history),
-                    e => return Err(RunFailure::Failed(self.drop_failed_run(prompt, e))),
+                    e => {
+                        return Err(RunFailure::Failed(Box::new(
+                            self.drop_failed_run(prompt, e),
+                        )));
+                    }
                 };
                 tracing::warn!(?limit, "Agent run stopped at its limit");
                 // Everything before the stop: the history it started from, then the prompt and
@@ -311,12 +333,11 @@ impl AgentSession {
             }
         };
 
-        // The ChatGPT wrapper reports an empty closing turn as zero usage, so take the biggest
-        // call rather than the last
+        // An empty closing turn may report no usage, so take the biggest call rather than the last
         let context_tokens = response
             .completion_calls
             .iter()
-            .map(|call| call.usage.input_tokens + call.usage.output_tokens)
+            .map(|call| call_tokens(&call.usage))
             .max()
             .unwrap_or(0);
         if context_tokens > 0 {
@@ -331,14 +352,17 @@ impl AgentSession {
             "Agent run finished"
         );
 
-        // As of rig 0.39, `with_history` no longer folds the run's messages back into the
-        // passed history; the prompt, assistant replies, and tool calls/results come back
-        // only via `extended_details`. Persist them ourselves so the next Discord message
+        // The run's messages (the prompt, assistant replies, and tool calls/results) don't fold
+        // back into the history it was given. Persist them ourselves so the next Discord message
         // can see what the agent did, including the replies it already posted.
-        self.conversation_history
-            .extend(response.messages.unwrap_or_else(|| vec![prompt]));
+        let output = response.output();
+        if response.messages.is_empty() {
+            self.conversation_history.push(prompt);
+        } else {
+            self.conversation_history.extend(response.messages);
+        }
 
-        Ok(response.output)
+        Ok(output)
     }
 
     /// Puts `prompt` back for a retry after the run over it failed, and hands back the error
@@ -351,7 +375,8 @@ impl AgentSession {
             RigMessage::User { content } => !content
                 .iter()
                 .any(|c| matches!(c, rig::message::UserContent::ToolResult(_))),
-            RigMessage::Assistant { content, .. } => !content
+            RigMessage::Assistant(assistant) => !assistant
+                .content
                 .iter()
                 .any(|c| matches!(c, rig::message::AssistantContent::ToolCall(_))),
         });
@@ -419,7 +444,7 @@ pub fn create_responder_session(
     discord_ctx: &Context,
     channel_id: ChannelId,
     llm: &LlmBackend,
-    model: ModelHandle,
+    model: AgentModel,
     memories: Memories,
     backends: ToolBackends,
     seed: Seed,
@@ -476,10 +501,10 @@ pub fn create_responder_session(
         Memories::Keep(_) => format!("{SYSTEM_PROMPT}\n\n{MEMORY_PROMPT}\n\n{}", seed.notes),
     };
 
-    let mut agent_builder = AgentBuilder::from_model_handle(model).preamble(&preamble);
-    if let Some(params) = llm.session_params(Role::Responder, channel_id) {
-        agent_builder = agent_builder.additional_params(params);
-    }
+    let agent_builder = llm.with_session(
+        AgentBuilder::new(model).preamble(&preamble),
+        session_key(Role::Responder, channel_id),
+    );
     let mut agent_builder = agent_builder
         .tool(discord_tool)
         .tool(reaction_tool)
@@ -550,7 +575,7 @@ pub fn create_watcher_session(
     discord_ctx: &Context,
     channel_id: ChannelId,
     llm: &LlmBackend,
-    model: ModelHandle,
+    model: AgentModel,
     memory: Option<ChannelMemory>,
     seed: Seed,
 ) -> AgentSession {
@@ -559,10 +584,10 @@ pub fn create_watcher_session(
     } else {
         WATCHER_PROMPT.to_string()
     };
-    let mut agent_builder = AgentBuilder::from_model_handle(model).preamble(&preamble);
-    if let Some(params) = llm.session_params(Role::Watcher, channel_id) {
-        agent_builder = agent_builder.additional_params(params);
-    }
+    let agent_builder = llm.with_session(
+        AgentBuilder::new(model).preamble(&preamble),
+        session_key(Role::Watcher, channel_id),
+    );
     let ctx_arc = Arc::new(discord_ctx.clone());
     let bot_user_id = discord_ctx.cache.current_user().id;
     // Rereads the conversation behind the memories' `source_message_ids`
@@ -592,11 +617,11 @@ pub fn create_watcher_session(
 
 /// Registers the tools that record the channel's memories and search them
 fn with_memory_recording(
-    agent_builder: AgentBuilder<WithBuilderTools>,
+    agent_builder: AgentBuilder,
     ctx: Arc<Context>,
     memory: ChannelMemory,
     bot_user_id: UserId,
-) -> AgentBuilder<WithBuilderTools> {
+) -> AgentBuilder {
     agent_builder
         .tool(RecordObservationsTool {
             ctx,
@@ -609,7 +634,6 @@ fn with_memory_recording(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rig::completion::Usage;
     use rig_agent::test_utils::{MockAddTool, MockCompletionModel, MockTurn};
 
     const WINDOW: u64 = 1000;
@@ -617,9 +641,7 @@ mod tests {
     fn session(turns: impl IntoIterator<Item = MockTurn>) -> AgentSession {
         let model = MockCompletionModel::from_turns(turns);
         AgentSession {
-            agent: AgentBuilder::from_model_handle(ModelHandle::new(model))
-                .tool(MockAddTool)
-                .build(),
+            agent: AgentBuilder::new(model).tool(MockAddTool).build(),
             conversation_history: vec![RigMessage::user("before"), RigMessage::user("go")],
             context_tokens: 0,
             context_window: WINDOW,
@@ -661,15 +683,14 @@ mod tests {
 
     #[tokio::test]
     async fn a_run_stops_before_overflowing_its_context() {
-        let full = Usage {
-            input_tokens: WINDOW,
-            total_tokens: WINDOW,
-            ..Usage::new()
-        };
+        let full = Usage::new().input_tokens(WINDOW).total_tokens(WINDOW);
         let mut session = session([add(0).with_usage(full), add(1), add(2)]);
         let result = session.run(Turn::Agentic).await;
 
-        assert!(matches!(result, Err(RunFailure::Stopped(RunLimit::Context))));
+        assert!(matches!(
+            result,
+            Err(RunFailure::Stopped(RunLimit::Context))
+        ));
         // The first call's tool result made it in; the call that would overflow never went out
         assert_eq!(tool_results(&session.conversation_history), 1);
         assert!(session.needs_compaction());

@@ -1,5 +1,5 @@
 use crate::discord::tools::firecrawl::{Firecrawl, SearchHit};
-use rig::tool::PortableTool;
+use rig::tool::{Tool, ToolContext};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
@@ -33,7 +33,7 @@ pub struct WebSearchOutput {
 #[error("Web search error: {0}")]
 pub struct WebSearchError(String);
 
-impl PortableTool for WebSearchTool {
+impl Tool for WebSearchTool {
     const NAME: &'static str = "web_search";
     type Error = WebSearchError;
     type Args = WebSearchArgs;
@@ -61,7 +61,11 @@ impl PortableTool for WebSearchTool {
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let limit = args.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT);
         match self.firecrawl.search(&args.query, limit).await {
             Ok(results) => Ok(WebSearchOutput {

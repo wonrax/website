@@ -3,7 +3,7 @@
 use std::num::NonZeroU64;
 
 use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
-use rig::tool::PortableTool;
+use rig::tool::{Tool, ToolContext};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serenity::all::{ChannelId, UserId};
@@ -75,7 +75,7 @@ pub struct MemorySearchOutput {
 #[error("Memory search error: {0}")]
 pub struct MemorySearchError(String);
 
-impl PortableTool for MemorySearchTool {
+impl Tool for MemorySearchTool {
     const NAME: &'static str = "memory_search";
     type Error = MemorySearchError;
     type Args = MemorySearchArgs;
@@ -116,7 +116,11 @@ impl PortableTool for MemorySearchTool {
         })
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let limit = args.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT);
         let (about, before) = match self.filters(&args).await {
             Ok(filters) => filters,
