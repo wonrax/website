@@ -8,7 +8,7 @@ import type { RSSItem } from "@/shared/parseRssFeed";
 import type { HighlightItem } from "@/shared/parseHighlights";
 import ToasterProvider from "@/components/ToasterProvider";
 
-export function parseFeedServer(xml: string): RSSItem[] {
+function parseFeedServer(xml: string): RSSItem[] {
   const doc = new JSDOM(xml, {
     contentType: "text/xml",
   }).window.document;
@@ -22,7 +22,7 @@ export function parseFeedServer(xml: string): RSSItem[] {
 }
 
 let highlights: HighlightItem[] = [];
-let initialItems: RSSItem[] = [];
+let initialItems: RSSItem[];
 
 try {
   // Bootstrap from the public RSS feed so the page renders without the API.

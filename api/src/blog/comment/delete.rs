@@ -25,7 +25,7 @@ pub async fn delete_comment(
         .optional()?;
 
     if is_owner.is_none() {
-        return Err((
+        Err((
             "You are not the owner of this comment",
             StatusCode::FORBIDDEN,
         ))?;

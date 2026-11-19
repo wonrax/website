@@ -40,7 +40,7 @@
           inherit pkgs;
           hash =
             if pkgs.stdenv.hostPlatform.isLinux then
-              "sha256-8UgfgblhrvU6ISDZmdp7vKqE1eiRltATEF1AFzL3Yas="
+              "sha256-eH8L06UrRXMDZTF1RpCRkGhhGW4HP70jO+ETZH74Qu8="
             else
               "sha256-622mWEjkdbHwZC8hZe/6lHkekI/5evulFN+Zwdspc30=";
           npmLock = ./package-lock.json;

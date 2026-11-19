@@ -62,57 +62,55 @@ function excerpt(md: string, max = 180): string {
       <p class="narrow-shell__lede">short notes, half-formed</p>
     </header>
 
-    {
-      sorted.length === 0 ? (
-        <p class="thoughts__empty">nothing here yet.</p>
-      ) : (
-        <ul class="thoughts">
-          {sorted.map((t) => {
-            const slug = getPostSlug(t);
-            const isHidden = t.data.isDraft === true || t.data.hidden === true;
-            const tags = (t.data.tags ?? []).filter(Boolean);
-            return (
-              <li class:list={["thoughts__entry", { "is-hidden": isHidden }]}>
-                <article class="thoughts__row">
-                  <time
-                    class="ui-meta thoughts__date"
-                    datetime={t.data.published}
-                  >
-                    {dateLabel(t.data.published)}
-                  </time>
-                  <div class="thoughts__main">
-                    {t.data.title ? (
-                      <h2 class="thoughts__title">
-                        <a
-                          class="ui-link ui-link--title"
-                          href={`/thoughts/${slug}`}
-                        >
-                          {t.data.title}
-                        </a>
-                      </h2>
-                    ) : (
-                      <p class="thoughts__excerpt">
-                        <a
-                          class="ui-link ui-link--title"
-                          href={`/thoughts/${slug}`}
-                        >
-                          {excerpt(t.body ?? "")}
-                        </a>
-                      </p>
-                    )}
-                    {tags.length ? (
-                      <span class="ui-meta thoughts__tags">
-                        {tags.map((tag) => `#${tag}`).join(" ")}
-                      </span>
-                    ) : null}
-                  </div>
-                </article>
-              </li>
-            );
-          })}
-        </ul>
-      )
-    }
+    {sorted.length === 0 ? (
+      <p class="thoughts__empty">nothing here yet.</p>
+    ) : (
+      <ul class="thoughts">
+        {sorted.map((t) => {
+          const slug = getPostSlug(t);
+          const isHidden = t.data.isDraft === true || t.data.hidden === true;
+          const tags = (t.data.tags ?? []).filter(Boolean);
+          return (
+            <li class:list={["thoughts__entry", { "is-hidden": isHidden }]}>
+              <article class="thoughts__row">
+                <time
+                  class="ui-meta thoughts__date"
+                  datetime={t.data.published}
+                >
+                  {dateLabel(t.data.published)}
+                </time>
+                <div class="thoughts__main">
+                  {t.data.title ? (
+                    <h2 class="thoughts__title">
+                      <a
+                        class="ui-link ui-link--title"
+                        href={`/thoughts/${slug}`}
+                      >
+                        {t.data.title}
+                      </a>
+                    </h2>
+                  ) : (
+                    <p class="thoughts__excerpt">
+                      <a
+                        class="ui-link ui-link--title"
+                        href={`/thoughts/${slug}`}
+                      >
+                        {excerpt(t.body ?? "")}
+                      </a>
+                    </p>
+                  )}
+                  {tags.length ? (
+                    <span class="ui-meta thoughts__tags">
+                      {tags.map((tag) => `#${tag}`).join(" ")}
+                    </span>
+                  ) : null}
+                </div>
+              </article>
+            </li>
+          );
+        })}
+      </ul>
+    )}
 
     <div class="ui-meta thoughts__foot">
       {sorted.length} note{sorted.length === 1 ? "" : "s"}

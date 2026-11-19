@@ -68,80 +68,80 @@ if (
 }
 ---
 
-{
-  typeof src === "string" && shouldInferSize ? (
-    <Image
-      src={src}
-      alt={alt}
-      quality={quality}
-      format={format}
-      sizes={sizes}
-      widths={widths}
-      fit={fit}
-      position={position}
-      priority={priority}
-      inferSize
-      layout={layout}
-      loading={loading}
-      decoding={decoding}
-      {...rest}
-    />
-  ) : typeof src === "string" ? (
-    <Image
-      src={src}
-      alt={alt}
-      width={parsedWidth!}
-      height={parsedHeight!}
-      quality={quality}
-      format={format}
-      sizes={sizes}
-      widths={widths}
-      fit={fit}
-      position={position}
-      priority={priority}
-      layout={layout}
-      loading={loading}
-      decoding={decoding}
-      {...rest}
-    />
-  ) : parsedWidth != null && parsedHeight != null ? (
-    <Image
-      src={src}
-      alt={alt}
-      width={parsedWidth}
-      height={parsedHeight}
-      quality={quality}
-      format={format}
-      sizes={sizes}
-      widths={widths}
-      fit={fit}
-      position={position}
-      priority={priority}
-      layout={layout}
-      loading={loading}
-      decoding={decoding}
-      {...rest}
-    />
-  ) : (
-    <Image
-      src={src}
-      alt={alt}
-      quality={quality}
-      format={format}
-      sizes={sizes}
-      widths={widths}
-      fit={fit}
-      position={position}
-      priority={priority}
-      layout={layout}
-      loading={loading}
-      decoding={decoding}
-      {...rest}
-    />
-  )
-}
+{typeof src === "string" && shouldInferSize ? (
+  <Image
+    src={src}
+    alt={alt}
+    quality={quality}
+    format={format}
+    sizes={sizes}
+    widths={widths}
+    fit={fit}
+    position={position}
+    priority={priority}
+    inferSize
+    layout={layout}
+    loading={loading}
+    decoding={decoding}
+    {...rest}
+  />
+) : typeof src === "string" ? (
+  <Image
+    src={src}
+    alt={alt}
+    width={parsedWidth!}
+    height={parsedHeight!}
+    quality={quality}
+    format={format}
+    sizes={sizes}
+    widths={widths}
+    fit={fit}
+    position={position}
+    priority={priority}
+    layout={layout}
+    loading={loading}
+    decoding={decoding}
+    {...rest}
+  />
+) : parsedWidth != null && parsedHeight != null ? (
+  <Image
+    src={src}
+    alt={alt}
+    width={parsedWidth}
+    height={parsedHeight}
+    quality={quality}
+    format={format}
+    sizes={sizes}
+    widths={widths}
+    fit={fit}
+    position={position}
+    priority={priority}
+    layout={layout}
+    loading={loading}
+    decoding={decoding}
+    {...rest}
+  />
+) : (
+  <Image
+    src={src}
+    alt={alt}
+    quality={quality}
+    format={format}
+    sizes={sizes}
+    widths={widths}
+    fit={fit}
+    position={position}
+    priority={priority}
+    layout={layout}
+    loading={loading}
+    decoding={decoding}
+    {...rest}
+  />
+)}
 <div class="ui-meta image-caption">
-  <div class="image-caption__text"><slot /></div>
+  <div class="image-caption__text">
+    <slot />
+  </div>
   <a
     class="image-caption__download"
     href={originalSrc}

@@ -11,15 +11,13 @@ const { heading, depth } = Astro.props;
 
 <>
   <a href={"#" + heading.slug}>{heading.text}</a>
-  {
-    heading.children.length ? (
-      <ul class={"level-" + depth}>
-        {heading.children.map((childHeading) => (
-          <li>
-            <Astro.self heading={childHeading} depth={depth + 1} />
-          </li>
-        ))}
-      </ul>
-    ) : null
-  }
+  {heading.children.length ? (
+    <ul class={"level-" + depth}>
+      {heading.children.map((childHeading) => (
+        <li>
+          <Astro.self heading={childHeading} depth={depth + 1} />
+        </li>
+      ))}
+    </ul>
+  ) : null}
 </>

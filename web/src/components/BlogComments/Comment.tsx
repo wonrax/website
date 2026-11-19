@@ -109,8 +109,6 @@ export default function CommentComponent(props: {
                         credentials: "include",
                       }
                     )
-                      /* eslint-disable-next-line solid/reactivity --
-                       * Not used for reactivity, onDelete won't change */
                       .then(async (res) => {
                         if (!res.ok) {
                           const err = await res.error();

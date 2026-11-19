@@ -40,7 +40,7 @@ const ogImageUrl =
 
 const title = seoProps.title;
 
-let commitHash: string | null = null;
+let commitHash: string | null;
 
 try {
   commitHash = childProcess
@@ -105,43 +105,41 @@ try {
          glyphs paint in the fallback serif and reflow once it loads late.
          Cascadia (mono chrome) is preloaded on every route. Italic Inter is
          included off-route because `<em>` shows up in body copy. -->
-    {
-      isThoughtsRoute ? (
-        <>
-          <link
-            rel="preload"
-            as="font"
-            type="font/woff2"
-            href={gowunBatangLatin}
-            crossorigin="anonymous"
-          />
-          <link
-            rel="preload"
-            as="font"
-            type="font/woff2"
-            href={gowunBatangVietnamese}
-            crossorigin="anonymous"
-          />
-        </>
-      ) : (
-        <>
-          <link
-            rel="preload"
-            as="font"
-            type="font/woff2"
-            href={interLatin}
-            crossorigin="anonymous"
-          />
-          <link
-            rel="preload"
-            as="font"
-            type="font/woff2"
-            href={interLatinItalic}
-            crossorigin="anonymous"
-          />
-        </>
-      )
-    }
+    {isThoughtsRoute ? (
+      <>
+        <link
+          rel="preload"
+          as="font"
+          type="font/woff2"
+          href={gowunBatangLatin}
+          crossorigin="anonymous"
+        />
+        <link
+          rel="preload"
+          as="font"
+          type="font/woff2"
+          href={gowunBatangVietnamese}
+          crossorigin="anonymous"
+        />
+      </>
+    ) : (
+      <>
+        <link
+          rel="preload"
+          as="font"
+          type="font/woff2"
+          href={interLatin}
+          crossorigin="anonymous"
+        />
+        <link
+          rel="preload"
+          as="font"
+          type="font/woff2"
+          href={interLatinItalic}
+          crossorigin="anonymous"
+        />
+      </>
+    )}
     <link
       rel="preload"
       as="font"
@@ -186,8 +184,7 @@ try {
             const flagKey = "global-banner";
             if (posthog.isFeatureEnabled(flagKey)) {
               const payload = posthog.getFeatureFlagResult(flagKey)?.payload as
-                | BannerPayload
-                | undefined;
+                BannerPayload | undefined;
               if (payload && payload.content && payload.type) {
                 // Store banner data on window for component to access
                 window.__bannerData = payload;

@@ -28,11 +28,11 @@ pub async fn patch_comment(
     comment.content = comment.content.trim().to_string();
 
     if comment.content.is_empty() {
-        return Err(("Content cannot be empty", StatusCode::BAD_REQUEST))?;
+        Err(("Content cannot be empty", StatusCode::BAD_REQUEST))?;
     }
 
     if comment.content.len() > 5000 {
-        return Err((
+        Err((
             "Content too long (max 5000 characters)",
             StatusCode::BAD_REQUEST,
         ))?;
@@ -49,7 +49,7 @@ pub async fn patch_comment(
         .optional()?;
 
     if is_owner.is_none() {
-        return Err((
+        Err((
             "You are not the owner of this comment",
             StatusCode::FORBIDDEN,
         ))?;

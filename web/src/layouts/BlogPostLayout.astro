@@ -46,99 +46,87 @@ const series = Astro.props.series;
 <BlogRouteLayout
   seoProps={{ title: post.title, description: post.description }}
 >
-  {
-    headings.length ? (
-      <aside class="post-toc" aria-label="table of contents">
-        <TableOfContents headings={headings} />
-        <button
-          id="go-to-top"
-          type="button"
-          class="ui-icon-button ui-icon-button--sm post-toc__top"
-          aria-label="Go to top of the page"
-        >
-          <ArrowUp size={16} />
-        </button>
-      </aside>
-    ) : null
-  }
+  {headings.length ? (
+    <aside class="post-toc" aria-label="table of contents">
+      <TableOfContents headings={headings} />
+      <button
+        id="go-to-top"
+        type="button"
+        class="ui-icon-button ui-icon-button--sm post-toc__top"
+        aria-label="Go to top of the page"
+      >
+        <ArrowUp size={16} />
+      </button>
+    </aside>
+  ) : null}
   <div class="post-header">
     <h1>{post.title}</h1>
     <div class="ui-meta post-meta">
       <span class="post-meta__date">
-        {
-          new Date(post.published).toLocaleDateString("en-UK", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          })
-        }
+        {new Date(post.published).toLocaleDateString("en-UK", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })}
       </span>
-      {
-        post.tags && post.tags.length > 0 ? (
-          <div class="post-meta__tags">
-            {post.tags.map((tag, i) => (
-              <>
-                {i > 0 && <span class="post-meta__sep">·</span>}
-                <a href={`/blog/tag/${tag}`} class="ui-link">
-                  #{tag}
-                </a>
-              </>
-            ))}
-          </div>
-        ) : null
-      }
-    </div>
-    {
-      series ? (
-        <div class="series-callout">
-          <p class="ui-kicker series-position">
-            Series / Part {series.position} of {series.total}
-          </p>
-          <p class="series-title">{series.title}</p>
-          {series.description ? (
-            <p class="series-description">{series.description}</p>
-          ) : null}
-          <ol class="series-list">
-            {series.posts.map((entry, index) => {
-              const isCurrent = index === series.position - 1;
-              return (
-                <li class={isCurrent ? "is-current" : ""}>
-                  {isCurrent ? (
-                    <span aria-current="page">{entry.title}</span>
-                  ) : (
-                    <a
-                      class="ui-link ui-link--title"
-                      href={`/blog/${entry.slug}`}
-                    >
-                      {entry.title}
-                    </a>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
+      {post.tags && post.tags.length > 0 ? (
+        <div class="post-meta__tags">
+          {post.tags.map((tag, i) => (
+            <>
+              {i > 0 && <span class="post-meta__sep">·</span>}
+              <a href={`/blog/tag/${tag}`} class="ui-link">
+                #{tag}
+              </a>
+            </>
+          ))}
         </div>
-      ) : null
-    }
-  </div>
-  {
-    post.isDraft ? (
-      <div class="feature-callout">
-        <warning class="callout callout-warning">
-          <>
-            <div class="callout-indicator">
-              <div class="callout-title">Warning</div>
-            </div>
-            <div class="callout-content">
-              <p>
-                This post is a draft and is not yet ready for public viewing.
-              </p>
-            </div>
-          </>
-        </warning>
+      ) : null}
+    </div>
+    {series ? (
+      <div class="series-callout">
+        <p class="ui-kicker series-position">
+          Series / Part {series.position} of {series.total}
+        </p>
+        <p class="series-title">{series.title}</p>
+        {series.description ? (
+          <p class="series-description">{series.description}</p>
+        ) : null}
+        <ol class="series-list">
+          {series.posts.map((entry, index) => {
+            const isCurrent = index === series.position - 1;
+            return (
+              <li class={isCurrent ? "is-current" : ""}>
+                {isCurrent ? (
+                  <span aria-current="page">{entry.title}</span>
+                ) : (
+                  <a
+                    class="ui-link ui-link--title"
+                    href={`/blog/${entry.slug}`}
+                  >
+                    {entry.title}
+                  </a>
+                )}
+              </li>
+            );
+          })}
+        </ol>
       </div>
-    ) : null
-  }
+    ) : null}
+  </div>
+  {post.isDraft ? (
+    <div class="feature-callout">
+      <warning class="callout callout-warning">
+        <>
+          <div class="callout-indicator">
+            <div class="callout-title">Warning</div>
+          </div>
+          <div class="callout-content">
+            <p>This post is a draft and is not yet ready for public viewing.</p>
+          </div>
+        </>
+      </warning>
+    </div>
+  ) : null}
   <slot />
   <CommentSection client:only="solid-js" />
 </BlogRouteLayout>

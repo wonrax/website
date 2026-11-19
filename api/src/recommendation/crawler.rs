@@ -353,16 +353,16 @@ async fn get_robots_info(ctx: &App, url: &url::Url) -> Result<Robots, eyre::Erro
         .await;
 
     let base = url::Url::parse(&format!("{}://{}/", url.scheme(), host))?;
-    let robots_url = robotxt::create_url(&base).map_err(|err| eyre!(err))?;
+    let robots_url = robotxt::robots_url(&base).map_err(|err| eyre!(err))?;
     let body = match ctx.http.get(robots_url).send().await {
         Ok(resp) => resp.text().await.unwrap_or_default(),
         Err(_) => String::new(),
     };
 
     let robots = if body.is_empty() {
-        Robots::from_always(true, ROBOTS_USER_AGENT)
+        Robots::allow_all()
     } else {
-        Robots::from_bytes(body.as_bytes(), ROBOTS_USER_AGENT)
+        Robots::parse(body.as_bytes(), ROBOTS_USER_AGENT)
     };
 
     // FIXME: use retainer cache with expiration
@@ -381,7 +381,7 @@ async fn fetch_markdown(
     let domain = url.host_str().ok_or_else(|| eyre!("missing host"))?;
 
     let robots = get_robots_info(ctx, url).await?;
-    if !robots.is_absolute_allowed(url) {
+    if !robots.is_url_allowed(url) {
         return Err(eyre!("robots.txt disallows crawling this URL"));
     }
 

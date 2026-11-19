@@ -1,6 +1,8 @@
 import type { Element } from "hast";
 import { h } from "hastscript";
 import type { Root } from "mdast";
+// Registers `hName`/`hProperties` on mdast `Data`
+import type {} from "mdast-util-to-hast";
 import type { Data, Node } from "unist";
 import { visit } from "unist-util-visit";
 

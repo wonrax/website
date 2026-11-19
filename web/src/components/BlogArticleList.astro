@@ -44,88 +44,82 @@ function formatDate(raw: string): { year: number; short: string } {
           class:list={[
             "ui-button ui-button--xs ui-button--toggle",
             { "is-active": !tag },
-          ]}>all</a
+          ]}
         >
-        {
-          allTags.map((t) => (
-            <a
-              href={`/blog/tag/${t}`}
-              class:list={[
-                "ui-button ui-button--xs ui-button--toggle",
-                { "is-active": tag === t },
-              ]}
-            >
-              #{t}
-            </a>
-          ))
-        }
+          all
+        </a>
+        {allTags.map((t) => (
+          <a
+            href={`/blog/tag/${t}`}
+            class:list={[
+              "ui-button ui-button--xs ui-button--toggle",
+              { "is-active": tag === t },
+            ]}
+          >
+            #{t}
+          </a>
+        ))}
       </div>
     </div>
   </div>
 
-  {
-    sortedPosts.length === 0 ? (
-      <p class="blog-list__empty">
-        {tag
-          ? `No posts tagged #${tag} yet.`
-          : "No posts yet — check back soon."}
-      </p>
-    ) : (
-      <ul class="blog-list__rows">
-        {(() => {
-          let lastYear: number | null = null;
-          return sortedPosts.map((post) => {
-            const { year, short } = formatDate(post.data.published);
-            const isFirstInYear = year !== lastYear;
-            lastYear = year;
-            const isHidden =
-              post.data.isDraft === true || post.data.hidden === true;
-            return (
-              <>
-                {isFirstInYear && (
-                  <li class="blog-list__year-mark" aria-hidden="true">
-                    <span class="blog-list__year-label">{year}</span>
-                  </li>
-                )}
-                <li
-                  class:list={["blog-list__entry", { "is-hidden": isHidden }]}
-                >
-                  <article class="blog-list__row">
-                    <span class="blog-list__date">{short}</span>
-                    <h2 class="blog-list__title">
-                      <a
-                        class="ui-link ui-link--title"
-                        href={`/blog/${getPostSlug(post)}`}
-                      >
-                        {post.data.title}
-                      </a>
-                    </h2>
-                    <p class="blog-list__excerpt">{post.data.description}</p>
-                    <span class="ui-meta blog-list__meta">
-                      {post.data.tags
-                        .filter((t): t is string => Boolean(t))
-                        .map((t) => `#${t}`)
-                        .join(" ")}
-                    </span>
-                  </article>
+  {sortedPosts.length === 0 ? (
+    <p class="blog-list__empty">
+      {tag ? `No posts tagged #${tag} yet.` : "No posts yet — check back soon."}
+    </p>
+  ) : (
+    <ul class="blog-list__rows">
+      {(() => {
+        let lastYear: number | null = null;
+        return sortedPosts.map((post) => {
+          const { year, short } = formatDate(post.data.published);
+          const isFirstInYear = year !== lastYear;
+          lastYear = year;
+          const isHidden =
+            post.data.isDraft === true || post.data.hidden === true;
+          return (
+            <>
+              {isFirstInYear && (
+                <li class="blog-list__year-mark" aria-hidden="true">
+                  <span class="blog-list__year-label">{year}</span>
                 </li>
-              </>
-            );
-          });
-        })()}
-      </ul>
-    )
-  }
+              )}
+              <li class:list={["blog-list__entry", { "is-hidden": isHidden }]}>
+                <article class="blog-list__row">
+                  <span class="blog-list__date">{short}</span>
+                  <h2 class="blog-list__title">
+                    <a
+                      class="ui-link ui-link--title"
+                      href={`/blog/${getPostSlug(post)}`}
+                    >
+                      {post.data.title}
+                    </a>
+                  </h2>
+                  <p class="blog-list__excerpt">{post.data.description}</p>
+                  <span class="ui-meta blog-list__meta">
+                    {post.data.tags
+                      .filter((t): t is string => Boolean(t))
+                      .map((t) => `#${t}`)
+                      .join(" ")}
+                  </span>
+                </article>
+              </li>
+            </>
+          );
+        });
+      })()}
+    </ul>
+  )}
 
   <div class="ui-meta blog-list__foot">
-    <span>{sortedPosts.length} of {allPosts.length}</span>
-    {
-      tag && (
-        <a class="ui-link" href="/blog">
-          ← all posts
-        </a>
-      )
-    }
+    <span>
+      {sortedPosts.length} of {allPosts.length}
+    </span>
+    {tag && (
+      <a class="ui-link" href="/blog">
+        ← all posts
+      </a>
+    )}
   </div>
 </div>
 

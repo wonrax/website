@@ -21,21 +21,16 @@ const items: { key: ActiveKey; num: string; label: string; href: string }[] = [
   aria-label="primary"
   data-active={active}
 >
-  {
-    items.map((item) => (
-      <a
-        href={item.href}
-        class:list={[
-          "numbered-nav__item",
-          { "is-active": active === item.key },
-        ]}
-        aria-current={active === item.key ? "page" : undefined}
-      >
-        <span class="numbered-nav__num">{item.num}</span>
-        <span class="numbered-nav__label">{item.label}</span>
-      </a>
-    ))
-  }
+  {items.map((item) => (
+    <a
+      href={item.href}
+      class:list={["numbered-nav__item", { "is-active": active === item.key }]}
+      aria-current={active === item.key ? "page" : undefined}
+    >
+      <span class="numbered-nav__num">{item.num}</span>
+      <span class="numbered-nav__label">{item.label}</span>
+    </a>
+  ))}
 </nav>
 
 <style lang="scss" is:global>

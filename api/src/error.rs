@@ -14,7 +14,6 @@ pub struct AppError {
     pub error: Inner,
     reason: Option<serde_json::Value>,
     backtrace: Option<Backtrace>,
-    context: Option<HashMap<String, serde_json::Value>>,
 }
 
 /// The error type for internal errors, should be used for reporting and
@@ -40,7 +39,6 @@ impl From<Error> for AppError {
         AppError {
             error: Inner::ServerError(value),
             backtrace: Some(create_backtrace()),
-            context: None,
             reason: None,
         }
     }
@@ -50,10 +48,9 @@ impl std::fmt::Display for AppError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{} (reason: {}, context available: {})",
+            "{} (reason: {})",
             self.error,
             self.reason.as_ref().unwrap_or(&Value::Null),
-            self.context.is_some()
         )
     }
 }
@@ -73,7 +70,6 @@ impl From<diesel::result::Error> for AppError {
             error: Inner::ServerError(eyre!(e)),
             reason: None,
             backtrace: Some(create_backtrace()),
-            context: None,
         }
     }
 }
@@ -84,7 +80,6 @@ impl From<&'static str> for AppError {
             error: Inner::ServerError(eyre!(e)),
             reason: None,
             backtrace: Some(create_backtrace()),
-            context: None,
         }
     }
 }
@@ -95,7 +90,6 @@ impl From<String> for AppError {
             error: Inner::ServerError(eyre!(e)),
             reason: None,
             backtrace: Some(create_backtrace()),
-            context: None,
         }
     }
 }
@@ -125,7 +119,6 @@ impl From<(&'static str, StatusCode)> for AppError {
             )),
             reason: None,
             backtrace: Some(create_backtrace()),
-            context: None,
         }
     }
 }
@@ -138,7 +131,6 @@ impl From<(String, StatusCode)> for AppError {
             )),
             reason: None,
             backtrace: Some(create_backtrace()),
-            context: None,
         }
     }
 }
@@ -153,7 +145,6 @@ impl From<(ErrorCode, &'static str, StatusCode)> for AppError {
             )),
             reason: None,
             backtrace: Some(create_backtrace()),
-            context: None,
         }
     }
 }
@@ -246,7 +237,6 @@ where
             error: Inner::ApiError(Box::new(value)),
             reason: None,
             backtrace: Some(create_backtrace()),
-            context: None,
         }
     }
 }
@@ -299,7 +289,6 @@ impl IntoResponse for AppError {
                 debug!(
                     api_error = %e,
                     backtrace = %self.backtrace.clone().unwrap_or_default(),
-                    context = ?self.context,
                     "api error",
                 );
                 e.into_response()
@@ -308,7 +297,6 @@ impl IntoResponse for AppError {
                 tracing::error!(
                     error = ?e,
                     backtrace = %self.backtrace.clone().unwrap_or_default(),
-                    context = ?self.context, // TODO turn this into tracing::Value to prettify the logs
                     "Internal server error"
                 );
                 (
@@ -322,7 +310,7 @@ impl IntoResponse for AppError {
                                   Please try again later."
                                 .into(),
                             reason: self.reason,
-                            context: self.context,
+                            context: None,
                             debug_info: Some(HashMap::from([
                                 (
                                     "backtrace",
@@ -339,7 +327,7 @@ impl IntoResponse for AppError {
                                   Please try again later."
                                 .into(),
                             reason: self.reason,
-                            context: self.context,
+                            context: None,
                             debug_info: None,
                         },
                     ),
@@ -356,7 +344,6 @@ impl From<reqwest::Error> for AppError {
             error: Inner::ServerError(eyre!(value)),
             reason: None,
             backtrace: Some(create_backtrace()),
-            context: None,
         }
     }
 }
@@ -367,7 +354,6 @@ impl From<diesel_async::pooled_connection::deadpool::PoolError> for AppError {
             error: Inner::ServerError(eyre!(e)),
             reason: None,
             backtrace: Some(create_backtrace()),
-            context: None,
         }
     }
 }

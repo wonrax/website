@@ -48,17 +48,17 @@ const dateLabel = new Date(t.published).toLocaleDateString("en-UK", {
     <NumberedNav active="thoughts" class="narrow-shell__nav" />
     <article>
       <header class="thought__header">
-        <a class="thought__back" href="/thoughts">← thoughts</a>
+        <a class="thought__back" href="/thoughts">
+          ← thoughts
+        </a>
         <time class="ui-meta thought__date" datetime={t.published}>
           {dateLabel}
         </time>
         {t.title ? <h1 class="thought__title">{t.title}</h1> : null}
       </header>
-      {
-        t.isDraft ? (
-          <p class="ui-meta thought__draft">▲ draft · not yet public</p>
-        ) : null
-      }
+      {t.isDraft ? (
+        <p class="ui-meta thought__draft">▲ draft · not yet public</p>
+      ) : null}
       <div class="blog-container thought__body">
         <slot />
       </div>

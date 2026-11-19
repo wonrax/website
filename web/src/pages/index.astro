@@ -76,9 +76,9 @@ const projects: Project[] = [
       <h1 class="home__name">wonrax</h1>
       <p class="home__bio">
         I design everything from software systems to the user interface. I code
-        religiously, take photos and <span class="home__bio-muted"
-          >practice witchcraft</span
-        >. I love open-source.
+        religiously, take photos and{" "}
+        <span class="home__bio-muted">practice witchcraft</span>. I love
+        open-source.
       </p>
       <ul class="ui-meta home__socials">
         <li>
@@ -86,18 +86,24 @@ const projects: Project[] = [
             class="ui-link"
             href="https://github.com/wonrax"
             target="_blank"
-            rel="noopener noreferrer">github</a
+            rel="noopener noreferrer"
           >
+            github
+          </a>
         </li>
         <li>
           <a
             class="ui-link"
             href="https://www.instagram.com/wnrax/"
             target="_blank"
-            rel="noopener noreferrer">photography</a
+            rel="noopener noreferrer"
           >
+            photography
+          </a>
         </li>
-        <li>email: <strong>hi</strong> at <strong>this domain</strong></li>
+        <li>
+          email: <strong>hi</strong> at <strong>this domain</strong>
+        </li>
       </ul>
     </header>
 
@@ -107,40 +113,38 @@ const projects: Project[] = [
         <span class="home__section-count">{projects.length} live</span>
       </header>
       <ul class="home__project-list">
-        {
-          projects.map((p) => (
-            <li class="home__project">
-              <div class="home__project-head">
-                <h2 class="home__project-name">
-                  <a
-                    class="ui-link ui-link--title"
-                    href={p.linkHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {p.name}
-                  </a>
-                </h2>
-                <p class="ui-meta home__project-role">{p.role}</p>
-              </div>
-              <p class="home__project-desc">{p.description}</p>
-              <p class="ui-meta home__project-meta">
-                <span>{p.meta}</span>
-                <span class="home__project-sep" aria-hidden="true">
-                  ·
-                </span>
+        {projects.map((p) => (
+          <li class="home__project">
+            <div class="home__project-head">
+              <h2 class="home__project-name">
                 <a
-                  class="ui-link ui-link--muted"
+                  class="ui-link ui-link--title"
                   href={p.linkHref}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  {p.link}
+                  {p.name}
                 </a>
-              </p>
-            </li>
-          ))
-        }
+              </h2>
+              <p class="ui-meta home__project-role">{p.role}</p>
+            </div>
+            <p class="home__project-desc">{p.description}</p>
+            <p class="ui-meta home__project-meta">
+              <span>{p.meta}</span>
+              <span class="home__project-sep" aria-hidden="true">
+                ·
+              </span>
+              <a
+                class="ui-link ui-link--muted"
+                href={p.linkHref}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {p.link}
+              </a>
+            </p>
+          </li>
+        ))}
       </ul>
     </section>
 
@@ -153,27 +157,25 @@ const projects: Project[] = [
           </a>
         </header>
         <ul class="home__recent-list">
-          {
-            recentPosts.length === 0 ? (
-              <li class="home__recent-row home__recent-row--empty">
-                <span class="home__recent-empty">no posts yet.</span>
+          {recentPosts.length === 0 ? (
+            <li class="home__recent-row home__recent-row--empty">
+              <span class="home__recent-empty">no posts yet.</span>
+            </li>
+          ) : (
+            recentPosts.map((post) => (
+              <li class="home__recent-row">
+                <span class="ui-meta home__recent-date">
+                  {formatPostDate(post.data.published)}
+                </span>
+                <a
+                  class="ui-link ui-link--title"
+                  href={`/blog/${getPostSlug(post)}`}
+                >
+                  {post.data.title}
+                </a>
               </li>
-            ) : (
-              recentPosts.map((post) => (
-                <li class="home__recent-row">
-                  <span class="ui-meta home__recent-date">
-                    {formatPostDate(post.data.published)}
-                  </span>
-                  <a
-                    class="ui-link ui-link--title"
-                    href={`/blog/${getPostSlug(post)}`}
-                  >
-                    {post.data.title}
-                  </a>
-                </li>
-              ))
-            )
-          }
+            ))
+          )}
         </ul>
       </div>
       <div class="home__secondary-col">
